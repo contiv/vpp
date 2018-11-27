@@ -32,6 +32,7 @@ import (
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/nodesync/vppnode"
 	"github.com/gogo/protobuf/proto"
+	"sync"
 )
 
 const (
@@ -48,10 +49,11 @@ const (
 // address(es) - information that is not known to Kubernetes.
 type NodeSync struct {
 	Deps
-	dbIsConnected bool
 
-	nodes    Nodes // node name -> node info
-	thisNode *Node // used for quick access to this node info
+	nodes Nodes // node name -> node info
+
+	thisNode       *Node      // used for quick access to this node info
+	thisNodeIDLock sync.Mutex // lock only protects thisNode pointer and thisNode.ID
 }
 
 // Deps lists dependencies of NodeSync.
@@ -99,9 +101,13 @@ func (ns *NodeSync) Init() error {
 }
 
 // GetNodeID returns the integer ID allocated for this node.
-// The method should be called only from within the main event loop (not thread
-// safe) and not before the startup resync.
+// The method is thread-safe, but should not be called before the startup resync.
 func (ns *NodeSync) GetNodeID() uint32 {
+	ns.thisNodeIDLock.Lock()
+	defer ns.thisNodeIDLock.Unlock()
+	if ns.thisNode == nil {
+		return 0
+	}
 	return ns.thisNode.ID
 }
 
@@ -194,8 +200,9 @@ func (ns *NodeSync) HandlesEvent(event controller.Event) bool {
 
 // Resync during startup phase allocates or retrieves already allocated ID for this node.
 // In the runtime, only status of other nodes is re-synchronized.
-func (ns *NodeSync) Resync(event controller.Event, txn controller.ResyncOperations,
-	kubeStateData controller.KubeStateData, resyncCount int) error {
+func (ns *NodeSync) Resync(event controller.Event, kubeStateData controller.KubeStateData,
+	resyncCount int, _ controller.ResyncOperations) error {
+
 	var err error
 
 	// refresh the internal view of node states
@@ -228,6 +235,9 @@ func (ns *NodeSync) Resync(event controller.Event, txn controller.ResyncOperatio
 		// ID not yet known (update may come later)
 		ns.nodes[nodeName] = &Node{Name: nodeName}
 	}
+
+	ns.thisNodeIDLock.Lock()
+	defer ns.thisNodeIDLock.Unlock()
 	ns.thisNode = ns.nodes[nodeName]
 
 	if ns.thisNode.ID == 0 {
@@ -282,21 +292,18 @@ func (ns *NodeSync) nodeVPPAddresses(vppNode *vppnode.VppNode) (addresses []*IPW
 	return addresses
 }
 
-// onDBConnect is triggered once connection to DB is available.
-func (ns *NodeSync) onDBConnect() error {
-	ns.dbIsConnected = true
-	return nil
-}
-
 // allocateID tries to allocate ID for this node
 func (ns *NodeSync) allocateID() error {
 	if ns.DB == nil {
 		return errWithoutDB
 	}
 
-	ns.dbIsConnected = false
-	ns.DB.OnConnect(ns.onDBConnect)
-	if !ns.dbIsConnected {
+	dbIsConnected := false
+	ns.DB.OnConnect(func() error {
+		dbIsConnected = true
+		return nil
+	})
+	if !dbIsConnected {
 		return errNoConnection
 	}
 
@@ -371,40 +378,35 @@ func (ns *NodeSync) Update(event controller.Event, txn controller.UpdateOperatio
 	switch kubeStateChange.Resource {
 	case nodemodel.NodeKeyword:
 		// update of node management IP addresses
+		var prev *Node
 		mgmtAddrs := ns.nodeMgmtAddresses(kubeStateChange.NewValue)
 		nodeName := strings.TrimPrefix(kubeStateChange.Key, nodemodel.KeyPrefix())
-		if nodeName == ns.ServiceLabel.GetAgentLabel() {
-			// this node
-			ns.thisNode.MgmtIPAddresses = mgmtAddrs
-		} else {
-			// other node
-			var prev *Node
-			node, hasOtherNode := ns.nodes[nodeName]
-			if !hasOtherNode {
-				if len(mgmtAddrs) == 0 {
-					// no data for the node
-					break
-				}
-				// ID not yet known (update may come later)
-				node = &Node{Name: nodeName}
-				ns.nodes[nodeName] = node
-			} else {
-				prevCopy := *node
-				prev = &prevCopy
-				if node.ID == 0 && len(mgmtAddrs) == 0 {
-					// node left the cluster
-					node = nil
-					delete(ns.nodes, nodeName)
-				}
+		node, hasOtherNode := ns.nodes[nodeName]
+		if !hasOtherNode {
+			if len(mgmtAddrs) == 0 {
+				// no data for the node
+				break
 			}
-			if node != nil {
-				node.MgmtIPAddresses = mgmtAddrs
-				if node.ID != 0 {
-					ns.EventLoop.PushEvent(&OtherNodeUpdate{
-						PrevState: prev,
-						NewState:  node,
-					})
-				}
+			// ID not yet known (update may come later)
+			node = &Node{Name: nodeName}
+			ns.nodes[nodeName] = node
+		} else {
+			prevCopy := *node
+			prev = &prevCopy
+			if node.ID == 0 && len(mgmtAddrs) == 0 {
+				// node left the cluster
+				node = nil
+				delete(ns.nodes, nodeName)
+			}
+		}
+		if node != nil {
+			node.MgmtIPAddresses = mgmtAddrs
+			if node.ID != 0 {
+				ns.EventLoop.PushEvent(&NodeUpdate{
+					NodeName:  nodeName,
+					PrevState: prev,
+					NewState:  node,
+				})
 			}
 		}
 
@@ -442,7 +444,8 @@ func (ns *NodeSync) Update(event controller.Event, txn controller.UpdateOperatio
 			node.ID = vppNode.Id
 			node.VppIPAddresses = ns.nodeVPPAddresses(vppNode)
 		}
-		ns.EventLoop.PushEvent(&OtherNodeUpdate{
+		ns.EventLoop.PushEvent(&NodeUpdate{
+			NodeName:  nodeName,
 			PrevState: prev,
 			NewState:  node,
 		})

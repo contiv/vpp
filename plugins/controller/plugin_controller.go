@@ -536,7 +536,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 				changes[handler.String()] = change
 			}
 		} else {
-			err = handler.Resync(event, txn, c.kubeStateData, c.resyncCount)
+			err = handler.Resync(event, c.kubeStateData, c.resyncCount, txn)
 		}
 		if err != nil {
 			errStr = err.Error()

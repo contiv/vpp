@@ -220,6 +220,7 @@ type remoteCNIserver struct {
 // remoteCNIserverArgs groups input arguments of the Remote CNI Server.
 type remoteCNIserverArgs struct {
 	logging.Logger
+	eventLoop controller.EventLoop
 
 	// node synchronization
 	nodeSync nodesync.API
@@ -341,7 +342,9 @@ func (s *remoteCNIserver) String() string {
 /********************************* Events **************************************/
 
 // Resync re-synchronizes configuration based on Kubernetes state data.
-func (s *remoteCNIserver) Resync(kubeStateData controller.KubeStateData, resyncCount int, txn controller.ResyncOperations) error {
+func (s *remoteCNIserver) Resync(event controller.Event, kubeStateData controller.KubeStateData,
+	resyncCount int, txn controller.ResyncOperations) error {
+
 	var wasErr error
 	s.Lock()
 	defer s.Unlock()
@@ -360,7 +363,7 @@ func (s *remoteCNIserver) Resync(kubeStateData controller.KubeStateData, resyncC
 	}
 
 	// node <-> host, host -> pods
-	err := s.configureVswitchConnectivity(txn)
+	err := s.configureVswitchConnectivity(event, txn)
 	if err != nil {
 		wasErr = err
 		s.Logger.Error(err)
@@ -394,12 +397,12 @@ func (s *remoteCNIserver) Resync(kubeStateData controller.KubeStateData, resyncC
 	return wasErr
 }
 
-// Update updates configuration based on a change in the Kubernetes state data.
-func (s *remoteCNIserver) Update(otherNodeUpdate *nodesync.OtherNodeUpdate, txn controller.UpdateOperations) (change string, err error) {
+// Update reacts to NodeUpdate.
+func (s *remoteCNIserver) Update(nodeUpdate *nodesync.NodeUpdate, txn controller.UpdateOperations) (change string, err error) {
 	s.Lock()
 	defer s.Unlock()
 
-	return s.processOtherNodeUpdateEvent(otherNodeUpdate, txn)
+	return s.processNodeUpdateEvent(nodeUpdate, txn)
 }
 
 // Close is called by the plugin infra when the CNI server needs to be stopped.
@@ -627,9 +630,9 @@ func (s *remoteCNIserver) DeletePod(pod *Pod, obsoletePod bool) error {
 //  - one route in the host stack to direct traffic destined to services via VPP
 //  - inter-VRF routing
 //  - IP neighbor scanning
-func (s *remoteCNIserver) configureVswitchConnectivity(txn controller.ResyncOperations) error {
+func (s *remoteCNIserver) configureVswitchConnectivity(event controller.Event, txn controller.ResyncOperations) error {
 	// configure physical NIC
-	err := s.configureVswitchNICs(txn)
+	err := s.configureVswitchNICs(event, txn)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -671,7 +674,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity(txn controller.ResyncOper
 
 // configureVswitchNICs configures vswitch NICs - main NIC for node interconnect
 // and other NICs optionally specified in the contiv plugin YAML configuration.
-func (s *remoteCNIserver) configureVswitchNICs(txn controller.ResyncOperations) error {
+func (s *remoteCNIserver) configureVswitchNICs(event controller.Event, txn controller.ResyncOperations) error {
 	// dump physical interfaces present on VPP
 	nics, err := s.physicalIfsDump()
 	if err != nil {
@@ -681,7 +684,7 @@ func (s *remoteCNIserver) configureVswitchNICs(txn controller.ResyncOperations) 
 	s.Logger.Infof("Existing interfaces: %v", nics)
 
 	// configure the main VPP NIC interface
-	err = s.configureMainVPPInterface(nics, txn)
+	err = s.configureMainVPPInterface(event, nics, txn)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -701,7 +704,7 @@ func (s *remoteCNIserver) configureVswitchNICs(txn controller.ResyncOperations) 
 }
 
 // configureMainVPPInterface configures the main NIC used for node interconnect on vswitch VPP.
-func (s *remoteCNIserver) configureMainVPPInterface(physicalIfaces map[uint32]string, txn controller.ResyncOperations) error {
+func (s *remoteCNIserver) configureMainVPPInterface(event controller.Event, physicalIfaces map[uint32]string, txn controller.ResyncOperations) error {
 	var err error
 
 	// 1. Determine the name of the main VPP NIC interface
@@ -775,12 +778,19 @@ func (s *remoteCNIserver) configureMainVPPInterface(physicalIfaces map[uint32]st
 	}
 
 	// 2.3 Set node IP address
-	if s.useDHCP { // TODO: DHCP will not be set and waited for by contiv-init
-		// ip address will be assigned by DHCP server, not known yet
+	if s.useDHCP {
+		// ip address is assigned by DHCP server
 		s.Logger.Infof("Configuring %v to use DHCP", nicName)
+		if nodeIPv4Change, isNodeIPv4Change := event.(*NodeIPv4Change); isNodeIPv4Change {
+			// this resync event has been triggered to process DHCP event
+			s.nodeIP = nodeIPv4Change.NodeIP
+			s.nodeIPNet = nodeIPv4Change.NodeIPNet
+			s.defaultGw = nodeIPv4Change.DefaultGw
+		}
 	} else if len(nicIPs) > 0 {
-		s.setNodeIP(nicIPs[0].address, nicIPs[0].network)
-		s.Logger.Infof("Configuring %v to use %v", nicName, nicIPs[0].address)
+		s.nodeIP = nicIPs[0].address
+		s.nodeIPNet = nicIPs[0].network
+		s.Logger.Infof("Configuring %v to use %v", nicName, s.nodeIP)
 	} else {
 		nodeIP, nodeIPNet, err := s.ipam.NodeIPAddress(s.nodeSync.GetNodeID())
 		if err != nil {
@@ -788,9 +798,13 @@ func (s *remoteCNIserver) configureMainVPPInterface(physicalIfaces map[uint32]st
 			return err
 		}
 		nicIPs = append(nicIPs, ipWithNetwork{address: nodeIP, network: nodeIPNet})
-		s.setNodeIP(nodeIP, nodeIPNet)
+		s.nodeIP = nodeIP
+		s.nodeIPNet = nodeIPNet
 		s.Logger.Infof("Configuring %v to use %v", nicName, nodeIP.String())
 	}
+	// publish the node IP address to other nodes
+	s.nodeSync.PublishNodeIPs([]*nodesync.IPWithNetwork{
+		{Address: s.nodeIP, Network: s.nodeIPNet}}, nodesync.IPv4)
 
 	// 3. Configure the main interface
 
@@ -802,7 +816,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(physicalIfaces map[uint32]st
 			nic.IpAddresses = []string{}
 			nic.SetDhcpClient = true
 			if !s.watchingDHCP {
-				// start watching dhcp notif
+				// start watching of DHCP notifications
 				s.dhcpIndex.Watch("cniserver", s.handleDHCPNotification)
 				s.watchingDHCP = true
 			}
@@ -1163,78 +1177,64 @@ func (s *remoteCNIserver) getStolenInterfaceConfig(ifName string) (ipNets []ipWi
 // handleDHCPNotifications handles DHCP state change notifications
 func (s *remoteCNIserver) handleDHCPNotification(notif idxmap.NamedMappingGenericEvent) {
 	s.Logger.Info("DHCP notification received")
+
+	// check for validity of the DHCP event
 	if notif.Del {
+		s.Logger.Info("Ignoring event of removed DHCP lease")
 		return
+	}
+	if !s.useDHCP {
+		s.Logger.Info("Ignoring DHCP event, dynamic IP address assignment is disabled")
 	}
 	if notif.Value == nil {
 		s.Logger.Warn("DHCP notification metadata is empty")
 		return
 	}
-
 	dhcpLease, isDHCPLease := notif.Value.(*interfaces.DHCPLease)
 	if !isDHCPLease {
-		s.Logger.Warn("received invalid DHCP notification")
+		s.Logger.Warn("Received invalid DHCP notification")
 		return
 	}
-
 	if dhcpLease.InterfaceName != s.mainPhysicalIf {
 		s.Logger.Warn("DHCP notification for a non-main interface")
 		return
 	}
 
-	s.Lock()
-	s.applyDHCPLease(dhcpLease)
-	s.Unlock()
+	// parse DHCP lease fields
+	hostAddr, hostNet, defaultGw, err := s.parseDHCPLease(dhcpLease)
+	if err != nil {
+		return
+	}
+
+	// push event into the event loop
+	s.eventLoop.PushEvent(&NodeIPv4Change{
+		NodeIP:    hostAddr,
+		NodeIPNet: hostNet,
+		DefaultGw: defaultGw,
+	})
+	s.Logger.Infof("Sent NodeIPv4Change event to the event loop for DHCP lease: %+v", *dhcpLease)
 }
 
-// applyDHCPLease updates defaultGw and node IP based on received DHCP lease.
-// The method must be called with acquired mutex guarding remoteCNI server.
-func (s *remoteCNIserver) applyDHCPLease(lease *interfaces.DHCPLease) {
-	if !s.useDHCP {
-		s.Logger.Info("Ignoring DHCP event, dynamic IP address assignment is disabled")
-	}
-
-	var err error
+// parseDHCPLease parses fields of a DHCP lease.
+func (s *remoteCNIserver) parseDHCPLease(lease *interfaces.DHCPLease) (hostAddr net.IP, hostNet *net.IPNet, defaultGw net.IP, err error) {
+	// parse IP address of the default gateway
 	if lease.RouterIpAddress != "" {
-		s.defaultGw, _, err = net.ParseCIDR(lease.RouterIpAddress)
+		defaultGw, _, err = net.ParseCIDR(lease.RouterIpAddress)
 		if err != nil {
-			s.Logger.Errorf("failed to parse DHCP route IP address: %v", err)
-		}
-	}
-
-	var (
-		hostAddr net.IP
-		hostNet  *net.IPNet
-	)
-	if lease.HostIpAddress != "" {
-		hostAddr, hostNet, err = net.ParseCIDR(lease.HostIpAddress)
-		if err != nil {
-			s.Logger.Errorf("failed to parse DHCP host IP address: %v", err)
+			s.Logger.Errorf("Failed to parse DHCP route IP address: %v", err)
 			return
 		}
 	}
 
-	if len(s.nodeIP) > 0 && !s.nodeIP.Equal(hostAddr) {
-		s.Logger.Error("Update of Node IP address is not supported")
+	// parse host IP address and netword
+	if lease.HostIpAddress != "" {
+		hostAddr, hostNet, err = net.ParseCIDR(lease.HostIpAddress)
+		if err != nil {
+			s.Logger.Errorf("Failed to parse DHCP host IP address: %v", err)
+			return
+		}
 	}
-
-	s.setNodeIP(hostAddr, hostNet)
-	s.Logger.Infof("DHCP event processed: %+v", lease)
-}
-
-// setNodeIP updates nodeIP and propagate the change to subscribers.
-// The method must be called with acquired mutex guarding remoteCNI server.
-func (s *remoteCNIserver) setNodeIP(nodeIP net.IP, nodeIPNet *net.IPNet) error {
-
-	if s.nodeIP.Equal(nodeIP) {
-		// nothing has really changed
-		return nil
-	}
-
-	s.nodeIP = nodeIP
-	s.nodeIPNet = nodeIPNet
-
-	return nil
+	return
 }
 
 /**************************** Remote CNI Server API ****************************/

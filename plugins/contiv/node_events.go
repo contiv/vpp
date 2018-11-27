@@ -64,8 +64,8 @@ func (s *remoteCNIserver) otherNodesResync(txn controller.ResyncOperations) erro
 	return nil
 }
 
-// processOtherNodeUpdateEvent reacts to an update of another node.
-func (s *remoteCNIserver) processOtherNodeUpdateEvent(nodeUpdate *nodesync.OtherNodeUpdate, txn controller.UpdateOperations) (change string, err error) {
+// processNodeUpdateEvent reacts to an update of *another* node.
+func (s *remoteCNIserver) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn controller.UpdateOperations) (change string, err error) {
 	// read the other node ID
 	var otherNodeID uint32
 	if nodeUpdate.NewState != nil {
@@ -132,9 +132,9 @@ func (s *remoteCNIserver) processOtherNodeUpdateEvent(nodeUpdate *nodesync.Other
 	}
 
 	// update BD if node was newly connected or disconnected
-	if !s.config.UseL2Interconnect && 
+	if !s.config.UseL2Interconnect &&
 		nodeHasIPAddress(nodeUpdate.PrevState) != nodeHasIPAddress(nodeUpdate.NewState) {
-			
+
 		key, bd := s.vxlanBridgeDomain()
 		txn.Put(key, bd)
 	}

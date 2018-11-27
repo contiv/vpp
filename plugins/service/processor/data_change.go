@@ -17,7 +17,6 @@
 package processor
 
 import (
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -26,17 +25,6 @@ import (
 // propagateDataChangeEv propagates CHANGE in the K8s configuration into the Processor.
 func (sc *ServiceProcessor) propagateDataChangeEv(event *controller.KubeStateChange) error {
 	switch event.Resource {
-	case nodeinfo.Keyword:
-		if event.NewValue != nil {
-			nodeInfo := event.NewValue.(*nodeinfo.NodeInfo)
-			if event.PrevValue == nil {
-				return sc.processNewNode(nodeInfo)
-			}
-			return sc.processUpdatedNode(nodeInfo)
-		}
-		nodeInfo := event.PrevValue.(*nodeinfo.NodeInfo)
-		return sc.processDeletedNode(int(nodeInfo.Id))
-
 	case epmodel.EndpointsKeyword:
 		if event.NewValue != nil {
 			endpoints := event.NewValue.(*epmodel.Endpoints)

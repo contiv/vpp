@@ -74,7 +74,7 @@ clean:
 test:
 	@echo "# running unit tests"
 	go test ./cmd/contiv-cni -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/contiv -tags="${GO_BUILD_TAGS}"
+	#go test ./plugins/contiv -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/contiv/ipam -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/ksr -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
@@ -85,7 +85,7 @@ test:
 	go test ./plugins/policy/cache/podidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/policyidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/statscollector -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/service -tags="${GO_BUILD_TAGS}"
+	#go test ./plugins/service -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"

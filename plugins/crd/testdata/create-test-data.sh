@@ -70,7 +70,7 @@ declare -A NODE_IP_ADDRESSES
 
 # Temporary, until IPAM works from the node
 ALLOCATED_IDS_PFX="/vnf-agent/contiv-ksr/allocatedIDs/"
-NODE_INFO=$( etcdctl --endpoints=127.0.0.1:32379 get "$ALLOCATED_IDS_PFX" --prefix=true |grep -v "$ALLOCATED_IDS_PFX" )
+VPP_NODE=$( etcdctl --endpoints=127.0.0.1:32379 get "$ALLOCATED_IDS_PFX" --prefix=true |grep -v "$ALLOCATED_IDS_PFX" )
 
 VSWITCHES=$( kubectl get pods -o wide --all-namespaces | grep "contiv-vswitch" )
 readarray -t VSWITCH_LINES <<< "$VSWITCHES"
@@ -115,7 +115,7 @@ do
     VT_NODE_RAW_DATA+=$'\t\t"'"$nn"$'": {\n'
 
     # Temporary, until we can get ID from node IPAM data
-    NODEINFO=$( echo "$NODE_INFO" | grep "$nn" | python -mjson.tool | sed -e 's|    |\t|g' | sed -e 's/\(^[\t}].*$\)/\t\t\t\1/' )
+    VPPNODE=$( echo "$VPP_NODE" | grep "$nn" | python -mjson.tool | sed -e 's|    |\t|g' | sed -e 's/\(^[\t}].*$\)/\t\t\t\1/' )
 
     # Get data from the node
     LIVENESS=$( curl -s "$IP_ADDR":9999/liveness | python -mjson.tool | sed -e 's|    |\t|g' | sed -e 's/\(^[\t}].*$\)/\t\t\t\1/' )
@@ -127,7 +127,7 @@ do
     ROUTES=$( get_data "$IP_ADDR" "routes" )
 
     # Create the data structure for the node
-    VT_NODE_RAW_DATA+=$( printf "\t\t\t\"nodeinfo\": \`%s\`,\n" "$NODEINFO" )
+    VT_NODE_RAW_DATA+=$( printf "\t\t\t\"vppnode\": \`%s\`,\n" "$VPPNODE" )
     VT_NODE_RAW_DATA+=$( printf "\n\t\t\t\"liveness\": \`%s\`,\n" "$LIVENESS" )
     VT_NODE_RAW_DATA+=$( printf "\n\t\t\t\"ipam\": \`%s\`,\n" "$IPAM" )
     VT_NODE_RAW_DATA+=$( printf "\n\t\t\t\"interfaces\": \`%s\`,\n" "$INTERFACES" )

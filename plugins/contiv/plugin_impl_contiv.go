@@ -47,8 +47,8 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	tmp_txn "github.com/contiv/vpp/plugins/controller/txn"
-	"github.com/contiv/vpp/plugins/nodesync"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
+	"github.com/contiv/vpp/plugins/nodesync"
 )
 
 // MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure
@@ -60,8 +60,8 @@ type Plugin struct {
 	Deps
 	govppCh api.Channel
 
-	cniServer       *remoteCNIserver
-	dockerClient    *docker.Client
+	cniServer    *remoteCNIserver
+	dockerClient *docker.Client
 
 	Config       *Config
 	myNodeConfig *NodeConfig
@@ -74,6 +74,7 @@ type Plugin struct {
 // Deps groups the dependencies of the p.
 type Deps struct {
 	infra.PluginDeps
+	EventLoop    controller.EventLoop
 	ServiceLabel servicelabel.ReaderAPI
 	KVScheduler  kvscheduler_api.KVScheduler
 	NodeSync     nodesync.API
@@ -116,13 +117,15 @@ func (p *Plugin) Init() error {
 	return nil
 }
 
-// HandlesEvent selects any Resync event and OtherNodeUpdate.
+// HandlesEvent selects:
+//   - any Resync event (extra action for NodeIPv4Change)
+//   - NodeUpdate for other nodes
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
 	if event.Method() == controller.Resync {
 		return true
 	}
-	if _, isOtherNodeUpdate := event.(*nodesync.OtherNodeUpdate); isOtherNodeUpdate {
-		return true
+	if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
+		return nodeUpdate.NodeName != p.ServiceLabel.GetAgentLabel()
 	}
 
 	// unhandled event
@@ -133,8 +136,8 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 // re-synchronization.
 // For startup resync, resyncCount is 1. Higher counter values identify
 // run-time resync.
-func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
-	kubeStateData controller.KubeStateData, resyncCount int) error {
+func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeStateData,
+	resyncCount int, txn controller.ResyncOperations) error {
 
 	var err error
 	if resyncCount == 1 {
@@ -146,8 +149,9 @@ func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
 		// start the GRPC server handling the CNI requests
 		p.cniServer, err = newRemoteCNIServer(
 			&remoteCNIserverArgs{
-				Logger:   p.Log,
-				nodeSync: p.NodeSync,
+				Logger:    p.Log,
+				eventLoop: p.EventLoop,
+				nodeSync:  p.NodeSync,
 				txnFactory: func() controller.Transaction {
 					return tmp_txn.NewTransaction(p.KVScheduler)
 				},
@@ -168,7 +172,7 @@ func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
 		}
 	}
 
-	resyncErr := p.cniServer.Resync(kubeStateData, resyncCount, txn)
+	resyncErr := p.cniServer.Resync(event, kubeStateData, resyncCount, txn)
 	if resyncErr != nil {
 		err = resyncErr
 	}
@@ -181,10 +185,10 @@ func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
 	return err
 }
 
-// Update is called for OtherNodeUpdate.
+// Update is called for NodeUpdate.
 func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
-	otherNodeUpdate := event.(*nodesync.OtherNodeUpdate)
-	return p.cniServer.Update(otherNodeUpdate, txn)
+	nodeUpdate := event.(*nodesync.NodeUpdate)
+	return p.cniServer.Update(nodeUpdate, txn)
 }
 
 // Revert does nothing here - plugin handles only BestEffort events.

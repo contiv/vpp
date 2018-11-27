@@ -893,7 +893,7 @@ func resetToInitialErrorFreeState() {
 		gomega.Panic()
 	}
 
-	if err := testdata.CreateK8sNodeTestData(vtv.k8sCache); err != nil {
+	if err := testdata.CreateK8sNodeTestData(vtv.k8sCache, vtv.vppCache); err != nil {
 		vtv.log.SetOutput(os.Stdout)
 		vtv.log.Error(err)
 		gomega.Panic()

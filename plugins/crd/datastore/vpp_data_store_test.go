@@ -26,12 +26,12 @@ import (
 func TestVppDataStore_CreateNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "20")
+	db.CreateNode(1, "k8s_master", "10")
 	node, err := db.RetrieveNode("k8s_master")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 
-	err = db.CreateNode(2, "k8s_master", "20", "20")
+	err = db.CreateNode(2, "k8s_master", "20")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 }
 
@@ -40,13 +40,13 @@ func TestVppDataStore_CreateNode(t *testing.T) {
 func TestVppDataStore_RetrieveNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, err := db.RetrieveNode("k8s_master")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	nodeTwo, err := db.RetrieveNode("NonExistentNode")
 	gomega.Ω(err).Should(gomega.Not(gomega.BeNil()))
@@ -58,7 +58,7 @@ func TestVppDataStore_RetrieveNode(t *testing.T) {
 func TestVppDataStore_DeleteNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, err := db.RetrieveNode("k8s_master")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
@@ -79,29 +79,29 @@ func TestVppDataStore_DeleteNode(t *testing.T) {
 func TestVppDataStore_RetrieveAllNodes(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, e := db.RetrieveNode("k8s_master")
 	gomega.Expect(e).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
-	db.CreateNode(2, "k8s_master2", "10", "10")
+	db.CreateNode(2, "k8s_master2", "10")
 	node, e = db.RetrieveNode("k8s_master2")
 	gomega.Expect(e).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master2"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(2)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
-	db.CreateNode(3, "Ak8s_master3", "10", "10")
+	db.CreateNode(3, "Ak8s_master3", "10")
 	node, e = db.RetrieveNode("Ak8s_master3")
 	gomega.Expect(e).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("Ak8s_master3"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(3)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	nodeList := db.RetrieveAllNodes()
 	gomega.Expect(len(nodeList)).To(gomega.Equal(3))
@@ -112,13 +112,13 @@ func TestVppDataStore_RetrieveAllNodes(t *testing.T) {
 func TestVppDataStore_SetNodeInterfaces(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	nodeIFs := make(map[int]telemetrymodel.NodeInterface)
 	nodeIF := telemetrymodel.NodeInterface{
@@ -150,13 +150,13 @@ func TestVppDataStore_SetNodeInterfaces(t *testing.T) {
 func TestVppDataStore_SetNodeBridgeDomain(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	nodeBD := telemetrymodel.NodeBridgeDomain{
 		Bd: telemetrymodel.BridgeDomain{
@@ -179,13 +179,13 @@ func TestVppDataStore_SetNodeBridgeDomain(t *testing.T) {
 func TestVppDataStore_SetNodeIPARPs(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	nodeiparps := make([]telemetrymodel.NodeIPArpEntry, 0)
 	nodeiparp := telemetrymodel.NodeIPArpEntry{
@@ -220,13 +220,13 @@ func TestVppDataStore_SetNodeIPARPs(t *testing.T) {
 func TestVppDataStore_SetNodeLiveness(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	nlive := telemetrymodel.NodeLiveness{"54321", "12345", 0, 0, 0, 0, ""}
 	err := db.SetNodeLiveness("NENODE", &nlive)
@@ -241,13 +241,13 @@ func TestVppDataStore_SetNodeLiveness(t *testing.T) {
 func TestVppDataStore_SetNodeTelemetry(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	ntele := telemetrymodel.NodeTelemetry{"d", []telemetrymodel.Output{}}
 	nTeleMap := make(map[string]telemetrymodel.NodeTelemetry)
@@ -261,13 +261,13 @@ func TestVppDataStore_SetNodeTelemetry(t *testing.T) {
 func TestVppDataStore_SetNodeL2Fibs(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	nfib := telemetrymodel.NodeL2FibEntry{
 		Fe: telemetrymodel.L2FibEntry{
@@ -308,13 +308,13 @@ func TestVppDataStore_SetNodeL2Fibs(t *testing.T) {
 func TestVppDataStore_RetrieveNodeByGigEIPAddr(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	node, err := db.RetrieveNodeByGigEIPAddr(node.IPAddr)
 	gomega.Expect(err).To(gomega.BeNil())
@@ -328,13 +328,13 @@ func TestVppDataStore_RetrieveNodeByGigEIPAddr(t *testing.T) {
 func TestVppDataStore_RetrieveNodeByHostIPAddr(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	node, err := db.RetrieveNodeByGigEIPAddr(node.IPAddr)
 	gomega.Expect(err).To(gomega.BeNil())
@@ -351,13 +351,13 @@ func TestVppDataStore_RetrieveNodeByHostIPAddr(t *testing.T) {
 func TestVppDataStore_RetrieveNodeByLoopIPAddr(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	node, err := db.RetrieveNodeByGigEIPAddr(node.IPAddr)
 	gomega.Expect(err).To(gomega.BeNil())
@@ -374,13 +374,13 @@ func TestVppDataStore_RetrieveNodeByLoopIPAddr(t *testing.T) {
 func TestVppDataStore_RetrieveNodeByLoopMacAddr(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	node, err := db.RetrieveNodeByGigEIPAddr(node.IPAddr)
 	gomega.Expect(err).To(gomega.BeNil())
@@ -397,22 +397,22 @@ func TestVppDataStore_RetrieveNodeByLoopMacAddr(t *testing.T) {
 func TestVppDataStore_UpdateNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
-	err := db.UpdateNode(1, "k8s_master", "20", "20")
+	err := db.UpdateNode(1, "k8s_master", "20")
 	gomega.Expect(err).To(gomega.BeNil())
 	node, err = db.RetrieveNode("k8s_master")
 
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.BeEquivalentTo("20"))
 
-	err = db.UpdateNode(1, "blah", "2", "2")
+	err = db.UpdateNode(1, "blah", "2")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }
@@ -420,15 +420,15 @@ func TestVppDataStore_UpdateNode(t *testing.T) {
 func TestVppDataStore_ClearCache(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
-	db.CreateNode(2, "blah", "20", "20")
+	db.CreateNode(2, "blah", "20")
 	db.ClearCache()
 
 	_, err := db.retrieveNode("k8s_master")
@@ -442,13 +442,13 @@ func TestVppDataStore_ClearCache(t *testing.T) {
 func TestVppDataStore_ReinitializeCache(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	db.ReinitializeCache()
 	_, err := db.retrieveNode("k8s_master")
@@ -460,13 +460,13 @@ func TestVppDataStore_ReinitializeCache(t *testing.T) {
 func TestGetNodeLoopIFInfo(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
-	db.CreateNode(1, "k8s_master", "10", "10")
+	db.CreateNode(1, "k8s_master", "10")
 	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 	loopif := telemetrymodel.NodeInterface{
 		If: telemetrymodel.Interface{
 			Name:        "loop0",

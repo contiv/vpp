@@ -481,9 +481,13 @@ func (s *remoteCNIserver) vxlanBridgeDomain() (key string, config *l2.BridgeDoma
 		},
 	}
 	if len(s.nodeIP) > 0 {
-		for otherNodeID := range s.otherNodes {
+		for _, node := range s.nodeSync.GetAllNodes() {
+			if node.Name == s.agentLabel {
+				// skip this node
+				continue
+			}
 			bd.Interfaces = append(bd.Interfaces, &l2.BridgeDomain_Interface{
-				Name:              s.nameForVxlanToOtherNode(otherNodeID),
+				Name:              s.nameForVxlanToOtherNode(node.ID),
 				SplitHorizonGroup: vxlanSplitHorizonGroup,
 			})
 		}

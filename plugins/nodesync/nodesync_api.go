@@ -22,8 +22,7 @@ import (
 // API defines methods provided by NodeSync for use by other plugins.
 type API interface {
 	// GetNodeID returns the integer ID allocated for this node.
-	// The method should be called only from within the main event loop (not thread
-	// safe) and not before the startup resync.
+	// The method is thread-safe, but should not be called before the startup resync.
 	GetNodeID() uint32
 
 	// PublishNodeIPs can be used to publish update about currently assigned
@@ -91,46 +90,55 @@ func (ns Nodes) String() string {
 	return str
 }
 
-// OtherNodeUpdate is an Update event that represents change in the status
-// of another node.
-type OtherNodeUpdate struct {
+// NodeUpdate is an Update event that represents change in the status of a K8s node.
+// For other nodes, the event is triggered when:
+//   - node joins the cluster
+//   - node leaves the cluster
+//   - VPP or management IP addresses of the node are updated
+// For this node, the event is triggered only when:
+//   - the management IP addresses are updated
+// For update of this node VPP IP addresses, there is already resync event NodeIPv*Change.
+type NodeUpdate struct {
+	NodeName  string
 	PrevState *Node // nil if the node joined the cluster
 	NewState  *Node // nil if the node left the cluster
 }
 
-// GetName returns name of the OtherNodeUpdate event.
-func (ev *OtherNodeUpdate) GetName() string {
+// GetName returns name of the NodeUpdate event.
+func (ev *NodeUpdate) GetName() string {
 	return "Other Node Update"
 }
 
-// String describes OtherNodeUpdate event.
-func (ev *OtherNodeUpdate) String() string {
+// String describes NodeUpdate event.
+func (ev *NodeUpdate) String() string {
 	return fmt.Sprintf("%s\n"+
+		"* node: %s\n"+
 		"* prev-state: %s\n"+
-		"* new-state: %s", ev.GetName(), ev.PrevState.String(), ev.NewState.String())
+		"* new-state: %s", ev.GetName(), ev.NodeName,
+		ev.PrevState.String(), ev.NewState.String())
 }
 
 // Method is Update.
-func (ev *OtherNodeUpdate) Method() controller.EventMethodType {
+func (ev *NodeUpdate) Method() controller.EventMethodType {
 	return controller.Update
 }
 
 // TransactionType is BestEffort.
-func (ev *OtherNodeUpdate) TransactionType() controller.UpdateTransactionType {
+func (ev *NodeUpdate) TransactionType() controller.UpdateTransactionType {
 	return controller.BestEffort
 }
 
 // Direction is Forward.
-func (ev *OtherNodeUpdate) Direction() controller.UpdateDirectionType {
+func (ev *NodeUpdate) Direction() controller.UpdateDirectionType {
 	return controller.Forward
 }
 
 // IsBlocking returns false.
-func (ev *OtherNodeUpdate) IsBlocking() bool {
+func (ev *NodeUpdate) IsBlocking() bool {
 	return false
 }
 
 // Done is NOOP.
-func (ev *OtherNodeUpdate) Done(error) {
+func (ev *NodeUpdate) Done(error) {
 	return
 }

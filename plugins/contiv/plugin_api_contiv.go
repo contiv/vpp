@@ -97,8 +97,9 @@ type API interface {
 
 // NodeIPv4Change is triggered when DHCP-assigned IPv4 address of the node changes.
 type NodeIPv4Change struct {
-	NewNodeIP    net.IP
-	NewNodeIPNet *net.IPNet
+	NodeIP    net.IP
+	NodeIPNet *net.IPNet
+	DefaultGw net.IP
 }
 
 // GetName returns name of the NodeIPv4Change event.
@@ -109,8 +110,10 @@ func (ev *NodeIPv4Change) GetName() string {
 // String describes NodeIPv4Change event.
 func (ev *NodeIPv4Change) String() string {
 	return fmt.Sprintf("%s\n"+
-		"* new-IP: %s\n"+
-		"* new-IP-net: %s", ev.GetName(), ev.NewNodeIP.String(), ev.NewNodeIPNet.String())
+		"* IP: %s\n"+
+		"* IP-net: %s\n"+
+		"* GW: %s",
+		ev.GetName(), ev.NodeIP.String(), ev.NodeIPNet.String(), ev.DefaultGw.String())
 }
 
 // Method is Resync.

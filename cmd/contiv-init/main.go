@@ -36,9 +36,9 @@ import (
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/contiv/vpp/plugins/controller"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/nodesync/vppnode"
-	"github.com/contiv/vpp/plugins/controller"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/bolt"
@@ -375,7 +375,7 @@ func prepareForLocalResync() error {
 		nodeSync.DB = etcdDB
 		nodeSync.Init()
 		kubeState := resyncEv.KubeState
-		err = nodeSync.Resync(resyncEv, nil, kubeState, 1)
+		err = nodeSync.Resync(resyncEv, kubeState, 1, nil)
 		if err == nil {
 			// update kube state to handle newly allocated ID
 			nodeID := nodeSync.GetNodeID()
@@ -402,7 +402,7 @@ func prepareForLocalResync() error {
 	nodeSync := nodesync.NewPlugin()
 	nodeSync.DB = nil
 	nodeSync.Init()
-	err = nodeSync.Resync(resyncEv, nil, resyncEv.KubeState, 1)
+	err = nodeSync.Resync(resyncEv, resyncEv.KubeState, 1, nil)
 	return err
 }
 

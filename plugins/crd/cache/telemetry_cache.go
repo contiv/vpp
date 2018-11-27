@@ -321,10 +321,6 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 // that there are no duplicate addresses within the map.
 func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 	ctc.Report.SetPrefix("NODE-MAP")
-	errReport := ctc.VppCache.SetSecondaryNodeIndices(node)
-	for _, r := range errReport {
-		ctc.Report.AppendToNodeReport(node.Name, r)
-	}
 
 	k8snode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
 	if err != nil {
@@ -340,13 +336,14 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 					ctc.Report.AppendToNodeReport(node.Name, errString)
 				}
 			case nodemodel.NodeAddress_NodeInternalIP:
-				if adr.Address != node.ManIPAddr {
-					errString := fmt.Sprintf("Inconsistent Host IP Address for node %s: Contiv: %s, K8s %s",
-						k8snode.Name, node.ManIPAddr, adr.Address)
-					ctc.Report.AppendToNodeReport(node.Name, errString)
-				}
+				node.ManIPAddr = adr.Address
 			}
 		}
+	}
+
+	errReport := ctc.VppCache.SetSecondaryNodeIndices(node)
+	for _, r := range errReport {
+		ctc.Report.AppendToNodeReport(node.Name, r)
 	}
 
 	node.PodMap = make(map[string]*telemetrymodel.Pod, 0)

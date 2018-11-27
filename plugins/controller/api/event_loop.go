@@ -71,7 +71,7 @@ type EventHandler interface {
 	// re-synchronization.
 	// For startup resync, resyncCount is 1. Higher counter values identify
 	// run-time resync.
-	Resync(event Event, txn ResyncOperations, kubeStateData KubeStateData, resyncCount int) error
+	Resync(event Event, kubeStateData KubeStateData, resyncCount int, txn ResyncOperations) error
 
 	// Update is called by Controller to handle event that can be reacted to by
 	// an incremental change.

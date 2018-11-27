@@ -25,9 +25,9 @@ const (
 
 // VppCache defines the operations on the VPP node data store.
 type VppCache interface {
-	CreateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
+	CreateNode(ID uint32, nodeName, IPAdr string) error
 	RetrieveNode(nodeName string) (*telemetrymodel.Node, error)
-	UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
+	UpdateNode(ID uint32, nodeName, IPAdr string) error
 	DeleteNode(nodeName string) error
 
 	RetrieveNodeByHostIPAddr(ipAddr string) (*telemetrymodel.Node, error)

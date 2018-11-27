@@ -25,11 +25,11 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/plugins/contiv"
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/service/renderer"
 )
 
@@ -39,9 +39,6 @@ type ServiceProcessor struct {
 	Deps
 
 	renderers []renderer.ServiceRendererAPI
-
-	/* nodes */
-	nodes map[int]*nodeinfo.NodeInfo
 
 	/* internal maps */
 	services map[svcmodel.ID]*Service
@@ -56,6 +53,7 @@ type ServiceProcessor struct {
 type Deps struct {
 	Log          logging.Logger
 	ServiceLabel servicelabel.ReaderAPI
+	NodeSync     nodesync.API
 	Contiv       contiv.API /* to get all interface names and pod IP network */
 }
 
@@ -78,7 +76,6 @@ func (sp *ServiceProcessor) AfterInit() error {
 
 // reset clears the state of the processor.
 func (sp *ServiceProcessor) reset() error {
-	sp.nodes = make(map[int]*nodeinfo.NodeInfo)
 	sp.services = make(map[svcmodel.ID]*Service)
 	sp.localEps = make(map[podmodel.ID]*LocalEndpoint)
 	sp.frontendIfs = renderer.NewInterfaces()
@@ -91,10 +88,19 @@ func (sp *ServiceProcessor) reset() error {
 // The data change is stored into the cache and all registered renderers
 // are notified about any changes related to services that need to be
 // reflected in the underlying network stack(s).
-func (sp *ServiceProcessor) Update(event *controller.KubeStateChange) error {
+func (sp *ServiceProcessor) Update(event controller.Event) error {
 	sp.Lock()
 	defer sp.Unlock()
-	return sp.propagateDataChangeEv(event)
+
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
+		return sp.propagateDataChangeEv(ksChange)
+	}
+
+	if _, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
+		return sp.renderNodePorts()
+	}
+
+	return nil
 }
 
 // Resync processes a datasync resync event associated with the state data
@@ -269,36 +275,6 @@ func (sp *ServiceProcessor) processDeletedService(serviceID svcmodel.ID) error {
 	return sp.renderService(svc, oldContivSvc, oldBackends)
 }
 
-func (sp *ServiceProcessor) processNewNode(node *nodeinfo.NodeInfo) error {
-	sp.Log.WithFields(logging.Fields{
-		"node": *node,
-	}).Debug("ServiceProcessor - processNewNode()")
-
-	sp.nodes[int(node.Id)] = node
-	return sp.renderNodePorts()
-}
-
-func (sp *ServiceProcessor) processUpdatedNode(node *nodeinfo.NodeInfo) error {
-	sp.Log.WithFields(logging.Fields{
-		"node": *node,
-	}).Debug("ServiceProcessor - processUpdatedNode()")
-
-	sp.nodes[int(node.Id)] = node
-	return sp.renderNodePorts()
-}
-
-func (sp *ServiceProcessor) processDeletedNode(nodeID int) error {
-	sp.Log.WithFields(logging.Fields{
-		"nodeID": nodeID,
-	}).Debug("ServiceProcessor - processDeletedNode()")
-
-	if _, hasNode := sp.nodes[nodeID]; hasNode {
-		delete(sp.nodes, nodeID)
-		return sp.renderNodePorts()
-	}
-	return nil
-}
-
 // renderService reacts to added/removed/changed service.
 func (sp *ServiceProcessor) renderService(svc *Service, oldContivSvc *renderer.ContivService,
 	oldBackends []podmodel.ID) error {
@@ -413,31 +389,13 @@ func (sp *ServiceProcessor) renderNodePorts() error {
 func (sp *ServiceProcessor) getNodeIPs() *renderer.IPAddresses {
 	nodeIPs := renderer.NewIPAddresses()
 
-	for _, node := range sp.nodes {
-		// Node IP (VPP)
-		ipAddr := sp.trimIPAddrPrefix(node.IpAddress)
-		sp.Log.WithField("IPAddr", ipAddr).Debug("Node IP")
-		if _, duplicate := addedNodeIPs[ipAddr]; !duplicate {
-			nodeIP := net.ParseIP(ipAddr)
-			if nodeIP != nil {
-				nodeIPs.Add(nodeIP)
-			}
+	for _, node := range sp.NodeSync.GetAllNodes() {
+		for _, vppIP := range node.VppIPAddresses {
+			nodeIPs.Add(vppIP.Address)
 		}
-		addedNodeIPs[ipAddr] = struct{}{}
-		// Node management IP (K8s, host)
-		mgmtIPs := strings.Split(node.ManagementIpAddress, contiv.MgmtIPSeparator)
-		for _, mIP := range mgmtIPs {
-			ipAddr = sp.trimIPAddrPrefix(mIP)
-			sp.Log.WithField("IPAddr", ipAddr).Debug("Node mgmt IP")
-			if _, duplicate := addedNodeIPs[ipAddr]; !duplicate {
-				nodeMgmtIP := net.ParseIP(ipAddr)
-				if nodeMgmtIP != nil {
-					nodeIPs.Add(nodeMgmtIP)
-				}
-			}
-			addedNodeIPs[ipAddr] = struct{}{}
+		for _, mgmtIP := range node.MgmtIPAddresses {
+			nodeIPs.Add(mgmtIP)
 		}
-
 	}
 
 	return nodeIPs
@@ -459,8 +417,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	// Re-build the current state.
 	confResyncEv := renderer.NewResyncEventData()
 
-	// Replace the map of node IDs & IP addresses.
-	sp.nodes = resyncEv.Nodes
+	// Collect IP addresses of all nodes in the cluster.
 	confResyncEv.NodeIPs = sp.getNodeIPs()
 
 	// Fill up the set of frontend/backend interfaces and local endpoints.

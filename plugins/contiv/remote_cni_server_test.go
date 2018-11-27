@@ -212,6 +212,10 @@ func TestBasicStuff(t *testing.T) {
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
 	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	Expect(server.nodeIP).To(BeEmpty())
+	Expect(server.nodeIPNet).To(BeNil())
+
+	fmt.Println("Resync after DHCP event ----------------------------------")
 
 	// simulate DHCP event
 	dhcpIndexes.Put(Gbe8, &interfaces.DHCPLease{InterfaceName: Gbe8, HostIpAddress: Gbe8IP, RouterIpAddress: GwIPWithPrefix})
@@ -221,7 +225,21 @@ func TestBasicStuff(t *testing.T) {
 	Expect(isNodeIPv4Change).To(BeTrue())
 	nodeIP := &net.IPNet{IP: nodeIPv4Change.NodeIP, Mask: nodeIPv4Change.NodeIPNet.Mask}
 	Expect(nodeIP.String()).To(Equal(Gbe8IP))
-	Expect(nodeIPv4Change.DefaultGw.String()).To(Equal(strings.Split(GwIPWithPrefix, "/")[0]))
+	gwIP := strings.Split(GwIPWithPrefix, "/")[0]
+	Expect(nodeIPv4Change.DefaultGw.String()).To(Equal(gwIP))
+
+	resyncEv, resyncCount = datasync.ResyncEvent(keyPrefixes...)
+	txn = txnTracker.NewControllerTxn(true)
+	err = server.Resync(nodeIPv4Change, resyncEv.KubeState, resyncCount, txn)
+	Expect(err).To(BeNil())
+	err = commitTransaction(txn, true)
+	Expect(err).To(BeNil())
+	txnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	nodeIP = &net.IPNet{IP: server.nodeIP, Mask: server.nodeIPNet.Mask}
+	Expect(nodeIP.String()).To(Equal(Gbe8IP))
+	Expect(server.defaultGw.String()).To(Equal(gwIP))
 
 	fmt.Println("Add another node -----------------------------------------")
 
@@ -334,6 +352,8 @@ func TestBasicStuff(t *testing.T) {
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
 	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	Expect(server.nodeIP).To(BeEmpty())
+	Expect(server.nodeIPNet).To(BeNil())
 
 	fmt.Println("Delete pod -----------------------------------------------")
 

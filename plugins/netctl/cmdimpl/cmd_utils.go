@@ -100,7 +100,8 @@ func getClusterNodeInfo(db *etcd.BytesConnectionEtcd) clusterNodeInfo {
 			if entry, hasEntry := nodeInfo[ni.Name]; hasEntry {
 				var mgmtAddr string
 				for _, address := range ni.Addresses {
-					if address.Type == node.NodeAddress_NodeExternalIP {
+					if address.Type == node.NodeAddress_NodeInternalIP ||
+						address.Type == node.NodeAddress_NodeExternalIP {
 						mgmtAddr = address.Address
 						break
 					}

@@ -35,7 +35,7 @@ func Key(id uint32) string {
 // ParseKey parses node ID from key identifying VppNode data.
 // Returns 0 if parsing fails (invalid node ID).
 func ParseKey(key string) (id uint32) {
-	if strings.HasPrefix(key, Keyword) {
+	if strings.HasPrefix(key, KeyPrefix) {
 		nodeID, err := strconv.Atoi(strings.TrimPrefix(key, KeyPrefix))
 		if err == nil {
 			return uint32(nodeID)

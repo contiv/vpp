@@ -116,7 +116,7 @@ type NodeUpdate struct {
 
 // GetName returns name of the NodeUpdate event.
 func (ev *NodeUpdate) GetName() string {
-	return "Other Node Update"
+	return "Node Update"
 }
 
 // String describes NodeUpdate event.

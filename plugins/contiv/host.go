@@ -486,6 +486,9 @@ func (s *remoteCNIserver) vxlanBridgeDomain() (key string, config *l2.BridgeDoma
 				// skip this node
 				continue
 			}
+			if !nodeHasIPAddress(node) {
+				// skip node without IP address
+			}
 			bd.Interfaces = append(bd.Interfaces, &l2.BridgeDomain_Interface{
 				Name:              s.nameForVxlanToOtherNode(node.ID),
 				SplitHorizonGroup: vxlanSplitHorizonGroup,

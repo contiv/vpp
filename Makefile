@@ -85,7 +85,7 @@ test:
 	go test ./plugins/policy/cache/podidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/policyidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/statscollector -tags="${GO_BUILD_TAGS}"
-	#go test ./plugins/service -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/service -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"

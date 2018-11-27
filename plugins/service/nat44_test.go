@@ -17,7 +17,6 @@ package service
 import (
 	"context"
 	"net"
-	"strconv"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -30,6 +29,7 @@ import (
 	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/datasync"
 	. "github.com/contiv/vpp/mock/natplugin"
+	. "github.com/contiv/vpp/mock/nodesync"
 	. "github.com/contiv/vpp/mock/servicelabel"
 
 	"github.com/contiv/vpp/mock/localclient"
@@ -38,10 +38,10 @@ import (
 	svc_renderer "github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/service/renderer/nat44"
 
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	"github.com/contiv/vpp/plugins/nodesync"
 )
 
 const (
@@ -66,13 +66,13 @@ const (
 
 var (
 	// master
-	nodeIP = ipNet("192.168.16.10/24")
-	mgmtIP = net.ParseIP("172.30.1.1")
+	nodeIP, nodeIPAddr, nodeIPNet = ipNet("192.168.16.10/24")
+	mgmtIP                        = net.ParseIP("172.30.1.1")
 
 	// workers
-	workerIP     = ipNet("192.168.16.20/24")
-	otherIfIP    = net.ParseIP("192.168.17.10")
-	workerMgmtIP = net.ParseIP("172.30.1.2")
+	workerIP, workerIPAddr, workerIPNet = ipNet("192.168.16.20/24")
+	otherIfIP                           = net.ParseIP("192.168.17.10")
+	workerMgmtIP                        = net.ParseIP("172.30.1.2")
 
 	// pods
 	pod1 = podmodel.ID{Name: "pod1", Namespace: namespace1}
@@ -106,7 +106,7 @@ var (
 )
 
 var (
-	keyPrefixes = []string{epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix(), nodeinfo.AllocatedIDsKeyPrefix}
+	keyPrefixes = []string{epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix()}
 )
 
 // ongoing transaction
@@ -170,10 +170,10 @@ func podPostAddHook(podNamespace string, podName string, _ controller.UpdateOper
 	return svcProcessor.ProcessNewPod(podNamespace, podName)
 }
 
-func ipNet(address string) *net.IPNet {
-	ip, network, _ := net.ParseCIDR(address)
-	network.IP = ip
-	return network
+func ipNet(address string) (combined *net.IPNet, addrOnly net.IP, network *net.IPNet) {
+	addrOnly, network, _ = net.ParseCIDR(address)
+	combined = &net.IPNet{IP: addrOnly, Mask: network.Mask}
+	return combined, addrOnly, network
 }
 
 func TestResyncAndSingleService(t *testing.T) {
@@ -200,9 +200,17 @@ func TestResyncAndSingleService(t *testing.T) {
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.SetHostIPs([]net.IP{mgmtIP})
 	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
 	contiv.RegisterPodPostAddHook(podPostAddHook)
+
+	// -> nodesync
+	nodeSync := NewMockNodeSync(masterLabel)
+	nodeSync.UpdateNode(&nodesync.Node{
+		Name:            masterLabel,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
+		MgmtIPAddresses: []net.IP{mgmtIP},
+	})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -223,6 +231,7 @@ func TestResyncAndSingleService(t *testing.T) {
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
+			NodeSync:     nodeSync,
 		},
 	}
 
@@ -560,9 +569,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.SetHostIPs([]net.IP{mgmtIP})
 	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
 	contiv.RegisterPodPostAddHook(podPostAddHook)
+
+	// -> nodesync
+	nodeSync := NewMockNodeSync(masterLabel)
+	// ID and IPs of this node are propagated later (see below)
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -583,6 +596,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
+			NodeSync:     nodeSync,
 		},
 	}
 
@@ -931,15 +945,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(6))
 
 	// Propagate NodeIP and Node Mgmt IP of the master.
-	masterNode := &nodeinfo.NodeInfo{
-		Id:                  1,
-		Name:                masterLabel,
-		IpAddress:           nodeIP.String(),
-		ManagementIpAddress: mgmtIP.String(),
-	}
+	event := nodeSync.UpdateNode(&nodesync.Node{
+		Name:            masterLabel,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
+		MgmtIPAddresses: []net.IP{mgmtIP},
+	})
 
-	dataChange8 := datasync.PutEvent(nodeinfo.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(masterNode.Id), 10), masterNode)
-	Expect(svcProcessor.Update(dataChange8)).To(BeNil())
+	Expect(svcProcessor.Update(event)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
@@ -1010,15 +1022,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(8))
 
 	// Propagate NodeIP and Node Mgmt IP of the worker.
-	workerNode := &nodeinfo.NodeInfo{
-		Id:                  2,
-		Name:                workerLabel,
-		IpAddress:           workerIP.String(),
-		ManagementIpAddress: workerMgmtIP.String(),
-	}
-
-	dataChange9 := datasync.PutEvent(nodeinfo.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(workerNode.Id), 10), workerNode)
-	Expect(svcProcessor.Update(dataChange9)).To(BeNil())
+	event = nodeSync.UpdateNode(&nodesync.Node{
+		Name:            workerLabel,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: workerIPAddr, Network: workerIPNet}},
+		MgmtIPAddresses: []net.IP{workerMgmtIP},
+	})
+	Expect(svcProcessor.Update(event)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
@@ -1056,15 +1065,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(10))
 
 	// Remove worker mgmt IP.
-	workerNode = &nodeinfo.NodeInfo{
-		Id:                  2,
-		Name:                workerLabel,
-		IpAddress:           workerIP.String(),
-		ManagementIpAddress: "", /* removed */
-	}
-
-	dataChange10 := datasync.PutEvent(nodeinfo.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(workerNode.Id), 10), workerNode)
-	Expect(svcProcessor.Update(dataChange10)).To(BeNil())
+	event = nodeSync.UpdateNode(&nodesync.Node{
+		Name:            workerLabel,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: workerIPAddr, Network: workerIPNet}},
+		MgmtIPAddresses: []net.IP{}, // removed
+	})
+	Expect(svcProcessor.Update(event)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check that the static mapping for worker mgmt IP was removed.
@@ -1080,8 +1086,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(9))
 
 	// Remove worker node completely.
-	dataChange11 := datasync.DeleteEvent(nodeinfo.AllocatedIDsKeyPrefix + strconv.FormatUint(uint64(workerNode.Id), 10))
-	Expect(svcProcessor.Update(dataChange11)).To(BeNil())
+	event = nodeSync.DeleteNode(workerLabel)
+	Expect(svcProcessor.Update(event)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check that the static mapping for worker IP was removed.
@@ -1102,6 +1108,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
+			NodeSync:     nodeSync,
 		},
 	}
 	renderer = &nat44.Renderer{
@@ -1204,9 +1211,17 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.SetHostIPs([]net.IP{mgmtIP})
 	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
 	contiv.RegisterPodPostAddHook(podPostAddHook)
+
+	// -> nodesync
+	nodeSync := NewMockNodeSync(masterLabel)
+	nodeSync.UpdateNode(&nodesync.Node{
+		Name:            masterLabel,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
+		MgmtIPAddresses: []net.IP{mgmtIP},
+	})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1226,6 +1241,7 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
+			NodeSync:     nodeSync,
 		},
 	}
 
@@ -1290,9 +1306,17 @@ func TestWithoutVXLAN(t *testing.T) {
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.SetHostIPs([]net.IP{mgmtIP})
 	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
 	contiv.RegisterPodPostAddHook(podPostAddHook)
+
+	// -> nodesync
+	nodeSync := NewMockNodeSync(masterLabel)
+	nodeSync.UpdateNode(&nodesync.Node{
+		Name:            masterLabel,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
+		MgmtIPAddresses: []net.IP{mgmtIP},
+	})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1313,6 +1337,7 @@ func TestWithoutVXLAN(t *testing.T) {
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
+			NodeSync:     nodeSync,
 		},
 	}
 
@@ -1378,9 +1403,17 @@ func TestWithOtherInterfaces(t *testing.T) {
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.SetHostIPs([]net.IP{mgmtIP})
 	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
 	contiv.RegisterPodPostAddHook(podPostAddHook)
+
+	// -> nodesync
+	nodeSync := NewMockNodeSync(masterLabel)
+	nodeSync.UpdateNode(&nodesync.Node{
+		Name:            masterLabel,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
+		MgmtIPAddresses: []net.IP{mgmtIP},
+	})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1401,6 +1434,7 @@ func TestWithOtherInterfaces(t *testing.T) {
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
+			NodeSync:     nodeSync,
 		},
 	}
 
@@ -1488,9 +1522,17 @@ func TestWithoutNodeIP(t *testing.T) {
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.SetHostIPs([]net.IP{mgmtIP})
 	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
 	contiv.RegisterPodPostAddHook(podPostAddHook)
+
+	// -> nodesync
+	nodeSync := NewMockNodeSync(masterLabel)
+	nodeSync.UpdateNode(&nodesync.Node{
+		Name:            masterLabel,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
+		MgmtIPAddresses: []net.IP{mgmtIP},
+	})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1511,6 +1553,7 @@ func TestWithoutNodeIP(t *testing.T) {
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
+			NodeSync:     nodeSync,
 		},
 	}
 
@@ -1578,9 +1621,17 @@ func TestServiceUpdates(t *testing.T) {
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.SetHostIPs([]net.IP{mgmtIP})
 	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
 	contiv.RegisterPodPostAddHook(podPostAddHook)
+
+	// -> nodesync
+	nodeSync := NewMockNodeSync(masterLabel)
+	nodeSync.UpdateNode(&nodesync.Node{
+		Name:            masterLabel,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
+		MgmtIPAddresses: []net.IP{mgmtIP},
+	})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1601,6 +1652,7 @@ func TestServiceUpdates(t *testing.T) {
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
+			NodeSync:     nodeSync,
 		},
 	}
 
@@ -2010,9 +2062,17 @@ func TestWithSNATOnly(t *testing.T) {
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.SetHostIPs([]net.IP{mgmtIP})
 	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
 	contiv.RegisterPodPostAddHook(podPostAddHook)
+
+	// -> nodesync
+	nodeSync := NewMockNodeSync(masterLabel)
+	nodeSync.UpdateNode(&nodesync.Node{
+		Name:            masterLabel,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
+		MgmtIPAddresses: []net.IP{mgmtIP},
+	})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -2033,6 +2093,7 @@ func TestWithSNATOnly(t *testing.T) {
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
+			NodeSync:     nodeSync,
 		},
 	}
 
@@ -2183,9 +2244,17 @@ func TestLocalServicePolicy(t *testing.T) {
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.SetHostIPs([]net.IP{mgmtIP})
 	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
 	contiv.RegisterPodPostAddHook(podPostAddHook)
+
+	// -> nodesync
+	nodeSync := NewMockNodeSync(masterLabel)
+	nodeSync.UpdateNode(&nodesync.Node{
+		Name:            masterLabel,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
+		MgmtIPAddresses: []net.IP{mgmtIP},
+	})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -2206,6 +2275,7 @@ func TestLocalServicePolicy(t *testing.T) {
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
+			NodeSync:     nodeSync,
 		},
 	}
 

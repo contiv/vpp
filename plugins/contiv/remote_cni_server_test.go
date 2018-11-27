@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -33,7 +32,9 @@ import (
 
 	. "github.com/contiv/vpp/mock/datasync"
 	. "github.com/contiv/vpp/mock/dockerclient"
+	. "github.com/contiv/vpp/mock/eventloop"
 	"github.com/contiv/vpp/mock/localclient"
+	. "github.com/contiv/vpp/mock/nodesync"
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
@@ -41,6 +42,7 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/nodesync"
 )
 
 const (
@@ -153,16 +155,27 @@ func TestBasicStuff(t *testing.T) {
 	dockerClient := NewMockDockerClient()
 	dockerClient.Connect()
 
+	// event loop
+	eventLoop := &MockEventLoop{}
+
 	// datasync
 	datasync := NewMockDataSync()
+
+	// nodesync
+	nodeSync := NewMockNodeSync(node1)
+	nodeSync.UpdateNode(&nodesync.Node{
+		ID:   node1ID,
+		Name: node1,
+	})
 
 	// transactions
 	txnTracker := localclient.NewTxnTracker(nil)
 
 	// Remote CNI Server init
 	args := &remoteCNIserverArgs{
-		Logger: logrus.DefaultLogger(),
-		nodeID: node1ID, // TODO: mock nodesync
+		Logger:    logrus.DefaultLogger(),
+		eventLoop: eventLoop,
+		nodeSync:  nodeSync,
 		txnFactory: func() controller.Transaction {
 			return txnTracker.NewControllerTxn(false)
 		},
@@ -192,7 +205,7 @@ func TestBasicStuff(t *testing.T) {
 	// resync against empty K8s state data
 	resyncEv, resyncCount := datasync.ResyncEvent(keyPrefixes...)
 	txn := txnTracker.NewControllerTxn(true)
-	err = server.Resync(resyncEv.KubeState, resyncCount, txn)
+	err = server.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
 	Expect(err).To(BeNil())
 	err = commitTransaction(txn, true)
 	Expect(err).To(BeNil())
@@ -202,19 +215,28 @@ func TestBasicStuff(t *testing.T) {
 
 	// simulate DHCP event
 	dhcpIndexes.Put(Gbe8, &interfaces.DHCPLease{InterfaceName: Gbe8, HostIpAddress: Gbe8IP, RouterIpAddress: GwIPWithPrefix})
+	Eventually(eventLoop.EventQueue).Should(HaveLen(1))
+	event := eventLoop.EventQueue[0]
+	nodeIPv4Change, isNodeIPv4Change := event.(*NodeIPv4Change)
+	Expect(isNodeIPv4Change).To(BeTrue())
+	nodeIP := &net.IPNet{IP: nodeIPv4Change.NodeIP, Mask: nodeIPv4Change.NodeIPNet.Mask}
+	Expect(nodeIP.String()).To(Equal(Gbe8IP))
+	Expect(nodeIPv4Change.DefaultGw.String()).To(Equal(strings.Split(GwIPWithPrefix, "/")[0]))
 
 	fmt.Println("Add another node -----------------------------------------")
 
 	// add another node
-	node2 := &nodeinfo.NodeInfo{
-		Name:                node2Name,
-		Id:                  node2ID,
-		IpAddress:           node2IP,
-		ManagementIpAddress: node2MgmtIP,
+	addr, network, _ := net.ParseCIDR(node2IP)
+	mgmt := net.ParseIP(node2MgmtIP)
+	node2 := &nodesync.Node{
+		Name:            node2Name,
+		ID:              node2ID,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: addr, Network: network}},
+		MgmtIPAddresses: []net.IP{mgmt},
 	}
-	event := datasync.PutEvent(nodeIDKey(node2ID), node2)
+	nodeUpdateEvent := nodeSync.UpdateNode(node2)
 	txn = txnTracker.NewControllerTxn(false)
-	change, err := server.Update(event, txn)
+	change, err := server.Update(nodeUpdateEvent, txn)
 	Expect(err).To(BeNil())
 	Expect(change).To(Equal("connect node ID=2"))
 	err = commitTransaction(txn, false)
@@ -226,15 +248,16 @@ func TestBasicStuff(t *testing.T) {
 	fmt.Println("Other node Mgmt IP update --------------------------------")
 
 	// update another node
-	node2Update := &nodeinfo.NodeInfo{
-		Name:                node2Name,
-		Id:                  node2ID,
-		IpAddress:           node2IP,
-		ManagementIpAddress: node2MgmtIPUpdated,
+	mgmt = net.ParseIP(node2MgmtIPUpdated)
+	node2Update := &nodesync.Node{
+		Name:            node2Name,
+		ID:              node2ID,
+		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: addr, Network: network}},
+		MgmtIPAddresses: []net.IP{mgmt},
 	}
-	event = datasync.PutEvent(nodeIDKey(node2ID), node2Update)
+	nodeUpdateEvent = nodeSync.UpdateNode(node2Update)
 	txn = txnTracker.NewControllerTxn(false)
-	change, err = server.Update(event, txn)
+	change, err = server.Update(nodeUpdateEvent, txn)
 	Expect(err).To(BeNil())
 	Expect(change).To(Equal("update node ID=2"))
 	err = commitTransaction(txn, false)
@@ -286,7 +309,7 @@ func TestBasicStuff(t *testing.T) {
 	// resync now with the IP from DHCP, new pod and the other node
 	resyncEv, resyncCount = datasync.ResyncEvent(keyPrefixes...)
 	txn = txnTracker.NewControllerTxn(true)
-	err = server.Resync(resyncEv.KubeState, resyncCount, txn)
+	err = server.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
 	Expect(err).To(BeNil())
 	err = commitTransaction(txn, true)
 	Expect(err).To(BeNil())
@@ -304,7 +327,7 @@ func TestBasicStuff(t *testing.T) {
 	// resync
 	resyncEv, resyncCount = datasync.ResyncEvent(keyPrefixes...)
 	txn = txnTracker.NewControllerTxn(true)
-	err = server.Resync(resyncEv.KubeState, resyncCount, txn)
+	err = server.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
 	Expect(err).To(BeNil())
 	err = commitTransaction(txn, true)
 	Expect(err).To(BeNil())
@@ -329,9 +352,9 @@ func TestBasicStuff(t *testing.T) {
 	fmt.Println("Delete node ----------------------------------------------")
 
 	// delete the other node
-	event = datasync.DeleteEvent(nodeIDKey(node2ID))
+	nodeUpdateEvent = nodeSync.DeleteNode(node2Name)
 	txn = txnTracker.NewControllerTxn(false)
-	change, err = server.Update(event, txn)
+	change, err = server.Update(nodeUpdateEvent, txn)
 	Expect(err).To(BeNil())
 	Expect(change).To(Equal("disconnect node ID=2"))
 	err = commitTransaction(txn, false)
@@ -344,7 +367,7 @@ func TestBasicStuff(t *testing.T) {
 
 	resyncEv, resyncCount = datasync.ResyncEvent(keyPrefixes...)
 	txn = txnTracker.NewControllerTxn(true)
-	err = server.Resync(resyncEv.KubeState, resyncCount, txn)
+	err = server.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
 	Expect(err).To(BeNil())
 	err = commitTransaction(txn, true)
 	Expect(err).To(BeNil())
@@ -376,11 +399,6 @@ func stolenInterfaceInfo(expInterface string, reply *stn_grpc.STNReply) StolenIn
 		}
 		return reply, nil
 	}
-}
-
-func nodeIDKey(index int) string {
-	str := strconv.FormatUint(uint64(index), 10)
-	return nodeinfo.AllocatedIDsKeyPrefix + str
 }
 
 func podIPFromCNIReply(reply *cni.CNIReply) net.IP {

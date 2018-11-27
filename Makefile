@@ -74,7 +74,7 @@ clean:
 test:
 	@echo "# running unit tests"
 	go test ./cmd/contiv-cni -tags="${GO_BUILD_TAGS}"
-	#go test ./plugins/contiv -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/contiv -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/contiv/ipam -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/ksr -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"

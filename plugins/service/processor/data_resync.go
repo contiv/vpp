@@ -28,7 +28,7 @@ import (
 // ResyncEventData wraps an entire state of K8s services that should be reflected
 // into VPP.
 type ResyncEventData struct {
-	Pods      []*podmodel.Pod
+	Pods      []podmodel.ID
 	Endpoints []*epmodel.Endpoints
 	Services  []*svcmodel.Service
 }
@@ -36,7 +36,7 @@ type ResyncEventData struct {
 // NewResyncEventData creates an empty instance of ResyncEventData.
 func NewResyncEventData() *ResyncEventData {
 	return &ResyncEventData{
-		Pods:      []*podmodel.Pod{},
+		Pods:      []podmodel.ID{},
 		Endpoints: []*epmodel.Endpoints{},
 		Services:  []*svcmodel.Service{},
 	}
@@ -45,8 +45,8 @@ func NewResyncEventData() *ResyncEventData {
 // String converts ResyncEventData into a human-readable string.
 func (red ResyncEventData) String() string {
 	pods := ""
-	for idx, pod := range red.Pods {
-		pods += pod.String()
+	for idx, podID := range red.Pods {
+		pods += podID.String()
 		if idx < len(red.Pods)-1 {
 			pods += ", "
 		}
@@ -73,9 +73,8 @@ func (sc *ServiceProcessor) parseResyncEv(kubeStateData controller.KubeStateData
 	event := NewResyncEventData()
 
 	// collect pods
-	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
-		pod := podProto.(*podmodel.Pod)
-		event.Pods = append(event.Pods, pod)
+	for podID := range sc.PodManager.GetLocalPods() {
+		event.Pods = append(event.Pods, podID)
 	}
 
 	// collect endpoints

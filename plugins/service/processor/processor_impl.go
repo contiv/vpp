@@ -17,7 +17,6 @@
 package processor
 
 import (
-	"net"
 	"strings"
 	"sync"
 
@@ -31,6 +30,7 @@ import (
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/service/renderer"
+	"github.com/contiv/vpp/plugins/podmanager"
 )
 
 // ServiceProcessor implements ServiceProcessorAPI.
@@ -54,6 +54,7 @@ type Deps struct {
 	Log          logging.Logger
 	ServiceLabel servicelabel.ReaderAPI
 	NodeSync     nodesync.API
+	PodManager   podmanager.API
 	Contiv       contiv.API /* to get all interface names and pod IP network */
 }
 
@@ -83,17 +84,24 @@ func (sp *ServiceProcessor) reset() error {
 	return nil
 }
 
-// Update processes a datasync change event associated with the state data
-// of K8s pods, endpoints, services and nodes.
-// The data change is stored into the cache and all registered renderers
-// are notified about any changes related to services that need to be
-// reflected in the underlying network stack(s).
+// Update is called for:
+//  - KubeStateChange for service-related data
+//  - AddPod & DeletePod
+//  - NodeUpdate event
 func (sp *ServiceProcessor) Update(event controller.Event) error {
 	sp.Lock()
 	defer sp.Unlock()
 
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
 		return sp.propagateDataChangeEv(ksChange)
+	}
+
+	if addPod, isAddPod := event.(*podmanager.AddPod); isAddPod {
+		// TODO: revert
+		return sp.ProcessNewPod(addPod.Pod.Namespace, addPod.Pod.Name)
+	}
+	if deletePod, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
+		return sp.ProcessDeletingPod(deletePod.Pod.Namespace, deletePod.Pod.Name)
 	}
 
 	if _, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
@@ -103,8 +111,7 @@ func (sp *ServiceProcessor) Update(event controller.Event) error {
 	return nil
 }
 
-// Resync processes a datasync resync event associated with the state data
-// of K8s pods, endpoints, services and nodes.
+// Resync processes a resync event.
 // The cache content is fully replaced and all registered renderers
 // receive a full snapshot of Contiv Services at the present state to be
 // (re)installed.
@@ -447,16 +454,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		sp.backendIfs.Add(hostInterconnect)
 	}
 	// -> pods
-	for _, pod := range resyncEv.Pods {
-		podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
-		if pod.IpAddress == "" {
-			continue
-		}
-		podIPAddress := net.ParseIP(pod.IpAddress)
-		if podIPAddress == nil || !sp.Contiv.GetPodSubnetThisNode().Contains(podIPAddress) {
-			continue
-		}
-
+	for _, podID := range resyncEv.Pods {
 		// -> pod interface
 		ifName, ifExists := sp.Contiv.GetIfName(podID.Namespace, podID.Name)
 		if !ifExists {

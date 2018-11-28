@@ -209,7 +209,7 @@ func testPutNewContivEntry(t *testing.T) {
 	checkEntry(stat, entry)
 }
 
-/*
+/* TODO
 func testDeletePodEntry(t *testing.T) {
 	evt := containeridx.ChangeEvent{
 		NamedMappingEvent: idxmap.NamedMappingEvent{

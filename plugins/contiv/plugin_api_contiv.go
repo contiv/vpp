@@ -7,11 +7,9 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
-// PodActionHook defines parameters and the return value of a callback triggered
-// during an event associated with a pod.
-type PodActionHook func(podNamespace string, podName string, txn controller.UpdateOperations) error
-
 // API for other plugins to query network-related information.
+// Apart from static methods and GetPodByIf, all methods should not be accessed
+// from outside of the event loop!!!
 type API interface {
 	// GetIfName looks up logical interface name that corresponds to the interface
 	// associated with the given pod.
@@ -79,14 +77,6 @@ type API interface {
 	// used by the default route to send packets out from VPP towards the default gateway.
 	// If the default GW is not configured, the function returns zero values.
 	GetDefaultInterface() (ifName string, ifAddress net.IP)
-
-	// RegisterPodPreRemovalHook allows to register callback that will be run for each
-	// pod immediately before its removal.
-	RegisterPodPreRemovalHook(hook PodActionHook)
-
-	// RegisterPodPostAddHook allows to register callback that will be run for each
-	// pod once it is added and before the CNI reply is sent.
-	RegisterPodPostAddHook(hook PodActionHook)
 
 	// GetMainVrfID returns the ID of the main network connectivity VRF.
 	GetMainVrfID() uint32

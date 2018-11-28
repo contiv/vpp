@@ -129,9 +129,11 @@ func main() {
 	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.NodeSync = nodeSyncPlugin
+		deps.PodManager = podManager
 	}))
 
-	statscollector.DefaultPlugin.Contiv = contivPlugin
+	statsCollector := &statscollector.DefaultPlugin
+	statsCollector.Contiv = contivPlugin
 
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
 		deps.Contiv = contivPlugin
@@ -140,6 +142,7 @@ func main() {
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
 		deps.Contiv = contivPlugin
 		deps.NodeSync = nodeSyncPlugin
+		deps.PodManager = podManager
 	}))
 
 	controller := controller.NewPlugin(controller.UseDeps(func(deps *controller.Deps) {
@@ -151,6 +154,7 @@ func main() {
 			contivPlugin,
 			servicePlugin,
 			policyPlugin,
+			statsCollector,
 		}
 	}))
 
@@ -165,7 +169,7 @@ func main() {
 		HealthProbe:   &probe.DefaultPlugin,
 		Prometheus:    &prometheus.DefaultPlugin,
 		KVScheduler:   &kvscheduler.DefaultPlugin,
-		Stats:         &statscollector.DefaultPlugin,
+		Stats:         statsCollector,
 		GoVPP:         &govppmux.DefaultPlugin,
 		LinuxIfPlugin: &linux_ifplugin.DefaultPlugin,
 		LinuxL3Plugin: &linux_l3plugin.DefaultPlugin,

@@ -30,6 +30,8 @@ import (
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/podmanager"
+
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -54,6 +56,7 @@ type Deps struct {
 	ServiceLabel servicelabel.ReaderAPI
 	Contiv       contiv.API         /* to get the Node IP and all interface names */
 	NodeSync     nodesync.API       /* to get the list of all node IPs for nodePort services */
+	PodManager   podmanager.API     /* to get the list or running pods which determines frontend interfaces */
 	GoVPP        govppmux.API       /* used for direct NAT binary API calls */
 	Stats        statscollector.API /* used for exporting the statistics */
 }
@@ -74,6 +77,7 @@ func (p *Plugin) Init() error {
 			ServiceLabel: p.ServiceLabel,
 			Contiv:       p.Contiv,
 			NodeSync:     p.NodeSync,
+			PodManager:   p.PodManager,
 		},
 	}
 
@@ -113,6 +117,7 @@ func (p *Plugin) AfterInit() error {
 // HandlesEvent selects:
 //  - any resync event
 //  - KubeStateChange for service-related data
+//  - AddPod & DeletePod
 //  - NodeUpdate event
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
 	if event.Method() == controller.Resync {
@@ -129,6 +134,12 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 			return false
 		}
 	}
+	if _, isAddPod := event.(*podmanager.AddPod); isAddPod {
+		return true
+	}
+	if _, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
+		return true
+	}
 	if _, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
 		return true
 	}
@@ -144,29 +155,15 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeStateData,
 	resyncCount int, txn controller.ResyncOperations) error {
 
-	if resyncCount == 1 {
-		// startup resync
-		// register for add/del pod events (temporary solution)
-		p.Contiv.RegisterPodPreRemovalHook(
-			func(podNamespace string, podName string, txn controller.UpdateOperations) error {
-				p.updateTxn = txn
-				p.resyncTxn = nil
-				return p.processor.ProcessDeletingPod(podNamespace, podName)
-			})
-		p.Contiv.RegisterPodPostAddHook(
-			func(podNamespace string, podName string, txn controller.UpdateOperations) error {
-				p.updateTxn = txn
-				p.resyncTxn = nil
-				return p.processor.ProcessNewPod(podNamespace, podName)
-			})
-	}
-
 	p.resyncTxn = txn
 	p.updateTxn = nil
 	return p.processor.Resync(kubeStateData)
 }
 
-// Update is called for KubeStateChange (Add/Del Pod TBD).
+// Update is called for:
+//  - KubeStateChange for service-related data
+//  - AddPod & DeletePod
+//  - NodeUpdate event
 func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
 	p.resyncTxn = nil
 	p.updateTxn = txn

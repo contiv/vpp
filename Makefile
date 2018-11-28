@@ -176,7 +176,8 @@ get-generators:
 # Generate sources
 generate: get-generators
 	@echo "# generating sources"
-	cd plugins/contiv && go generate
+	cd plugins/nodesync && go generate
+	cd plugins/podmanager && go generate
 	cd plugins/contiv/ipam && go generate
 	cd plugins/ksr && go generate
 	cd cmd/contiv-stn && go generate

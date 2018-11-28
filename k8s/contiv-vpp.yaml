@@ -38,6 +38,7 @@ data:
     ServiceLocalEndpointWeight: 1
     DisableNATVirtualReassembly: false
     EnablePacketTrace: false
+    RouteServicesToVPP: true
     CRDNodeConfigurationDisabled: true
     IPAMConfig:
       NodeInterconnectDHCP: false

@@ -34,7 +34,9 @@ import (
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/cn-infra/servicelabel"
 
+	"fmt"
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"github.com/contiv/vpp/pkg/pci"
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/db/keyval"
@@ -140,10 +142,8 @@ func stnGrpcConnect() (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-// parseSTNConfig parses the config file and looks up for STN configuration.
-// In case that STN was requested for this node, returns the interface to be stolen and optionally its name on VPP.
-func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, err error) {
-
+// parseConfig parses global Contiv config & node config from the file specified as an argument and optionally also from CRD.
+func parseConfig() (config *contiv.Config, nodeConfig *contiv.NodeConfig, err error) {
 	// read config YAML
 	yamlFile, err := ioutil.ReadFile(*contivCfgFile)
 	if err != nil {
@@ -160,31 +160,43 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 	}
 	config.ApplyDefaults()
 
-	// DHCP global config may be overwritten by node configuration
-	globalUseDHCP := config.IPAMConfig.NodeInterconnectDHCP
-
-	// try to find node config and return STN interface name if defined
+	// try to find node config
 	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
 	logger.Debugf("Looking for node '%s' specific config in ETCD/Bolt", nodeName)
-	if nc := loadNodeConfigFromCRD(nodeName); nc != nil {
+	if nodeConfig = loadNodeConfigFromCRD(nodeName); nodeConfig != nil {
 		// node configuration defined via CRD
-		nicToSteal, useDHCP = processNodeSpecificConfig(nc)
+		return
 	} else {
 		// node configuration not defined via CRD => search for node specific config inside
 		// the configuration file
 		logger.Debugf("Looking for node '%s' specific config inside the configuration file", nodeName)
-		if nc := config.GetNodeConfig(nodeName); nc != nil {
-			nicToSteal, useDHCP = processNodeSpecificConfig(nc)
+		nodeConfig = config.GetNodeConfig(nodeName)
+	}
+	return
+}
+
+// processSTNConfig looks up for STN configuration in the Contiv config ang node config.
+// In case that STN was requested for this node, returns the interface to be stolen.
+func processSTNConfig(config *contiv.Config, nodeConfig *contiv.NodeConfig) (nicToSteal string, useDHCP bool, err error) {
+
+	// node config: interface name - priority 1
+	if nodeConfig != nil {
+		nicToSteal = nodeConfig.StealInterface
+		if nicToSteal != "" {
+			logger.Debugf("Found interface to be stolen: %s", nicToSteal)
+			if nodeConfig.MainVPPInterface.UseDHCP == true {
+				useDHCP = true
+			}
 		}
 	}
 
-	// global config - interface name
+	// global config: interface name - priority 2
 	if nicToSteal == "" && config.StealInterface != "" {
 		nicToSteal = config.StealInterface
 		logger.Debugf("Found interface to be stolen: %s", nicToSteal)
 	}
 
-	// global config - first interface
+	// global config - first interface - priority 3
 	if nicToSteal == "" && config.StealFirstNIC {
 		// the first NIC will be stolen
 		nicToSteal = getFirstInterfaceName()
@@ -193,20 +205,7 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 		}
 	}
 
-	useDHCP = globalUseDHCP || useDHCP
-	return
-}
-
-// processNodeSpecificConfig processes STN-relevant attributes from node-specific
-// configuration section.
-func processNodeSpecificConfig(nodeConfig *contiv.NodeConfig) (nicToSteal string, useDHCP bool) {
-	nicToSteal = nodeConfig.StealInterface
-	if nicToSteal != "" {
-		logger.Debugf("Found interface to be stolen: %s", nodeConfig.StealInterface)
-		if nodeConfig.MainVPPInterface.UseDHCP == true {
-			useDHCP = true
-		}
-	}
+	useDHCP = useDHCP || config.IPAMConfig.NodeInterconnectDHCP
 	return
 }
 
@@ -306,15 +305,36 @@ func boltOpen() (protoDb *kvproto.ProtoWrapper, err error) {
 	return protoDb, nil
 }
 
+// deriveVmxnet3PCI derives PCI address string from the vmxnet3 interface name
+func deriveVmxnet3PCI(ifName string) (string, error) {
+	var function, slot, bus, domain uint32
+	numLen, err := fmt.Sscanf(ifName, "vmxnet3-%x/%x/%x/%x", &domain, &bus, &slot, &function)
+	if err != nil {
+		err = fmt.Errorf("cannot parse PCI address from the vmxnet3 interface name %s: %v", ifName, err)
+		return "", err
+	}
+	if numLen != 4 {
+		err = fmt.Errorf("cannot parse PCI address from the interface name %s: expected 4 address elements, received %d",
+			ifName, numLen)
+		return "", err
+	}
+	return fmt.Sprintf("%04x:%02x:%02x.%0x", domain, bus, slot, function), nil
+}
+
 func main() {
 	flag.Parse()
-
 	logger.Debugf("Starting contiv-init process")
 
-	// check whether STN is required and get NIC name
-	contivCfg, nicToSteal, useDHCP, err := parseSTNConfig()
+	contivCfg, nodeCfg, err := parseConfig()
 	if err != nil {
-		logger.Errorf("Error by parsing STN config: %v", err)
+		logger.Errorf("Error by parsing config: %v", err)
+		os.Exit(-1)
+	}
+
+	// check whether STN is required and get NIC name
+	nicToSteal, useDHCP, err := processSTNConfig(contivCfg, nodeCfg)
+	if err != nil {
+		logger.Errorf("Error by processing STN config: %v", err)
 		os.Exit(-1)
 	}
 
@@ -329,6 +349,20 @@ func main() {
 		}
 	} else {
 		logger.Debug("STN not requested")
+	}
+
+	// check if explicit bind to vfio-pci driver is needed (required for vmxnet3 interfaces)
+	if nodeCfg != nil && strings.HasPrefix(nodeCfg.MainVPPInterface.InterfaceName, "vmxnet3-") {
+		pciAddr, err := deriveVmxnet3PCI(nodeCfg.MainVPPInterface.InterfaceName)
+		if err != nil {
+			logger.Errorf("Error by deriving PCI address: %v", err)
+			os.Exit(-1)
+		}
+		err = pci.DriverBind(pciAddr, "vfio-pci")
+		if err != nil {
+			logger.Errorf("Error binding to vfio-pci: %v", err)
+			os.Exit(-1)
+		}
 	}
 
 	// connect to supervisor API

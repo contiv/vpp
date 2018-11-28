@@ -56,6 +56,7 @@ type Config struct {
 	ServiceLocalEndpointWeight  uint8
 	DisableNATVirtualReassembly bool // if true, NAT plugin will drop fragmented packets
 	EnablePacketTrace           bool
+	RouteServicesToVPP          bool // if true, cluster IP CIDR will be routed towards VPP from Linux
 	IPAMConfig                  ipam.Config
 	NodeConfig                  []NodeConfig
 }

@@ -793,12 +793,14 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	txn.LinuxRoute(config.routeFromHost)
 
 	// route from the host to k8s service range from the host
-	if s.stnGw == "" {
-		config.routeForServices = s.routeServicesFromHost(s.ipam.VEthVPPEndIP().String())
-	} else {
-		config.routeForServices = s.routeServicesFromHost(s.stnGw)
+	if s.config.RouteServicesToVPP {
+		if s.stnGw == "" {
+			config.routeForServices = s.routeServicesFromHost(s.ipam.VEthVPPEndIP().String())
+		} else {
+			config.routeForServices = s.routeServicesFromHost(s.stnGw)
+		}
+		txn.LinuxRoute(config.routeForServices)
 	}
-	txn.LinuxRoute(config.routeForServices)
 
 	// enable L4 features
 	config.l4Features = s.l4Features(!s.disableTCPstack)
@@ -944,7 +946,9 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 		}
 	}
 	changes[linux_l3.StaticRouteKey(config.routeFromHost.Name)] = config.routeFromHost
-	changes[linux_l3.StaticRouteKey(config.routeForServices.Name)] = config.routeForServices
+	if config.routeForServices != nil {
+		changes[linux_l3.StaticRouteKey(config.routeForServices.Name)] = config.routeForServices
+	}
 	if config.vrfRoutes != nil {
 		for _, r := range config.vrfRoutes {
 			changes[vpp_l3.RouteKey(r.VrfId, r.DstIpAddr, r.NextHopAddr)] = r

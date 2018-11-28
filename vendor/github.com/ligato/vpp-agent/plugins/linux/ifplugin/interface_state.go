@@ -126,7 +126,7 @@ func (c *LinuxInterfaceStateUpdater) watchLinuxInterfaces(ctx context.Context) {
 
 // Prepare notification and send it to the state channel
 func (c *LinuxInterfaceStateUpdater) processLinkNotification(link netlink.Link) {
-	if link == nil ||  link.Attrs() == nil {
+	if link == nil || link.Attrs() == nil {
 		return
 	}
 

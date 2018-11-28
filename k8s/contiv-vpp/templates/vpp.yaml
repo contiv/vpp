@@ -48,7 +48,7 @@ data:
     {{- end }}
     DisableNATVirtualReassembly: {{ .Values.contiv.disableNATVirtualReassembly }}
     EnablePacketTrace: {{ .Values.contiv.enablePacketTrace }}
-    RouteServicesToVPP: {{ .Values.contiv.routeServicesToVPP }}
+    RouteServiceCIDRToVPP: {{ .Values.contiv.routeServiceCIDRToVPP }}
     CRDNodeConfigurationDisabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
     IPAMConfig:
       NodeInterconnectDHCP: {{ .Values.contiv.ipamConfig.nodeInterconnectDHCP }}

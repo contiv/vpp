@@ -16,7 +16,7 @@ contiv:
   serviceLocalEndpointWeight: 1
   disableNATVirtualReassembly: False
   enablePacketTrace: False
-  routeServicesToVPP: True
+  routeServiceCIDRToVPP: True
   crdNodeConfigurationDisabled: True
   ipamConfig:
     podSubnetCIDR: 10.1.0.0/16

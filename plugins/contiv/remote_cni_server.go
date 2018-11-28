@@ -793,7 +793,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	txn.LinuxRoute(config.routeFromHost)
 
 	// route from the host to k8s service range from the host
-	if s.config.RouteServicesToVPP {
+	if s.config.RouteServiceCIDRToVPP {
 		if s.stnGw == "" {
 			config.routeForServices = s.routeServicesFromHost(s.ipam.VEthVPPEndIP().String())
 		} else {

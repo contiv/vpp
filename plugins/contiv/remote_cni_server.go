@@ -59,28 +59,8 @@ const (
 	ipv4NetAny = "0.0.0.0/0"
 )
 
-/* CNI requests */
-const (
-	// possible retvals for CNI request
-	resultOk  uint32 = 0
-	resultErr uint32 = 1
-
-	// name of the argument that stores pod name within a CNI request
-	podNameExtraArg = "K8S_POD_NAME"
-
-	// name of the argument that stores pod namespace within a CNI request
-	podNamespaceExtraArg = "K8S_POD_NAMESPACE"
-)
-
 /* Pod connectivity */
 const (
-	// label attached to the sandbox container of every pod
-	k8sLabelForSandboxContainer = "io.kubernetes.docker.type=podsandbox"
-
-	// labels attached to (not only sandbox) container to identify the pod it belongs to
-	k8sLabelForPodName      = "io.kubernetes.pod.name"
-	k8sLabelForPodNamespace = "io.kubernetes.pod.namespace"
-
 	// interface host name as required by Kubernetes for every pod
 	podInterfaceHostName = "eth0" // required by Kubernetes
 
@@ -263,7 +243,7 @@ type remoteCNIserverArgs struct {
 	http rest.HTTPHandlers
 }
 
-// DockerClient requires API of a Docker client needed by the remote CNI server.
+// DockerClient defines API of a Docker client needed by the remote CNI server.
 type DockerClient interface {
 	// Ping pings the docker server.
 	Ping() error
@@ -392,17 +372,20 @@ func (s *remoteCNIserver) Resync(event controller.Event, kubeStateData controlle
 	return wasErr
 }
 
-// Update reacts to NodeUpdate.
-func (s *remoteCNIserver) Update(nodeUpdate *nodesync.NodeUpdate, txn controller.UpdateOperations) (change string, err error) {
+// Update reacts to NodeUpdate and Shutdown events.
+func (s *remoteCNIserver) Update(event controller.Event, txn controller.UpdateOperations) (change string, err error) {
 	s.Lock()
 	defer s.Unlock()
 
-	return s.processNodeUpdateEvent(nodeUpdate, txn)
-}
+	if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
+		return s.processNodeUpdateEvent(nodeUpdate, txn)
+	}
 
-// Close is called by the plugin infra when the CNI server needs to be stopped.
-func (s *remoteCNIserver) Close() {
-	s.cleanupVswitchConnectivity()
+	if _, isShutdown := event.(*controller.Shutdown); isShutdown {
+		return s.cleanupVswitchConnectivity(txn)
+	}
+
+	return "", nil
 }
 
 // Add handles CNI Add request, connects a Pod container to the network.
@@ -1094,28 +1077,18 @@ func (s *remoteCNIserver) listRunningPods() (pods map[podmodel.ID]*Pod, err erro
 
 // cleanupVswitchConnectivity cleans up base vSwitch VPP connectivity
 // configuration in the host IP stack.
-func (s *remoteCNIserver) cleanupVswitchConnectivity() {
+func (s *remoteCNIserver) cleanupVswitchConnectivity(txn controller.UpdateOperations) (change string, err error) {
 	if s.config.UseTAPInterfaces {
 		// everything configured in the host will disappear automatically
 		return
 	}
-
-	// prepare the config transaction
-	txn := s.txnFactory()
 
 	// un-configure VETHs
 	key, _ := s.interconnectVethHost()
 	txn.Delete(key)
 	key, _ = s.interconnectVethVpp()
 	txn.Delete(key)
-
-	// execute the config transaction
-	ctx := context.Background()
-	ctx = scheduler_api.WithDescription(ctx, "Remote CNI Server Cleanup")
-	err := txn.Commit(ctx)
-	if err != nil {
-		s.Logger.Warn(err)
-	}
+	return "removing VPP<->Host VETHs"
 }
 
 /************************** Main Interface IP Address **************************/

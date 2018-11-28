@@ -120,12 +120,16 @@ func (p *Plugin) Init() error {
 // HandlesEvent selects:
 //   - any Resync event (extra action for NodeIPv4Change)
 //   - NodeUpdate for other nodes
+//   - Shutdown event
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
 	if event.Method() == controller.Resync {
 		return true
 	}
 	if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
 		return nodeUpdate.NodeName != p.ServiceLabel.GetAgentLabel()
+	}
+	if _, isShutdown := event.(*controller.Shutdown); isShutdown {
+		return true
 	}
 
 	// unhandled event
@@ -187,8 +191,7 @@ func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeSta
 
 // Update is called for NodeUpdate.
 func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
-	nodeUpdate := event.(*nodesync.NodeUpdate)
-	return p.cniServer.Update(nodeUpdate, txn)
+	return p.cniServer.Update(event, txn)
 }
 
 // Revert does nothing here - plugin handles only BestEffort events.
@@ -219,7 +222,6 @@ func (p *Plugin) Delete(ctx context.Context, request *cni.CNIRequest) (*cni.CNIR
 // Close is called by the plugin infra upon agent cleanup.
 // It cleans up the resources allocated by the plugin.
 func (p *Plugin) Close() error {
-	p.cniServer.Close()
 	_, err := safeclose.CloseAll(p.govppCh)
 	return err
 }

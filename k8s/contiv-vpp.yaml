@@ -72,6 +72,8 @@ data:
     disabled: true
   controller.conf: |
     delay-local-resync: 5000000000
+  podmanager.conf: |
+    tcp-checksum-offload-disabled: false
 
 ---
 

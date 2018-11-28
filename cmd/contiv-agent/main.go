@@ -48,6 +48,7 @@ import (
 	"github.com/contiv/vpp/plugins/controller"
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/contiv/vpp/plugins/service"
 	"github.com/contiv/vpp/plugins/statscollector"
@@ -79,6 +80,7 @@ type ContivAgent struct {
 
 	Controller *controller.Controller
 	NodeSync   *nodesync.NodeSync
+	PodManager *podmanager.PodManager
 	Contiv     *contiv.Plugin
 	Policy     *policy.Plugin
 	Service    *service.Plugin
@@ -122,6 +124,8 @@ func main() {
 	// initialize Contiv plugins
 	nodeSyncPlugin := &nodesync.DefaultPlugin
 
+	podManager := &podmanager.DefaultPlugin
+
 	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.NodeSync = nodeSyncPlugin
@@ -143,6 +147,7 @@ func main() {
 		deps.RemoteDB = &etcd.DefaultPlugin
 		deps.EventHandlers = []controller_api.EventHandler{
 			nodeSyncPlugin,
+			podManager,
 			contivPlugin,
 			servicePlugin,
 			policyPlugin,
@@ -150,6 +155,7 @@ func main() {
 	}))
 
 	nodeSyncPlugin.EventLoop = controller
+	podManager.EventLoop = controller
 	contivPlugin.EventLoop = controller
 
 	// initialize the agent
@@ -172,6 +178,7 @@ func main() {
 		GRPC:          &grpc.DefaultPlugin,
 		Controller:    controller,
 		NodeSync:      nodeSyncPlugin,
+		PodManager:    podManager,
 		Contiv:        contivPlugin,
 		Policy:        policyPlugin,
 		Service:       servicePlugin,

@@ -45,11 +45,14 @@ type IPAM struct {
 	nodeName string // node name for which this IPAM is created for
 
 	// POD related variables
-	podSubnetAllNodes  net.IPNet              // IPv4 subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
-	podSubnetThisNode  net.IPNet              // IPv4 subnet prefix for all PODs on this node (given by nodeID), podSubnetAllNodes + nodeID ==<computation>==> podSubnetThisNode
-	podSubnetGatewayIP net.IP                 // gateway IP address for PODs on this node (given by nodeID)
-	podVPPSubnet       net.IPNet              // IPv4 subnet from which individual VPP-side POD interfaces networks are allocated, this is subnet for all PODS within this node.
-	assignedPodIPs     map[uintIP]podmodel.ID // pool of assigned POD IP addresses
+	podSubnetAllNodes  net.IPNet // IPv4 subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
+	podSubnetThisNode  net.IPNet // IPv4 subnet prefix for all PODs on this node (given by nodeID), podSubnetAllNodes + nodeID ==<computation>==> podSubnetThisNode
+	podSubnetGatewayIP net.IP    // gateway IP address for PODs on this node (given by nodeID)
+	podVPPSubnet       net.IPNet // IPv4 subnet from which individual VPP-side POD interfaces networks are allocated, this is subnet for all PODS within this node.
+
+	// maps to convert between Pod and the assigned IP
+	assignedPodIPs map[uintIP]podmodel.ID // pool of assigned POD IP addresses
+	podToIP        map[podmodel.ID]net.IP // pod -> allocated IP address
 
 	// VSwitch related variables
 	hostInterconnectSubnetAllNodes net.IPNet // IPv4 subnet used across all nodes for VPP to host Linux stack interconnect
@@ -133,6 +136,7 @@ func (i *IPAM) Resync(kubeStateData controller.KubeStateData) (err error) {
 	// reset internal state
 	i.lastPodIPAssigned = 1
 	i.assignedPodIPs = make(map[uintIP]podmodel.ID)
+	i.podToIP = make(map[podmodel.ID]net.IP)
 
 	// iterate over pod state data
 	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
@@ -147,6 +151,7 @@ func (i *IPAM) Resync(kubeStateData controller.KubeStateData) (err error) {
 		addrIndex, _ := ipv4ToUint32(podIPAddress)
 		podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
 		i.assignedPodIPs[addrIndex] = podID
+		i.podToIP[podID] = podIPAddress
 
 		diff := int(addrIndex - networkPrefix)
 		if i.lastPodIPAssigned < diff {
@@ -350,10 +355,21 @@ func (i *IPAM) tryToAllocatePodIP(index int, networkPrefix uint32, podID podmode
 	i.assignedPodIPs[ip] = podID
 
 	ipForAssign := uint32ToIpv4(ip)
+	i.podToIP[podID] = ipForAssign
 	i.logger.Infof("Assigned new pod IP %s", ipForAssign)
 	i.logAssignedPodIPPool()
 
 	return ipForAssign, true
+}
+
+// GetPodIP returns the allocated pod IP, together with the mask.
+// Returns nil if the pod does not have allocated IP address.
+func (i *IPAM) GetPodIP(podID podmodel.ID) *net.IPNet {
+	addr, found := i.podToIP[podID]
+	if !found {
+		return nil
+	}
+	return &net.IPNet{IP: addr, Mask: net.CIDRMask(net.IPv4len*8, net.IPv4len*8)}
 }
 
 // ReleasePodIP releases the pod IP address making it available for new PODs.
@@ -361,14 +377,16 @@ func (i *IPAM) ReleasePodIP(podID podmodel.ID) error {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
-	ip, err := i.findIP(podID)
-	if err != nil {
-		i.logger.Warnf("Unable to find pod(%v) IP: %v", podID, err)
+	addr, found := i.podToIP[podID]
+	if !found {
+		i.logger.Warnf("Unable to find IP for pod %v", podID)
 		return nil
 	}
-	delete(i.assignedPodIPs, ip)
+	addrIndex, _ := ipv4ToUint32(addr)
+	delete(i.assignedPodIPs, addrIndex)
+	delete(i.podToIP, podID)
 
-	i.logger.Infof("Released IP %v for pod ID %v", uint32ToIpv4(ip), podID)
+	i.logger.Infof("Released IP %v for pod ID %v", addr, podID)
 	i.logAssignedPodIPPool()
 	return nil
 }
@@ -386,6 +404,7 @@ func initializePodsIPAM(ipam *IPAM, config *Config, nodeID uint32) (err error) {
 	}
 	ipam.podSubnetGatewayIP = uint32ToIpv4(podNetworkPrefixUint32 + podGatewaySeqID)
 	ipam.assignedPodIPs = make(map[uintIP]podmodel.ID)
+	ipam.podToIP = make(map[podmodel.ID]net.IP)
 	return nil
 }
 
@@ -561,16 +580,6 @@ func (i *IPAM) computeVxlanIPAddress(nodeID uint32) (net.IP, error) {
 		return nil, err
 	}
 	return uint32ToIpv4(networkIPPartUint32 + uint32(nodeIPPart)), nil
-}
-
-// findIP finds assigned IP address (in uint form) for given POD id or returns an error if no entry is found.
-func (i *IPAM) findIP(podID podmodel.ID) (uintIP, error) {
-	for ip, curPodID := range i.assignedPodIPs {
-		if curPodID == podID {
-			return ip, nil
-		}
-	}
-	return 0, fmt.Errorf("Can't find assigned pod IP address for pod ID \"%v\"", podID)
 }
 
 // convertToNodeIPPart converts nodeID to part of IP address that distinguishes network IP address prefix among

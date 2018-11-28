@@ -249,6 +249,7 @@ func (c *Controller) Init() error {
 	err := c.loadConfig(c.config)
 	if err != nil {
 		c.Log.Error(err)
+		return err
 	}
 	c.Log.Infof("Controller configuration: %+v", *c.config)
 
@@ -354,6 +355,11 @@ func (c *Controller) eventLoop() {
 	defer c.wg.Done()
 	c.evLoopGID = getGID()
 
+	c.Log.Info("Starting the main event loop")
+	defer func() {
+		c.Log.Info("Stopping the main event loop")
+	}()
+
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -424,6 +430,10 @@ func (c *Controller) receiveEvent(qe *QueuedEvent) (exitLoop bool) {
 				c.StatusCheck.ReportStateChange(c.PluginName, statuscheck.Error, err)
 				return true
 			}
+		}
+		if _, isShutdown := event.event.(*api.Shutdown); isShutdown {
+			// agent is shutting down
+			return true
 		}
 	}
 	c.delayedEvents = []*QueuedEvent{}
@@ -712,10 +722,16 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 
 // Close stops event loop and database watching.
 func (c *Controller) Close() error {
+	// send shutdown event first
+	shutdownEv := api.NewShutdownEvent()
+	c.PushEvent(shutdownEv)
+	err := shutdownEv.Wait()
+
+	// close all go routines
 	c.dbWatcher.close()
 	c.cancel()
 	c.wg.Wait()
-	return nil
+	return err
 }
 
 // loadConfig loads configuration file.

@@ -445,10 +445,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		// -> pod interface
 		ifName, ifExists := sp.Contiv.GetIfName(podID.Namespace, podID.Name)
 		if !ifExists {
-			sp.Log.WithFields(logging.Fields{
-				"pod-ns":   podID.Namespace,
-				"pod-name": podID.Name,
-			}).Warn("Failed to get pod interface name")
+			// not an error, this is just pod deployed in the host networking
 			continue
 		}
 		localEp := sp.getLocalEndpoint(podID)

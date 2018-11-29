@@ -103,6 +103,9 @@ var (
 // Init connects to Docker server and also registers the plugin to serve
 // Add/Delete CNI requests.
 func (pm *PodManager) Init() (err error) {
+	// init attributes
+	pm.pods = make(LocalPods)
+
 	// load configuration
 	pm.config, err = pm.loadConfig()
 	if err != nil {
@@ -202,7 +205,7 @@ func (pm *PodManager) Resync(_ controller.Event, _ controller.KubeStateData,
 		pm.Log.Debugf("Found locally running Pod: %+v", pm.pods[podID])
 	}
 
-	pm.Log.Debugf("PodManager state after resync: pods=%d", pm.pods.String())
+	pm.Log.Debugf("PodManager state after resync: pods=%s", pm.pods.String())
 	return nil
 }
 
@@ -351,7 +354,7 @@ func (pm *PodManager) disableTCPChecksumOffload(request *cni.CNIRequest) error {
 func (pm *PodManager) cniReplyForAddPod(request *cni.CNIRequest, event *AddPod, err error) (reply *cni.CNIReply) {
 	if err != nil {
 		reply = pm.cniErrorReply(err)
-		pm.Log.Debugf("CNI Add request reply: %+v", reply)
+		pm.Log.Debugf("CNI Add request reply: %+v", *reply)
 		return reply
 	}
 
@@ -382,7 +385,7 @@ func (pm *PodManager) cniReplyForAddPod(request *cni.CNIRequest, event *AddPod, 
 			Gw:  route.Gateway.String(),
 		})
 	}
-	pm.Log.Debugf("CNI Add request reply: %+v", reply)
+	pm.Log.Debugf("CNI Add request reply: %+v", *reply)
 	return reply
 }
 
@@ -395,7 +398,7 @@ func (pm *PodManager) cniReplyForDeletePod(err error) (reply *cni.CNIReply) {
 			Result: cniResultOk,
 		}
 	}
-	pm.Log.Debugf("CNI Delete request reply: %+v", reply)
+	pm.Log.Debugf("CNI Delete request reply: %+v", *reply)
 	return reply
 }
 

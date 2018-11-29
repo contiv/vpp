@@ -318,6 +318,9 @@ func (s *remoteCNIserver) Resync(event controller.Event, kubeStateData controlle
 		s.vppIfaceToPodMutex.Lock()
 		s.vppIfaceToPod = make(map[string]podmodel.ID)
 		for _, pod := range s.podManager.GetLocalPods() {
+			if s.ipam.GetPodIP(pod.ID) == nil {
+				continue
+			}
 			vppIfName, _ := s.podInterfaceName(pod)
 			s.vppIfaceToPod[vppIfName] = pod.ID
 		}

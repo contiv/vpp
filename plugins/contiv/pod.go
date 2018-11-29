@@ -276,7 +276,7 @@ func (s *remoteCNIserver) podToVPPDefaultRoute(pod *podmanager.LocalPod) (key st
 // vppToPodArpEntry return configuration for ARP entry used in VPP to resolve
 // hardware address from the IP address of the given pod.
 func (s *remoteCNIserver) vppToPodArpEntry(pod *podmanager.LocalPod) (key string, config *l3.ARPEntry) {
-	_, vppIfName := s.podInterfaceName(pod)
+	vppIfName, _ := s.podInterfaceName(pod)
 	arp := &l3.ARPEntry{
 		Interface:   vppIfName,
 		IpAddress:   s.ipam.GetPodIP(pod.ID).IP.String(),

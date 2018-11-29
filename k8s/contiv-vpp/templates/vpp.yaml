@@ -927,6 +927,15 @@ spec:
             failureThreshold: {{ .Values.ksr.probeFailureThreshold }}
             initialDelaySeconds: {{ .Values.ksr.livenessProbeInitialDelaySeconds }}
           {{- end }}
+          resources:
+            {{- if .Values.ksr.cpuLimit }}
+            limits:
+              cpu: {{ .Values.ksr.cpuLimit }}
+            {{- end }}
+            {{- if .Values.ksr.cpuRequest }}
+            requests:
+              cpu: {{ .Values.ksr.cpuRequest }}
+            {{- end }}
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
@@ -1158,6 +1167,15 @@ spec:
           failureThreshold: {{ .Values.crd.probeFailureThreshold }}
           initialDelaySeconds: {{ .Values.crd.livenessProbeInitialDelaySeconds }}
         {{- end }}
+        resources:
+          {{- if .Values.crd.cpuLimit }}
+          limits:
+            cpu: {{ .Values.crd.cpuLimit }}
+          {{- end }}
+          {{- if .Values.crd.cpuRequest }}
+          requests:
+            cpu: {{ .Values.crd.cpuRequest }}
+          {{- end }}
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg

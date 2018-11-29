@@ -127,6 +127,8 @@ ksr:
   probePeriodSeconds: 3
   probeTimeoutSeconds: 2
   probeFailureThreshold: 3
+  cpuRequest: 100m
+  cpuLimit: 0
 
 crd:
   image:
@@ -142,6 +144,8 @@ crd:
   probePeriodSeconds: 3
   probeTimeoutSeconds: 2
   probeFailureThreshold: 3
+  cpuRequest: 100m
+  cpuLimit: 0
 
 # GoVPP configuration
 # It contains time intervals used for VPP health probing (in nanoseconds).

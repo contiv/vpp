@@ -543,6 +543,9 @@ spec:
             timeoutSeconds: 2
             failureThreshold: 3
             initialDelaySeconds: 30
+          resources:
+            requests:
+              cpu: 100m
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
@@ -702,6 +705,9 @@ spec:
           timeoutSeconds: 2
           failureThreshold: 3
           initialDelaySeconds: 30
+        resources:
+          requests:
+            cpu: 100m
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg

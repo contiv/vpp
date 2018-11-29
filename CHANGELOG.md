@@ -1,10 +1,34 @@
-# Release v2.1.0 (not released yet)
+# Release v2.0.2 (29.11.2018)
 
 ### VPP
+ - version **v18.10** (latest stable/1810)
 
 ### Bug Fixes
+ - fixed various NAT (high load) & ACL (large scale) issues on VPP
+ - do not route ServiceCIDR towards VPP from Linux by default
+ - minor vpp-agent infra fixes
 
 ### New Features & Enhancements
+ - mark ETCD disconnect as non-fatal for liveness & readiness probe in KSR & CRD
+ - parametrized liveness & readiness probe intervals for all components
+ - parametrized CPU requests for all Contiv components
+
+### Known Issues
+- load-balancing between backends of a service is limited to the first 256 PODs
+(the others will not receive any traffic until some of the first 256 PODs disappear)
+
+
+# Release v2.0.1 (21.11.2018)
+
+### VPP
+ - version **v18.10** (latest stable/1810)
+
+### Bug Fixes
+ - use parametrized ETCD image repo&tag in the vswitch init container
+
+### New Features & Enhancements
+ - lowered log verbosity
+ - minor CRD improvements
 
 
 # Release v2.0.0 (9.11.2018)
@@ -18,6 +42,7 @@
 
 ### New Features & Enhancements
  - netctl supports clusters where etcd & rest is secured
+
 
 # Release v1.5.1 (31.10.2018)
 

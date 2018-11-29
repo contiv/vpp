@@ -423,7 +423,7 @@ func (rct *RendererCacheTxn) refreshTables() {
 
 		rct.cache.Log.WithFields(logging.Fields{
 			"podID":    podID,
-			"newTable": newTable,
+			"newTable": newTable.ID,
 		}).Debug("Refreshing pod's local table")
 
 		// Add pod's original table into the transaction if is not already there.

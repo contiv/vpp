@@ -524,7 +524,7 @@ func (i *IPAM) logAssignedPodIPPool() {
 		for uintIP, podID := range i.assignedPodIPs {
 			buffer.WriteString(" # " + uint32ToIpv4(uintIP).String() + ":" + podID.String())
 		}
-		i.logger.Debugf("Actual pool of assigned pod IP addresses: %v", buffer.String())
+		i.logger.Debugf("Current pool of assigned pod IP addresses: %v", buffer.String())
 	}
 
 }

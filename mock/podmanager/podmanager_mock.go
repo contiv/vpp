@@ -17,8 +17,8 @@
 package podmanager
 
 import (
-	"github.com/contiv/vpp/plugins/podmanager"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/podmanager"
 )
 
 // MockPodManager is a mock implementation of podmanager plugin.

@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/contiv/vpp/plugins/contiv"
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/infra"
@@ -128,24 +130,35 @@ func (p *Plugin) Init() error {
 	return nil
 }
 
-/*
-// processPodEvent processes pod delete events; it removes the deleted pod's
-// stats entry from the stats set reported to Prometheus.
-func (p *Plugin) processPodEvent(event containeridx.ChangeEvent) {
-	p.Lock()
-	defer p.Unlock()
+// HandlesEvent selects DeletePod events.
+func (p *Plugin) HandlesEvent(event controller.Event) bool {
+	if _, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
+		return true
+	}
 
-	var err error
-	if !event.Del {
-		return
-	}
-	nsmap, exists := p.podIfs[event.Value.PodNamespace]
+	// unhandled event
+	return false
+}
+
+// Resync is NOOP - statscollector does not support re-synchronization.
+func (p *Plugin) Resync(controller.Event, controller.KubeStateData, int, controller.ResyncOperations) error {
+	return nil
+}
+
+// Update is called for:
+//   - AddPod and DeletePod
+//   - NodeUpdate for other nodes
+//   - Shutdown event
+func (p *Plugin) Update(event controller.Event, _ controller.UpdateOperations) (changeDescription string, err error) {
+	deletePod := event.(*podmanager.DeletePod)
+
+	nsmap, exists := p.podIfs[deletePod.Pod.Namespace]
 	if !exists {
-		return
+		return "", nil
 	}
-	ifs, exists := nsmap[event.Value.PodName]
+	ifs, exists := nsmap[deletePod.Pod.Name]
 	if !exists {
-		return
+		return "", nil
 	}
 	for _, key := range ifs {
 		entry, exists := p.ifStats[key]
@@ -165,17 +178,14 @@ func (p *Plugin) processPodEvent(event containeridx.ChangeEvent) {
 		}
 		delete(p.ifStats, key)
 	}
+
+	return "removed interface stats", nil
 }
 
-// AfterInit subscribes for monitoring of changes in ContainerIndex
-func (p *Plugin) AfterInit() error {
-	// watch containerIDX and remove gauges of pods that have been deleted
-	return p.Contiv.GetContainerIndex().Watch(string(p.PluginName), func(event containeridx.ChangeEvent) {
-		p.processPodEvent(event)
-	})
+// Revert is NOOP - only BestEffor DeletePod event is handled.
+func (p *Plugin) Revert(controller.Event) error {
 	return nil
 }
-*/
 
 // Close cleans up the plugin resources
 func (p *Plugin) Close() error {

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate protoc -I ./model/cni --gogo_out=plugins=grpc:./model/cni ./model/cni/cni.proto
-
 package contiv
 
 import (
@@ -21,18 +19,15 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"sync"
 	"time"
 
 	"git.fd.io/govpp.git/api"
 	"github.com/apparentlymart/go-cidr/cidr"
-	"github.com/fsouza/go-dockerclient"
 	"github.com/vishvananda/netlink"
 	"google.golang.org/grpc"
 
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/infra"
-	grpcplugin "github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
@@ -44,15 +39,11 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
-	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	tmp_txn "github.com/contiv/vpp/plugins/controller/txn"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/podmanager"
 )
-
-// MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure
-const MgmtIPSeparator = ","
 
 // Plugin represents the instance of the Contiv network plugin, that transforms CNI requests received over
 // GRPC into configuration for the vswitch VPP in order to connect/disconnect a container into/from the network.
@@ -60,15 +51,10 @@ type Plugin struct {
 	Deps
 	govppCh api.Channel
 
-	cniServer    *remoteCNIserver
-	dockerClient *docker.Client
+	cniServer *remoteCNIserver
 
 	Config       *Config
 	myNodeConfig *NodeConfig
-
-	// temporary
-	afterStartupResync bool
-	startupResyncCond  *sync.Cond
 }
 
 // Deps groups the dependencies of the p.
@@ -78,7 +64,7 @@ type Deps struct {
 	ServiceLabel servicelabel.ReaderAPI
 	KVScheduler  kvscheduler_api.KVScheduler
 	NodeSync     nodesync.API
-	GRPC         grpcplugin.Server
+	PodManager   podmanager.API
 	VPPIfPlugin  vpp_ifplugin.API
 	GoVPP        govppmux.API
 	ETCD         *etcd.Plugin
@@ -89,8 +75,6 @@ type Deps struct {
 
 // Init does very little. Full initialization is triggered by the first resync.
 func (p *Plugin) Init() error {
-	p.startupResyncCond = &sync.Cond{L: &sync.Mutex{}}
-
 	// load config file
 	if p.Config == nil {
 		if err := p.loadExternalConfig(); err != nil {
@@ -104,28 +88,29 @@ func (p *Plugin) Init() error {
 	if err != nil {
 		return err
 	}
-
-	// connect to Docker server
-	p.dockerClient, err = docker.NewClientFromEnv()
-	if err != nil {
-		return err
-	}
-	p.Log.Infof("Using docker client endpoint: %+v\n", p.dockerClient.Endpoint())
-
-	// register to serve pod add/del requests
-	cni.RegisterRemoteCNIServer(p.GRPC.GetServer(), p)
 	return nil
 }
 
 // HandlesEvent selects:
 //   - any Resync event (extra action for NodeIPv4Change)
+//   - AddPod and DeletePod
 //   - NodeUpdate for other nodes
+//   - Shutdown event
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
 	if event.Method() == controller.Resync {
 		return true
 	}
+	if _, isAddPod := event.(*podmanager.AddPod); isAddPod {
+		return true
+	}
+	if _, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
+		return true
+	}
 	if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
 		return nodeUpdate.NodeName != p.ServiceLabel.GetAgentLabel()
+	}
+	if _, isShutdown := event.(*controller.Shutdown); isShutdown {
+		return true
 	}
 
 	// unhandled event
@@ -149,16 +134,13 @@ func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeSta
 		// start the GRPC server handling the CNI requests
 		p.cniServer, err = newRemoteCNIServer(
 			&remoteCNIserverArgs{
-				Logger:    p.Log,
-				eventLoop: p.EventLoop,
-				nodeSync:  p.NodeSync,
-				txnFactory: func() controller.Transaction {
-					return tmp_txn.NewTransaction(p.KVScheduler)
-				},
+				Logger:                      p.Log,
+				eventLoop:                   p.EventLoop,
+				nodeSync:                    p.NodeSync,
+				podManager:                  p.PodManager,
 				physicalIfsDump:             p.dumpPhysicalInterfaces,
 				getStolenInterfaceInfo:      p.getStolenInterfaceInfo,
 				hostLinkIPsDump:             p.getHostLinkIPs,
-				dockerClient:                p.dockerClient,
 				govppChan:                   p.govppCh,
 				dhcpIndex:                   p.VPPIfPlugin.GetDHCPIndex(),
 				agentLabel:                  p.ServiceLabel.GetAgentLabel(),
@@ -168,7 +150,8 @@ func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeSta
 				http:                        p.HTTPHandlers,
 			})
 		if err != nil {
-			return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
+			return controller.NewFatalError(
+				fmt.Errorf("Can't create new remote CNI server due to error: %v ", err))
 		}
 	}
 
@@ -177,49 +160,26 @@ func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeSta
 		err = resyncErr
 	}
 
-	if resyncCount == 1 {
-		p.afterStartupResync = true
-		p.startupResyncCond.Signal()
-	}
-
 	return err
 }
 
-// Update is called for NodeUpdate.
+// Update is called for:
+//   - AddPod and DeletePod
+//   - NodeUpdate for other nodes
+//   - Shutdown event
 func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
-	nodeUpdate := event.(*nodesync.NodeUpdate)
-	return p.cniServer.Update(nodeUpdate, txn)
+	return p.cniServer.Update(event, txn)
 }
 
-// Revert does nothing here - plugin handles only BestEffort events.
+// Revert is called for AddPod.
 func (p *Plugin) Revert(event controller.Event) error {
-	return nil
-}
-
-// Add handles CNI Add request, connects a Pod container to the network.
-func (p *Plugin) Add(ctx context.Context, request *cni.CNIRequest) (*cni.CNIReply, error) {
-	p.startupResyncCond.L.Lock()
-	for !p.afterStartupResync {
-		p.startupResyncCond.Wait()
-	}
-	p.startupResyncCond.L.Unlock()
-	return p.cniServer.Add(ctx, request)
-}
-
-// Delete handles CNI Delete request, disconnects a Pod container from the network.
-func (p *Plugin) Delete(ctx context.Context, request *cni.CNIRequest) (*cni.CNIReply, error) {
-	p.startupResyncCond.L.Lock()
-	for !p.afterStartupResync {
-		p.startupResyncCond.Wait()
-	}
-	p.startupResyncCond.L.Unlock()
-	return p.cniServer.Delete(ctx, request)
+	addPod := event.(*podmanager.AddPod)
+	return p.cniServer.Revert(addPod)
 }
 
 // Close is called by the plugin infra upon agent cleanup.
 // It cleans up the resources allocated by the plugin.
 func (p *Plugin) Close() error {
-	p.cniServer.Close()
 	_, err := safeclose.CloseAll(p.govppCh)
 	return err
 }
@@ -335,18 +295,6 @@ func (p *Plugin) GetVxlanBVIIfName() string {
 // If the default GW is not configured, the function returns zero values.
 func (p *Plugin) GetDefaultInterface() (ifName string, ifAddress net.IP) {
 	return p.cniServer.GetDefaultInterface()
-}
-
-// RegisterPodPreRemovalHook allows to register callback that will be run for each
-// pod immediately before its removal.
-func (p *Plugin) RegisterPodPreRemovalHook(hook PodActionHook) {
-	p.cniServer.RegisterPodPreRemovalHook(hook)
-}
-
-// RegisterPodPostAddHook allows to register callback that will be run for each
-// pod once it is added and before the CNI reply is sent.
-func (p *Plugin) RegisterPodPostAddHook(hook PodActionHook) {
-	p.cniServer.RegisterPodPostAddHook(hook)
 }
 
 // GetMainVrfID returns the ID of the main network connectivity VRF.

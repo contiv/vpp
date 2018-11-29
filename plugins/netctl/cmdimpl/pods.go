@@ -115,7 +115,8 @@ func (pg *podGetter) printAllPods(w *tabwriter.Writer) {
 		err = json.Unmarshal(buf, nodeInfo)
 		var mgmtAddr string
 		for _, address := range nodeInfo.Addresses {
-			if address.Type == node.NodeAddress_NodeExternalIP {
+			if address.Type == node.NodeAddress_NodeInternalIP ||
+				address.Type == node.NodeAddress_NodeExternalIP {
 				mgmtAddr = address.Address
 				break
 			}

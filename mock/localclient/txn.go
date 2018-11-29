@@ -15,7 +15,6 @@ import (
 	mockcontroller "github.com/contiv/vpp/mock/localclient/controller"
 	mocklinux "github.com/contiv/vpp/mock/localclient/dsl/linux"
 	mockvpp "github.com/contiv/vpp/mock/localclient/dsl/vpp"
-	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
 // TxnTracker tracks all transactions executed or pending in the mock localclient.
@@ -127,7 +126,7 @@ func (t *TxnTracker) applyDataResyncTxnOps(values map[string]proto.Message) {
 
 // NewControllerTxn is a factory for Controller's transaction.
 // It also implements adapter between localclient and Controller transactions.
-func (t *TxnTracker) NewControllerTxn(isResync bool) controller.Transaction {
+func (t *TxnTracker) NewControllerTxn(isResync bool) *mockcontroller.MockControllerTxn {
 	txn := &Txn{}
 	if isResync {
 		dsl := mocklinux.NewMockDataResyncDSL(nil)

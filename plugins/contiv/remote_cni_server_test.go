@@ -31,18 +31,18 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
 	. "github.com/contiv/vpp/mock/datasync"
-	. "github.com/contiv/vpp/mock/dockerclient"
 	. "github.com/contiv/vpp/mock/eventloop"
 	"github.com/contiv/vpp/mock/localclient"
 	. "github.com/contiv/vpp/mock/nodesync"
+	. "github.com/contiv/vpp/mock/podmanager"
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
-	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/podmanager"
 )
 
 const (
@@ -60,12 +60,11 @@ const (
 	hostIP1 = "10.3.1.10"
 	hostIP2 = "10.0.2.15"
 
-	pod1Container        = "<pod1-container-ID>"
-	pod1ContainerUpdated = "<pod1-container-ID-updated>"
-	pod1PID              = 124
-	pod1Ns               = "/proc/124/ns/net"
-	pod1Name             = "pod1"
-	pod1Namespace        = "default"
+	pod1Container = "<pod1-container-ID>"
+	pod1PID       = 124
+	pod1Ns        = "/proc/124/ns/net"
+	pod1Name      = "pod1"
+	pod1Namespace = "default"
 
 	// node 2
 	node2Name          = "node2"
@@ -151,10 +150,6 @@ func TestBasicStuff(t *testing.T) {
 		},
 	}
 
-	// Docker
-	dockerClient := NewMockDockerClient()
-	dockerClient.Connect()
-
 	// event loop
 	eventLoop := &MockEventLoop{}
 
@@ -168,17 +163,18 @@ func TestBasicStuff(t *testing.T) {
 		Name: node1,
 	})
 
+	// podmanager
+	podManager := NewMockPodManager()
+
 	// transactions
 	txnTracker := localclient.NewTxnTracker(nil)
 
 	// Remote CNI Server init
 	args := &remoteCNIserverArgs{
-		Logger:    logrus.DefaultLogger(),
-		eventLoop: eventLoop,
-		nodeSync:  nodeSync,
-		txnFactory: func() controller.Transaction {
-			return txnTracker.NewControllerTxn(false)
-		},
+		Logger:     logrus.DefaultLogger(),
+		eventLoop:  eventLoop,
+		nodeSync:   nodeSync,
+		podManager: podManager,
 		physicalIfsDump: func() (map[uint32]string, error) {
 			return physicalIfaces, nil
 		},
@@ -186,7 +182,6 @@ func TestBasicStuff(t *testing.T) {
 		hostLinkIPsDump: func() ([]net.IP, error) {
 			return hostIPs, nil
 		},
-		dockerClient:                dockerClient,
 		govppChan:                   nil,
 		dhcpIndex:                   dhcpIndexes,
 		agentLabel:                  "node1",
@@ -287,40 +282,21 @@ func TestBasicStuff(t *testing.T) {
 	fmt.Println("Add pod --------------------------------------------------")
 
 	// add pod
-	cniReq := &cni.CNIRequest{
-		ContainerId:      pod1Container,
-		NetworkNamespace: pod1Ns,
-		InterfaceName:    "eth0",
-		ExtraArguments:   "K8S_POD_NAMESPACE=" + pod1Namespace + ";K8S_POD_NAME=" + pod1Name,
-	}
 	pod1ID := k8sPod.ID{Name: pod1Name, Namespace: pod1Namespace}
-	reply, err := server.Add(context.Background(), cniReq)
+	addPodEvent := podManager.AddPod(&podmanager.LocalPod{
+		ID:               pod1ID,
+		ContainerID:      pod1Container,
+		NetworkNamespace: pod1Ns,
+	})
+	txn = txnTracker.NewControllerTxn(false)
+	change, err = server.Update(addPodEvent, txn)
+	Expect(err).To(BeNil())
+	Expect(change).To(Equal("configure IPv4 connectivity"))
+	err = commitTransaction(txn, false)
 	Expect(err).To(BeNil())
 	txnCount++
-	Expect(reply).ToNot(BeNil())
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
 	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
-
-	fmt.Println("Add pod (updated, prev. is obsolete) ---------------------")
-
-	// add pod
-	cniReq.ContainerId = pod1ContainerUpdated
-	reply, err = server.Add(context.Background(), cniReq)
-	Expect(err).To(BeNil())
-	txnCount += 2 // also removing obsolete config
-	Expect(reply).ToNot(BeNil())
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
-
-	// register the new pod with the mocks
-	pod1IP := podIPFromCNIReply(reply)
-	Expect(pod1IP).ToNot(BeNil())
-	dockerClient.AddPod(pod1ID, pod1ContainerUpdated, pod1PID)
-	datasync.Put(k8sPod.Key(pod1Name, pod1Namespace), &k8sPod.Pod{
-		Namespace: pod1Namespace,
-		Name:      pod1Name,
-		IpAddress: pod1IP.String(),
-	})
 
 	fmt.Println("Resync with non-empty K8s state --------------------------")
 
@@ -334,6 +310,13 @@ func TestBasicStuff(t *testing.T) {
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
 	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+
+	// add pod entry into the mock DB
+	datasync.Put(k8sPod.Key(pod1Name, pod1Namespace), &k8sPod.Pod{
+		Namespace: pod1Namespace,
+		Name:      pod1Name,
+		IpAddress: server.ipam.GetPodIP(pod1ID).IP.String(),
+	})
 
 	fmt.Println("Restart (without node IP) --------------------------------")
 
@@ -358,15 +341,18 @@ func TestBasicStuff(t *testing.T) {
 	fmt.Println("Delete pod -----------------------------------------------")
 
 	// delete pod
-	reply, err = server.Delete(context.Background(), cniReq)
+	txn = txnTracker.NewControllerTxn(false)
+	change, err = server.Update(&podmanager.DeletePod{Pod: pod1ID}, txn)
 	Expect(err).To(BeNil())
-	Expect(reply).ToNot(BeNil())
+	Expect(change).To(Equal("un-configure IPv4 connectivity"))
+	err = commitTransaction(txn, false)
+	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
 	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 
-	// un-register the pod from the mocks
-	dockerClient.DelPod(pod1ID)
+	// remove the pod entry from mock podmanager and DB
+	podManager.DeletePod(pod1ID)
 	datasync.Delete(k8sPod.Key(pod1Name, pod1Namespace))
 
 	fmt.Println("Delete node ----------------------------------------------")
@@ -397,8 +383,16 @@ func TestBasicStuff(t *testing.T) {
 
 	fmt.Println("Close ----------------------------------------------------")
 
-	server.Close()
-	// txnCount remains unchanged - nothing needs to be cleaned up for TAPs
+	shutdownEvent := &controller.Shutdown{}
+	txn = txnTracker.NewControllerTxn(false)
+	change, err = server.Update(shutdownEvent, txn)
+	Expect(err).To(BeNil())
+	// nothing needs to be cleaned up for TAPs
+	Expect(change).To(Equal(""))
+	Expect(txn.Values).To(BeEmpty())
+	err = commitTransaction(txn, false)
+	Expect(err).To(BeNil())
+	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
 	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 }
@@ -419,14 +413,6 @@ func stolenInterfaceInfo(expInterface string, reply *stn_grpc.STNReply) StolenIn
 		}
 		return reply, nil
 	}
-}
-
-func podIPFromCNIReply(reply *cni.CNIReply) net.IP {
-	Expect(reply).ToNot(BeNil())
-	Expect(reply.Interfaces).To(HaveLen(1))
-	Expect(reply.Interfaces[0].IpAddresses).To(HaveLen(1))
-	addr := strings.Split(reply.Interfaces[0].IpAddresses[0].Address, "/")[0]
-	return net.ParseIP(addr)
 }
 
 /* Old UTs for inspiration:

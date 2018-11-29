@@ -18,7 +18,6 @@ import (
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
@@ -44,7 +43,6 @@ func NewPlugin(opts ...Option) *Plugin {
 	p.ServiceLabel = &servicelabel.DefaultPlugin
 	p.KVScheduler = &kvscheduler.DefaultPlugin
 	p.GoVPP = &govppmux.DefaultPlugin
-	p.GRPC = &grpc.DefaultPlugin
 	p.ETCD = &etcd.DefaultPlugin
 	p.HTTPHandlers = &rest.DefaultPlugin
 

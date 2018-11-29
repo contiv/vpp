@@ -58,6 +58,8 @@ data:
         level: info
       - name: linux.arp-conf
         level: info
+      - name: vpp-rest
+        level: info
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock

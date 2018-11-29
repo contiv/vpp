@@ -18,8 +18,6 @@ import (
 	"net"
 	"sync"
 
-	"github.com/contiv/vpp/plugins/contiv"
-	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
@@ -43,8 +41,6 @@ type MockContiv struct {
 	serviceLocalEndpointWeight  uint8
 	natLoopbackIP               net.IP
 	nodeIP                      *net.IPNet
-	podPreRemovalHooks          []contiv.PodActionHook
-	podPostAddHooks             []contiv.PodActionHook
 	mainPhysIf                  string
 	otherPhysIfs                []string
 	hostInterconnect            string
@@ -143,32 +139,6 @@ func (mc *MockContiv) SetNatLoopbackIP(natLoopIP string) {
 	mc.natLoopbackIP = net.ParseIP(natLoopIP)
 }
 
-// AddingPod allows to simulate event of adding pod - all registered post-add hooks
-// are called.
-func (mc *MockContiv) AddingPod(podID podmodel.ID, txn controller.UpdateOperations) error {
-	var wasErr error
-	for _, hook := range mc.podPostAddHooks {
-		err := hook(podID.Namespace, podID.Name, txn)
-		if err != nil {
-			wasErr = err
-		}
-	}
-	return wasErr
-}
-
-// DeletingPod allows to simulate event of deleting pod - all registered pre-removal hooks
-// are called.
-func (mc *MockContiv) DeletingPod(podID podmodel.ID, txn controller.UpdateOperations) error {
-	var wasErr error
-	for _, hook := range mc.podPreRemovalHooks {
-		err := hook(podID.Namespace, podID.Name, txn)
-		if err != nil {
-			wasErr = err
-		}
-	}
-	return wasErr
-}
-
 // GetIfName returns pod's interface name as set previously using SetPodIfName.
 func (mc *MockContiv) GetIfName(podNamespace string, podName string) (name string, exists bool) {
 	name, exists = mc.podIf[podmodel.ID{Name: podName, Namespace: podNamespace}]
@@ -262,24 +232,6 @@ func (mc *MockContiv) GetVxlanBVIIfName() string {
 // If the default GW is not configured, the function returns zero values.
 func (mc *MockContiv) GetDefaultInterface() (ifName string, ifAddress net.IP) {
 	return mc.defaultIfName, mc.defaultIfIP
-}
-
-// RegisterPodPreRemovalHook allows to register callback that will be run for each
-// pod immediately before its removal.
-func (mc *MockContiv) RegisterPodPreRemovalHook(hook contiv.PodActionHook) {
-	mc.Lock()
-	defer mc.Unlock()
-
-	mc.podPreRemovalHooks = append(mc.podPreRemovalHooks, hook)
-}
-
-// RegisterPodPostAddHook allows to register callback that will be run for each
-// pod once it is added and before the CNI reply is sent.
-func (mc *MockContiv) RegisterPodPostAddHook(hook contiv.PodActionHook) {
-	mc.Lock()
-	defer mc.Unlock()
-
-	mc.podPostAddHooks = append(mc.podPostAddHooks, hook)
 }
 
 // CleanupIdleNATSessions returns true if cleanup of idle NAT sessions is enabled.

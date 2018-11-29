@@ -9,12 +9,12 @@ import (
 
 	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 
-	"github.com/contiv/vpp/plugins/controller/txn"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
 // mockControllerTxn is a mock implementation of the Transaction interface from Controller.
 type mockControllerTxn struct {
-	values     txn.KeyValuePairs
+	values     controller.KeyValuePairs
 	commitFunc CommitFunc
 }
 
@@ -23,9 +23,9 @@ type mockControllerTxn struct {
 type CommitFunc = func(values map[string]proto.Message) error
 
 // NewMockControllerTxn is a constructor for mock Controller Txn.
-func NewMockControllerTxn(commitFunc CommitFunc) txn.Transaction {
+func NewMockControllerTxn(commitFunc CommitFunc) controller.Transaction {
 	return &mockControllerTxn{
-		values:     make(txn.KeyValuePairs),
+		values:     make(controller.KeyValuePairs),
 		commitFunc: commitFunc,
 	}
 }

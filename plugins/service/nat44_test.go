@@ -30,6 +30,7 @@ import (
 	. "github.com/contiv/vpp/mock/datasync"
 	. "github.com/contiv/vpp/mock/natplugin"
 	. "github.com/contiv/vpp/mock/nodesync"
+	. "github.com/contiv/vpp/mock/podmanager"
 	. "github.com/contiv/vpp/mock/servicelabel"
 
 	"github.com/contiv/vpp/mock/localclient"
@@ -42,6 +43,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/podmanager"
 )
 
 const (
@@ -85,28 +87,10 @@ var (
 
 	pod1If = "master-tap1"
 	pod2If = "master-tap2"
-
-	pod1Model = &podmodel.Pod{
-		Name:      pod1.Name,
-		Namespace: pod1.Namespace,
-		IpAddress: pod1IP.String(),
-	}
-
-	pod2Model = &podmodel.Pod{
-		Name:      pod2.Name,
-		Namespace: pod2.Namespace,
-		IpAddress: pod2IP.String(),
-	}
-
-	pod3Model = &podmodel.Pod{
-		Name:      pod3.Name,
-		Namespace: pod3.Namespace,
-		IpAddress: pod3IP.String(),
-	}
 )
 
 var (
-	keyPrefixes = []string{epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix()}
+	keyPrefixes = []string{epmodel.KeyPrefix(), svcmodel.KeyPrefix()}
 )
 
 // ongoing transaction
@@ -158,18 +142,6 @@ func updateTxnFactory(txnTracker *localclient.TxnTracker) func(change string) co
 	}
 }
 
-var (
-	svcProcessor *svc_processor.ServiceProcessor
-)
-
-func podPreRemovalHook(podNamespace string, podName string, _ controller.UpdateOperations) error {
-	return svcProcessor.ProcessDeletingPod(podNamespace, podName)
-}
-
-func podPostAddHook(podNamespace string, podName string, _ controller.UpdateOperations) error {
-	return svcProcessor.ProcessNewPod(podNamespace, podName)
-}
-
 func ipNet(address string) (combined *net.IPNet, addrOnly net.IP, network *net.IPNet) {
 	addrOnly, network, _ = net.ParseCIDR(address)
 	combined = &net.IPNet{IP: addrOnly, Mask: network.Mask}
@@ -201,8 +173,6 @@ func TestResyncAndSingleService(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{mgmtIP})
-	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
-	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -211,6 +181,9 @@ func TestResyncAndSingleService(t *testing.T) {
 		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
 		MgmtIPAddresses: []net.IP{mgmtIP},
 	})
+
+	// -> podmanager
+	podManager := NewMockPodManager()
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -226,12 +199,13 @@ func TestResyncAndSingleService(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	svcProcessor = &svc_processor.ServiceProcessor{
+	svcProcessor := &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
 			NodeSync:     nodeSync,
+			PodManager:   podManager,
 		},
 	}
 
@@ -309,8 +283,8 @@ func TestResyncAndSingleService(t *testing.T) {
 		},
 	}
 
-	dataChange1 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(svcProcessor.Update(dataChange1)).To(BeNil())
+	updateEv1 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(svcProcessor.Update(updateEv1)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// No change in the NAT configuration.
@@ -333,12 +307,12 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Add pods.
-	Expect(contiv.AddingPod(pod1, nil)).To(BeNil())
+	updateEv2 := podManager.AddPod(&podmanager.LocalPod{ID: pod1})
+	Expect(svcProcessor.Update(updateEv2)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	Expect(contiv.AddingPod(pod2, nil)).To(BeNil())
+	updateEv3 := podManager.AddPod(&podmanager.LocalPod{ID: pod2})
+	Expect(svcProcessor.Update(updateEv3)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
-	datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -397,8 +371,8 @@ func TestResyncAndSingleService(t *testing.T) {
 		},
 	}
 
-	dataChange4 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(svcProcessor.Update(dataChange4)).To(BeNil())
+	updateEv4 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(svcProcessor.Update(updateEv4)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
@@ -495,8 +469,8 @@ func TestResyncAndSingleService(t *testing.T) {
 		},
 	}
 
-	dataChange5 := datasync.PutEvent(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
-	Expect(svcProcessor.Update(dataChange5)).To(BeNil())
+	updateEv5 := datasync.PutEvent(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
+	Expect(svcProcessor.Update(updateEv5)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
@@ -518,8 +492,8 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
 
 	// Finally remove the service.
-	dataChange6 := datasync.DeleteEvent(svcmodel.Key(service1.Name, service1.Namespace))
-	Expect(svcProcessor.Update(dataChange6)).To(BeNil())
+	updateEv6 := datasync.DeleteEvent(svcmodel.Key(service1.Name, service1.Namespace))
+	Expect(svcProcessor.Update(updateEv6)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// NAT configuration without the service.
@@ -570,12 +544,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{mgmtIP})
-	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
-	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
 	// ID and IPs of this node are propagated later (see below)
+
+	// -> podmanager
+	podManager := NewMockPodManager()
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -591,12 +566,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	svcProcessor = &svc_processor.ServiceProcessor{
+	svcProcessor := &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
 			NodeSync:     nodeSync,
+			PodManager:   podManager,
 		},
 	}
 
@@ -619,15 +595,15 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(commitTxn()).To(BeNil())
 
 	// Add pods.
-	Expect(contiv.AddingPod(pod1, nil)).To(BeNil())
+	updateEv1 := podManager.AddPod(&podmanager.LocalPod{ID: pod1})
+	Expect(svcProcessor.Update(updateEv1)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	Expect(contiv.AddingPod(pod2, nil)).To(BeNil())
+	updateEv2 := podManager.AddPod(&podmanager.LocalPod{ID: pod2})
+	Expect(svcProcessor.Update(updateEv2)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	Expect(contiv.AddingPod(pod3, nil)).To(BeNil())
+	updateEv3 := podManager.AddPod(&podmanager.LocalPod{ID: pod3})
+	Expect(svcProcessor.Update(updateEv3)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
-	datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
-	datasync.Put(podmodel.Key(pod3.Name, pod3.Namespace), pod3Model)
 
 	// Service1: http + https with nodePort.
 	service1 := &svcmodel.Service{
@@ -676,11 +652,11 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		},
 	}
 
-	dataChange4 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(svcProcessor.Update(dataChange4)).To(BeNil())
+	updateEv4 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(svcProcessor.Update(updateEv4)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	dataChange5 := datasync.PutEvent(svcmodel.Key(service2.Name, service2.Namespace), service2)
-	Expect(svcProcessor.Update(dataChange5)).To(BeNil())
+	updateEv5 := datasync.PutEvent(svcmodel.Key(service2.Name, service2.Namespace), service2)
+	Expect(svcProcessor.Update(updateEv5)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
@@ -822,11 +798,11 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		},
 	}
 
-	dataChange6 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(svcProcessor.Update(dataChange6)).To(BeNil())
+	updateEv6 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(svcProcessor.Update(updateEv6)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	dataChange7 := datasync.PutEvent(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
-	Expect(svcProcessor.Update(dataChange7)).To(BeNil())
+	updateEv7 := datasync.PutEvent(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
+	Expect(svcProcessor.Update(updateEv7)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
@@ -1109,6 +1085,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
 			NodeSync:     nodeSync,
+			PodManager:   podManager,
 		},
 	}
 	renderer = &nat44.Renderer{
@@ -1212,8 +1189,6 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{mgmtIP})
-	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
-	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -1222,6 +1197,9 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
 		MgmtIPAddresses: []net.IP{mgmtIP},
 	})
+
+	// -> podmanager
+	podManager := NewMockPodManager()
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1236,12 +1214,13 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	svcProcessor = &svc_processor.ServiceProcessor{
+	svcProcessor := &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
 			NodeSync:     nodeSync,
+			PodManager:   podManager,
 		},
 	}
 
@@ -1307,8 +1286,6 @@ func TestWithoutVXLAN(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{mgmtIP})
-	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
-	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -1317,6 +1294,9 @@ func TestWithoutVXLAN(t *testing.T) {
 		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
 		MgmtIPAddresses: []net.IP{mgmtIP},
 	})
+
+	// -> podmanager
+	podManager := NewMockPodManager()
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1332,12 +1312,13 @@ func TestWithoutVXLAN(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	svcProcessor = &svc_processor.ServiceProcessor{
+	svcProcessor := &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
 			NodeSync:     nodeSync,
+			PodManager:   podManager,
 		},
 	}
 
@@ -1404,8 +1385,6 @@ func TestWithOtherInterfaces(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{mgmtIP})
-	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
-	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -1414,6 +1393,9 @@ func TestWithOtherInterfaces(t *testing.T) {
 		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
 		MgmtIPAddresses: []net.IP{mgmtIP},
 	})
+
+	// -> podmanager
+	podManager := NewMockPodManager()
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1429,12 +1411,13 @@ func TestWithOtherInterfaces(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	svcProcessor = &svc_processor.ServiceProcessor{
+	svcProcessor := &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
 			NodeSync:     nodeSync,
+			PodManager:   podManager,
 		},
 	}
 
@@ -1523,8 +1506,6 @@ func TestWithoutNodeIP(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{mgmtIP})
-	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
-	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -1533,6 +1514,9 @@ func TestWithoutNodeIP(t *testing.T) {
 		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
 		MgmtIPAddresses: []net.IP{mgmtIP},
 	})
+
+	// -> podmanager
+	podManager := NewMockPodManager()
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1548,12 +1532,13 @@ func TestWithoutNodeIP(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	svcProcessor = &svc_processor.ServiceProcessor{
+	svcProcessor := &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
 			NodeSync:     nodeSync,
+			PodManager:   podManager,
 		},
 	}
 
@@ -1622,8 +1607,6 @@ func TestServiceUpdates(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{mgmtIP})
-	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
-	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -1632,6 +1615,9 @@ func TestServiceUpdates(t *testing.T) {
 		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
 		MgmtIPAddresses: []net.IP{mgmtIP},
 	})
+
+	// -> podmanager
+	podManager := NewMockPodManager()
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1647,12 +1633,13 @@ func TestServiceUpdates(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	svcProcessor = &svc_processor.ServiceProcessor{
+	svcProcessor := &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
 			NodeSync:     nodeSync,
+			PodManager:   podManager,
 		},
 	}
 
@@ -1675,15 +1662,15 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(commitTxn()).To(BeNil())
 
 	// Add pods.
-	Expect(contiv.AddingPod(pod1, nil)).To(BeNil())
+	updateEv1 := podManager.AddPod(&podmanager.LocalPod{ID: pod1})
+	Expect(svcProcessor.Update(updateEv1)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	Expect(contiv.AddingPod(pod2, nil)).To(BeNil())
+	updateEv2 := podManager.AddPod(&podmanager.LocalPod{ID: pod2})
+	Expect(svcProcessor.Update(updateEv2)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	Expect(contiv.AddingPod(pod3, nil)).To(BeNil())
+	updateEv3 := podManager.AddPod(&podmanager.LocalPod{ID: pod3})
+	Expect(svcProcessor.Update(updateEv3)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
-	datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
-	datasync.Put(podmodel.Key(pod3.Name, pod3.Namespace), pod3Model)
 
 	// Service1: http only (not https yet).
 	service1 := &svcmodel.Service{
@@ -1703,8 +1690,8 @@ func TestServiceUpdates(t *testing.T) {
 		},
 	}
 
-	dataChange4 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(svcProcessor.Update(dataChange4)).To(BeNil())
+	updateEv4 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(svcProcessor.Update(updateEv4)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Add endpoints.
@@ -1753,8 +1740,8 @@ func TestServiceUpdates(t *testing.T) {
 		},
 	}
 
-	dataChange5 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(svcProcessor.Update(dataChange5)).To(BeNil())
+	updateEv5 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(svcProcessor.Update(updateEv5)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
@@ -1828,7 +1815,8 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Remove pod2.
-	Expect(contiv.DeletingPod(pod2, nil)).To(BeNil())
+	updateEv6 := podManager.DeletePod(pod2)
+	Expect(svcProcessor.Update(updateEv6)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Update endpoints accordingly (also add https port)
@@ -1889,8 +1877,8 @@ func TestServiceUpdates(t *testing.T) {
 		},
 	}
 
-	dataChange7 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(svcProcessor.Update(dataChange7)).To(BeNil())
+	updateEv7 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(svcProcessor.Update(updateEv7)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
@@ -1961,8 +1949,8 @@ func TestServiceUpdates(t *testing.T) {
 		},
 	}
 
-	dataChange8 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(svcProcessor.Update(dataChange8)).To(BeNil())
+	updateEv8 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(svcProcessor.Update(updateEv8)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
@@ -2012,10 +2000,11 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Remove all endpoints.
-	Expect(contiv.DeletingPod(pod1, nil)).To(BeNil())
+	updateEv9 := podManager.DeletePod(pod1)
+	Expect(svcProcessor.Update(updateEv9)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	dataChange9 := datasync.DeleteEvent(epmodel.Key(eps1.Name, eps1.Namespace))
-	Expect(svcProcessor.Update(dataChange9)).To(BeNil())
+	updateEv10 := datasync.DeleteEvent(epmodel.Key(eps1.Name, eps1.Namespace))
+	Expect(svcProcessor.Update(updateEv10)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
@@ -2063,8 +2052,6 @@ func TestWithSNATOnly(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{mgmtIP})
-	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
-	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -2073,6 +2060,9 @@ func TestWithSNATOnly(t *testing.T) {
 		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
 		MgmtIPAddresses: []net.IP{mgmtIP},
 	})
+
+	// -> podmanager
+	podManager := NewMockPodManager()
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -2088,12 +2078,13 @@ func TestWithSNATOnly(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	svcProcessor = &svc_processor.ServiceProcessor{
+	svcProcessor := &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
 			NodeSync:     nodeSync,
+			PodManager:   podManager,
 		},
 	}
 
@@ -2133,8 +2124,8 @@ func TestWithSNATOnly(t *testing.T) {
 	datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
 
 	// Add pods.
-	datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
-	datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
+	podManager.AddPod(&podmanager.LocalPod{ID: pod1})
+	podManager.AddPod(&podmanager.LocalPod{ID: pod2})
 
 	// Add endpoints.
 	eps1 := &epmodel.Endpoints{
@@ -2245,8 +2236,6 @@ func TestLocalServicePolicy(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{mgmtIP})
-	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
-	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -2255,6 +2244,9 @@ func TestLocalServicePolicy(t *testing.T) {
 		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: nodeIPAddr, Network: nodeIPNet}},
 		MgmtIPAddresses: []net.IP{mgmtIP},
 	})
+
+	// -> podmanager
+	podManager := NewMockPodManager()
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -2270,12 +2262,13 @@ func TestLocalServicePolicy(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	svcProcessor = &svc_processor.ServiceProcessor{
+	svcProcessor := &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
 			Contiv:       contiv,
 			NodeSync:     nodeSync,
+			PodManager:   podManager,
 		},
 	}
 
@@ -2353,8 +2346,8 @@ func TestLocalServicePolicy(t *testing.T) {
 		},
 	}
 
-	dataChange1 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(svcProcessor.Update(dataChange1)).To(BeNil())
+	updateEv1 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(svcProcessor.Update(updateEv1)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// No change in the NAT configuration.
@@ -2377,12 +2370,12 @@ func TestLocalServicePolicy(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Add pods.
-	Expect(contiv.AddingPod(pod1, nil)).To(BeNil())
+	updateEv2 := podManager.AddPod(&podmanager.LocalPod{ID: pod1})
+	Expect(svcProcessor.Update(updateEv2)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	Expect(contiv.AddingPod(pod2, nil)).To(BeNil())
+	updateEv3 := podManager.AddPod(&podmanager.LocalPod{ID: pod2})
+	Expect(svcProcessor.Update(updateEv3)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
-	datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -2450,8 +2443,8 @@ func TestLocalServicePolicy(t *testing.T) {
 		},
 	}
 
-	dataChange4 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(svcProcessor.Update(dataChange4)).To(BeNil())
+	updateEv4 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(svcProcessor.Update(updateEv4)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
@@ -2502,8 +2495,8 @@ func TestLocalServicePolicy(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
 
 	// Finally remove the service.
-	dataChange6 := datasync.DeleteEvent(svcmodel.Key(service1.Name, service1.Namespace))
-	Expect(svcProcessor.Update(dataChange6)).To(BeNil())
+	updateEv6 := datasync.DeleteEvent(svcmodel.Key(service1.Name, service1.Namespace))
+	Expect(svcProcessor.Update(updateEv6)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// NAT configuration without the service.

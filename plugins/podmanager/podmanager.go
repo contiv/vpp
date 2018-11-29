@@ -22,7 +22,6 @@ import (
 	"github.com/fsouza/go-dockerclient"
 	"os/exec"
 	"strings"
-	"sync"
 
 	"github.com/ligato/cn-infra/infra"
 	grpcplugin "github.com/ligato/cn-infra/rpc/grpc"
@@ -64,9 +63,7 @@ type PodManager struct {
 	config       *Config
 	dockerClient DockerClient
 
-	inSync     bool
-	inSyncCond *sync.Cond
-
+	// map of locally deployed pods
 	pods LocalPods
 }
 
@@ -90,14 +87,22 @@ type DockerClient interface {
 
 // Config holds the PodManager configuration.
 type Config struct {
-	TcpChecksumOffloadDisabled bool `json:"tcp-checksum-offload-disabled"`
+	// TCPChecksumOffloadDisabled when set to true, will cause the checksum offloading
+	// to be disabled for eth0 of every deployed pod.
+	TCPChecksumOffloadDisabled bool `json:"tcp-checksum-offload-disabled"`
 }
+
+var (
+	// Error thrown by PodManager.Update (main event loop) when Kubernetes asks
+	// to configure pod which is already configured but with different parameters.
+	// PodManager.Add() will act by sending an event to remove the obsolete pod
+	// connectivity.
+	errObsoletePod = fmt.Errorf("obsolete pod configuration detected")
+)
 
 // Init connects to Docker server and also registers the plugin to serve
 // Add/Delete CNI requests.
 func (pm *PodManager) Init() (err error) {
-	pm.inSyncCond = &sync.Cond{L: &sync.Mutex{}}
-
 	// load configuration
 	pm.config, err = pm.loadConfig()
 	if err != nil {
@@ -197,8 +202,6 @@ func (pm *PodManager) Resync(_ controller.Event, _ controller.KubeStateData,
 		pm.Log.Debugf("Found locally running Pod: %+v", pm.pods[podID])
 	}
 
-	pm.inSync = true
-	pm.inSyncCond.Signal()
 	pm.Log.Debugf("PodManager state after resync: pods=%d", pm.pods.String())
 	return nil
 }
@@ -206,6 +209,14 @@ func (pm *PodManager) Resync(_ controller.Event, _ controller.KubeStateData,
 // Update handles AddPod and DeletePod events.
 func (pm *PodManager) Update(event controller.Event, _ controller.UpdateOperations) (changeDescription string, err error) {
 	if addPod, isAddPod := event.(*AddPod); isAddPod {
+		// check for obsolete pod entry
+		if pod, hasPod := pm.pods[addPod.Pod]; hasPod {
+			if pod.ContainerID != addPod.ContainerID ||
+				pod.NetworkNamespace != addPod.NetworkNamespace {
+				return "", errObsoletePod
+			}
+		}
+
 		// add pod into the map of local pods
 		pm.pods[addPod.Pod] = &LocalPod{
 			ID:               addPod.Pod,
@@ -235,25 +246,15 @@ func (pm *PodManager) Revert(event controller.Event) error {
 // Add converts CNI Add request to AddPod event.
 func (pm *PodManager) Add(ctx context.Context, request *cni.CNIRequest) (reply *cni.CNIReply, err error) {
 	pm.Log.Info("Add pod request received ", *request)
+
+	// push AddPod event and wait for the result
 	event := NewAddPodEvent(request)
-
-	pm.inSyncCond.L.Lock()
-	waited := false
-	for !pm.inSync {
-		waited = true
-		pm.Log.Debug("Waiting for startup resync to finalize")
-		pm.inSyncCond.Wait()
+	err = pm.EventLoop.PushEvent(event)
+	if err == nil {
+		err = event.Wait()
 	}
-	if waited {
-		pm.Log.Debug("Add pod request is ready to continue")
-	}
-	pm.inSyncCond.L.Unlock()
 
-	// test if the pod is already connected to vswitch
-	//   - no need to lock the map (after startup resync), Add/Delete are serialized
-	//     and event handling is blocking
-	_, connected := pm.pods[event.Pod]
-	if connected {
+	if err == errObsoletePod {
 		// remove the obsolete pod first
 		delEvent := NewDeletePodEvent(request)
 		err = pm.EventLoop.PushEvent(delEvent)
@@ -265,16 +266,16 @@ func (pm *PodManager) Add(ctx context.Context, request *cni.CNIRequest) (reply *
 			pm.Log.Warnf("Error while removing obsolete pod container: %v", err)
 			err = nil
 		}
-	}
-
-	// push AddPod event and wait for the result
-	err = pm.EventLoop.PushEvent(event)
-	if err == nil {
-		err = event.Wait()
+		// retry AddPod event
+		event := NewAddPodEvent(request)
+		err = pm.EventLoop.PushEvent(event)
+		if err == nil {
+			err = event.Wait()
+		}
 	}
 
 	// if requested, disable TCP checksum offload on the pod interface
-	if err == nil && pm.config.TcpChecksumOffloadDisabled {
+	if err == nil && pm.config.TCPChecksumOffloadDisabled {
 		err = pm.disableTCPChecksumOffload(request)
 		if err != nil {
 			// treated as warning
@@ -284,7 +285,7 @@ func (pm *PodManager) Add(ctx context.Context, request *cni.CNIRequest) (reply *
 		}
 	}
 
-	reply = cniReplyForAddPod(request, event, err)
+	reply = pm.cniReplyForAddPod(request, event, err)
 	return reply, err
 }
 
@@ -299,7 +300,7 @@ func (pm *PodManager) Delete(ctx context.Context, request *cni.CNIRequest) (repl
 		err = event.Wait()
 	}
 
-	return cniReplyForDeletePod(err), err
+	return pm.cniReplyForDeletePod(err), err
 }
 
 // loadConfig loads configuration file.
@@ -346,30 +347,19 @@ func (pm *PodManager) disableTCPChecksumOffload(request *cni.CNIRequest) error {
 	return nil
 }
 
-// parseCniExtraArgs parses CNI extra arguments from a string into a map.
-func parseCniExtraArgs(input string) map[string]string {
-	res := map[string]string{}
-
-	pairs := strings.Split(input, ";")
-	for i := range pairs {
-		kv := strings.Split(pairs[i], "=")
-		if len(kv) == 2 {
-			res[kv[0]] = kv[1]
-		}
-	}
-	return res
-}
-
 // cniReplyForAddPod builds CNI reply for processed AddPod event.
-func cniReplyForAddPod(request *cni.CNIRequest, event *AddPod, err error) *cni.CNIReply {
+func (pm *PodManager) cniReplyForAddPod(request *cni.CNIRequest, event *AddPod, err error) (reply *cni.CNIReply) {
 	if err != nil {
-		return cniErrorReply(err)
+		reply = pm.cniErrorReply(err)
+		pm.Log.Debugf("CNI Add request reply: %+v", reply)
+		return reply
 	}
 
-	reply := &cni.CNIReply{
+	reply = &cni.CNIReply{
 		Result: cniResultOk,
 	}
 
+	// collect interfaces defined by event handlers
 	for _, iface := range event.Interfaces {
 		cniIface := &cni.CNIReply_Interface{
 			Name:    iface.HostName,
@@ -385,31 +375,50 @@ func cniReplyForAddPod(request *cni.CNIRequest, event *AddPod, err error) *cni.C
 		reply.Interfaces = append(reply.Interfaces, cniIface)
 	}
 
+	// collect routes defined by event handlers
 	for _, route := range event.Routes {
 		reply.Routes = append(reply.Routes, &cni.CNIReply_Route{
 			Dst: route.Network.String(),
 			Gw:  route.Gateway.String(),
 		})
 	}
+	pm.Log.Debugf("CNI Add request reply: %+v", reply)
 	return reply
 }
 
 // cniReplyForDeletePod builds CNI reply for processed DeletePod event.
-func cniReplyForDeletePod(err error) *cni.CNIReply {
+func (pm *PodManager) cniReplyForDeletePod(err error) (reply *cni.CNIReply) {
 	if err != nil {
-		return cniErrorReply(err)
+		reply = pm.cniErrorReply(err)
+	} else {
+		reply = &cni.CNIReply{
+			Result: cniResultOk,
+		}
 	}
-	return &cni.CNIReply{
-		Result: cniResultOk,
-	}
+	pm.Log.Debugf("CNI Delete request reply: %+v", reply)
+	return reply
 }
 
 // cniErrorReply returns CNI reply for failed request.
-func cniErrorReply(err error) *cni.CNIReply {
+func (pm *PodManager) cniErrorReply(err error) *cni.CNIReply {
 	return &cni.CNIReply{
 		Result: cniResultErr,
 		Error:  err.Error(),
 	}
+}
+
+// parseCniExtraArgs parses CNI extra arguments from a string into a map.
+func parseCniExtraArgs(input string) map[string]string {
+	res := map[string]string{}
+
+	pairs := strings.Split(input, ";")
+	for i := range pairs {
+		kv := strings.Split(pairs[i], "=")
+		if len(kv) == 2 {
+			res[kv[0]] = kv[1]
+		}
+	}
+	return res
 }
 
 func cniIPVersion(version IPVersion) cni.CNIReply_Interface_IP_Version {

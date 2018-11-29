@@ -31,7 +31,6 @@ import (
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
-
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -173,9 +172,9 @@ func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations)
 	return changeDescription, err
 }
 
-// Revert does nothing here - AddPod event TBD.
+// Revert is called for failed AddPod event.
 func (p *Plugin) Revert(event controller.Event) error {
-	return nil
+	return p.processor.Revert(event)
 }
 
 // Close is NOOP.

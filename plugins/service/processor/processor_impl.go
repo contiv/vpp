@@ -18,7 +18,6 @@ package processor
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
@@ -29,13 +28,12 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/nodesync"
-	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/contiv/vpp/plugins/service/renderer"
 )
 
 // ServiceProcessor implements ServiceProcessorAPI.
 type ServiceProcessor struct {
-	sync.Mutex
 	Deps
 
 	renderers []renderer.ServiceRendererAPI
@@ -89,15 +87,11 @@ func (sp *ServiceProcessor) reset() error {
 //  - AddPod & DeletePod
 //  - NodeUpdate event
 func (sp *ServiceProcessor) Update(event controller.Event) error {
-	sp.Lock()
-	defer sp.Unlock()
-
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
 		return sp.propagateDataChangeEv(ksChange)
 	}
 
 	if addPod, isAddPod := event.(*podmanager.AddPod); isAddPod {
-		// TODO: revert
 		return sp.ProcessNewPod(addPod.Pod.Namespace, addPod.Pod.Name)
 	}
 	if deletePod, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
@@ -111,14 +105,19 @@ func (sp *ServiceProcessor) Update(event controller.Event) error {
 	return nil
 }
 
+// Revert is called for failed AddPod event.
+func (sp *ServiceProcessor) Revert(event controller.Event) error {
+	if addPod, isAddPod := event.(*podmanager.AddPod); isAddPod {
+		return sp.ProcessDeletingPod(addPod.Pod.Namespace, addPod.Pod.Name)
+	}
+	return nil
+}
+
 // Resync processes a resync event.
 // The cache content is fully replaced and all registered renderers
 // receive a full snapshot of Contiv Services at the present state to be
 // (re)installed.
 func (sp *ServiceProcessor) Resync(kubeStateData controller.KubeStateData) error {
-	sp.Lock()
-	defer sp.Unlock()
-
 	resyncEvData := sp.parseResyncEv(kubeStateData)
 	return sp.processResyncEvent(resyncEvData)
 }
@@ -126,18 +125,12 @@ func (sp *ServiceProcessor) Resync(kubeStateData controller.KubeStateData) error
 // RegisterRenderer registers a new service renderer.
 // The renderer will be receiving updates for all services on the cluster.
 func (sp *ServiceProcessor) RegisterRenderer(renderer renderer.ServiceRendererAPI) error {
-	sp.Lock()
-	defer sp.Unlock()
-
 	sp.renderers = append(sp.renderers, renderer)
 	return nil
 }
 
 // ProcessNewPod is called when connectivity to pod is being established.
 func (sp *ServiceProcessor) ProcessNewPod(podNamespace string, podName string) error {
-	sp.Lock()
-	defer sp.Unlock()
-
 	sp.Log.WithFields(logging.Fields{
 		"name":      podName,
 		"namespace": podNamespace,
@@ -171,9 +164,6 @@ func (sp *ServiceProcessor) ProcessNewPod(podNamespace string, podName string) e
 
 // ProcessDeletingPod is called during pod removal.
 func (sp *ServiceProcessor) ProcessDeletingPod(podNamespace string, podName string) error {
-	sp.Lock()
-	defer sp.Unlock()
-
 	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 	sp.Log.WithFields(logging.Fields{
 		"podID": podID,
@@ -416,9 +406,6 @@ func (sp *ServiceProcessor) trimIPAddrPrefix(ip string) string {
 }
 
 func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error {
-	sp.Log.WithFields(logging.Fields{
-		"resyncEv": resyncEv,
-	}).Debug("ServiceProcessor - processResyncEvent()")
 	sp.reset()
 
 	// Re-build the current state.

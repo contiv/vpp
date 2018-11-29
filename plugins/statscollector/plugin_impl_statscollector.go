@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/contiv/vpp/plugins/contiv"
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/infra"
@@ -14,8 +16,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/contiv/vpp/plugins/podmanager"
-	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
 const (

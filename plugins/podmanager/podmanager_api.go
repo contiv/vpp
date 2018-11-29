@@ -163,7 +163,7 @@ func (ev *AddPod) Done(err error) {
 	return
 }
 
-// Waits waits for the result of the AddPod event.
+// Wait waits for the result of the AddPod event.
 func (ev *AddPod) Wait() error {
 	return <-ev.result
 }
@@ -226,7 +226,7 @@ func (ev *DeletePod) Done(err error) {
 	return
 }
 
-// Waits waits for the result of the DeletePod event.
+// Wait waits for the result of the DeletePod event.
 func (ev *DeletePod) Wait() error {
 	return <-ev.result
 }

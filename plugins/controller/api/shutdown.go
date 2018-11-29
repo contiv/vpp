@@ -61,7 +61,7 @@ func (ev *Shutdown) Done(err error) {
 	ev.result <- err
 }
 
-// Waits waits for the result of the shutdown event.
+// Wait waits for the result of the shutdown event.
 func (ev *Shutdown) Wait() error {
 	return <-ev.result
 }

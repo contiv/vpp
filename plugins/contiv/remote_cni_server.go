@@ -36,8 +36,8 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
-	"github.com/gogo/protobuf/proto"
 	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/gogo/protobuf/proto"
 )
 
 /* Global constants */
@@ -1028,6 +1028,11 @@ func (s *remoteCNIserver) GetIfName(podNamespace string, podName string) (name s
 	}
 
 	vppIfName, _ := s.podInterfaceName(pod)
+	_, configured := s.vppIfaceToPod[vppIfName]
+	if !configured {
+		return "", false
+	}
+
 	return vppIfName, true
 }
 

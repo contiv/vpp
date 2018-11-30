@@ -26,7 +26,7 @@ data:
     TAPInterfaceVersion: 2
     TAPv2RxRingSize: 256
     TAPv2TxRingSize: 256
-    TCPChecksumOffloadDisabled: false
+    TCPChecksumOffloadDisabled: true
     NatExternalTraffic: true
     MTUSize: 1450
     CleanupIdleNATSessions: True

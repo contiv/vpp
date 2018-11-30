@@ -26,6 +26,7 @@ data:
     TAPInterfaceVersion: 2
     TAPv2RxRingSize: 256
     TAPv2TxRingSize: 256
+    TCPChecksumOffloadDisabled: false
     NatExternalTraffic: true
     MTUSize: 1450
     CleanupIdleNATSessions: True
@@ -37,6 +38,7 @@ data:
     ServiceLocalEndpointWeight: 1
     DisableNATVirtualReassembly: false
     EnablePacketTrace: false
+    RouteServiceCIDRToVPP: false
     CRDNodeConfigurationDisabled: true
     IPAMConfig:
       NodeInterconnectDHCP: false
@@ -56,6 +58,8 @@ data:
         level: info
       - name: linux.arp-conf
         level: info
+      - name: vpp-rest
+        level: info
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock
@@ -72,8 +76,6 @@ data:
     disabled: true
   controller.conf: |
     delay-local-resync: 5000000000
-  podmanager.conf: |
-    tcp-checksum-offload-disabled: false
 
 ---
 
@@ -166,7 +168,7 @@ spec:
               - /bin/sh
               - -c
               - etcdctl get --endpoints=127.0.0.1:32379 /
-            periodSeconds: 2
+            periodSeconds: 3
             initialDelaySeconds: 20
           resources:
             requests:
@@ -382,6 +384,8 @@ spec:
               value: "/etc/agent/bolt.conf"
             - name: TELEMETRY_CONFIG
               value: "/etc/agent/telemetry.conf"
+            - name: CONTROLLER_CONFIG
+              value: "/etc/agent/controller.conf"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt
@@ -538,15 +542,21 @@ spec:
             httpGet:
               path: /readiness
               port: 9191
-            periodSeconds: 1
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 3
             initialDelaySeconds: 10
           livenessProbe:
             httpGet:
               path: /liveness
               port: 9191
-            periodSeconds: 1
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 3
             initialDelaySeconds: 30
-
+          resources:
+            requests:
+              cpu: 100m
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
@@ -694,14 +704,21 @@ spec:
           httpGet:
             path: /readiness
             port: 9090
-          periodSeconds: 1
+          periodSeconds: 3
+          timeoutSeconds: 2
+          failureThreshold: 3
           initialDelaySeconds: 10
         livenessProbe:
           httpGet:
             path: /liveness
             port: 9090
-          periodSeconds: 1
+          periodSeconds: 3
+          timeoutSeconds: 2
+          failureThreshold: 3
           initialDelaySeconds: 30
+        resources:
+          requests:
+            cpu: 100m
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg

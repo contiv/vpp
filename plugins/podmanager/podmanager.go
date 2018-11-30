@@ -19,9 +19,9 @@ package podmanager
 import (
 	"context"
 	"fmt"
-	"github.com/fsouza/go-dockerclient"
-	"os/exec"
 	"strings"
+
+	"github.com/fsouza/go-dockerclient"
 
 	"github.com/ligato/cn-infra/infra"
 	grpcplugin "github.com/ligato/cn-infra/rpc/grpc"
@@ -59,8 +59,6 @@ const (
 // plugins to be able to (re)construct connectivity between pods and the vswitch.
 type PodManager struct {
 	Deps
-
-	config       *Config
 	dockerClient DockerClient
 
 	// map of locally deployed pods
@@ -85,13 +83,6 @@ type DockerClient interface {
 	InspectContainer(id string) (*docker.Container, error)
 }
 
-// Config holds the PodManager configuration.
-type Config struct {
-	// TCPChecksumOffloadDisabled when set to true, will cause the checksum offloading
-	// to be disabled for eth0 of every deployed pod.
-	TCPChecksumOffloadDisabled bool `json:"tcp-checksum-offload-disabled"`
-}
-
 var (
 	// Error thrown by PodManager.Update (main event loop) when Kubernetes asks
 	// to configure pod which is already configured but with different parameters.
@@ -105,14 +96,6 @@ var (
 func (pm *PodManager) Init() (err error) {
 	// init attributes
 	pm.pods = make(LocalPods)
-
-	// load configuration
-	pm.config, err = pm.loadConfig()
-	if err != nil {
-		pm.Log.Error(err)
-		return err
-	}
-	pm.Log.Infof("PodManager configuration: %+v", *pm.config)
 
 	// connect to Docker server
 	pm.dockerClient, err = docker.NewClientFromEnv()
@@ -277,17 +260,6 @@ func (pm *PodManager) Add(ctx context.Context, request *cni.CNIRequest) (reply *
 		}
 	}
 
-	// if requested, disable TCP checksum offload on the pod interface
-	if err == nil && pm.config.TCPChecksumOffloadDisabled {
-		err = pm.disableTCPChecksumOffload(request)
-		if err != nil {
-			// treated as warning
-			pm.Log.Warnf("Failed to disable TCP checksum offload for pod %v: %v",
-				event.Pod, err)
-			err = nil
-		}
-	}
-
 	reply = pm.cniReplyForAddPod(request, event, err)
 	return reply, err
 }
@@ -304,50 +276,6 @@ func (pm *PodManager) Delete(ctx context.Context, request *cni.CNIRequest) (repl
 	}
 
 	return pm.cniReplyForDeletePod(err), err
-}
-
-// loadConfig loads configuration file.
-func (pm *PodManager) loadConfig() (config *Config, err error) {
-	var found bool
-	config = &Config{}
-
-	found, err = pm.Cfg.LoadValue(config)
-	if err != nil {
-		return nil, err
-	} else if !found {
-		pm.Log.Debugf("%v config not found", pm.PluginName)
-		return config, nil
-	}
-
-	return config, err
-}
-
-// disableTCPChecksumOffload disables TCP checksum offload on the pod interface.
-func (pm *PodManager) disableTCPChecksumOffload(request *cni.CNIRequest) error {
-	// parse PID from the network namespace
-	var pid int
-	fmt.Sscanf(request.NetworkNamespace, "/proc/%d/ns/net", &pid)
-	if pid == 0 {
-		return fmt.Errorf("failed to parse PID from network namespace path '%v'",
-			request.NetworkNamespace)
-	}
-
-	// execute the ethtool in the namespace of given PID
-	cmdStr := fmt.Sprintf("nsenter -t %d -n ethtool --offload %s rx off tx off",
-		pid, request.InterfaceName)
-	pm.Log.Infof("Executing CMD: %s", cmdStr)
-
-	cmdArr := strings.Split(cmdStr, " ")
-	cmd := exec.Command("nsenter", cmdArr[1:]...)
-
-	// check the output of the exec
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		pm.Log.Errorf("nsenter/ethtool returned error: %v", err)
-		return err
-	}
-	pm.Log.Infof("nsenter/ethtool output: %s", output)
-	return nil
 }
 
 // cniReplyForAddPod builds CNI reply for processed AddPod event.

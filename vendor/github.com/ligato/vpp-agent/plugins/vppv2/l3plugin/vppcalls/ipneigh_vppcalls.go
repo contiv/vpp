@@ -18,10 +18,10 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/go-errors/errors"
 	"github.com/ligato/vpp-agent/plugins/govppmux/vppcalls"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+	"github.com/pkg/errors"
 )
 
 // SetIPScanNeighbor implements ip neigh  handler.
@@ -87,16 +87,22 @@ func (h *IPNeighHandler) GetIPScanNeighbor() (*l3.IPScanNeighbor, error) {
 			ipScanNeigh.Mode = l3.IPScanNeighbor_BOTH
 		}
 	}
-	ipScanNeigh.ScanInterval = strToUint32(matches[3])
-	ipScanNeigh.StaleThreshold = strToUint32(matches[4])
-	ipScanNeigh.MaxProcTime = strToUint32(matches[5])
-	ipScanNeigh.MaxUpdate = strToUint32(matches[6])
-	ipScanNeigh.ScanIntDelay = strToUint32(matches[7])
+	ipScanNeigh.ScanInterval = h.strToUint32(matches[3])
+	ipScanNeigh.StaleThreshold = h.strToUint32(matches[4])
+	ipScanNeigh.MaxProcTime = h.strToUint32(matches[5])
+	ipScanNeigh.MaxUpdate = h.strToUint32(matches[6])
+	ipScanNeigh.ScanIntDelay = h.strToUint32(matches[7])
 
 	return ipScanNeigh, nil
 }
 
-func strToUint32(s string) uint32 {
-	n, _ := strconv.ParseUint(s, 10, 32)
+func (h *IPNeighHandler) strToUint32(s string) uint32 {
+	if s == "" {
+		return 0
+	}
+	n, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		h.log.Error(err)
+	}
 	return uint32(n)
 }

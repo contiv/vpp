@@ -764,13 +764,15 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn controller.Resync
 	txn.Put(key, routeToPods)
 
 	// route from the host to k8s service range from the host
-	var routeToServices *linux_l3.StaticRoute
-	if !s.UseSTN() {
-		key, routeToServices = s.routeServicesFromHost(s.ipam.HostInterconnectIPInVPP())
-	} else {
-		key, routeToServices = s.routeServicesFromHost(s.defaultGw)
+	if s.config.RouteServiceCIDRToVPP {
+		var routeToServices *linux_l3.StaticRoute
+		if !s.UseSTN() {
+			key, routeToServices = s.routeServicesFromHost(s.ipam.HostInterconnectIPInVPP())
+		} else {
+			key, routeToServices = s.routeServicesFromHost(s.defaultGw)
+		}
+		txn.Put(key, routeToServices)
 	}
-	txn.Put(key, routeToServices)
 
 	return nil
 }
@@ -1024,12 +1026,16 @@ func (s *remoteCNIserver) GetPodByIf(ifName string) (podNamespace string, podNam
 
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given POD name.
 func (s *remoteCNIserver) GetIfName(podNamespace string, podName string) (name string, exists bool) {
+	// check that the pod is locally deployed
 	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 	pod, exists := s.podManager.GetLocalPods()[podID]
 	if !exists {
 		return "", false
 	}
 
+	// check that the pod is attached to VPP network stack
+	s.vppIfaceToPodMutex.RLock()
+	defer s.vppIfaceToPodMutex.RUnlock()
 	vppIfName, _ := s.podInterfaceName(pod)
 	_, configured := s.vppIfaceToPod[vppIfName]
 	if !configured {

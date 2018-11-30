@@ -58,6 +58,8 @@ func main() {
 
 	ksr.DefaultPlugin.Publish = etcdDataSync
 
+	probe.DefaultPlugin.NonFatalPlugins = []string{"etcd"}
+
 	contivKSR := &ContivKSR{
 		ServiceLabel: &servicelabel.DefaultPlugin,
 		HealthProbe:  &probe.DefaultPlugin,

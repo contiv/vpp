@@ -278,11 +278,11 @@ func (rct *RendererCacheTxn) Commit() error {
 				// Local table removed in the transaction.
 				rct.cache.localTables.Remove(txnTable)
 				rct.cache.Log.WithFields(logging.Fields{
-					"table": txnTable,
+					"table": txnTable.GetID(),
 				}).Debug("Local table was removed in the transaction")
 			} else if !txnTable.Pods.Equals(origTable.Pods) {
 				rct.cache.Log.WithFields(logging.Fields{
-					"table":    txnTable,
+					"table":    txnTable.GetID(),
 					"origPods": origTable.Pods,
 					"newPods":  txnTable.Pods,
 				}).Debug("Local table was re-assigned to different set of pods in the transaction")
@@ -305,7 +305,7 @@ func (rct *RendererCacheTxn) Commit() error {
 				// New local table created in the transaction.
 				rct.cache.localTables.Insert(txnTable)
 				rct.cache.Log.WithFields(logging.Fields{
-					"table": txnTable,
+					"table": txnTable.GetID(),
 				}).Debug("New local table was created in the transaction")
 			}
 		}
@@ -414,7 +414,7 @@ func (rct *RendererCacheTxn) refreshTables() {
 
 		rct.cache.Log.WithFields(logging.Fields{
 			"podID":    podID,
-			"newTable": newTable,
+			"newTable": newTable.GetID(),
 		}).Debug("Refreshing pod's local table")
 
 		// Add pod's original table into the transaction if is not already there.

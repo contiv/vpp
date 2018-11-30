@@ -182,7 +182,7 @@ func (p *Plugin) Update(event controller.Event, _ controller.UpdateOperations) (
 	return "removed interface stats", nil
 }
 
-// Revert is NOOP - only BestEffor DeletePod event is handled.
+// Revert is NOOP - only BestEffort DeletePod event is handled.
 func (p *Plugin) Revert(controller.Event) error {
 	return nil
 }

@@ -167,7 +167,7 @@
   version = "v0.6.0"
 
 [[projects]]
-  digest = "1:85fce1e2e3ec72eecab2a2fd8fb85d7a825f0d5cd841652fe0ad980bbe22dd4a"
+  digest = "1:7ae4616edd396840ccc1506d287211ef883d3e93604dde0c9d1dd5721bb449d5"
   name = "github.com/coreos/etcd"
   packages = [
     "auth/authpb",
@@ -180,8 +180,8 @@
     "pkg/types",
   ]
   pruneopts = "UT"
-  revision = "fca8add78a9d926166eb739b8e4a124434025ba3"
-  version = "v3.3.9"
+  revision = "27fc7e2296f506182f58ce846e48f36b34fe6842"
+  version = "v3.3.10"
 
 [[projects]]
   digest = "1:85968a9e07d94b5f3d15993b9884ab5fcc41c8b7b6418df8b6a3baa387bb8d68"
@@ -444,10 +444,11 @@
   version = "v4.1.0"
 
 [[projects]]
-  digest = "1:ef5e64f7163631a51e38fdbc27a57175c2f84665d4065c735a37049999f09b8f"
+  digest = "1:c30185d83c2a351bf3b21e7784d3c9b84281d56d0958959c2a6cd8a47f422c49"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
+    "jsonpb",
     "plugin/compare",
     "plugin/defaultcheck",
     "plugin/description",
@@ -688,7 +689,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:f85430d30130340d5f97794bc4d470911a0a06391560248b8ff11f7ff71b2f92"
+  digest = "1:78edbb6155fa9213ce138c9c050b772aabd21ed8dfe6a6e934ce08b83d99ac1d"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -724,18 +725,15 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "4a07b7a01a85295340629b59947523ee4293ddaa"
+  revision = "19b96718a1fada5ae615a42226e94054a0791d0b"
 
 [[projects]]
   branch = "dev"
-  digest = "1:fc95bf2520b9b5366a357d899012b546ffcd2807cf618a833b0d152c28127408"
+  digest = "1:bbbc09e8aca77487cc6abbf715741561dfa9d97020169465dc17952bd483c869"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv2/linux",
-    "clientv2/linux/dbadapter",
-    "clientv2/linux/localclient",
     "clientv2/vpp",
-    "clientv2/vpp/dbadapter",
     "idxvpp2",
     "plugins/govppmux",
     "plugins/govppmux/vppcalls",
@@ -766,12 +764,12 @@
     "plugins/vpp/binapi/dhcp",
     "plugins/vpp/binapi/interfaces",
     "plugins/vpp/binapi/ip",
+    "plugins/vpp/binapi/ipsec",
     "plugins/vpp/binapi/l2",
     "plugins/vpp/binapi/memif",
     "plugins/vpp/binapi/nat",
     "plugins/vpp/binapi/session",
     "plugins/vpp/binapi/stats",
-    "plugins/vpp/binapi/stn",
     "plugins/vpp/binapi/tap",
     "plugins/vpp/binapi/tapv2",
     "plugins/vpp/binapi/vpe",
@@ -809,10 +807,9 @@
     "plugins/vppv2/natplugin/descriptor",
     "plugins/vppv2/natplugin/descriptor/adapter",
     "plugins/vppv2/natplugin/vppcalls",
-    "plugins/vppv2/stnplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "3960cf4efaf7c37fe54388aecbd54059ff022f11"
+  revision = "fddfb7d873ce7a54fe6635039f26ba9258bcc328"
 
 [[projects]]
   branch = "master"
@@ -1680,21 +1677,17 @@
     "github.com/ligato/cn-infra/servicelabel",
     "github.com/ligato/cn-infra/utils/safeclose",
     "github.com/ligato/vpp-agent/clientv2/linux",
-    "github.com/ligato/vpp-agent/clientv2/linux/localclient",
     "github.com/ligato/vpp-agent/clientv2/vpp",
     "github.com/ligato/vpp-agent/plugins/govppmux",
     "github.com/ligato/vpp-agent/plugins/kvscheduler",
     "github.com/ligato/vpp-agent/plugins/kvscheduler/api",
     "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin",
-    "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/linuxcalls",
     "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin",
-    "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin/linuxcalls",
     "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces",
     "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3",
     "github.com/ligato/vpp-agent/plugins/linuxv2/model/namespace",
+    "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin",
     "github.com/ligato/vpp-agent/plugins/telemetry",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/session",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/stats",
@@ -1710,7 +1703,6 @@
     "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls",
     "github.com/ligato/vpp-agent/plugins/vppv2/l2plugin",
     "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin",
-    "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/vppcalls",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/acl",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/l2",
@@ -1718,7 +1710,6 @@
     "github.com/ligato/vpp-agent/plugins/vppv2/model/nat",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/stn",
     "github.com/ligato/vpp-agent/plugins/vppv2/natplugin",
-    "github.com/ligato/vpp-agent/plugins/vppv2/stnplugin/vppcalls",
     "github.com/namsral/flag",
     "github.com/nerdtakula/supervisor",
     "github.com/onsi/gomega",

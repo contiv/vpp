@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"net"
 
-	"github.com/go-errors/errors"
+	"github.com/pkg/errors"
 
 	l2ba "github.com/ligato/vpp-agent/plugins/vpp/binapi/l2"
 	l2nb "github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
@@ -135,12 +135,7 @@ func (h *BridgeDomainVppHandler) dumpBridgeDomainMacTable() (map[uint32][]*l2nb.
 		arpEntry.PhysAddress = net.HardwareAddr(msg.MacAddress).String()
 
 		// Add ARP entry to result map
-		arpEntries, ok := bdArpTable[msg.BdID]
-		if ok {
-			arpEntries = append(arpEntries, arpEntry)
-		} else {
-			bdArpTable[msg.BdID] = append(bdArpTable[msg.BdID], arpEntry)
-		}
+		bdArpTable[msg.BdID] = append(bdArpTable[msg.BdID], arpEntry)
 	}
 
 	return bdArpTable, nil

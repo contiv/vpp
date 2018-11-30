@@ -153,9 +153,9 @@ func (ev *DBResync) String() string {
 	return str
 }
 
-// Method is Resync.
+// Method is FullResync.
 func (ev *DBResync) Method() EventMethodType {
-	return Resync
+	return FullResync
 }
 
 // IsBlocking returns false.

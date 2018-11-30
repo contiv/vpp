@@ -106,9 +106,9 @@ func (ev *NodeIPv4Change) String() string {
 		ev.GetName(), ev.NodeIP.String(), ev.NodeIPNet.String(), ev.DefaultGw.String())
 }
 
-// Method is Resync.
+// Method is UpstreamResync.
 func (ev *NodeIPv4Change) Method() controller.EventMethodType {
-	return controller.Resync
+	return controller.UpstreamResync
 }
 
 // IsBlocking returns false.

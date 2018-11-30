@@ -137,7 +137,7 @@ func (p *Plugin) Init() error {
 
 // HandlesEvent selects DBResync and KubeStateChange for specific resources to handle.
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
-	if event.Method() == controller.Resync {
+	if event.Method() != controller.Update {
 		return true
 	}
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {

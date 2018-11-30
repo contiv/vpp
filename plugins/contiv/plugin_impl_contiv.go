@@ -97,7 +97,7 @@ func (p *Plugin) Init() error {
 //   - NodeUpdate for other nodes
 //   - Shutdown event
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
-	if event.Method() == controller.Resync {
+	if event.Method() != controller.Update {
 		return true
 	}
 	if _, isAddPod := event.(*podmanager.AddPod); isAddPod {

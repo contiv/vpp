@@ -166,10 +166,6 @@ func (s *remoteCNIserver) interconnectTapHost() (key string, config *linux_inter
 	} else {
 		tap.IpAddresses = []string{s.ipam.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)}
 	}
-	if s.config.TCPChecksumOffloadDisabled {
-		tap.RxChecksumOffloading = linux_interfaces.Interface_CHKSM_OFFLOAD_DISABLED
-		tap.TxChecksumOffloading = linux_interfaces.Interface_CHKSM_OFFLOAD_DISABLED
-	}
 	key = linux_interfaces.InterfaceKey(tap.Name)
 	return key, tap
 }
@@ -228,11 +224,10 @@ func (s *remoteCNIserver) interconnectVethHost() (key string, config *linux_inte
 		HostIfName:  hostInterconnectVETH1HostName,
 		IpAddresses: []string{s.ipam.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)},
 	}
-	// AF-PACKET + VETHs do not work properly with checksum offloading
-	// - disabling regardless of the configuration
-	// if s.config.TCPChecksumOffloadDisabled {
-	veth.RxChecksumOffloading = linux_interfaces.Interface_CHKSM_OFFLOAD_DISABLED
-	veth.TxChecksumOffloading = linux_interfaces.Interface_CHKSM_OFFLOAD_DISABLED
+	if s.config.TCPChecksumOffloadDisabled {
+		veth.GetVeth().RxChecksumOffloading = linux_interfaces.VethLink_CHKSM_OFFLOAD_DISABLED
+		veth.GetVeth().TxChecksumOffloading = linux_interfaces.VethLink_CHKSM_OFFLOAD_DISABLED
+	}
 	key = linux_interfaces.InterfaceKey(veth.Name)
 	return key, veth
 }

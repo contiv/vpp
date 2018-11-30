@@ -21,9 +21,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-errors/errors"
 	"github.com/gogo/protobuf/proto"
 	prototypes "github.com/gogo/protobuf/types"
+	"github.com/pkg/errors"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
@@ -166,14 +166,18 @@ func (d *InterfaceDescriptor) InterfaceNameFromKey(key string) string {
 // interfaces.LinuxInterface, also ignoring the order of assigned IP addresses.
 func (d *InterfaceDescriptor) EquivalentInterfaces(key string, oldIntf, newIntf *interfaces.Interface) bool {
 	// attributes compared as usually:
-	if oldIntf.Name != newIntf.Name || oldIntf.Type != newIntf.Type || oldIntf.Enabled != newIntf.Enabled ||
+	if oldIntf.Name != newIntf.Name ||
+		oldIntf.Type != newIntf.Type ||
+		oldIntf.Enabled != newIntf.Enabled ||
 		getHostIfName(oldIntf) != getHostIfName(newIntf) {
 		return false
 	}
-	if oldIntf.Type == interfaces.Interface_VETH && oldIntf.GetVeth().GetPeerIfName() != newIntf.GetVeth().GetPeerIfName() {
+	if oldIntf.Type == interfaces.Interface_VETH &&
+		oldIntf.GetVeth().GetPeerIfName() != newIntf.GetVeth().GetPeerIfName() {
 		return false
 	}
-	if oldIntf.Type == interfaces.Interface_TAP_TO_VPP && oldIntf.GetTap().GetVppTapIfName() != newIntf.GetTap().GetVppTapIfName() {
+	if oldIntf.Type == interfaces.Interface_TAP_TO_VPP &&
+		oldIntf.GetTap().GetVppTapIfName() != newIntf.GetTap().GetVppTapIfName() {
 		return false
 	}
 	if !proto.Equal(oldIntf.Namespace, newIntf.Namespace) {
@@ -191,6 +195,12 @@ func (d *InterfaceDescriptor) EquivalentInterfaces(key string, oldIntf, newIntf 
 		return false
 	}
 
+	// handle default config for checksum offloading
+	if getRxChksmOffloading(oldIntf) != getRxChksmOffloading(newIntf) ||
+		getTxChksmOffloading(oldIntf) != getTxChksmOffloading(newIntf) {
+		return false
+	}
+
 	// order-irrelevant comparison of IP addresses
 	oldIntfAddrs, err1 := addrs.StrAddrsToStruct(oldIntf.IpAddresses)
 	newIntfAddrs, err2 := addrs.StrAddrsToStruct(newIntf.IpAddresses)
@@ -199,7 +209,11 @@ func (d *InterfaceDescriptor) EquivalentInterfaces(key string, oldIntf, newIntf 
 		return reflect.DeepEqual(oldIntf.IpAddresses, newIntf.IpAddresses)
 	}
 	obsolete, new := addrs.DiffAddr(oldIntfAddrs, newIntfAddrs)
-	return len(obsolete) == 0 && len(new) == 0
+	if len(obsolete) != 0 || len(new) != 0 {
+		return false
+	}
+
+	return true
 }
 
 // MetadataFactory is a factory for index-map customized for Linux interfaces.
@@ -311,6 +325,17 @@ func (d *InterfaceDescriptor) Add(key string, linuxIf *interfaces.Interface) (me
 		}
 	}
 
+	// set checksum offloading
+	rxOn := getRxChksmOffloading(linuxIf)
+	txOn := getTxChksmOffloading(linuxIf)
+	err = d.ifHandler.SetChecksumOffloading(hostName, rxOn, txOn)
+	if err != nil {
+		err = errors.Errorf("failed to configure checksum offloading (rx=%t,tx=%t) for linux interface %s: %v",
+			rxOn, txOn, linuxIf.Name, err)
+		d.log.Error(err)
+		return nil, err
+	}
+
 	return metadata, nil
 }
 
@@ -405,7 +430,7 @@ func (d *InterfaceDescriptor) Modify(key string, oldLinuxIf, newLinuxIf *interfa
 
 	// update MAC address
 	if newLinuxIf.PhysAddress != "" && newLinuxIf.PhysAddress != oldLinuxIf.PhysAddress {
-		err := d.ifHandler.SetInterfaceMac(newLinuxIf.HostIfName, newLinuxIf.PhysAddress)
+		err := d.ifHandler.SetInterfaceMac(newHostName, newLinuxIf.PhysAddress)
 		if err != nil {
 			err = errors.Errorf("failed to reconfigure MAC address for linux interface %s: %v",
 				newLinuxIf.Name, err)
@@ -432,7 +457,7 @@ func (d *InterfaceDescriptor) Modify(key string, oldLinuxIf, newLinuxIf *interfa
 	del, add := addrs.DiffAddr(newAddrs, oldAddrs)
 
 	for i := range del {
-		err := d.ifHandler.DelInterfaceIP(newLinuxIf.HostIfName, del[i])
+		err := d.ifHandler.DelInterfaceIP(newHostName, del[i])
 		if nil != err {
 			err = errors.Errorf("failed to remove IPv4 address from a Linux interface %s: %v",
 				newLinuxIf.Name, err)
@@ -442,7 +467,7 @@ func (d *InterfaceDescriptor) Modify(key string, oldLinuxIf, newLinuxIf *interfa
 	}
 
 	for i := range add {
-		err := d.ifHandler.AddInterfaceIP(newLinuxIf.HostIfName, add[i])
+		err := d.ifHandler.AddInterfaceIP(newHostName, add[i])
 		if nil != err {
 			err = errors.Errorf("linux interface modify: failed to add IP addresses %s to %s: %v",
 				add[i], newLinuxIf.Name, err)
@@ -454,10 +479,23 @@ func (d *InterfaceDescriptor) Modify(key string, oldLinuxIf, newLinuxIf *interfa
 	// MTU
 	if getInterfaceMTU(newLinuxIf) != getInterfaceMTU(oldLinuxIf) {
 		mtu := getInterfaceMTU(newLinuxIf)
-		err := d.ifHandler.SetInterfaceMTU(newLinuxIf.HostIfName, mtu)
+		err := d.ifHandler.SetInterfaceMTU(newHostName, mtu)
 		if nil != err {
 			err = errors.Errorf("failed to reconfigure MTU for the linux interface %s: %v",
 				newLinuxIf.Name, err)
+			d.log.Error(err)
+			return nil, err
+		}
+	}
+
+	// update checksum offloading
+	rxOn := getRxChksmOffloading(newLinuxIf)
+	txOn := getTxChksmOffloading(newLinuxIf)
+	if rxOn != getRxChksmOffloading(oldLinuxIf) || txOn != getTxChksmOffloading(oldLinuxIf) {
+		err = d.ifHandler.SetChecksumOffloading(newHostName, rxOn, txOn)
+		if err != nil {
+			err = errors.Errorf("failed to reconfigure checksum offloading (rx=%t,tx=%t) for linux interface %s: %v",
+				rxOn, txOn, newLinuxIf.Name, err)
 			d.log.Error(err)
 			return nil, err
 		}
@@ -514,7 +552,7 @@ func (d *InterfaceDescriptor) Dependencies(key string, linuxIf *interfaces.Inter
 		}
 	}
 
-	if linuxIf.Namespace != nil && linuxIf.Namespace.Type == namespace.NetNamespace_NETNS_REF_MICROSERVICE {
+	if linuxIf.GetNamespace().GetType() == namespace.NetNamespace_NETNS_REF_MICROSERVICE {
 		dependencies = append(dependencies, scheduler.Dependency{
 			Label: microserviceDep,
 			Key:   namespace.MicroserviceKey(linuxIf.Namespace.Reference),
@@ -675,7 +713,7 @@ func (d *InterfaceDescriptor) Dump(correlate []adapter.InterfaceKVWithMetadata) 
 			}
 
 			// dump interface status
-			intf.Enabled, err = d.ifHandler.IsInterfaceEnabled(link.Attrs().Name)
+			intf.Enabled, err = d.ifHandler.IsInterfaceUp(link.Attrs().Name)
 			if err != nil {
 				d.log.WithFields(logging.Fields{
 					"if-host-name": link.Attrs().Name,
@@ -701,6 +739,23 @@ func (d *InterfaceDescriptor) Dump(correlate []adapter.InterfaceKVWithMetadata) 
 				mask, _ := address.Mask.Size()
 				addrStr := address.IP.String() + "/" + strconv.Itoa(mask)
 				intf.IpAddresses = append(intf.IpAddresses, addrStr)
+			}
+
+			// dump checksum offloading
+			rxOn, txOn, err := d.ifHandler.GetChecksumOffloading(link.Attrs().Name)
+			if err != nil {
+				d.log.WithFields(logging.Fields{
+					"if-host-name": link.Attrs().Name,
+					"namespace":    nsRef,
+					"err":          err,
+				}).Warn("Failed to read checksum offloading")
+			} else {
+				if !rxOn {
+					intf.RxChecksumOffloading = interfaces.Interface_CHKSM_OFFLOAD_DISABLED
+				}
+				if !txOn {
+					intf.TxChecksumOffloading = interfaces.Interface_CHKSM_OFFLOAD_DISABLED
+				}
 			}
 
 			// build key-value pair for the dumped interface
@@ -799,7 +854,7 @@ func (d *InterfaceDescriptor) setInterfaceNamespace(ctx nslinuxcalls.NamespaceMg
 	if err != nil {
 		return errors.Errorf("failed to get IP address list from interface %s: %v", link.Attrs().Name, err)
 	}
-	enabled, err := d.ifHandler.IsInterfaceEnabled(ifName)
+	enabled, err := d.ifHandler.IsInterfaceUp(ifName)
 	if err != nil {
 		return errors.Errorf("failed to get admin status of the interface %s: %v", link.Attrs().Name, err)
 	}
@@ -871,30 +926,30 @@ func (d *InterfaceDescriptor) getInterfaceAddresses(ifName string) (addresses []
 
 // validateInterfaceConfig validates Linux interface configuration.
 func (d *InterfaceDescriptor) validateInterfaceConfig(linuxIf *interfaces.Interface) error {
-	if linuxIf.Name == "" {
+	if linuxIf.GetName() == "" {
 		return ErrInterfaceWithoutName
 	}
-	if linuxIf.Type == interfaces.Interface_UNDEFINED {
+	if linuxIf.GetType() == interfaces.Interface_UNDEFINED {
 		return ErrInterfaceWithoutType
 	}
-	if linuxIf.Type == interfaces.Interface_TAP_TO_VPP && d.vppIfPlugin == nil {
+	if linuxIf.GetType() == interfaces.Interface_TAP_TO_VPP && d.vppIfPlugin == nil {
 		return ErrTAPRequiresVPPIfPlugin
 	}
-	if linuxIf.Namespace != nil &&
-		(linuxIf.Namespace.Type == namespace.NetNamespace_NETNS_REF_UNDEFINED ||
-			linuxIf.Namespace.Reference == "") {
+	if linuxIf.GetNamespace() != nil &&
+		(linuxIf.GetNamespace().GetType() == namespace.NetNamespace_NETNS_REF_UNDEFINED ||
+			linuxIf.GetNamespace().GetReference() == "") {
 		return ErrNamespaceWithoutReference
 	}
 	switch linuxIf.Link.(type) {
 	case *interfaces.Interface_Tap:
-		if linuxIf.Type != interfaces.Interface_TAP_TO_VPP {
+		if linuxIf.GetType() != interfaces.Interface_TAP_TO_VPP {
 			return ErrInterfaceReferenceMismatch
 		}
 		if linuxIf.GetTap().GetVppTapIfName() == "" {
 			return ErrTAPWithoutVPPReference
 		}
 	case *interfaces.Interface_Veth:
-		if linuxIf.Type != interfaces.Interface_VETH {
+		if linuxIf.GetType() != interfaces.Interface_VETH {
 			return ErrInterfaceReferenceMismatch
 		}
 		if linuxIf.GetVeth().GetPeerIfName() == "" {
@@ -920,4 +975,24 @@ func getInterfaceMTU(linuxIntf *interfaces.Interface) int {
 		return defaultEthernetMTU
 	}
 	return mtu
+}
+
+func getRxChksmOffloading(linuxIntf *interfaces.Interface) (rxOn bool) {
+	return isChksmOffloadingOn(linuxIntf.RxChecksumOffloading)
+}
+
+func getTxChksmOffloading(linuxIntf *interfaces.Interface) (txOn bool) {
+	return isChksmOffloadingOn(linuxIntf.TxChecksumOffloading)
+}
+
+func isChksmOffloadingOn(offloading interfaces.Interface_ChecksumOffloading) bool {
+	switch offloading {
+	case interfaces.Interface_CHKSM_OFFLOAD_DEFAULT:
+		return true // enabled by default
+	case interfaces.Interface_CHKSM_OFFLOAD_ENABLED:
+		return true
+	case interfaces.Interface_CHKSM_OFFLOAD_DISABLED:
+		return false
+	}
+	return true
 }

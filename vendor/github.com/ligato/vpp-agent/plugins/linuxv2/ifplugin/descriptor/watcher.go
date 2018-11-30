@@ -21,10 +21,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-errors/errors"
 	"github.com/gogo/protobuf/proto"
 	prototypes "github.com/gogo/protobuf/types"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/pkg/errors"
 	"github.com/vishvananda/netlink"
 
 	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
@@ -160,7 +160,7 @@ func (w *InterfaceWatcher) watchDefaultNamespace() {
 	links, err := w.ifHandler.GetLinkList()
 	if err == nil {
 		for _, link := range links {
-			if enabled, err := w.ifHandler.IsInterfaceEnabled(link.Attrs().Name); enabled && err == nil {
+			if enabled, err := w.ifHandler.IsInterfaceUp(link.Attrs().Name); enabled && err == nil {
 				w.ifaces[link.Attrs().Name] = struct{}{}
 			}
 		}

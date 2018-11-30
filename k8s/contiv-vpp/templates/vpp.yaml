@@ -47,6 +47,7 @@ data:
     {{- end }}
     DisableNATVirtualReassembly: {{ .Values.contiv.disableNATVirtualReassembly }}
     EnablePacketTrace: {{ .Values.contiv.enablePacketTrace }}
+    RouteServiceCIDRToVPP: {{ .Values.contiv.routeServiceCIDRToVPP }}
     CRDNodeConfigurationDisabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
     IPAMConfig:
       NodeInterconnectDHCP: {{ .Values.contiv.ipamConfig.nodeInterconnectDHCP }}
@@ -104,6 +105,8 @@ data:
       - name: vpp.if-state
         level: info
       - name: linux.arp-conf
+        level: info
+      - name: vpp-rest
         level: info
   grpc.conf: |
     network: unix
@@ -242,14 +245,16 @@ spec:
               mountPath: /var/contiv/etcd-secrets
               readOnly: true
             {{- end }}
+          {{- if .Values.etcd.enableLivenessProbe }}
           livenessProbe:
             exec:
               command:
               - /bin/sh
               - -c
               - etcdctl get --endpoints=127.0.0.1:{{ .Values.etcd.service.nodePort }} /
-            periodSeconds: 2
-            initialDelaySeconds: 20
+            periodSeconds: {{ .Values.etcd.probePeriodSeconds }}
+            initialDelaySeconds: {{ .Values.etcd.livenessProbeInitialDelaySeconds }}
+          {{- end }}
           resources:
             {{- if .Values.etcd.cpuLimit }}
             limits:
@@ -624,10 +629,10 @@ spec:
                 - name: Authorization
                   value: "Basic {{ .Values.http.basicAuth | b64enc }}"
               {{- end }}
-            periodSeconds: 3
-            timeoutSeconds: 2
-            failureThreshold: 3
-            initialDelaySeconds: 15
+            periodSeconds: {{ .Values.vswitch.probePeriodSeconds }}
+            timeoutSeconds: {{ .Values.vswitch.probeTimeoutSeconds }}
+            failureThreshold: {{ .Values.vswitch.probeFailureThreshold }}
+            initialDelaySeconds: {{ .Values.vswitch.readinessProbeInitialDelaySeconds }}
           livenessProbe:
             httpGet:
               path: /liveness
@@ -640,10 +645,10 @@ spec:
                 - name: Authorization
                   value: "Basic {{ .Values.http.basicAuth | b64enc }}"
               {{- end }}
-            periodSeconds: 3
-            timeoutSeconds: 2
-            failureThreshold: 3
-            initialDelaySeconds: 60
+            periodSeconds: {{ .Values.vswitch.probePeriodSeconds }}
+            timeoutSeconds: {{ .Values.vswitch.probeTimeoutSeconds }}
+            failureThreshold: {{ .Values.vswitch.probeFailureThreshold }}
+            initialDelaySeconds: {{ .Values.vswitch.livenessProbeInitialDelaySeconds }}
           {{- end }}
           env:
             - name: MICROSERVICE_LABEL
@@ -893,6 +898,7 @@ spec:
               mountPath: /var/http
               readOnly: true
             {{- end }}
+          {{- if .Values.ksr.enableLivenessReadinessProbes }}
           readinessProbe:
             httpGet:
               path: /readiness
@@ -905,8 +911,10 @@ spec:
                 - name: Authorization
                   value: "Basic {{ .Values.http.basicAuth | b64enc }}"
               {{- end }}
-            periodSeconds: 1
-            initialDelaySeconds: 10
+            periodSeconds: {{ .Values.ksr.probePeriodSeconds }}
+            timeoutSeconds: {{ .Values.ksr.probeTimeoutSeconds }}
+            failureThreshold: {{ .Values.ksr.probeFailureThreshold }}
+            initialDelaySeconds: {{ .Values.ksr.readinessProbeInitialDelaySeconds }}
           livenessProbe:
             httpGet:
               path: /liveness
@@ -919,9 +927,20 @@ spec:
                 - name: Authorization
                   value: "Basic {{ .Values.http.basicAuth | b64enc }}"
               {{- end }}
-            periodSeconds: 1
-            initialDelaySeconds: 30
-
+            periodSeconds: {{ .Values.ksr.probePeriodSeconds }}
+            timeoutSeconds: {{ .Values.ksr.probeTimeoutSeconds }}
+            failureThreshold: {{ .Values.ksr.probeFailureThreshold }}
+            initialDelaySeconds: {{ .Values.ksr.livenessProbeInitialDelaySeconds }}
+          {{- end }}
+          resources:
+            {{- if .Values.ksr.cpuLimit }}
+            limits:
+              cpu: {{ .Values.ksr.cpuLimit }}
+            {{- end }}
+            {{- if .Values.ksr.cpuRequest }}
+            requests:
+              cpu: {{ .Values.ksr.cpuRequest }}
+            {{- end }}
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
@@ -1119,6 +1138,7 @@ spec:
           mountPath: /var/http
           readOnly: true
         {{- end }}
+        {{- if .Values.crd.enableLivenessReadinessProbes }}
         readinessProbe:
           httpGet:
             path: /readiness
@@ -1131,8 +1151,10 @@ spec:
               - name: Authorization
                 value: "Basic {{ .Values.http.basicAuth | b64enc }}"
             {{- end }}
-          periodSeconds: 1
-          initialDelaySeconds: 10
+          periodSeconds: {{ .Values.crd.probePeriodSeconds }}
+          timeoutSeconds: {{ .Values.crd.probeTimeoutSeconds }}
+          failureThreshold: {{ .Values.crd.probeFailureThreshold }}
+          initialDelaySeconds: {{ .Values.crd.readinessProbeInitialDelaySeconds }}
         livenessProbe:
           httpGet:
             path: /liveness
@@ -1145,8 +1167,20 @@ spec:
               - name: Authorization
                 value: "Basic {{ .Values.http.basicAuth | b64enc }}"
             {{- end }}
-          periodSeconds: 1
-          initialDelaySeconds: 30
+          periodSeconds: {{ .Values.crd.probePeriodSeconds }}
+          timeoutSeconds: {{ .Values.crd.probeTimeoutSeconds }}
+          failureThreshold: {{ .Values.crd.probeFailureThreshold }}
+          initialDelaySeconds: {{ .Values.crd.livenessProbeInitialDelaySeconds }}
+        {{- end }}
+        resources:
+          {{- if .Values.crd.cpuLimit }}
+          limits:
+            cpu: {{ .Values.crd.cpuLimit }}
+          {{- end }}
+          {{- if .Values.crd.cpuRequest }}
+          requests:
+            cpu: {{ .Values.crd.cpuRequest }}
+          {{- end }}
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg

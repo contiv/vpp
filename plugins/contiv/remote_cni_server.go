@@ -764,13 +764,15 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn controller.Resync
 	txn.Put(key, routeToPods)
 
 	// route from the host to k8s service range from the host
-	var routeToServices *linux_l3.StaticRoute
-	if !s.UseSTN() {
-		key, routeToServices = s.routeServicesFromHost(s.ipam.HostInterconnectIPInVPP())
-	} else {
-		key, routeToServices = s.routeServicesFromHost(s.defaultGw)
+	if s.config.RouteServiceCIDRToVPP {
+		var routeToServices *linux_l3.StaticRoute
+		if !s.UseSTN() {
+			key, routeToServices = s.routeServicesFromHost(s.ipam.HostInterconnectIPInVPP())
+		} else {
+			key, routeToServices = s.routeServicesFromHost(s.defaultGw)
+		}
+		txn.Put(key, routeToServices)
 	}
-	txn.Put(key, routeToServices)
 
 	return nil
 }

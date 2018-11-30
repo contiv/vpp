@@ -68,6 +68,8 @@ func main() {
 	crd.DefaultPlugin.Watcher = ksrDataSync
 	crd.DefaultPlugin.Publish = ksrDataSync
 
+	probe.DefaultPlugin.NonFatalPlugins = []string{"etcd"}
+
 	ContivCRD := &ContivCRD{
 		HealthProbe: &probe.DefaultPlugin,
 		CRD:         &crd.DefaultPlugin,

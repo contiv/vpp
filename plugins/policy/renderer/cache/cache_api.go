@@ -155,6 +155,14 @@ type PodConfig struct {
 	Removed bool /* false can only be inside the transaction; removed pods are no longer tracked by the cache */
 }
 
+func (p *PodConfig) String() string {
+	const maxPrintedRules = 3
+	if len(p.Ingress) < maxPrintedRules && len(p.Egress) < maxPrintedRules {
+		return fmt.Sprintf("PodIP:%v Ingress:%v Egress:%v Removed:%v", p.PodIP, p.Ingress, p.Egress, p.Removed)
+	}
+	return fmt.Sprintf("PodIP:%v Number of ingress:%v Number of egress:%v Removed:%v", p.PodIP, len(p.Ingress), len(p.Egress), p.Removed)
+}
+
 // TxnChange represents change in the RendererCache to be performed
 // by a transaction.
 type TxnChange struct {

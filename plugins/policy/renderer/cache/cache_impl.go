@@ -197,7 +197,7 @@ func (rct *RendererCacheTxn) Update(pod podmodel.ID, podConfig *PodConfig) {
 	rct.config[pod] = podConfig
 	rct.cache.Log.WithFields(logging.Fields{
 		"podID":        pod,
-		"newPodConfig": *podConfig,
+		"newPodConfig": podConfig,
 		"config":       rct.config,
 	}).Debug("Updating pod")
 	rct.upToDateTables = false
@@ -287,11 +287,11 @@ func (rct *RendererCacheTxn) Commit() error {
 				// Local table removed in the transaction.
 				rct.cache.localTables.Remove(txnTable)
 				rct.cache.Log.WithFields(logging.Fields{
-					"table": txnTable,
+					"table": txnTable.ID,
 				}).Debug("Local table was removed in the transaction")
 			} else if !txnTable.Pods.Equals(origTable.Pods) {
 				rct.cache.Log.WithFields(logging.Fields{
-					"table":    txnTable,
+					"table":    txnTable.ID,
 					"origPods": origTable.Pods,
 					"newPods":  txnTable.Pods,
 				}).Debug("Local table was re-assigned to different set of pods in the transaction")
@@ -314,7 +314,7 @@ func (rct *RendererCacheTxn) Commit() error {
 				// New local table created in the transaction.
 				rct.cache.localTables.Insert(txnTable)
 				rct.cache.Log.WithFields(logging.Fields{
-					"table": txnTable,
+					"table": txnTable.ID,
 				}).Debug("New local table was created in the transaction")
 			}
 		}
@@ -478,8 +478,8 @@ func (rct *RendererCacheTxn) refreshTables() {
 
 	rct.upToDateTables = true
 	rct.cache.Log.WithFields(logging.Fields{
-		"local":  rct.localTables,
-		"global": rct.globalTable,
+		"number of local tables": rct.localTables.numTables,
+		"number of global rules": rct.globalTable.NumOfRules,
 	}).Debug("tables in transaction were refreshed")
 }
 

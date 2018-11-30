@@ -15,7 +15,6 @@
 package podmanager
 
 import (
-	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
 )
@@ -36,9 +35,6 @@ func NewPlugin(opts ...Option) *PodManager {
 
 	if p.Log == nil {
 		p.Log = logging.ForPlugin(p.String())
-	}
-	if p.Cfg == nil {
-		p.Cfg = config.ForPlugin(p.String())
 	}
 
 	return p

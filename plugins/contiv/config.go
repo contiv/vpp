@@ -42,6 +42,7 @@ type Config struct {
 	StealFirstNIC               bool
 	StealInterface              string
 	STNSocketFile               string
+	TCPChecksumOffloadDisabled  bool
 	NatExternalTraffic          bool   // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
 	CleanupIdleNATSessions      bool   // if enabled, the agent will periodically check for idle NAT sessions and delete inactive ones
 	TCPNATSessionTimeout        uint32 // NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on

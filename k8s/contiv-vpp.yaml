@@ -26,6 +26,7 @@ data:
     TAPInterfaceVersion: 2
     TAPv2RxRingSize: 256
     TAPv2TxRingSize: 256
+    TCPChecksumOffloadDisabled: false
     NatExternalTraffic: true
     MTUSize: 1450
     CleanupIdleNATSessions: True
@@ -72,8 +73,6 @@ data:
     disabled: true
   controller.conf: |
     delay-local-resync: 5000000000
-  podmanager.conf: |
-    tcp-checksum-offload-disabled: false
 
 ---
 
@@ -382,6 +381,8 @@ spec:
               value: "/etc/agent/bolt.conf"
             - name: TELEMETRY_CONFIG
               value: "/etc/agent/telemetry.conf"
+            - name: CONTROLLER_CONFIG
+              value: "/etc/agent/controller.conf"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt

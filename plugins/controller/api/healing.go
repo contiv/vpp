@@ -51,9 +51,13 @@ func (ev *HealingResync) String() string {
 	return str
 }
 
-// Method is Resync.
+// Method is DownstreamResync for periodic healing, otherwise FullResync is used
+// to heal after an error.
 func (ev *HealingResync) Method() EventMethodType {
-	return Resync
+	if ev.Type == Periodic {
+		return DownstreamResync
+	}
+	return FullResync
 }
 
 // IsBlocking returns false.

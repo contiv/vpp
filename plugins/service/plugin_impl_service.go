@@ -119,7 +119,7 @@ func (p *Plugin) AfterInit() error {
 //  - AddPod & DeletePod
 //  - NodeUpdate event
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
-	if event.Method() == controller.Resync {
+	if event.Method() != controller.Update {
 		return true
 	}
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {

@@ -89,8 +89,18 @@ type EventHandler interface {
 type EventMethodType int
 
 const (
-	// Resync event requires to be reacted to by a full re-synchronization.
-	Resync EventMethodType = iota
+	// FullResync event requires to be reacted to by a full re-synchronization
+	// (Contiv -> VPP-agent <-> SB).
+	FullResync EventMethodType = iota
+
+	// DownstreamResync triggers re-synchronization between vpp-agent and SB.
+	// Event is fully processed by the Controller (not passed to event handlers).
+	DownstreamResync
+
+	// UpstreamResync triggers re-synchronization between Contiv and VPP-agent.
+	// It can be used whenever it is far easier to re-build the configuration
+	// from the scratch as opposed to calculating an incremental change.
+	UpstreamResync
 
 	// Update event can be reacted to by an incremental change.
 	Update

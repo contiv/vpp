@@ -447,7 +447,6 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		isUpdate        bool
 		isHealing       bool
 		healingAfterErr error
-		periodicHealing bool
 		withRevert      bool
 		updateEvent     api.UpdateEvent
 		eventHandlers   []api.EventHandler
@@ -455,7 +454,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 	event := qe.event
 
 	// 1. prepare for resync
-	if event.Method() == api.Resync {
+	if event.Method() != api.Update {
 		c.resyncCount++ // first resync has resyncCount == 1
 		if dbResync, isDBResync := event.(*api.DBResync); isDBResync {
 			c.kubeStateData = dbResync.KubeState
@@ -464,8 +463,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		if healingResync, isHealingResync := event.(*api.HealingResync); isHealingResync {
 			isHealing = true
 			healingAfterErr = healingResync.Error
-			periodicHealing = healingResync.Type == api.Periodic
-			if !periodicHealing {
+			if healingResync.Type != api.Periodic {
 				c.healingScheduled = false
 			}
 		}
@@ -500,8 +498,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		}
 	} else {
 		// resync
-		if !isHealing || !periodicHealing {
-			// periodic healing is just SB-sync, not handled in Contiv
+		if event.Method() != api.DownstreamResync {
 			eventHandlers = c.EventHandlers
 		}
 	}
@@ -601,8 +598,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 					txn.merged[key] = c.mergeLazyValIntoProto(key, extVal, value)
 				}
 			}
-		} else if !periodicHealing {
-			// (not downstream) resync
+		} else if event.Method() != api.DownstreamResync {
 			for key, lazyVal := range c.externalConfig {
 				txnVal, hasTxnVal := txn.values[key]
 				if hasTxnVal {
@@ -616,7 +612,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 
 	// 9. commit the transaction to the vpp-agent
 	emptyTxn := len(txn.values) == 0 && len(txn.merged) == 0
-	if (!emptyTxn || periodicHealing) &&
+	if (!emptyTxn || !isUpdate) &&
 		(wasErr == nil || (!fatalErr && !abortErr && !withRevert)) {
 
 		// prepare transaction context
@@ -635,10 +631,13 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 			ctx = scheduler.WithRevert(ctx)
 		}
 		if !isUpdate {
-			if periodicHealing {
-				ctx = scheduler.WithDownstreamResync(ctx)
-			} else {
-				ctx = scheduler.WithFullResync(ctx)
+			switch event.Method() {
+			case api.UpstreamResync:
+				ctx = scheduler.WithResync(ctx, scheduler.UpstreamResync, false)
+			case api.DownstreamResync:
+				ctx = scheduler.WithResync(ctx, scheduler.DownstreamResync, false)
+			case api.FullResync:
+				ctx = scheduler.WithResync(ctx, scheduler.FullResync, true)
 			}
 		}
 
@@ -657,7 +656,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 					c.internalConfig[key] = value
 				}
 			}
-		} else if !periodicHealing {
+		} else if event.Method() != api.DownstreamResync {
 			c.internalConfig = txn.values
 		}
 	}
@@ -703,7 +702,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 	event.Done(wasErr)
 
 	// 12. if Healing/AfterError resync has failed -> report error to status check
-	if wasErr != nil && isHealing && !periodicHealing {
+	if wasErr != nil && isHealing && healingAfterErr != nil {
 		err := fmt.Errorf("healing has not been successful (prev error: %v, healing error: %v)",
 			healingAfterErr, wasErr)
 		return api.NewFatalError(err)

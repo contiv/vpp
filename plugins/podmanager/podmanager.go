@@ -116,7 +116,7 @@ func (pm *PodManager) GetLocalPods() LocalPods {
 
 // HandlesEvent select AddPod, DeletePod and any resync events.
 func (pm *PodManager) HandlesEvent(event controller.Event) bool {
-	if event.Method() == controller.Resync {
+	if event.Method() != controller.Update {
 		return true
 	}
 	if _, isAddPod := event.(*AddPod); isAddPod {

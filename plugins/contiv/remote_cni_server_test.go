@@ -400,7 +400,7 @@ func TestBasicStuff(t *testing.T) {
 func commitTransaction(txn controller.Transaction, isResync bool) error {
 	ctx := context.Background()
 	if isResync {
-		ctx = scheduler.WithFullResync(ctx)
+		ctx = scheduler.WithResync(ctx, scheduler.FullResync, true)
 	}
 	return txn.Commit(ctx)
 }

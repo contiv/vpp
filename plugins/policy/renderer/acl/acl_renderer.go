@@ -115,8 +115,8 @@ func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule, removed bool) renderer.Txn {
 	art.renderer.Log.WithFields(logging.Fields{
 		"pod":     pod,
-		"ingress": ingress,
-		"egress":  egress,
+		"ingress": len(ingress),
+		"egress":  len(egress),
 		"removed": removed,
 	}).Debug("ACL RendererTxn Render()")
 
@@ -207,8 +207,8 @@ func (art *RendererTxn) Commit() error {
 			acl := art.renderACL(change.Table)
 			putDsl.ACL(acl)
 			art.renderer.Log.WithFields(logging.Fields{
-				"table": change.Table,
-				"acl":   acl,
+				"table": change.Table.ID,
+				"acl":   acl.AclName,
 			}).Debug("Put new ACL")
 		} else if len(change.Table.Pods) != 0 {
 			// Changed interfaces
@@ -217,17 +217,17 @@ func (art *RendererTxn) Commit() error {
 			acl.Interfaces = art.renderInterfaces(change.Table.Pods, false)
 			putDsl.ACL(acl)
 			art.renderer.Log.WithFields(logging.Fields{
-				"table":    change.Table,
+				"table":    change.Table.ID,
 				"prevPods": change.PreviousPods,
-				"acl":      acl,
+				"acl":      acl.AclName,
 			}).Debug("Put updated ACL")
 		} else {
 			// Removed ACL
 			acl := change.Table.Private.(*vpp_acl.AccessLists_Acl)
 			deleteDsl.ACL(acl.AclName)
 			art.renderer.Log.WithFields(logging.Fields{
-				"table": change.Table,
-				"acl":   acl,
+				"table": change.Table.ID,
+				"acl":   acl.AclName,
 			}).Debug("Removed ACL")
 		}
 	}
@@ -246,8 +246,8 @@ func (art *RendererTxn) Commit() error {
 			deleteDsl.ACL(globalACL.AclName)
 			gtAddedOrDeleted = true
 			art.renderer.Log.WithFields(logging.Fields{
-				"table": globalTable,
-				"acl":   globalACL,
+				"table": globalTable.ID,
+				"acl":   globalACL.AclName,
 			}).Debug("Removed Global ACL")
 		} else {
 			// Update content of the global table.
@@ -257,8 +257,8 @@ func (art *RendererTxn) Commit() error {
 				gtAddedOrDeleted = true
 			}
 			art.renderer.Log.WithFields(logging.Fields{
-				"table": globalTable,
-				"acl":   globalACL,
+				"table": globalTable.ID,
+				"acl":   globalACL.AclName,
 			}).Debug("Put Global ACL")
 		}
 	}

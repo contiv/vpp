@@ -82,12 +82,13 @@ func PrintNodes(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd) {
 // getNodeInfo will make an http request for the given command and return an indented slice of bytes.
 func getNodeInfo(client *remote.HTTPClient, base string, cmd string) ([]byte, error) {
 	res, err := client.Get(base, cmd)
-	defer res.Body.Close()
 	if err != nil {
 		err := fmt.Errorf("getNodeInfo: url: %s Get Error: %s", cmd, err.Error())
 		fmt.Printf("http get error: %s ", err.Error())
 		return nil, err
-	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+	}
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode > 299 {
 		err := fmt.Errorf("getNodeInfo: url: %s HTTP res.Status: %s", cmd, res.Status)
 		fmt.Printf("http get error: %s ", err.Error())
 		return nil, err

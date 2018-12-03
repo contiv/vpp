@@ -43,6 +43,30 @@ Operation | Syntax | Description
 `vppcli` | `contiv-netctl vppcli NODE [vpp-dbg-cli-cmd] [-h]` | Execute the specified `[vpp-dbg-cli-cmd]` on the specified `NODE`
 `vppdump` |`contiv-netctl vppdump NODE [vpp-agent-resource] [-h]` | Get the specified `[vpp-agent-resource]` from VPP Agent on the specified `NODE`
 
+### Configuration
+
+Since contiv-netctl connects to vswitches via REST and uses Contiv-ETCD it requires corresponding
+config files. They can be defined using command line arguments `--etcd-config` and `--http-client-config`
+or environment variables `ETCD_CONFIG`, `HTTP_CLIENT_CONFIG`.
+
+etcd.conf
+```
+insecure-transport: true
+dial-timeout: 1000000000
+endpoints:
+ - "127.0.0.1:32379"
+```
+
+http.client.conf
+```
+port: 9999
+use-https: true
+basic-auth: "admin:pass"
+verify-server-cert: false
+```
+
+For more advanced etcd config [see example](https://github.com/ligato/cn-infra/blob/master/db/keyval/etcd/etcd.conf).
+
 ### Examples
 
 ```

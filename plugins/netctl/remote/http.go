@@ -17,6 +17,7 @@ package remote
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"github.com/ligato/cn-infra/config"
 	"golang.org/x/net/html"
@@ -43,6 +44,9 @@ type HTTPClientConfig struct {
 	BasicAuth string `json:"basic-auth"`
 	// If https or http should be used
 	UseHTTPS bool `json:"use-https"`
+	// Defines whether server cert should be verified.
+	// Set to false in case of self-signed certificates.
+	VerifyServerCert bool `json:"verify-server-cert"`
 }
 
 // CreateHTTPClient uses environment variable HTTP_CONFIG or HTTP config file to establish connection
@@ -58,7 +62,9 @@ func CreateHTTPClient(configFile string) (*HTTPClient, error) {
 		}
 	}
 
-	transport := &http.Transport{}
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: !cfg.VerifyServerCert},
+	}
 
 	http := &http.Client{
 		Transport:     transport,

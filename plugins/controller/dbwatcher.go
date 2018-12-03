@@ -505,7 +505,7 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 
 // getResourceByKey tries to find metadata for resource with the given key.
 // Return nil if the key belongs to external configuration.
-func (w *dbWatcher) getResourceByKey(key string) (resource *api.DBResource, externalConfig bool) {
+func (w *dbWatcher) getResourceByKey(key string) (resource *dbresources.DBResource, externalConfig bool) {
 	if strings.HasPrefix(key, w.agentPrefix) {
 		// this is external config
 		return nil, true
@@ -536,7 +536,6 @@ func LoadKubeStateForResync(broker keyval.ProtoBroker, log logging.Logger) (even
 
 	// load values resource by resource
 	for _, resource := range dbresources.GetDBResources() {
-		event.KubeState[resource.Keyword] = make(api.KeyValuePairs)
 		iterator, err := broker.ListValues(ksrPrefix + resource.KeyPrefix)
 		if err != nil {
 			return event, values, err

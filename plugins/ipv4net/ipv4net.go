@@ -186,7 +186,7 @@ func (n *IPv4Net) Init() error {
 	n.hostLinkIPsDump = n.getHostLinkIPs
 
 	// initialize IPAM
-	n.ipam, err = ipam.New(n.Log, n.NodeSync.GetNodeID(), &n.config.IPAMConfig,
+	n.ipam, err = ipam.New(n.Log, n.NodeSync, &n.config.IPAMConfig,
 		n.excludedIPsFromNodeCIDR())
 	if err != nil {
 		return err
@@ -625,13 +625,4 @@ func (n *IPv4Net) getHostLinkIPs() (hostIPs []net.IP, err error) {
 		}
 	}
 	return hostIPs, nil
-}
-
-func appendIfMissing(slice []string, s string) []string {
-	for _, el := range slice {
-		if el == s {
-			return slice
-		}
-	}
-	return append(slice, s)
 }

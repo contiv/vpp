@@ -25,6 +25,7 @@ import (
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/nodesync"
 )
 
 const (
@@ -38,11 +39,13 @@ const (
 
 // IPAM implements IP address allocation for Contiv.
 type IPAM struct {
-	logger logging.Logger
-	mutex  sync.RWMutex
+	mutex sync.RWMutex
 
-	nodeID   uint32 // identifier of the node for which this IPAM is created for
-	nodeName string // node name for which this IPAM is created for
+	logger   logging.Logger
+	nodeSync nodesync.API
+	config   *Config // ipam configuration
+
+	excludedIPsfromNodeSubnet []uint32 // IPs from the NodeInterconnect Subnet that should not be assigned
 
 	// POD related variables
 	podSubnetAllNodes  net.IPNet // IPv4 subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
@@ -51,8 +54,9 @@ type IPAM struct {
 	podVPPSubnet       net.IPNet // IPv4 subnet from which individual VPP-side POD interfaces networks are allocated, this is subnet for all PODS within this node.
 
 	// maps to convert between Pod and the assigned IP
-	assignedPodIPs map[uintIP]podmodel.ID // pool of assigned POD IP addresses
-	podToIP        map[podmodel.ID]net.IP // pod -> allocated IP address
+	assignedPodIPs    map[uintIP]podmodel.ID // pool of assigned POD IP addresses
+	podToIP           map[podmodel.ID]net.IP // pod -> allocated IP address
+	lastPodIPAssigned int                    // counter denoting last assigned pod IP address
 
 	// VSwitch related variables
 	hostInterconnectSubnetAllNodes net.IPNet // IPv4 subnet used across all nodes for VPP to host Linux stack interconnect
@@ -65,12 +69,6 @@ type IPAM struct {
 	nodeInterconnectSubnet net.IPNet // IPv4 subnet used for for inter-node connections
 	vxlanSubnet            net.IPNet // IPv4 subnet used for for inter-node VXLAN
 	serviceCIDR            net.IPNet // IPv4 subnet used to allocate ClusterIPs for a service
-
-	excludededIPsfromNodeSubnet []uint32 // IPs from the NodeInterconnect Subnet that should not be assigned
-
-	lastPodIPAssigned int // counter denoting last assigned pod IP address
-
-	config *Config // ipam configuration
 }
 
 type uintIP = uint32
@@ -90,37 +88,22 @@ type Config struct {
 }
 
 // New returns new IPAM module to be used on the node specified by the nodeID.
-func New(logger logging.Logger, nodeID uint32, config *Config, nodeInterconnectExcludedIPs []net.IP) (*IPAM, error) {
+func New(logger logging.Logger, nodeSync nodesync.API, config *Config, nodeInterconnectExcludedIPs []net.IP) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
-		logger:            logger,
-		nodeID:            nodeID,
-		lastPodIPAssigned: 1,
-		config:            config,
+		logger:   logger,
+		nodeSync: nodeSync,
+		config:   config,
 	}
 
-	// computing IPAM struct variables from IPAM config
-	if err := initializePodsIPAM(ipam, config, nodeID); err != nil {
-		return nil, err
-	}
-	if err := initializeVPPHostIPAM(ipam, config, nodeID); err != nil {
-		return nil, err
-	}
-	if err := initializeNodeInterconnectIPAM(ipam, config); err != nil {
-		return nil, err
-	}
-	if err := initializePodVPPSubnet(ipam, config); err != nil {
-		return nil, err
-	}
 	excludedIPs, err := sortIPv4SliceToUint32(nodeInterconnectExcludedIPs)
 	if err != nil {
 		return nil, err
 	}
-	ipam.excludededIPsfromNodeSubnet = excludedIPs
+	ipam.excludedIPsfromNodeSubnet = excludedIPs
 	if excludedIPs != nil {
 		logger.Info("Following IPs are excluded from NodeCIDR: ", nodeInterconnectExcludedIPs)
 	}
-	logger.Infof("IPAM values loaded: %+v", ipam)
 
 	return ipam, nil
 }
@@ -128,17 +111,27 @@ func New(logger logging.Logger, nodeID uint32, config *Config, nodeInterconnectE
 // Resync resynchronizes IPAM against Kubernetes state data.
 // A set of already allocated pod IPs is updated.
 func (i *IPAM) Resync(kubeStateData controller.KubeStateData) (err error) {
+	nodeID := i.nodeSync.GetNodeID()
+
+	// initialize subnets based on the configuration
+	if err := i.initializePods(i.config, nodeID); err != nil {
+		return err
+	}
+	if err := i.initializeVPPHost(i.config, nodeID); err != nil {
+		return err
+	}
+	if err := i.initializeNodeInterconnect(i.config); err != nil {
+		return err
+	}
+	if err := i.initializePodVPPSubnet(i.config); err != nil {
+		return err
+	}
+
+	// resync allocated IP addresses
 	networkPrefix, err := ipv4ToUint32(i.podSubnetThisNode.IP)
 	if err != nil {
 		return err
 	}
-
-	// reset internal state
-	i.lastPodIPAssigned = 1
-	i.assignedPodIPs = make(map[uintIP]podmodel.ID)
-	i.podToIP = make(map[podmodel.ID]net.IP)
-
-	// iterate over pod state data
 	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
 		pod := podProto.(*podmodel.Pod)
 		// ignore pods deployed on other nodes or without IP address
@@ -391,36 +384,37 @@ func (i *IPAM) ReleasePodIP(podID podmodel.ID) error {
 	return nil
 }
 
-// initializePodsIPAM initializes POD -related variables of IPAM.
-func initializePodsIPAM(ipam *IPAM, config *Config, nodeID uint32) (err error) {
-	ipam.podSubnetAllNodes, ipam.podSubnetThisNode, err = convertConfigNotation(config.PodSubnetCIDR, config.PodSubnetOneNodePrefixLen, nodeID)
+// initializePodsIPAM initializes POD-related variables.
+func (i *IPAM) initializePods(config *Config, nodeID uint32) (err error) {
+	i.podSubnetAllNodes, i.podSubnetThisNode, err = convertConfigNotation(config.PodSubnetCIDR, config.PodSubnetOneNodePrefixLen, nodeID)
 	if err != nil {
 		return
 	}
 
-	podNetworkPrefixUint32, err := ipv4ToUint32(ipam.podSubnetThisNode.IP)
+	podNetworkPrefixUint32, err := ipv4ToUint32(i.podSubnetThisNode.IP)
 	if err != nil {
 		return
 	}
-	ipam.podSubnetGatewayIP = uint32ToIpv4(podNetworkPrefixUint32 + podGatewaySeqID)
-	ipam.assignedPodIPs = make(map[uintIP]podmodel.ID)
-	ipam.podToIP = make(map[podmodel.ID]net.IP)
+	i.podSubnetGatewayIP = uint32ToIpv4(podNetworkPrefixUint32 + podGatewaySeqID)
+	i.lastPodIPAssigned = 1
+	i.assignedPodIPs = make(map[uintIP]podmodel.ID)
+	i.podToIP = make(map[podmodel.ID]net.IP)
 	return nil
 }
 
-// initializeVPPHostIPAM initializes VPP-host interconnect -related variables of IPAM.
-func initializeVPPHostIPAM(ipam *IPAM, config *Config, nodeID uint32) (err error) {
-	ipam.hostInterconnectSubnetAllNodes, ipam.hostInterconnectSubnetThisNode, err = convertConfigNotation(config.VPPHostSubnetCIDR, config.VPPHostSubnetOneNodePrefixLen, nodeID)
+// initializeVPPHost initializes VPP-host interconnect-related variables.
+func (i *IPAM) initializeVPPHost(config *Config, nodeID uint32) (err error) {
+	i.hostInterconnectSubnetAllNodes, i.hostInterconnectSubnetThisNode, err = convertConfigNotation(config.VPPHostSubnetCIDR, config.VPPHostSubnetOneNodePrefixLen, nodeID)
 	if err != nil {
 		return
 	}
 
-	vSwitchNetworkPrefixUint32, err := ipv4ToUint32(ipam.hostInterconnectSubnetThisNode.IP)
+	vSwitchNetworkPrefixUint32, err := ipv4ToUint32(i.hostInterconnectSubnetThisNode.IP)
 	if err != nil {
 		return
 	}
-	ipam.hostInterconnectIPInVpp = uint32ToIpv4(vSwitchNetworkPrefixUint32 + hostInterconnectInVPPIPSeqID)
-	ipam.hostInterconnectIPInLinux = uint32ToIpv4(vSwitchNetworkPrefixUint32 + hostInterconnectInLinuxIPSeqID)
+	i.hostInterconnectIPInVpp = uint32ToIpv4(vSwitchNetworkPrefixUint32 + hostInterconnectInVPPIPSeqID)
+	i.hostInterconnectIPInLinux = uint32ToIpv4(vSwitchNetworkPrefixUint32 + hostInterconnectInLinuxIPSeqID)
 
 	if config.ServiceCIDR == "" {
 		config.ServiceCIDR = defaultServiceCIDR
@@ -429,37 +423,37 @@ func initializeVPPHostIPAM(ipam *IPAM, config *Config, nodeID uint32) (err error
 	if err != nil {
 		return
 	}
-	ipam.serviceCIDR = *serviceSubnet
+	i.serviceCIDR = *serviceSubnet
 
 	return
 }
 
-// initializeNodeInterconnectIPAM initializes node interconnect -related variables of IPAM.
-func initializeNodeInterconnectIPAM(ipam *IPAM, config *Config) (err error) {
+// initializeNodeInterconnect initializes node interconnect-related variables.
+func (i *IPAM) initializeNodeInterconnect(config *Config) (err error) {
 	if config == nil || (config.NodeInterconnectCIDR == "" && config.NodeInterconnectDHCP == false) || config.VxlanCIDR == "" {
 		return fmt.Errorf("missing NodeInterconnectCIDR or NodeInterconnectDHCP or VxlanCIDR configuration")
 	}
 
-	ipam.nodeInterconnectDHCP = config.NodeInterconnectDHCP
+	i.nodeInterconnectDHCP = config.NodeInterconnectDHCP
 
-	if !ipam.nodeInterconnectDHCP {
+	if !i.nodeInterconnectDHCP {
 		_, nodeSubnet, err := net.ParseCIDR(config.NodeInterconnectCIDR)
 		if err != nil {
 			return err
 		}
-		ipam.nodeInterconnectSubnet = *nodeSubnet
+		i.nodeInterconnectSubnet = *nodeSubnet
 	}
 
 	_, vxlanSubnet, err := net.ParseCIDR(config.VxlanCIDR)
 	if err != nil {
 		return
 	}
-	ipam.vxlanSubnet = *vxlanSubnet
+	i.vxlanSubnet = *vxlanSubnet
 	return
 }
 
-// initializePodVPPSubnet initializes node vpp-side POD interface -related variables of IPAM.
-func initializePodVPPSubnet(ipam *IPAM, config *Config) (err error) {
+// initializePodVPPSubnet initializes node vpp-side POD interface-related variables.
+func (i *IPAM) initializePodVPPSubnet(config *Config) (err error) {
 	if config == nil || config.PodVPPSubnetCIDR == "" {
 		return fmt.Errorf("missing PodVPPSubnetCIDR configuration")
 	}
@@ -468,7 +462,7 @@ func initializePodVPPSubnet(ipam *IPAM, config *Config) (err error) {
 	if err != nil {
 		return
 	}
-	ipam.podVPPSubnet = *podVPPSubnet
+	i.podVPPSubnet = *podVPPSubnet
 	return
 }
 
@@ -551,7 +545,7 @@ func (i *IPAM) computeNodeIPAddress(nodeID uint32) (net.IP, error) {
 	computedIP := networkIPPartUint32 + uint32(nodeIPPart)
 
 	// skip excluded IPs (gateway or other invalid address)
-	for _, ex := range i.excludededIPsfromNodeSubnet {
+	for _, ex := range i.excludedIPsfromNodeSubnet {
 		if ex <= computedIP {
 			computedIP++
 		}

@@ -45,8 +45,6 @@ import (
 	"github.com/contiv/vpp/plugins/podmanager"
 )
 
-// Plugin represents the instance of the Contiv network plugin, that transforms CNI requests received over
-// GRPC into configuration for the vswitch VPP in order to connect/disconnect a container into/from the network.
 type Plugin struct {
 	Deps
 	govppCh api.Channel

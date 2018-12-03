@@ -76,6 +76,8 @@ data:
     disabled: true
   controller.conf: |
     delay-local-resync: 5000000000
+    enable-periodic-healing: false
+    periodic-healing-interval: 30000000000
   linux-ifplugin.conf: |
     dump-go-routines-count: 5
   linux-l3plugin.conf: |

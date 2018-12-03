@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package contiv
+package ipv4net
 
 import (
 	"encoding/binary"
@@ -26,29 +26,29 @@ import (
 )
 
 // executeDebugCLI executes VPP CLI command
-func (s *remoteCNIserver) executeDebugCLI(cmd string) (string, error) {
-	s.Logger.Infof("Executing debug CLI: %s", cmd)
+func (n *IPv4Net) executeDebugCLI(cmd string) (string, error) {
+	n.Log.Infof("Executing debug CLI: %s", cmd)
 
 	req := &vpe.CliInband{
 		Cmd: []byte(cmd),
 	}
 	reply := &vpe.CliInbandReply{}
 
-	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
+	err := n.govppCh.SendRequest(req).ReceiveReply(reply)
 
 	if err != nil {
-		s.Logger.Error("Error by executing debug CLI:", err)
+		n.Log.Error("Error by executing debug CLI:", err)
 		return "", err
 	}
 	return string(reply.Reply), err
 }
 
-func (s *remoteCNIserver) subscribeVnetFibCounters() error {
+func (n *IPv4Net) subscribeVnetFibCounters() error {
 	notifChan := make(chan api.Message, 1)
-	_, err := s.govppChan.SubscribeNotification(notifChan, &stats.VnetIP4FibCounters{})
+	_, err := n.govppCh.SubscribeNotification(notifChan, &stats.VnetIP4FibCounters{})
 
 	if err != nil {
-		s.Logger.Error("Error by subscribing to NewVnetIP4FibCounters:", err)
+		n.Log.Error("Error by subscribing to NewVnetIP4FibCounters:", err)
 	}
 
 	// read from the notif channel in a go routine to not block once the channel is full

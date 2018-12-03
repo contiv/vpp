@@ -22,8 +22,8 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -53,7 +53,7 @@ type Deps struct {
 	ServiceLabel servicelabel.ReaderAPI
 	NodeSync     nodesync.API
 	PodManager   podmanager.API
-	Contiv       contiv.API /* to get all interface names and pod IP network */
+	IPv4Net      ipv4net.API /* to get all interface names and pod IP network */
 }
 
 // LocalEndpoint represents a node-local endpoint.
@@ -139,7 +139,7 @@ func (sp *ServiceProcessor) ProcessNewPod(podNamespace string, podName string) e
 
 	localEp := sp.getLocalEndpoint(podID)
 
-	ifName, ifExists := sp.Contiv.GetIfName(podID.Namespace, podID.Name)
+	ifName, ifExists := sp.IPv4Net.GetIfName(podID.Namespace, podID.Name)
 	if !ifExists {
 		sp.Log.WithFields(logging.Fields{
 			"pod-ns":   podID.Namespace,
@@ -417,13 +417,13 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	// Fill up the set of frontend/backend interfaces and local endpoints.
 	// With physical interfaces also build SNAT configuration.
 	// -> VXLAN BVI interface
-	vxlanBVIIf := sp.Contiv.GetVxlanBVIIfName()
+	vxlanBVIIf := sp.IPv4Net.GetVxlanBVIIfName()
 	if vxlanBVIIf != "" {
 		sp.frontendIfs.Add(vxlanBVIIf)
 		sp.backendIfs.Add(vxlanBVIIf)
 	}
 	// -> main physical interfaces
-	mainPhysIf := sp.Contiv.GetMainPhysicalIfName()
+	mainPhysIf := sp.IPv4Net.GetMainPhysicalIfName()
 	if mainPhysIf != "" {
 		if vxlanBVIIf == "" {
 			sp.backendIfs.Add(mainPhysIf)
@@ -431,11 +431,11 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		sp.frontendIfs.Add(mainPhysIf)
 	}
 	// -> other physical interfaces
-	for _, physIf := range sp.Contiv.GetOtherPhysicalIfNames() {
+	for _, physIf := range sp.IPv4Net.GetOtherPhysicalIfNames() {
 		sp.frontendIfs.Add(physIf)
 	}
 	// -> host interconnect
-	hostInterconnect := sp.Contiv.GetHostInterconnectIfName()
+	hostInterconnect := sp.IPv4Net.GetHostInterconnectIfName()
 	if hostInterconnect != "" {
 		sp.frontendIfs.Add(hostInterconnect)
 		sp.backendIfs.Add(hostInterconnect)
@@ -443,7 +443,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	// -> pods
 	for _, podID := range resyncEv.Pods {
 		// -> pod interface
-		ifName, ifExists := sp.Contiv.GetIfName(podID.Namespace, podID.Name)
+		ifName, ifExists := sp.IPv4Net.GetIfName(podID.Namespace, podID.Name)
 		if !ifExists {
 			// not an error, this is just pod deployed in the host networking
 			continue

@@ -21,7 +21,7 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
@@ -50,7 +50,7 @@ type PolicyProcessor struct {
 type Deps struct {
 	Log          logging.Logger
 	Cache        cache.PolicyCacheAPI
-	Contiv       contiv.API /* to get the Host IP */
+	IPv4Net      ipv4net.API /* to get the Host IP */
 	Configurator config.PolicyConfiguratorAPI
 }
 
@@ -369,7 +369,7 @@ func (pp *PolicyProcessor) filterHostPods(pods []podmodel.ID) []podmodel.ID {
 		hadIP        bool
 		hostPods     []podmodel.ID
 	)
-	hostNetwork := pp.Contiv.GetPodSubnetThisNode()
+	hostNetwork := pp.IPv4Net.GetPodSubnetThisNode()
 
 	for _, podID := range pods {
 		found, podData := pp.Cache.LookupPod(podID)

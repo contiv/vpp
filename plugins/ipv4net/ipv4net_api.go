@@ -1,4 +1,4 @@
-package contiv
+package ipv4net
 
 import (
 	"fmt"
@@ -7,9 +7,12 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
-// API for other plugins to query network-related information.
+/********************************* Plugin API *********************************/
+
+// API defines methods provided by IPv4Net plugin for use by other plugins to query
+// IPv4 network-related information.
 // Apart from static methods and GetPodByIf, all methods should not be accessed
-// from outside of the event loop!!!
+// from outside of the main event loop!!!
 type API interface {
 	// GetIfName looks up logical interface name that corresponds to the interface
 	// associated with the given pod.
@@ -85,6 +88,8 @@ type API interface {
 	GetPodVrfID() uint32
 }
 
+/*************************** Node IPv4 Change Event ***************************/
+
 // NodeIPv4Change is triggered when DHCP-assigned IPv4 address of the node changes.
 type NodeIPv4Change struct {
 	NodeIP    net.IP
@@ -118,5 +123,46 @@ func (ev *NodeIPv4Change) IsBlocking() bool {
 
 // Done is NOOP.
 func (ev *NodeIPv4Change) Done(error) {
+	return
+}
+
+/************************** Node Config Change Event **************************/
+
+// NodeConfigChange is triggered when Node configuration provided via CRD changes.
+type NodeConfigChange struct {
+	NodeConfig *NodeConfig
+}
+
+// GetName returns name of the NodeConfigChange event.
+func (ev *NodeConfigChange) GetName() string {
+	return "Node-specific Configuration Change"
+}
+
+// String describes NodeIPv4Change event.
+func (ev *NodeConfigChange) String() string {
+	return fmt.Sprintf("%s\n"+
+		"* STN interface: %s\n"+
+		"* Main interface: (name=%s, IP=%s, useDHCP=%t)\n"+
+		"* GW: %s\n"+
+		"* NAT external traffic: %t\n"+
+		"* Other interfaces: %+v",
+		ev.GetName(), ev.NodeConfig.StealInterface,
+		ev.NodeConfig.MainVPPInterface.InterfaceName, ev.NodeConfig.MainVPPInterface.IP,
+		ev.NodeConfig.MainVPPInterface.UseDHCP, ev.NodeConfig.Gateway,
+		ev.NodeConfig.NatExternalTraffic, ev.NodeConfig.OtherVPPInterfaces)
+}
+
+// Method is UpstreamResync.
+func (ev *NodeConfigChange) Method() controller.EventMethodType {
+	return controller.UpstreamResync
+}
+
+// IsBlocking returns false.
+func (ev *NodeConfigChange) IsBlocking() bool {
+	return false
+}
+
+// Done is NOOP.
+func (ev *NodeConfigChange) Done(error) {
 	return
 }

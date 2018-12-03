@@ -24,8 +24,8 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
@@ -58,7 +58,7 @@ type Renderer struct {
 type Deps struct {
 	Log              logging.Logger
 	LogFactory       logging.LoggerFactory /* optional */
-	Contiv           contiv.API            /* for GetIfName() */
+	IPv4Net          ipv4net.API           /* for GetIfName() */
 	UpdateTxnFactory func() (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
 }
@@ -261,10 +261,10 @@ func (art *RendererTxn) reflectiveACL() *vpp_acl.Acl {
 // with the outside world.
 func (art *RendererTxn) getNodeOutputInterfaces() []string {
 	interfaces := []string{}
-	interfaces = append(interfaces, art.renderer.Contiv.GetHostInterconnectIfName())
-	interfaces = append(interfaces, art.renderer.Contiv.GetMainPhysicalIfName())
-	interfaces = append(interfaces, art.renderer.Contiv.GetOtherPhysicalIfNames()...)
-	vxlanBVI := art.renderer.Contiv.GetVxlanBVIIfName()
+	interfaces = append(interfaces, art.renderer.IPv4Net.GetHostInterconnectIfName())
+	interfaces = append(interfaces, art.renderer.IPv4Net.GetMainPhysicalIfName())
+	interfaces = append(interfaces, art.renderer.IPv4Net.GetOtherPhysicalIfNames()...)
+	vxlanBVI := art.renderer.IPv4Net.GetVxlanBVIIfName()
 	if vxlanBVI != "" {
 		interfaces = append(interfaces, vxlanBVI)
 	}
@@ -349,7 +349,7 @@ func (art *RendererTxn) renderInterfaces(pods cache.PodSet, ingress bool) *vpp_a
 		// Get the interface associated with the pod.
 		ifName, found := art.renderer.podInterfaces[podID] // first query local cache
 		if !found {
-			ifName, found = art.renderer.Contiv.GetIfName(podID.Namespace, podID.Name) // next query Contiv plugin
+			ifName, found = art.renderer.IPv4Net.GetIfName(podID.Namespace, podID.Name) // next query Contiv plugin
 			if !found {
 				art.renderer.Log.WithField("pod", podID).Warn("Unable to get the interface assigned to the Pod")
 				continue

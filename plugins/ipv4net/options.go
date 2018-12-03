@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package contiv
+package ipv4net
 
 import (
 	"github.com/ligato/cn-infra/config"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	"github.com/ligato/vpp-agent/plugins/kvscheduler"
 )
 
 const (
-	// ConfigFlagName is name of flag that can be used to define config for contiv plugin
+	// ConfigFlagName is name of flag that can be used to define config for the Contiv agent
 	ConfigFlagName = "contiv"
 
 	// ContivConfigPath is the default location of Agent's Contiv plugin. This path reflects configuration in k8s/contiv-vpp.yaml.
@@ -36,14 +34,12 @@ const (
 )
 
 // NewPlugin creates a new Plugin with the provides Options
-func NewPlugin(opts ...Option) *Plugin {
-	p := &Plugin{}
+func NewPlugin(opts ...Option) *IPv4Net {
+	p := &IPv4Net{}
 
-	p.PluginName = "contiv"
+	p.PluginName = "ipv4net"
 	p.ServiceLabel = &servicelabel.DefaultPlugin
-	p.KVScheduler = &kvscheduler.DefaultPlugin
 	p.GoVPP = &govppmux.DefaultPlugin
-	p.ETCD = &etcd.DefaultPlugin
 	p.HTTPHandlers = &rest.DefaultPlugin
 
 	for _, o := range opts {
@@ -61,11 +57,11 @@ func NewPlugin(opts ...Option) *Plugin {
 }
 
 // Option is a function that acts on a Plugin to inject Dependencies or configuration
-type Option func(*Plugin)
+type Option func(*IPv4Net)
 
 // UseDeps returns Option that can inject custom dependencies.
 func UseDeps(cb func(*Deps)) Option {
-	return func(p *Plugin) {
+	return func(p *IPv4Net) {
 		cb(&p.Deps)
 	}
 }

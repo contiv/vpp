@@ -25,7 +25,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	. "github.com/contiv/vpp/mock/contiv"
+	. "github.com/contiv/vpp/mock/ipv4net"
 	. "github.com/contiv/vpp/mock/policycache"
 	. "github.com/contiv/vpp/mock/renderer"
 
@@ -89,17 +89,17 @@ func TestSinglePolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:     logger,
+			Cache:   cache,
+			IPv4Net: ipv4Net,
 		},
 	}
 	configurator.Init(false)
@@ -212,17 +212,17 @@ func TestSinglePolicyWithIPBlockSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:     logger,
+			Cache:   cache,
+			IPv4Net: ipv4Net,
 		},
 	}
 	configurator.Init(false)
@@ -358,17 +358,17 @@ func TestSinglePolicyMultiplePods(t *testing.T) {
 	cache.AddPodConfig(pod2, pod2IP)
 	cache.AddPodConfig(pod3, pod3IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:     logger,
+			Cache:   cache,
+			IPv4Net: ipv4Net,
 		},
 	}
 	configurator.Init(false)
@@ -531,17 +531,17 @@ func TestSinglePolicyWithNestedIPBlocksSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:     logger,
+			Cache:   cache,
+			IPv4Net: ipv4Net,
 		},
 	}
 	configurator.Init(false)
@@ -631,17 +631,17 @@ func TestSingleEgressPolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:     logger,
+			Cache:   cache,
+			IPv4Net: ipv4Net,
 		},
 	}
 	configurator.Init(false)
@@ -751,17 +751,17 @@ func TestSingleEgressPolicyWithIPBlockSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:     logger,
+			Cache:   cache,
+			IPv4Net: ipv4Net,
 		},
 	}
 	configurator.Init(false)
@@ -897,17 +897,17 @@ func TestSingleBothWaysPolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:     logger,
+			Cache:   cache,
+			IPv4Net: ipv4Net,
 		},
 	}
 	configurator.Init(false)
@@ -1059,8 +1059,8 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer1 := NewMockRenderer("A", logger)
 	renderer2 := NewMockRenderer("B", logger)
@@ -1069,9 +1069,9 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:     logger,
+			Cache:   cache,
+			IPv4Net: ipv4Net,
 		},
 	}
 	configurator.Init(true)
@@ -1309,17 +1309,17 @@ func TestMultiplePoliciesSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:     logger,
+			Cache:   cache,
+			IPv4Net: ipv4Net,
 		},
 	}
 	configurator.Init(false)
@@ -1535,17 +1535,17 @@ func TestMultiplePodsSpecialCases(t *testing.T) {
 	cache.AddPodConfig(pod2, pod2IP)
 	cache.AddPodConfig(pod3, pod3IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:     logger,
+			Cache:   cache,
+			IPv4Net: ipv4Net,
 		},
 	}
 	configurator.Init(false)

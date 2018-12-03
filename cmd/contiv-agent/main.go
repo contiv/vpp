@@ -44,9 +44,9 @@ import (
 	vpp_l3plugin "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin"
 	vpp_natplugin "github.com/ligato/vpp-agent/plugins/vppv2/natplugin"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/controller"
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/policy"
@@ -81,7 +81,7 @@ type ContivAgent struct {
 	Controller *controller.Controller
 	NodeSync   *nodesync.NodeSync
 	PodManager *podmanager.PodManager
-	Contiv     *contiv.Plugin
+	IPv4Net    *ipv4net.IPv4Net
 	Policy     *policy.Plugin
 	Service    *service.Plugin
 }
@@ -126,21 +126,21 @@ func main() {
 
 	podManager := &podmanager.DefaultPlugin
 
-	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
+	ipv4NetPlugin := ipv4net.NewPlugin(ipv4net.UseDeps(func(deps *ipv4net.Deps) {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.NodeSync = nodeSyncPlugin
 		deps.PodManager = podManager
 	}))
 
 	statsCollector := &statscollector.DefaultPlugin
-	statsCollector.Contiv = contivPlugin
+	statsCollector.IPv4Net = ipv4NetPlugin
 
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
-		deps.Contiv = contivPlugin
+		deps.IPv4Net = ipv4NetPlugin
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
-		deps.Contiv = contivPlugin
+		deps.IPv4Net = ipv4NetPlugin
 		deps.NodeSync = nodeSyncPlugin
 		deps.PodManager = podManager
 	}))
@@ -151,7 +151,7 @@ func main() {
 		deps.EventHandlers = []controller_api.EventHandler{
 			nodeSyncPlugin,
 			podManager,
-			contivPlugin,
+			ipv4NetPlugin,
 			servicePlugin,
 			policyPlugin,
 			statsCollector,
@@ -160,7 +160,7 @@ func main() {
 
 	nodeSyncPlugin.EventLoop = controller
 	podManager.EventLoop = controller
-	contivPlugin.EventLoop = controller
+	ipv4NetPlugin.EventLoop = controller
 
 	// initialize the agent
 	contivAgent := &ContivAgent{
@@ -183,7 +183,7 @@ func main() {
 		Controller:    controller,
 		NodeSync:      nodeSyncPlugin,
 		PodManager:    podManager,
-		Contiv:        contivPlugin,
+		IPv4Net:       ipv4NetPlugin,
 		Policy:        policyPlugin,
 		Service:       servicePlugin,
 	}

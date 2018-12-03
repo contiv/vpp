@@ -35,8 +35,8 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
-	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/controller"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/nodesync/vppnode"
 	"github.com/ligato/cn-infra/config"
@@ -155,7 +155,7 @@ func parseSTNConfig() (nicToSteal string, useDHCP bool, err error) {
 	}
 
 	// unmarshal the YAML
-	config := &contiv.Config{}
+	config := &ipv4net.Config{}
 	err = yaml.Unmarshal(yamlFile, config)
 	if err != nil {
 		logger.Errorf("Error by unmarshalling YAML: %v", err)
@@ -204,7 +204,7 @@ func parseSTNConfig() (nicToSteal string, useDHCP bool, err error) {
 
 // processNodeSpecificConfig processes STN-relevant attributes from node-specific
 // configuration section.
-func processNodeSpecificConfig(nodeConfig *contiv.NodeConfig) (nicToSteal string, useDHCP bool) {
+func processNodeSpecificConfig(nodeConfig *ipv4net.NodeConfig) (nicToSteal string, useDHCP bool) {
 	nicToSteal = nodeConfig.StealInterface
 	if nicToSteal != "" {
 		logger.Debugf("Found interface to be stolen: %s", nodeConfig.StealInterface)
@@ -217,7 +217,7 @@ func processNodeSpecificConfig(nodeConfig *contiv.NodeConfig) (nicToSteal string
 
 // loadNodeConfigFromCRD loads node configuration defined via CRD, which was reflected
 // into a remote kv-store by contiv-crd and possibly mirrored into local kv-store by contiv-agent.
-func loadNodeConfigFromCRD(nodeName string) (nodeConfig *contiv.NodeConfig) {
+func loadNodeConfigFromCRD(nodeName string) (nodeConfig *ipv4net.NodeConfig) {
 	// try to connect to ETCD db
 	etcdDB, err := etcdConnect()
 	if err == nil {
@@ -228,7 +228,7 @@ func loadNodeConfigFromCRD(nodeName string) (nodeConfig *contiv.NodeConfig) {
 	if err == nil {
 		defer boltDB.Close()
 	}
-	return contiv.LoadNodeConfigFromCRD(nodeName, etcdDB, boltDB, logger)
+	return ipv4net.LoadNodeConfigFromCRD(nodeName, etcdDB, boltDB, logger)
 }
 
 // getFirstInterfaceName returns the name of the first non-virtual Linux interface

@@ -30,6 +30,10 @@ const (
 	pciPresenceFile = "/sys/bus/pci/drivers/%s/%s"
 )
 
+const (
+	maxReadSize = 1024
+)
+
 // DriverBind binds the PCI device to specified driver.
 func DriverBind(pciAddr string, driver string) error {
 
@@ -44,23 +48,27 @@ func DriverBind(pciAddr string, driver string) error {
 
 	log.Printf("Binding %s to driver %s", pciAddr, driver)
 
+	var vendor, devID uint32
+
 	// get vendor ID
-	vendor, err := readFromFileFile(fmt.Sprintf(pciVendorFile, pciAddr))
+	vendorStr, err := readFromFileFile(fmt.Sprintf(pciVendorFile, pciAddr))
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+	fmt.Sscanf(vendorStr, "0x%x", &vendor)
 
 	// get device ID
-	devID, err := readFromFileFile(fmt.Sprintf(pciDeviceIDFile, pciAddr))
+	devIDStr, err := readFromFileFile(fmt.Sprintf(pciDeviceIDFile, pciAddr))
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+	fmt.Sscanf(devIDStr, "0x%x", &devID)
 
 	// enable device in the driver
 	err = writeToFile(fmt.Sprintf(pciNewIDFile, driver),
-		fmt.Sprintf("%s %s", strings.TrimPrefix(vendor, "0x"), strings.TrimPrefix(devID, "0x")))
+		fmt.Sprintf("%x %x", vendor, devID))
 	if err != nil {
 		log.Println(err)
 		return err
@@ -107,14 +115,14 @@ func readFromFileFile(fileName string) (string, error) {
 	defer f.Close()
 
 	// read from file
-	buf := make([]byte, 1024)
+	buf := make([]byte, maxReadSize)
 	_, err = f.Read(buf)
 	if err != nil {
 		log.Printf("Error by reading from %s: %v", fileName, err)
 		return "", err
 	}
 
-	return fmt.Sprintf("%s", buf), nil
+	return strings.TrimSpace(fmt.Sprintf("%s", buf)), nil
 }
 
 // writeToFile writes string into the specified file.

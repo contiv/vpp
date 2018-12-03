@@ -166,12 +166,13 @@ func parseConfig() (config *contiv.Config, nodeConfig *contiv.NodeConfig, err er
 	if nodeConfig = loadNodeConfigFromCRD(nodeName); nodeConfig != nil {
 		// node configuration defined via CRD
 		return
-	} else {
-		// node configuration not defined via CRD => search for node specific config inside
-		// the configuration file
-		logger.Debugf("Looking for node '%s' specific config inside the configuration file", nodeName)
-		nodeConfig = config.GetNodeConfig(nodeName)
 	}
+
+	// node configuration not defined via CRD => search for node specific config inside
+	// the configuration file
+	logger.Debugf("Looking for node '%s' specific config inside the configuration file", nodeName)
+	nodeConfig = config.GetNodeConfig(nodeName)
+
 	return
 }
 

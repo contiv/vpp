@@ -180,7 +180,7 @@ func TestBasicStuff(t *testing.T) {
 	config := configTapVxlanDHCP
 
 	// IPAM
-	ipam, err := ipam.New(logrus.DefaultLogger(), node1ID, &config.IPAMConfig, nil)
+	ipam, err := ipam.New(logrus.DefaultLogger(), nodeSync, &config.IPAMConfig, nil)
 	Expect(err).To(BeNil())
 
 	// ipv4Net plugin

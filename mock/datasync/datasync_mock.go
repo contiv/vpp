@@ -15,11 +15,13 @@
 package datasync
 
 import (
-	controller "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/dbresources"
+	"strings"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
-	"strings"
+
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/dbresources"
 )
 
 // MockDataSync can be used to generate datasync events from provided data.
@@ -219,9 +221,6 @@ func (mds *MockDataSync) ResyncEvent(keyPrefix ...string) (event *controller.DBR
 			continue
 		}
 		resource := mds.getResourceByKey(key)
-		if _, hasResource := event.KubeState[resource]; !hasResource {
-			event.KubeState[resource] = make(controller.KeyValuePairs)
-		}
 		event.KubeState[resource][key] = data.val
 	}
 	return event, mds.resyncCount

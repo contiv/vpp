@@ -17,7 +17,6 @@ package dbresources
 import (
 	"github.com/gogo/protobuf/proto"
 
-	controller_api "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
@@ -28,10 +27,23 @@ import (
 	"github.com/contiv/vpp/plugins/nodesync/vppnode"
 )
 
+// DBResource represents a Kubernetes resource whose state is reflected in the database.
+type DBResource struct {
+	// Keyword uniquely identifies the resource among all resources.
+	Keyword string
+
+	// KeyPrefix under which instances of this resource are stored in the database.
+	KeyPrefix string
+
+	// ProtoMessageName is the name of the protobuf message used to represent
+	// the resource (use proto.MessageName to obtain).
+	ProtoMessageName string
+}
+
 // GetDBResources returns metadata for all DB resources currently used by Contiv.
 // Resources must be stored in DB under KSR key prefix!
-func GetDBResources() []*controller_api.DBResource {
-	return []*controller_api.DBResource{
+func GetDBResources() []*DBResource {
+	return []*DBResource{
 		{
 			Keyword:          vppnode.Keyword,
 			ProtoMessageName: proto.MessageName((*vppnode.VppNode)(nil)),

@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package contiv
+package ipv4net
 
 import (
-	"github.com/contiv/vpp/plugins/contiv/ipam"
+	"github.com/contiv/vpp/plugins/ipv4net/ipam"
 	"github.com/unrolled/render"
 	"net/http"
 )
@@ -36,33 +36,33 @@ type ipamData struct {
 	Config            *ipam.Config `json:"config"`
 }
 
-func (s *remoteCNIserver) registerHandlers() {
-	if s.http == nil {
-		s.Logger.Warnf("No http handler provided or getNodeIP callback, skipping registration of IPAM REST handlers")
+func (n *IPv4Net) registerRESTHandlers() {
+	if n.HTTPHandlers == nil {
+		n.Log.Warnf("No http handler provided or getNodeIP callback, skipping registration of IPAM REST handlers")
 		return
 	}
 
-	s.http.RegisterHTTPHandler(PluginURL, s.ipamGetHandler, "GET")
-	s.Logger.Infof("IPAM REST handler registered: GET %v", PluginURL)
+	n.HTTPHandlers.RegisterHTTPHandler(PluginURL, n.ipamGetHandler, "GET")
+	n.Log.Infof("IPAM REST handler registered: GET %v", PluginURL)
 }
 
-func (s *remoteCNIserver) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
+func (n *IPv4Net) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		s.Logger.Debug("Getting IPAM data")
-		nodeIP, _ := s.GetNodeIP()
+		n.Log.Debug("Getting IPAM data")
+		nodeIP, _ := n.GetNodeIP()
 		if nodeIP == nil {
-			s.Logger.Error("Error getting node IP")
+			n.Log.Error("Error getting node IP")
 			formatter.JSON(w, http.StatusInternalServerError, "Error getting node IP")
 			return
 		}
 
 		formatter.JSON(w, http.StatusOK, ipamData{
-			NodeID:            s.nodeSync.GetNodeID(),
-			NodeName:          s.agentLabel,
+			NodeID:            n.NodeSync.GetNodeID(),
+			NodeName:          n.ServiceLabel.GetAgentLabel(),
 			NodeIP:            nodeIP.String(),
-			PodSubnetThisNode: s.ipam.PodSubnetThisNode().String(),
-			VppHostNetwork:    s.ipam.HostInterconnectSubnetThisNode().String(),
-			Config:            &s.config.IPAMConfig,
+			PodSubnetThisNode: n.ipam.PodSubnetThisNode().String(),
+			VppHostNetwork:    n.ipam.HostInterconnectSubnetThisNode().String(),
+			Config:            &n.config.IPAMConfig,
 		})
 	}
 }

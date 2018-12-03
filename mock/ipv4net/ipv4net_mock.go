@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package contiv
+package ipv4net
 
 import (
 	"net"
@@ -21,8 +21,8 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
-// MockContiv is a mock for the Contiv Plugin.
-type MockContiv struct {
+// MockIPv4Net is a mock for the ipv4net Plugin.
+type MockIPv4Net struct {
 	sync.Mutex
 
 	podIf                       map[podmodel.ID]string
@@ -49,105 +49,105 @@ type MockContiv struct {
 	defaultIfIP                 net.IP
 }
 
-// NewMockContiv is a constructor for MockContiv.
-func NewMockContiv() *MockContiv {
-	return &MockContiv{
+// NewMockIPv4Net is a constructor for MockIPv4Net.
+func NewMockIPv4Net() *MockIPv4Net {
+	return &MockIPv4Net{
 		podIf:                      make(map[podmodel.ID]string),
 		serviceLocalEndpointWeight: 1,
 	}
 }
 
 // SetPodIfName allows to create a fake association between a pod and an interface.
-func (mc *MockContiv) SetPodIfName(pod podmodel.ID, ifName string) {
-	mc.podIf[pod] = ifName
+func (mn *MockIPv4Net) SetPodIfName(pod podmodel.ID, ifName string) {
+	mn.podIf[pod] = ifName
 }
 
 // SetPodNetwork allows to set what tests will assume the pod subnet is
 // (same for this node as for the entire cluster for simplicity).
-func (mc *MockContiv) SetPodSubnet(podSubnet string) {
-	_, mc.podSubnet, _ = net.ParseCIDR(podSubnet)
-	_, mc.podSubnetThisNode, _ = net.ParseCIDR(podSubnet)
+func (mn *MockIPv4Net) SetPodSubnet(podSubnet string) {
+	_, mn.podSubnet, _ = net.ParseCIDR(podSubnet)
+	_, mn.podSubnetThisNode, _ = net.ParseCIDR(podSubnet)
 }
 
 // SetTCPStackDisabled allows to set flag denoting if the tcpStack is disabled or not.
-func (mc *MockContiv) SetTCPStackDisabled(tcpStackDisabled bool) {
-	mc.tcpStackDisabled = tcpStackDisabled
+func (mn *MockIPv4Net) SetTCPStackDisabled(tcpStackDisabled bool) {
+	mn.tcpStackDisabled = tcpStackDisabled
 }
 
 // SetSTNMode allows to set flag denoting if the STN is used or not.
-func (mc *MockContiv) SetSTNMode(stnMode bool) {
-	mc.stnMode = stnMode
+func (mn *MockIPv4Net) SetSTNMode(stnMode bool) {
+	mn.stnMode = stnMode
 }
 
 // SetNodeIP allows to set what tests will assume the node IP is.
-func (mc *MockContiv) SetNodeIP(nodeIP *net.IPNet) {
-	mc.Lock()
-	defer mc.Unlock()
+func (mn *MockIPv4Net) SetNodeIP(nodeIP *net.IPNet) {
+	mn.Lock()
+	defer mn.Unlock()
 
-	mc.nodeIP = nodeIP
+	mn.nodeIP = nodeIP
 }
 
 // SetMainPhysicalIfName allows to set what tests will assume the name of the main
 // physical interface is.
-func (mc *MockContiv) SetMainPhysicalIfName(ifName string) {
-	mc.mainPhysIf = ifName
+func (mn *MockIPv4Net) SetMainPhysicalIfName(ifName string) {
+	mn.mainPhysIf = ifName
 }
 
 // SetOtherPhysicalIfNames allows to set what tests will assume the list of other physical
 // interface names is.
-func (mc *MockContiv) SetOtherPhysicalIfNames(ifs []string) {
-	mc.otherPhysIfs = ifs
+func (mn *MockIPv4Net) SetOtherPhysicalIfNames(ifs []string) {
+	mn.otherPhysIfs = ifs
 }
 
 // SetHostInterconnectIfName allows to set what tests will assume the name of the host-interconnect
 // interface is.
-func (mc *MockContiv) SetHostInterconnectIfName(ifName string) {
-	mc.hostInterconnect = ifName
+func (mn *MockIPv4Net) SetHostInterconnectIfName(ifName string) {
+	mn.hostInterconnect = ifName
 }
 
 // SetVxlanBVIIfName allows to set what tests will assume the name of the VXLAN BVI interface is.
-func (mc *MockContiv) SetVxlanBVIIfName(ifName string) {
-	mc.vxlanBVIIfName = ifName
+func (mn *MockIPv4Net) SetVxlanBVIIfName(ifName string) {
+	mn.vxlanBVIIfName = ifName
 }
 
 // SetDefaultInterface allows to set what tests will assume the default interface IP
 // and name are (both can be zero values).
-func (mc *MockContiv) SetDefaultInterface(ifName string, ifIP net.IP) {
-	mc.defaultIfName = ifName
-	mc.defaultIfIP = ifIP
+func (mn *MockIPv4Net) SetDefaultInterface(ifName string, ifIP net.IP) {
+	mn.defaultIfName = ifName
+	mn.defaultIfIP = ifIP
 }
 
 // SetNatExternalTraffic allows to set what tests will assume the state of SNAT is.
-func (mc *MockContiv) SetNatExternalTraffic(natExternalTraffic bool) {
-	mc.natExternalTraffic = natExternalTraffic
+func (mn *MockIPv4Net) SetNatExternalTraffic(natExternalTraffic bool) {
+	mn.natExternalTraffic = natExternalTraffic
 }
 
 // ServiceLocalEndpointWeight allows to set what tests will assume the weight for load-balancing
 // of locally deployed service endpoints is.
-func (mc *MockContiv) SetServiceLocalEndpointWeight(weight uint8) {
-	mc.serviceLocalEndpointWeight = weight
+func (mn *MockIPv4Net) SetServiceLocalEndpointWeight(weight uint8) {
+	mn.serviceLocalEndpointWeight = weight
 }
 
 // SetNATVirtualReassembly allows to set flag denoting if the NAT Virtual reassembly
 // is disabled or not.
-func (mc *MockContiv) SetNATVirtualReassembly(disable bool) {
-	mc.disableNATVirtualReassembly = disable
+func (mn *MockIPv4Net) SetNATVirtualReassembly(disable bool) {
+	mn.disableNATVirtualReassembly = disable
 }
 
 // SetNatLoopbackIP allows to set what tests will assume the NAT loopback IP is.
-func (mc *MockContiv) SetNatLoopbackIP(natLoopIP string) {
-	mc.natLoopbackIP = net.ParseIP(natLoopIP)
+func (mn *MockIPv4Net) SetNatLoopbackIP(natLoopIP string) {
+	mn.natLoopbackIP = net.ParseIP(natLoopIP)
 }
 
 // GetIfName returns pod's interface name as set previously using SetPodIfName.
-func (mc *MockContiv) GetIfName(podNamespace string, podName string) (name string, exists bool) {
-	name, exists = mc.podIf[podmodel.ID{Name: podName, Namespace: podNamespace}]
+func (mn *MockIPv4Net) GetIfName(podNamespace string, podName string) (name string, exists bool) {
+	name, exists = mn.podIf[podmodel.ID{Name: podName, Namespace: podNamespace}]
 	return name, exists
 }
 
 // GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
-func (mc *MockContiv) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
-	for podID, name := range mc.podIf {
+func (mn *MockIPv4Net) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
+	for podID, name := range mn.podIf {
 		if name == ifname {
 			return podID.Namespace, podID.Name, true
 		}
@@ -156,135 +156,135 @@ func (mc *MockContiv) GetPodByIf(ifname string) (podNamespace string, podName st
 }
 
 // GetPodSubnetThisNode returns static subnet constant that should represent pod subnet for current host node
-func (mc *MockContiv) GetPodSubnetThisNode() (podNetwork *net.IPNet) {
-	return mc.podSubnetThisNode
+func (mn *MockIPv4Net) GetPodSubnetThisNode() (podNetwork *net.IPNet) {
+	return mn.podSubnetThisNode
 }
 
 // IsTCPstackDisabled returns true if the tcp stack is disabled and only veths are configured
-func (mc *MockContiv) IsTCPstackDisabled() bool {
-	return mc.tcpStackDisabled
+func (mn *MockIPv4Net) IsTCPstackDisabled() bool {
+	return mn.tcpStackDisabled
 }
 
 // InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
-func (mc *MockContiv) InSTNMode() bool {
-	return mc.stnMode
+func (mn *MockIPv4Net) InSTNMode() bool {
+	return mn.stnMode
 }
 
 // NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed
 // with node IP before being sent out from the node.
-func (mc *MockContiv) NatExternalTraffic() bool {
-	return mc.natExternalTraffic
+func (mn *MockIPv4Net) NatExternalTraffic() bool {
+	return mn.natExternalTraffic
 }
 
 // GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
-func (mc *MockContiv) GetServiceLocalEndpointWeight() uint8 {
-	return mc.serviceLocalEndpointWeight
+func (mn *MockIPv4Net) GetServiceLocalEndpointWeight() uint8 {
+	return mn.serviceLocalEndpointWeight
 }
 
 // GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
 // between clients and services via VPP even if the source and destination are the same
 // IP addresses and would otherwise be routed locally.
-func (mc *MockContiv) GetNatLoopbackIP() net.IP {
-	return mc.natLoopbackIP
+func (mn *MockIPv4Net) GetNatLoopbackIP() net.IP {
+	return mn.natLoopbackIP
 }
 
 // GetNodeIP returns the IP+network address of this node.
-func (mc *MockContiv) GetNodeIP() (net.IP, *net.IPNet) {
-	mc.Lock()
-	defer mc.Unlock()
+func (mn *MockIPv4Net) GetNodeIP() (net.IP, *net.IPNet) {
+	mn.Lock()
+	defer mn.Unlock()
 
-	if mc.nodeIP == nil {
+	if mn.nodeIP == nil {
 		return net.IP{}, nil
 	}
 
-	return mc.nodeIP.IP, &net.IPNet{
-		IP:   mc.nodeIP.IP.Mask(mc.nodeIP.Mask),
-		Mask: mc.nodeIP.Mask,
+	return mn.nodeIP.IP, &net.IPNet{
+		IP:   mn.nodeIP.IP.Mask(mn.nodeIP.Mask),
+		Mask: mn.nodeIP.Mask,
 	}
 }
 
 // GetMainPhysicalIfName returns name of the "main" interface - i.e. physical interface connecting
 // the node with the rest of the cluster.
-func (mc *MockContiv) GetMainPhysicalIfName() string {
-	return mc.mainPhysIf
+func (mn *MockIPv4Net) GetMainPhysicalIfName() string {
+	return mn.mainPhysIf
 }
 
 // GetOtherPhysicalIfNames returns a slice of names of all physical interfaces configured additionally
 // to the main interface.
-func (mc *MockContiv) GetOtherPhysicalIfNames() []string {
-	return mc.otherPhysIfs
+func (mn *MockIPv4Net) GetOtherPhysicalIfNames() []string {
+	return mn.otherPhysIfs
 }
 
 // GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
 // interconnecting VPP with the host stack.
-func (mc *MockContiv) GetHostInterconnectIfName() string {
-	return mc.hostInterconnect
+func (mn *MockIPv4Net) GetHostInterconnectIfName() string {
+	return mn.hostInterconnect
 }
 
 // GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
 // Returns an empty string if VXLAN is not used (in L2 interconnect mode).
-func (mc *MockContiv) GetVxlanBVIIfName() string {
-	return mc.vxlanBVIIfName
+func (mn *MockIPv4Net) GetVxlanBVIIfName() string {
+	return mn.vxlanBVIIfName
 }
 
 // GetDefaultInterface returns the name and the IP address of the interface
 // used by the default route to send packets out from VPP towards the default gateway.
 // If the default GW is not configured, the function returns zero values.
-func (mc *MockContiv) GetDefaultInterface() (ifName string, ifAddress net.IP) {
-	return mc.defaultIfName, mc.defaultIfIP
+func (mn *MockIPv4Net) GetDefaultInterface() (ifName string, ifAddress net.IP) {
+	return mn.defaultIfName, mn.defaultIfIP
 }
 
 // CleanupIdleNATSessions returns true if cleanup of idle NAT sessions is enabled.
-func (mc *MockContiv) CleanupIdleNATSessions() bool {
-	return mc.cleanupIdleNATSessions
+func (mn *MockIPv4Net) CleanupIdleNATSessions() bool {
+	return mn.cleanupIdleNATSessions
 }
 
 // GetTCPNATSessionTimeout returns NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on.
-func (mc *MockContiv) GetTCPNATSessionTimeout() uint32 {
-	return mc.tcpNATSessionTimeout
+func (mn *MockIPv4Net) GetTCPNATSessionTimeout() uint32 {
+	return mn.tcpNATSessionTimeout
 }
 
 // GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
-func (mc *MockContiv) GetOtherNATSessionTimeout() uint32 {
-	return mc.otherNATSessionTimeout
+func (mn *MockIPv4Net) GetOtherNATSessionTimeout() uint32 {
+	return mn.otherNATSessionTimeout
 }
 
 // DisableNATVirtualReassembly returns true if fragmented packets should be dropped by NAT.
-func (mc *MockContiv) DisableNATVirtualReassembly() bool {
-	return mc.disableNATVirtualReassembly
+func (mn *MockIPv4Net) DisableNATVirtualReassembly() bool {
+	return mn.disableNATVirtualReassembly
 }
 
 // GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
-func (mc *MockContiv) GetPodSubnet() *net.IPNet {
-	return mc.podSubnet
+func (mn *MockIPv4Net) GetPodSubnet() *net.IPNet {
+	return mn.podSubnet
 }
 
 // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
-func (mc *MockContiv) GetHostIPs() []net.IP {
-	return mc.hostIPs
+func (mn *MockIPv4Net) GetHostIPs() []net.IP {
+	return mn.hostIPs
 }
 
 // SetHostIPs sets IP addresses of this node present in the host network namespace (Linux).
-func (mc *MockContiv) SetHostIPs(ips []net.IP) {
-	mc.hostIPs = ips
+func (mn *MockIPv4Net) SetHostIPs(ips []net.IP) {
+	mn.hostIPs = ips
 }
 
 // GetMainVrfID returns the ID of the main network connectivity VRF.
-func (mc *MockContiv) GetMainVrfID() uint32 {
-	return mc.mainVrfId
+func (mn *MockIPv4Net) GetMainVrfID() uint32 {
+	return mn.mainVrfId
 }
 
 // SetMainVrfID sets the ID of the main network connectivity VRF.
-func (mc *MockContiv) SetMainVrfID(id uint32) {
-	mc.mainVrfId = id
+func (mn *MockIPv4Net) SetMainVrfID(id uint32) {
+	mn.mainVrfId = id
 }
 
 // GetPodVrfID returns the ID of the POD VRF.
-func (mc *MockContiv) GetPodVrfID() uint32 {
-	return mc.podVrfId
+func (mn *MockIPv4Net) GetPodVrfID() uint32 {
+	return mn.podVrfId
 }
 
 // SetPodVrfID sets the ID of the POD VRF.
-func (mc *MockContiv) SetPodVrfID(id uint32) {
-	mc.podVrfId = id
+func (mn *MockIPv4Net) SetPodVrfID(id uint32) {
+	mn.podVrfId = id
 }

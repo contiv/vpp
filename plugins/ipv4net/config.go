@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package contiv
+package ipv4net
 
 import (
 	"fmt"
@@ -22,14 +22,14 @@ import (
 	"math/big"
 	"net"
 
-	"github.com/contiv/vpp/plugins/contiv/ipam"
+	"github.com/contiv/vpp/plugins/ipv4net/ipam"
 	"github.com/contiv/vpp/plugins/ksr"
 
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 )
 
-// Config represents configuration for the Contiv plugin.
+// Config represents configuration for the Contiv agent.
 // It can be injected or loaded from external config file. Injection has priority to external config. To use external
 // config file, add `-contiv-config="<path to config>` argument when running the contiv-agent.
 type Config struct {

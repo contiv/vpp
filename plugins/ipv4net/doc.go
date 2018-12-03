@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package contiv implements plugin providing GRPC-server that accepts requests from the contiv-CNI
-// (acting as a GRPC-client) and configures the networking between VPP and the PODs.
+// Package ipv4net configures VPP-based IPv4 network connectivity between Kubernetes
+// pods and nodes.
 //
+// TODO: cleanup config
 // The plugin is configurable via its config file that can be specified using
 // `-contiv-config="<path to config>` argument when running the contiv-agent. This is usually being injected
 // into the vswitch POD by a config map inside of the k8s deployment file of the contiv-VPP k8s networking plugin
@@ -111,4 +112,4 @@
 //			- host.go: provides host-related helper functions and VPP-Agent NB API builders
 //			- pod.go: provides POD-related helper functions and VPP-Agent NB API builders
 //
-package contiv
+package ipv4net

@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
@@ -64,8 +64,8 @@ type stats struct {
 type Deps struct {
 	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
-	// Contiv plugin is used to lookup pod related to interfaces statistics
-	Contiv contiv.API
+	// IPv4Net plugin is used to lookup pod connected by the given interface
+	IPv4Net ipv4net.API
 
 	// Prometheus plugin used to stream statistics
 	Prometheus prometheusplugin.API
@@ -274,7 +274,7 @@ func (p *Plugin) addNewEntry(key string, data *interfaces.InterfaceState) (newEn
 		podName = contivSystemInterfacePlaceholder
 		podNs = contivSystemInterfacePlaceholder
 	} else {
-		podNs, podName, found = p.Contiv.GetPodByIf(data.Name)
+		podNs, podName, found = p.IPv4Net.GetPodByIf(data.Name)
 	}
 
 	if found {

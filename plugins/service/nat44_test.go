@@ -26,8 +26,8 @@ import (
 
 	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 
-	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/datasync"
+	. "github.com/contiv/vpp/mock/ipv4net"
 	. "github.com/contiv/vpp/mock/natplugin"
 	. "github.com/contiv/vpp/mock/nodesync"
 	. "github.com/contiv/vpp/mock/podmanager"
@@ -155,24 +155,24 @@ func TestResyncAndSingleService(t *testing.T) {
 	logger.Debug("TestResyncAndSingleService")
 
 	// Prepare mocks.
-	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetNatExternalTraffic(true)
+	//  -> IPv4Net plugin
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatExternalTraffic(true)
 	const localEndpointWeight uint8 = 1
-	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
-	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP)
-	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodSubnet(podNetwork)
-	contiv.SetNatLoopbackIP(natLoopbackIP)
-	contiv.SetPodIfName(pod1, pod1If)
-	contiv.SetPodIfName(pod2, pod2If)
-	contiv.SetMainVrfID(mainVrfID)
-	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{mgmtIP})
+	ipv4Net.SetServiceLocalEndpointWeight(localEndpointWeight)
+	ipv4Net.SetSTNMode(false)
+	ipv4Net.SetNodeIP(nodeIP)
+	ipv4Net.SetDefaultInterface(mainIfName, nodeIP.IP)
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodSubnet(podNetwork)
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net.SetPodIfName(pod1, pod1If)
+	ipv4Net.SetPodIfName(pod2, pod2If)
+	ipv4Net.SetMainVrfID(mainVrfID)
+	ipv4Net.SetPodVrfID(podVrfID)
+	ipv4Net.SetHostIPs([]net.IP{mgmtIP})
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -203,7 +203,7 @@ func TestResyncAndSingleService(t *testing.T) {
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
-			Contiv:       contiv,
+			IPv4Net:      ipv4Net,
 			NodeSync:     nodeSync,
 			PodManager:   podManager,
 		},
@@ -213,7 +213,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -527,23 +527,23 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 
 	// Prepare mocks.
 	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetNatExternalTraffic(true)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatExternalTraffic(true)
 	const localEndpointWeight uint8 = 2
-	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
-	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP)
-	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodSubnet(podNetwork)
-	contiv.SetNatLoopbackIP(natLoopbackIP)
-	contiv.SetPodIfName(pod1, pod1If)
-	contiv.SetPodIfName(pod2, pod2If)
-	contiv.SetMainVrfID(mainVrfID)
-	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{mgmtIP})
+	ipv4Net.SetServiceLocalEndpointWeight(localEndpointWeight)
+	ipv4Net.SetSTNMode(false)
+	ipv4Net.SetNodeIP(nodeIP)
+	ipv4Net.SetDefaultInterface(mainIfName, nodeIP.IP)
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodSubnet(podNetwork)
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net.SetPodIfName(pod1, pod1If)
+	ipv4Net.SetPodIfName(pod2, pod2If)
+	ipv4Net.SetMainVrfID(mainVrfID)
+	ipv4Net.SetPodVrfID(podVrfID)
+	ipv4Net.SetHostIPs([]net.IP{mgmtIP})
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -570,7 +570,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
-			Contiv:       contiv,
+			IPv4Net:      ipv4Net,
 			NodeSync:     nodeSync,
 			PodManager:   podManager,
 		},
@@ -580,7 +580,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -1083,7 +1083,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
-			Contiv:       contiv,
+			IPv4Net:      ipv4Net,
 			NodeSync:     nodeSync,
 			PodManager:   podManager,
 		},
@@ -1091,7 +1091,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	renderer = &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -1175,20 +1175,20 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 
 	// Prepare mocks.
 	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetNatExternalTraffic(true)
-	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP)
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodSubnet(podNetwork)
-	contiv.SetNatLoopbackIP(natLoopbackIP)
-	contiv.SetPodIfName(pod1, pod1If)
-	contiv.SetPodIfName(pod2, pod2If)
-	contiv.SetMainVrfID(mainVrfID)
-	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{mgmtIP})
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatExternalTraffic(true)
+	ipv4Net.SetSTNMode(false)
+	ipv4Net.SetNodeIP(nodeIP)
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodSubnet(podNetwork)
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net.SetPodIfName(pod1, pod1If)
+	ipv4Net.SetPodIfName(pod2, pod2If)
+	ipv4Net.SetMainVrfID(mainVrfID)
+	ipv4Net.SetPodVrfID(podVrfID)
+	ipv4Net.SetHostIPs([]net.IP{mgmtIP})
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -1218,7 +1218,7 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
-			Contiv:       contiv,
+			IPv4Net:      ipv4Net,
 			NodeSync:     nodeSync,
 			PodManager:   podManager,
 		},
@@ -1228,7 +1228,7 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -1272,20 +1272,20 @@ func TestWithoutVXLAN(t *testing.T) {
 
 	// Prepare mocks.
 	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetNatExternalTraffic(true)
-	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP)
-	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodSubnet(podNetwork)
-	contiv.SetNatLoopbackIP(natLoopbackIP)
-	contiv.SetPodIfName(pod1, pod1If)
-	contiv.SetPodIfName(pod2, pod2If)
-	contiv.SetMainVrfID(mainVrfID)
-	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{mgmtIP})
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatExternalTraffic(true)
+	ipv4Net.SetSTNMode(false)
+	ipv4Net.SetNodeIP(nodeIP)
+	ipv4Net.SetDefaultInterface(mainIfName, nodeIP.IP)
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodSubnet(podNetwork)
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net.SetPodIfName(pod1, pod1If)
+	ipv4Net.SetPodIfName(pod2, pod2If)
+	ipv4Net.SetMainVrfID(mainVrfID)
+	ipv4Net.SetPodVrfID(podVrfID)
+	ipv4Net.SetHostIPs([]net.IP{mgmtIP})
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -1316,7 +1316,7 @@ func TestWithoutVXLAN(t *testing.T) {
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
-			Contiv:       contiv,
+			IPv4Net:      ipv4Net,
 			NodeSync:     nodeSync,
 			PodManager:   podManager,
 		},
@@ -1326,7 +1326,7 @@ func TestWithoutVXLAN(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -1369,22 +1369,22 @@ func TestWithOtherInterfaces(t *testing.T) {
 
 	// Prepare mocks.
 	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetNatExternalTraffic(true)
-	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP)
-	contiv.SetDefaultInterface(OtherIfName, otherIfIP)
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetOtherPhysicalIfNames([]string{OtherIfName, OtherIfName2})
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodSubnet(podNetwork)
-	contiv.SetNatLoopbackIP(natLoopbackIP)
-	contiv.SetPodIfName(pod1, pod1If)
-	contiv.SetPodIfName(pod2, pod2If)
-	contiv.SetMainVrfID(mainVrfID)
-	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{mgmtIP})
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatExternalTraffic(true)
+	ipv4Net.SetSTNMode(false)
+	ipv4Net.SetNodeIP(nodeIP)
+	ipv4Net.SetDefaultInterface(OtherIfName, otherIfIP)
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetOtherPhysicalIfNames([]string{OtherIfName, OtherIfName2})
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodSubnet(podNetwork)
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net.SetPodIfName(pod1, pod1If)
+	ipv4Net.SetPodIfName(pod2, pod2If)
+	ipv4Net.SetMainVrfID(mainVrfID)
+	ipv4Net.SetPodVrfID(podVrfID)
+	ipv4Net.SetHostIPs([]net.IP{mgmtIP})
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -1415,7 +1415,7 @@ func TestWithOtherInterfaces(t *testing.T) {
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
-			Contiv:       contiv,
+			IPv4Net:      ipv4Net,
 			NodeSync:     nodeSync,
 			PodManager:   podManager,
 		},
@@ -1425,7 +1425,7 @@ func TestWithOtherInterfaces(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -1493,19 +1493,19 @@ func TestWithoutNodeIP(t *testing.T) {
 
 	// Prepare mocks.
 	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetNatExternalTraffic(true)
-	contiv.SetSTNMode(false)
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodSubnet(podNetwork)
-	contiv.SetNatLoopbackIP(natLoopbackIP)
-	contiv.SetPodIfName(pod1, pod1If)
-	contiv.SetPodIfName(pod2, pod2If)
-	contiv.SetMainVrfID(mainVrfID)
-	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{mgmtIP})
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatExternalTraffic(true)
+	ipv4Net.SetSTNMode(false)
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodSubnet(podNetwork)
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net.SetPodIfName(pod1, pod1If)
+	ipv4Net.SetPodIfName(pod2, pod2If)
+	ipv4Net.SetMainVrfID(mainVrfID)
+	ipv4Net.SetPodVrfID(podVrfID)
+	ipv4Net.SetHostIPs([]net.IP{mgmtIP})
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -1536,7 +1536,7 @@ func TestWithoutNodeIP(t *testing.T) {
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
-			Contiv:       contiv,
+			IPv4Net:      ipv4Net,
 			NodeSync:     nodeSync,
 			PodManager:   podManager,
 		},
@@ -1546,7 +1546,7 @@ func TestWithoutNodeIP(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -1590,23 +1590,23 @@ func TestServiceUpdates(t *testing.T) {
 
 	// Prepare mocks.
 	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetNatExternalTraffic(true)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatExternalTraffic(true)
 	const localEndpointWeight uint8 = 4
-	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
-	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP)
-	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodSubnet(podNetwork)
-	contiv.SetNatLoopbackIP(natLoopbackIP)
-	contiv.SetPodIfName(pod1, pod1If)
-	contiv.SetPodIfName(pod2, pod2If)
-	contiv.SetMainVrfID(mainVrfID)
-	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{mgmtIP})
+	ipv4Net.SetServiceLocalEndpointWeight(localEndpointWeight)
+	ipv4Net.SetSTNMode(false)
+	ipv4Net.SetNodeIP(nodeIP)
+	ipv4Net.SetDefaultInterface(mainIfName, nodeIP.IP)
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodSubnet(podNetwork)
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net.SetPodIfName(pod1, pod1If)
+	ipv4Net.SetPodIfName(pod2, pod2If)
+	ipv4Net.SetMainVrfID(mainVrfID)
+	ipv4Net.SetPodVrfID(podVrfID)
+	ipv4Net.SetHostIPs([]net.IP{mgmtIP})
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -1637,7 +1637,7 @@ func TestServiceUpdates(t *testing.T) {
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
-			Contiv:       contiv,
+			IPv4Net:      ipv4Net,
 			NodeSync:     nodeSync,
 			PodManager:   podManager,
 		},
@@ -1647,7 +1647,7 @@ func TestServiceUpdates(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -2035,23 +2035,23 @@ func TestWithSNATOnly(t *testing.T) {
 
 	// Prepare mocks.
 	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetNatExternalTraffic(true)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatExternalTraffic(true)
 	const localEndpointWeight uint8 = 1
-	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
-	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP)
-	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodSubnet(podNetwork)
-	contiv.SetNatLoopbackIP(natLoopbackIP)
-	contiv.SetPodIfName(pod1, pod1If)
-	contiv.SetPodIfName(pod2, pod2If)
-	contiv.SetMainVrfID(mainVrfID)
-	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{mgmtIP})
+	ipv4Net.SetServiceLocalEndpointWeight(localEndpointWeight)
+	ipv4Net.SetSTNMode(false)
+	ipv4Net.SetNodeIP(nodeIP)
+	ipv4Net.SetDefaultInterface(mainIfName, nodeIP.IP)
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodSubnet(podNetwork)
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net.SetPodIfName(pod1, pod1If)
+	ipv4Net.SetPodIfName(pod2, pod2If)
+	ipv4Net.SetMainVrfID(mainVrfID)
+	ipv4Net.SetPodVrfID(podVrfID)
+	ipv4Net.SetHostIPs([]net.IP{mgmtIP})
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -2082,7 +2082,7 @@ func TestWithSNATOnly(t *testing.T) {
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
-			Contiv:       contiv,
+			IPv4Net:      ipv4Net,
 			NodeSync:     nodeSync,
 			PodManager:   podManager,
 		},
@@ -2092,7 +2092,7 @@ func TestWithSNATOnly(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -2219,23 +2219,23 @@ func TestLocalServicePolicy(t *testing.T) {
 
 	// Prepare mocks.
 	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetNatExternalTraffic(true)
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetNatExternalTraffic(true)
 	const localEndpointWeight uint8 = 1
-	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
-	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP)
-	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodSubnet(podNetwork)
-	contiv.SetNatLoopbackIP(natLoopbackIP)
-	contiv.SetPodIfName(pod1, pod1If)
-	contiv.SetPodIfName(pod2, pod2If)
-	contiv.SetMainVrfID(mainVrfID)
-	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{mgmtIP})
+	ipv4Net.SetServiceLocalEndpointWeight(localEndpointWeight)
+	ipv4Net.SetSTNMode(false)
+	ipv4Net.SetNodeIP(nodeIP)
+	ipv4Net.SetDefaultInterface(mainIfName, nodeIP.IP)
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodSubnet(podNetwork)
+	ipv4Net.SetNatLoopbackIP(natLoopbackIP)
+	ipv4Net.SetPodIfName(pod1, pod1If)
+	ipv4Net.SetPodIfName(pod2, pod2If)
+	ipv4Net.SetMainVrfID(mainVrfID)
+	ipv4Net.SetPodVrfID(podVrfID)
+	ipv4Net.SetHostIPs([]net.IP{mgmtIP})
 
 	// -> nodesync
 	nodeSync := NewMockNodeSync(masterLabel)
@@ -2266,7 +2266,7 @@ func TestLocalServicePolicy(t *testing.T) {
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
-			Contiv:       contiv,
+			IPv4Net:      ipv4Net,
 			NodeSync:     nodeSync,
 			PodManager:   podManager,
 		},
@@ -2276,7 +2276,7 @@ func TestLocalServicePolicy(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},

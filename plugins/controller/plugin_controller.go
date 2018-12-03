@@ -654,7 +654,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 			case api.DownstreamResync:
 				ctx = scheduler.WithResync(ctx, scheduler.DownstreamResync, false)
 			case api.FullResync:
-				ctx = scheduler.WithResync(ctx, scheduler.FullResync, true)
+				ctx = scheduler.WithResync(ctx, scheduler.FullResync, c.resyncCount == 1)
 			}
 		}
 

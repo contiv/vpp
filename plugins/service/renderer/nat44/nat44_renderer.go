@@ -30,8 +30,8 @@ import (
 	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
 )
@@ -111,7 +111,7 @@ type Renderer struct {
 // Deps lists dependencies of the Renderer.
 type Deps struct {
 	Log              logging.Logger
-	Contiv           contiv.API /* for GetNatLoopbackIP, GetServiceLocalEndpointWeight */
+	IPv4Net          ipv4net.API /* for GetNatLoopbackIP, GetServiceLocalEndpointWeight */
 	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
 	GoVPPChan        govpp.Channel      /* used for direct NAT binary API calls */
@@ -278,9 +278,9 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	// Configure SNAT only if it is explicitly enabled in the Contiv configuration.
 	rndr.defaultIfName = ""
 	rndr.defaultIfIP = nil
-	if rndr.Contiv.NatExternalTraffic() {
+	if rndr.IPv4Net.NatExternalTraffic() {
 		// Get interface used by default for cluster-outbound traffic.
-		rndr.defaultIfName, rndr.defaultIfIP = rndr.Contiv.GetDefaultInterface()
+		rndr.defaultIfName, rndr.defaultIfIP = rndr.IPv4Net.GetDefaultInterface()
 
 		// If intra-cluster traffic flows without encapsulation through the same
 		// interface as the cluster-outbound traffic, then we have to disable
@@ -289,8 +289,8 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 		// the pure L2 mode without VXLANs this cannot be achieved with the VPP/NAT
 		// plugin. On the other hand, with VXLANs we can define identity NAT to
 		// exclude VXLAN-encapsulated traffic from being SNATed.
-		if rndr.Contiv.GetVxlanBVIIfName() == "" &&
-			rndr.defaultIfName == rndr.Contiv.GetMainPhysicalIfName() {
+		if rndr.IPv4Net.GetVxlanBVIIfName() == "" &&
+			rndr.defaultIfName == rndr.IPv4Net.GetMainPhysicalIfName() {
 			rndr.defaultIfName = ""
 			rndr.defaultIfIP = nil
 		}
@@ -315,7 +315,7 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	rndr.natGlobalCfg = &nat.Nat44Global{
 		Forwarding: true,
 	}
-	if rndr.Contiv.DisableNATVirtualReassembly() {
+	if rndr.IPv4Net.DisableNATVirtualReassembly() {
 		rndr.natGlobalCfg.VirtualReassembly = &nat.VirtualReassembly{
 			DropFragments: true, // drop fragmented packets
 		}
@@ -333,7 +333,7 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	if !rndr.snatOnly {
 		rndr.natGlobalCfg.AddressPool = append(rndr.natGlobalCfg.AddressPool,
 			&nat.Nat44Global_Address{
-				Address:  rndr.Contiv.GetNatLoopbackIP().String(),
+				Address:  rndr.IPv4Net.GetNatLoopbackIP().String(),
 				VrfId:    ^uint32(0),
 				TwiceNat: true,
 			})
@@ -437,14 +437,14 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 					LocalPort: uint32(backend.Port),
 				}
 				if backend.Local {
-					local.Probability = uint32(rndr.Contiv.GetServiceLocalEndpointWeight())
+					local.Probability = uint32(rndr.IPv4Net.GetServiceLocalEndpointWeight())
 				} else {
 					local.Probability = 1
 				}
 				if rndr.isNodeLocalIP(backend.IP) {
-					local.VrfId = rndr.Contiv.GetMainVrfID()
+					local.VrfId = rndr.IPv4Net.GetMainVrfID()
 				} else {
-					local.VrfId = rndr.Contiv.GetPodVrfID()
+					local.VrfId = rndr.IPv4Net.GetPodVrfID()
 				}
 				mapping.LocalIps = append(mapping.LocalIps, local)
 			}
@@ -464,12 +464,12 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 
 // isNodeLocalIP returns true if the given IP is local to the current node, false otherwise.
 func (rndr *Renderer) isNodeLocalIP(ip net.IP) bool {
-	nodeIP, _ := rndr.Contiv.GetNodeIP()
+	nodeIP, _ := rndr.IPv4Net.GetNodeIP()
 	if ip.Equal(nodeIP) {
 		return true
 	}
 
-	for _, hostIP := range rndr.Contiv.GetHostIPs() {
+	for _, hostIP := range rndr.IPv4Net.GetHostIPs() {
 		if hostIP.Equal(ip) {
 			return true
 		}
@@ -492,19 +492,19 @@ func (rndr *Renderer) exportIdentityMappings() *nat.DNat44 {
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.DNat44_UDP,
 			Port:      vxlanPort,
-			VrfId:     rndr.Contiv.GetMainVrfID(),
+			VrfId:     rndr.IPv4Net.GetMainVrfID(),
 		}
 		/* identity NAT for the VXLAN tunnel - outgoing packets */
 		mainIfID1 := &nat.DNat44_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.DNat44_UDP, /* Address-only mappings are dumped with UDP as protocol */
-			VrfId:     rndr.Contiv.GetPodVrfID(),
+			VrfId:     rndr.IPv4Net.GetPodVrfID(),
 		}
 		/* identity NAT for the STN (host-facing) traffic */
 		mainIfID2 := &nat.DNat44_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.DNat44_UDP, /* Address-only mappings are dumped with UDP as protocol */
-			VrfId:     rndr.Contiv.GetMainVrfID(),
+			VrfId:     rndr.IPv4Net.GetMainVrfID(),
 		}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
 		idNat.IdMappings = append(idNat.IdMappings, mainIfID1)
@@ -523,12 +523,12 @@ func (rndr *Renderer) Close() error {
 // This should be removed once VPP supports timing out of the NAT sessions.
 func (rndr *Renderer) idleNATSessionCleanup() {
 	// run only if requested
-	if !rndr.Contiv.CleanupIdleNATSessions() {
+	if !rndr.IPv4Net.CleanupIdleNATSessions() {
 		return
 	}
 
-	tcpTimeout := time.Duration(rndr.Contiv.GetTCPNATSessionTimeout()) * time.Minute
-	otherTimeout := time.Duration(rndr.Contiv.GetOtherNATSessionTimeout()) * time.Minute
+	tcpTimeout := time.Duration(rndr.IPv4Net.GetTCPNATSessionTimeout()) * time.Minute
+	otherTimeout := time.Duration(rndr.IPv4Net.GetOtherNATSessionTimeout()) * time.Minute
 	if tcpTimeout == 0 {
 		tcpTimeout = defaultIdleTCPTimeout
 	}

@@ -15,6 +15,7 @@
 package descriptor
 
 import (
+	"fmt"
 	"net"
 	"reflect"
 	"strconv"
@@ -771,6 +772,9 @@ func (d *InterfaceDescriptor) dumpInterfaces(nsList []*namespace.NetNamespace, g
 
 		// dump every interface managed by this agent
 		for _, link := range links {
+			if nsRef == nil {
+				fmt.Printf("Found link in default ns: %s\n", link.Attrs().Name)
+			}
 			intf := &interfaces.Interface{
 				Namespace:   nsRef,
 				HostIfName:  link.Attrs().Name,

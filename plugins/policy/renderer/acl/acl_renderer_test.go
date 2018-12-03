@@ -27,10 +27,10 @@ import (
 	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 
 	. "github.com/contiv/vpp/mock/aclengine"
-	. "github.com/contiv/vpp/mock/contiv"
+	. "github.com/contiv/vpp/mock/ipv4net"
 	"github.com/contiv/vpp/mock/localclient"
-	"github.com/contiv/vpp/plugins/contiv"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
 	. "github.com/contiv/vpp/plugins/policy/renderer/testdata"
@@ -89,13 +89,13 @@ func updateTxnFactory(txnTracker *localclient.TxnTracker) func() controller.Upda
 	}
 }
 
-func verifyReflectiveACL(engine *MockACLEngine, contiv contiv.API, ifName string, onOutputIfs bool, expectedToHave bool) {
+func verifyReflectiveACL(engine *MockACLEngine, ipv4Net ipv4net.API, ifName string, onOutputIfs bool, expectedToHave bool) {
 	ifs := []string{}
 	if onOutputIfs {
-		ifs = contiv.GetOtherPhysicalIfNames()
-		ifs = append(ifs, contiv.GetVxlanBVIIfName())
-		ifs = append(ifs, contiv.GetMainPhysicalIfName())
-		ifs = append(ifs, contiv.GetHostInterconnectIfName())
+		ifs = ipv4Net.GetOtherPhysicalIfNames()
+		ifs = append(ifs, ipv4Net.GetVxlanBVIIfName())
+		ifs = append(ifs, ipv4Net.GetMainPhysicalIfName())
+		ifs = append(ifs, ipv4Net.GetHostInterconnectIfName())
 	}
 	ifs = append(ifs, ifName)
 
@@ -127,11 +127,11 @@ func verifyReflectiveACL(engine *MockACLEngine, contiv contiv.API, ifName string
 	gomega.Expect(ipRule.Udp).To(gomega.BeNil())
 }
 
-func verifyGlobalTable(engine *MockACLEngine, contiv contiv.API, expectedToHave bool) {
-	ifs := contiv.GetOtherPhysicalIfNames()
-	ifs = append(ifs, contiv.GetVxlanBVIIfName())
-	ifs = append(ifs, contiv.GetMainPhysicalIfName())
-	ifs = append(ifs, contiv.GetHostInterconnectIfName())
+func verifyGlobalTable(engine *MockACLEngine, ipv4Net ipv4net.API, expectedToHave bool) {
+	ifs := ipv4Net.GetOtherPhysicalIfNames()
+	ifs = append(ifs, ipv4Net.GetVxlanBVIIfName())
+	ifs = append(ifs, ipv4Net.GetMainPhysicalIfName())
+	ifs = append(ifs, ipv4Net.GetHostInterconnectIfName())
 
 	acl := engine.GetACLByName(ACLNamePrefix + cache.GlobalTableID)
 	if !expectedToHave {
@@ -159,15 +159,15 @@ func TestEgressRulesOnePod(t *testing.T) {
 	egress := []*renderer.ContivRule{Ts5.Rule1 /* UDP, OTHER not allowed */, Ts5.Rule2}
 
 	// Prepare mocks.
-	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodIfName(Pod1, Pod1IfName)
+	//  -> IPv4Net plugin
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodIfName(Pod1, Pod1IfName)
 
 	// -> ACL engine
-	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine := NewMockACLEngine(logger, ipv4Net)
 	aclEngine.RegisterPod(Pod1, Pod1IP, false)
 	aclEngine.RegisterPod(Pod6, Pod6IP, true)
 
@@ -178,7 +178,7 @@ func TestEgressRulesOnePod(t *testing.T) {
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -193,8 +193,8 @@ func TestEgressRulesOnePod(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(2))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, false, true)
-	verifyGlobalTable(aclEngine, contiv, false)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod1IfName, false, true)
+	verifyGlobalTable(aclEngine, ipv4Net, false)
 
 	// Test connections (Pod1 can receive connection only from 10.10.0.0/16:[TCP:ANY]).
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
@@ -232,15 +232,15 @@ func TestIngressRulesOnePod(t *testing.T) {
 	egress := []*renderer.ContivRule{}
 
 	// Prepare mocks.
-	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodIfName(Pod1, Pod1IfName)
+	//  -> IPv4Net plugin
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodIfName(Pod1, Pod1IfName)
 
 	// -> ACL engine
-	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine := NewMockACLEngine(logger, ipv4Net)
 	aclEngine.RegisterPod(Pod1, Pod1IP, false)
 	aclEngine.RegisterPod(Pod6, Pod6IP, true)
 
@@ -251,7 +251,7 @@ func TestIngressRulesOnePod(t *testing.T) {
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -266,8 +266,8 @@ func TestIngressRulesOnePod(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(3))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
-	verifyGlobalTable(aclEngine, contiv, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod1IfName, true, true)
+	verifyGlobalTable(aclEngine, ipv4Net, true)
 
 	// Test connections (Pod1 can initiate connection only to 10.10.0.0/16:[TCP:ANY]).
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
@@ -309,16 +309,16 @@ func TestEgressRulesTwoPods(t *testing.T) {
 	egress := []*renderer.ContivRule{Ts5.Rule1 /* UDP, OTHER not allowed */, Ts5.Rule2}
 
 	// Prepare mocks.
-	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodIfName(Pod1, Pod1IfName)
-	contiv.SetPodIfName(Pod2, Pod2IfName)
+	//  -> IPv4Net plugin
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodIfName(Pod1, Pod1IfName)
+	ipv4Net.SetPodIfName(Pod2, Pod2IfName)
 
 	// -> ACL engine
-	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine := NewMockACLEngine(logger, ipv4Net)
 	aclEngine.RegisterPod(Pod1, Pod1IP, false)
 	aclEngine.RegisterPod(Pod2, Pod2IP, false)
 	aclEngine.RegisterPod(Pod6, Pod6IP, true)
@@ -330,7 +330,7 @@ func TestEgressRulesTwoPods(t *testing.T) {
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -349,9 +349,9 @@ func TestEgressRulesTwoPods(t *testing.T) {
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(2)) /* pod1 and pod2 should share the same local table */
 	gomega.Expect(aclEngine.GetNumOfACLChanges()).To(gomega.Equal(2))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, false, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod2IfName, false, true)
-	verifyGlobalTable(aclEngine, contiv, false)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod1IfName, false, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod2IfName, false, true)
+	verifyGlobalTable(aclEngine, ipv4Net, false)
 
 	// Test connections (Pod1, Pod2 can receive connection only from 10.10.0.0/16:[TCP:ANY]).
 	//  -> dst = pod1
@@ -392,9 +392,9 @@ func TestEgressRulesTwoPods(t *testing.T) {
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(2))
 	gomega.Expect(aclEngine.GetNumOfACLChanges()).To(gomega.Equal(4)) /* changed interfaces for local table + reflective ACL */
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, false, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod2IfName, false, false)
-	verifyGlobalTable(aclEngine, contiv, false)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod1IfName, false, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod2IfName, false, false)
+	verifyGlobalTable(aclEngine, ipv4Net, false)
 }
 
 func TestCombinedRules(t *testing.T) {
@@ -421,16 +421,16 @@ func TestCombinedRules(t *testing.T) {
 	}
 
 	// Prepare mocks.
-	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodIfName(Pod1, Pod1IfName)
-	contiv.SetPodIfName(Pod3, Pod3IfName)
+	//  -> IPv4Net plugin
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodIfName(Pod1, Pod1IfName)
+	ipv4Net.SetPodIfName(Pod3, Pod3IfName)
 
 	// -> ACL engine
-	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine := NewMockACLEngine(logger, ipv4Net)
 	aclEngine.RegisterPod(Pod1, Pod1IP, false)
 	aclEngine.RegisterPod(Pod3, Pod3IP, false)
 	aclEngine.RegisterPod(Pod6, Pod6IP, true)
@@ -442,7 +442,7 @@ func TestCombinedRules(t *testing.T) {
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -460,9 +460,9 @@ func TestCombinedRules(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, true)
-	verifyGlobalTable(aclEngine, contiv, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod3IfName, true, true)
+	verifyGlobalTable(aclEngine, ipv4Net, true)
 
 	// Test connections.
 	// -> src = pod1
@@ -511,9 +511,9 @@ func TestCombinedRules(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, true)
-	verifyGlobalTable(aclEngine, contiv, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod3IfName, true, true)
+	verifyGlobalTable(aclEngine, ipv4Net, true)
 
 	// Test connections.
 	// -> src = pod1
@@ -577,16 +577,16 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	}
 
 	// Prepare mocks.
-	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodIfName(Pod1, Pod1IfName)
-	contiv.SetPodIfName(Pod3, Pod3IfName)
+	//  -> IPv4Net plugin
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodIfName(Pod1, Pod1IfName)
+	ipv4Net.SetPodIfName(Pod3, Pod3IfName)
 
 	// -> ACL engine
-	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine := NewMockACLEngine(logger, ipv4Net)
 	aclEngine.RegisterPod(Pod1, Pod1IP, false)
 	aclEngine.RegisterPod(Pod3, Pod3IP, false)
 	aclEngine.RegisterPod(Pod6, Pod6IP, true)
@@ -598,7 +598,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -618,8 +618,8 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	txnTracker = localclient.NewTxnTracker(aclEngine.ApplyTxn)
 	aclRenderer = &Renderer{
 		Deps: Deps{
-			Log:    logger,
-			Contiv: contiv,
+			Log:     logger,
+			IPv4Net: ipv4Net,
 			ResyncTxnFactory: func() controller.ResyncOperations {
 				vppTxn = txnTracker.NewControllerTxn(true)
 				isResync = true
@@ -646,9 +646,9 @@ func TestCombinedRulesWithResync(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, true)
-	verifyGlobalTable(aclEngine, contiv, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod3IfName, true, true)
+	verifyGlobalTable(aclEngine, ipv4Net, true)
 
 	// Test connections.
 	// -> src = pod1
@@ -700,9 +700,9 @@ func TestCombinedRulesWithResync(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, true)
-	verifyGlobalTable(aclEngine, contiv, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod3IfName, true, true)
+	verifyGlobalTable(aclEngine, ipv4Net, true)
 
 	// Test connections.
 	// -> src = pod1
@@ -761,16 +761,16 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	}
 
 	// Prepare mocks.
-	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodIfName(Pod1, Pod1IfName)
-	contiv.SetPodIfName(Pod3, Pod3IfName)
+	//  -> IPv4Net plugin
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodIfName(Pod1, Pod1IfName)
+	ipv4Net.SetPodIfName(Pod3, Pod3IfName)
 
 	// -> ACL engine
-	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine := NewMockACLEngine(logger, ipv4Net)
 	aclEngine.RegisterPod(Pod1, Pod1IP, false)
 	aclEngine.RegisterPod(Pod3, Pod3IP, false)
 	aclEngine.RegisterPod(Pod6, Pod6IP, true)
@@ -782,7 +782,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -803,7 +803,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	aclRenderer = &Renderer{
 		Deps: Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -821,9 +821,9 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(3))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, false)
-	verifyGlobalTable(aclEngine, contiv, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod3IfName, true, false)
+	verifyGlobalTable(aclEngine, ipv4Net, true)
 
 	// Test connections (removed pod3 = no ACLs assigned to pod3).
 	// -> src = pod1
@@ -877,9 +877,9 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, true)
-	verifyGlobalTable(aclEngine, contiv, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod3IfName, true, true)
+	verifyGlobalTable(aclEngine, ipv4Net, true)
 
 	// Test connections.
 	// -> src = pod1
@@ -938,16 +938,16 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 	}
 
 	// Prepare mocks.
-	//  -> Contiv plugin
-	contiv := NewMockContiv()
-	contiv.SetMainPhysicalIfName(mainIfName)
-	contiv.SetVxlanBVIIfName(vxlanIfName)
-	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodIfName(Pod1, Pod1IfName)
-	contiv.SetPodIfName(Pod3, Pod3IfName)
+	//  -> IPv4Net plugin
+	ipv4Net := NewMockIPv4Net()
+	ipv4Net.SetMainPhysicalIfName(mainIfName)
+	ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	ipv4Net.SetPodIfName(Pod1, Pod1IfName)
+	ipv4Net.SetPodIfName(Pod3, Pod3IfName)
 
 	// -> ACL engine
-	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine := NewMockACLEngine(logger, ipv4Net)
 	aclEngine.RegisterPod(Pod1, Pod1IP, false)
 	aclEngine.RegisterPod(Pod3, Pod3IP, false)
 	aclEngine.RegisterPod(Pod6, Pod6IP, true)
@@ -959,7 +959,7 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -987,9 +987,9 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(3))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, false)
-	verifyGlobalTable(aclEngine, contiv, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, ipv4Net, Pod3IfName, true, false)
+	verifyGlobalTable(aclEngine, ipv4Net, true)
 
 	// Test connections (removed pod3 = no ACLs assigned to pod3).
 	// -> src = pod1
@@ -1041,6 +1041,6 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(0)) /* all ACLs cleaned up */
-	verifyReflectiveACL(aclEngine, contiv, "", false, false)
-	verifyGlobalTable(aclEngine, contiv, false)
+	verifyReflectiveACL(aclEngine, ipv4Net, "", false, false)
+	verifyGlobalTable(aclEngine, ipv4Net, false)
 }

@@ -24,7 +24,7 @@ import (
 	"github.com/ligato/cn-infra/logging/logrus"
 	. "github.com/onsi/gomega"
 
-	"github.com/contiv/vpp/plugins/contiv/ipam"
+	"github.com/contiv/vpp/plugins/ipv4net/ipam"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 

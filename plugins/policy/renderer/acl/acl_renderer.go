@@ -107,10 +107,10 @@ func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 // Te actual change is performed only after the commit.
 func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule, removed bool) renderer.Txn {
 	art.renderer.Log.WithFields(logging.Fields{
-		"pod":     pod,
-		"ingress": ingress,
-		"egress":  egress,
-		"removed": removed,
+		"pod":           pod,
+		"ingress-count": len(ingress),
+		"egress-count":  len(egress),
+		"removed":       removed,
 	}).Debug("ACL RendererTxn Render()")
 
 	art.cacheTxn.Update(pod, &cache.PodConfig{PodIP: podIP, Ingress: ingress, Egress: egress, Removed: removed})

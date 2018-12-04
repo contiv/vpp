@@ -5,6 +5,8 @@ export class K8sEndpointSubsetModel {
   public addresses: K8sEndpointSubsetData[];
 
   constructor(data: any) {
-    this.addresses = data.addresses.map(d => new K8sEndpointSubsetData(d));
+    if (data.addresses) {
+      this.addresses = data.addresses.map(d => new K8sEndpointSubsetData(d));
+    }
   }
 }

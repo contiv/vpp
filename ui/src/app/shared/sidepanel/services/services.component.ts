@@ -120,7 +120,11 @@ export class ServicesComponent implements OnInit, OnDestroy {
   }
 
   public onRender() {
-    this.selectedEndpoint.subsets.forEach(s => s.addresses.forEach(a => this.topologyHighlightService.highlightNode(a.podName)));
+    this.selectedEndpoint.subsets.forEach(s => {
+      if (s.addresses) {
+        s.addresses.forEach(a => this.topologyHighlightService.highlightNode(a.podName));
+      }
+    });
   }
 
   public highlightEndpoint(podId: string) {

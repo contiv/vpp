@@ -29,15 +29,20 @@ import (
 )
 
 const (
-	podGatewaySeqID = 1 // sequence ID reserved for the gateway in POD IP subnet (cannot be assigned to any POD)
+	// sequence ID reserved for the gateway in POD IP subnet (cannot be assigned to any POD)
+	podGatewaySeqID = 1
 
-	hostInterconnectInVPPIPSeqID   = 1 // sequence ID reserved for VPP-end of the VPP to host interconnect
-	hostInterconnectInLinuxIPSeqID = 2 // sequence ID reserved for host(Linux)-end of the VPP to host interconnect
+	// sequence ID reserved for VPP-end of the VPP to host interconnect
+	hostInterconnectInVPPIPSeqID   = 1
 
-	defaultServiceCIDR = "10.96.0.0/12" // default subnet allocated for services
+	// sequence ID reserved for host(Linux)-end of the VPP to host interconnect
+	hostInterconnectInLinuxIPSeqID = 2
+
+	// default subnet allocated for services
+	defaultServiceCIDR = "10.96.0.0/12"
 )
 
-// IPAM implements IP address allocation for Contiv.
+// IPAM plugin implements IP address allocation for Contiv.
 type IPAM struct {
 	mutex sync.RWMutex
 
@@ -72,20 +77,6 @@ type IPAM struct {
 }
 
 type uintIP = uint32
-
-// Config represents configuration of the IPAM module.
-type Config struct {
-	PodVPPSubnetCIDR              string `json:"podVPPSubnetCIDR"`              // subnet from which individual VPP-side POD interfaces networks are allocated, this subnet is reused by every node.
-	PodSubnetCIDR                 string `json:"podSubnetCIDR"`                 // subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
-	PodSubnetOneNodePrefixLen     uint8  `json:"podSubnetOneNodePrefixLen"`     // prefix length of subnet used for all PODs within 1 node (pod network = pod subnet for one 1 node)
-	VPPHostSubnetCIDR             string `json:"vppHostSubnetCIDR"`             // subnet used across all nodes for VPP to host Linux stack interconnect
-	VPPHostSubnetOneNodePrefixLen uint8  `json:"vppHostSubnetOneNodePrefixLen"` // prefix length of subnet used for for VPP to host Linux stack interconnect within 1 node (VPPHost network = VPPHost subnet for one 1 node)
-	NodeInterconnectCIDR          string `json:"nodeInterconnectCIDR"`          // subnet used for for inter-node connections
-	NodeInterconnectDHCP          bool   `json:"nodeInterconnectDHCP"`          // if set to true DHCP is used to acquire IP for the main VPP interface (NodeInterconnectCIDR can be omitted in config)
-	VxlanCIDR                     string `json:"vxlanCIDR"`                     // subnet used for for inter-node VXLAN
-	ServiceCIDR                   string `json:"serviceCIDR"`                   // subnet used by services
-	ContivCIDR                    string `json:"contivCIDR"`                    // subnet from which all subnets (pod/node/vxlan) will be created
-}
 
 // New returns new IPAM module to be used on the node specified by the nodeID.
 func New(logger logging.Logger, nodeSync nodesync.API, config *Config, nodeInterconnectExcludedIPs []net.IP) (*IPAM, error) {

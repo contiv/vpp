@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package contivconf
 
 import (
 	"fmt"
@@ -22,7 +22,6 @@ import (
 	"math/big"
 	"net"
 
-	"github.com/contiv/vpp/plugins/ipv4net/ipam"
 	"github.com/contiv/vpp/plugins/ksr"
 
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
@@ -30,34 +29,26 @@ import (
 )
 
 // Config represents configuration for the Contiv agent.
-// It can be injected or loaded from external config file. Injection has priority to external config. To use external
-// config file, add `-contiv-config="<path to config>` argument when running the contiv-agent.
+// It can be injected or loaded from external config file.
+// Injection has priority to external config. To use external config file,
+// add `-contiv-config="<path to config>` argument when running the contiv-agent.
 type Config struct {
-	UseL2Interconnect           bool
-	UseTAPInterfaces            bool
-	TAPInterfaceVersion         uint8
-	TAPv2RxRingSize             uint16
-	TAPv2TxRingSize             uint16
-	MTUSize                     uint32
-	StealFirstNIC               bool
-	StealInterface              string
-	STNSocketFile               string
-	TCPChecksumOffloadDisabled  bool
-	NatExternalTraffic          bool   // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
-	CleanupIdleNATSessions      bool   // if enabled, the agent will periodically check for idle NAT sessions and delete inactive ones
-	TCPNATSessionTimeout        uint32 // NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on
-	OtherNATSessionTimeout      uint32 // NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on
-	ScanIPNeighbors             bool   // if enabled, periodically scans and probes IP neighbors to maintain the ARP table
-	IPNeighborScanInterval      uint8
-	IPNeighborStaleThreshold    uint8
-	MainVRFID                   uint32
-	PodVRFID                    uint32
-	ServiceLocalEndpointWeight  uint8
-	DisableNATVirtualReassembly bool // if true, NAT plugin will drop fragmented packets
-	EnablePacketTrace           bool
-	RouteServiceCIDRToVPP       bool // if true, cluster IP CIDR will be routed towards VPP from Linux
-	IPAMConfig                  ipam.Config
-	NodeConfig                  []NodeConfig
+	InterfaceConfig
+	RoutingConfig
+	IPNeighborScanConfig
+	STNConfig
+
+	NatExternalTraffic bool
+	EnablePacketTrace  bool
+
+	NodeConfig []NodeConfig
+}
+
+// STNConfig groups config options related to STN (Steal-the-NIC).
+type STNConfig struct {
+	StealFirstNIC  bool
+	StealInterface string
+	STNSocketFile  string
 }
 
 // NodeConfig represents configuration specific to a given node.
@@ -70,6 +61,39 @@ type NodeConfig struct {
 // for the purpose of reading CRD-defined node configuration.
 type KVBrokerFactory interface {
 	NewBroker(keyPrefix string) keyval.ProtoBroker
+}
+
+// LoadNodeConfigFromCRD loads node configuration defined via CRD, which was reflected
+// into a remote kv-store by contiv-crd and mirrored into local kv-store by the agent.
+func LoadNodeConfigFromCRD(nodeName string, remoteDB, localDB KVBrokerFactory, log logging.Logger) *NodeConfig {
+	var (
+		nodeConfigProto *nodeconfig.NodeConfig
+		err             error
+	)
+	// try remote kv-store first
+	if remoteDB != nil {
+		nodeConfigProto, err = loadNodeConfigFromKVStore(nodeName, remoteDB)
+		if err != nil {
+			log.WithField("err", err).Warn("Failed to read node configuration from remote KV-store")
+		}
+	}
+
+	if (remoteDB == nil || err != nil) && localDB != nil {
+		// try the local mirror of the kv-store
+		nodeConfigProto, err = loadNodeConfigFromKVStore(nodeName, localDB)
+		if err != nil {
+			log.WithField("err", err).Warn("Failed to read node configuration from local KV-store")
+		}
+	}
+
+	if nodeConfigProto == nil {
+		log.Debug("Node configuration is not provided via CRD")
+		return nil
+	}
+
+	nodeConfig := nodeConfigFromProto(nodeConfigProto)
+	log.Debug("Node configuration loaded from CRD: %v", nodeConfig)
+	return nodeConfig
 }
 
 // ApplyDefaults stores default values to undefined configuration fields.
@@ -145,39 +169,6 @@ func (cfg *Config) GetNodeConfig(nodeName string) *NodeConfig {
 		}
 	}
 	return nil
-}
-
-// LoadNodeConfigFromCRD loads node configuration defined via CRD, which was reflected
-// into a remote kv-store by contiv-crd and mirrored into local kv-store by the agent.
-func LoadNodeConfigFromCRD(nodeName string, remoteDB, localDB KVBrokerFactory, log logging.Logger) *NodeConfig {
-	var (
-		nodeConfigProto *nodeconfig.NodeConfig
-		err             error
-	)
-	// try remote kv-store first
-	if remoteDB != nil {
-		nodeConfigProto, err = loadNodeConfigFromKVStore(nodeName, remoteDB)
-		if err != nil {
-			log.WithField("err", err).Warn("Failed to read node configuration from remote KV-store")
-		}
-	}
-
-	if (remoteDB == nil || err != nil) && localDB != nil {
-		// try the local mirror of the kv-store
-		nodeConfigProto, err = loadNodeConfigFromKVStore(nodeName, localDB)
-		if err != nil {
-			log.WithField("err", err).Warn("Failed to read node configuration from local KV-store")
-		}
-	}
-
-	if nodeConfigProto == nil {
-		log.Debug("Node configuration is not provided via CRD")
-		return nil
-	}
-
-	nodeConfig := nodeConfigFromProto(nodeConfigProto)
-	log.Debug("Node configuration loaded from CRD: %v", nodeConfig)
-	return nodeConfig
 }
 
 // loadNodeConfigFromKVStore loads node configuration defined via CRD and mirrored into a given KV-store.

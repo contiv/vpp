@@ -50,22 +50,6 @@ type Node struct {
 // Nodes is a map of node-name -> Node info.
 type Nodes map[string]*Node
 
-// IPWithNetwork encapsulates IP address with the network address.
-type IPWithNetwork struct {
-	Address net.IP
-	Network *net.IPNet
-}
-
-// IPVersion is either v4 or v6.
-type IPVersion int
-
-const (
-	// IPv4 represents IP version 4.
-	IPv4 IPVersion = iota
-	// IPv6 represents IP version 6.
-	IPv6
-)
-
 // String returns a string representation of the node.
 func (n *Node) String() string {
 	if n == nil {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package ipam
 
 import (
 	"github.com/contiv/vpp/plugins/ipv4net/ipam"
@@ -31,7 +31,7 @@ type ipamData struct {
 	NodeID            uint32       `json:"nodeId"`
 	NodeName          string       `json:"nodeName"`
 	NodeIP            string       `json:"nodeIP"`
-	PodSubnetThisNode string       `json:"podNetwork"`
+	PodSubnetThisNode string       `json:"podSubnetThisNode"`
 	VppHostNetwork    string       `json:"vppHostNetwork"`
 	Config            *ipam.Config `json:"config"`
 }

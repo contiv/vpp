@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package contivconf
 
 import (
 	"github.com/contiv/vpp/plugins/ipv4net/ipam"

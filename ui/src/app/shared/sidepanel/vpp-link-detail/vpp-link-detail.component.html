@@ -1,0 +1,13 @@
+<div class="spinner-wrap" *ngIf="!domain">
+  <span class="spinner">
+    Loading...
+  </span>
+</div>
+
+<div class="wrap" *ngIf="domain">
+  <h5>{{domain.vswitch.name}}</h5>
+  <app-form [data]="ifaceData"></app-form>
+
+  <h5>{{pod.name}}</h5>
+  <app-form [data]="podData"></app-form>
+</div>

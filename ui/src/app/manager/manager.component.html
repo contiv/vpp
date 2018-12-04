@@ -1,0 +1,19 @@
+<div id="wrap">
+  <div class="diagram">
+    <img src="/assets/img/policy-plugin-layers.png" alt="policy" *ngIf="isPolicyRoute()">
+    <img src="/assets/img/service-plugin-layers.png" alt="policy" *ngIf="!isPolicyRoute()">
+  </div>
+  <div class="sidepanel" [ngClass]="{'open': isSidepanelOpen}">
+    <nav class="subnav">
+      <ul class="nav">
+        <li class="nav-item">
+          <a class="nav-link" routerLink="policy" routerLinkActive="active">Policy</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" routerLink="service" routerLinkActive="active">Service</a>
+        </li>
+      </ul>
+    </nav>
+    <app-sidepanel></app-sidepanel>
+  </div>
+</div>

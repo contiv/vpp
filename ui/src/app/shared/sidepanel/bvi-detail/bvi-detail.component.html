@@ -1,0 +1,14 @@
+<div class="spinner-wrap" *ngIf="!domain">
+  <span class="spinner">
+    Loading...
+  </span>
+</div>
+
+<div class="wrap" *ngIf="domain">
+  <h5>{{bvi.name}} - {{domain.vswitch.name}}</h5>
+  <app-form [data]="bviData"></app-form>
+  <div *ngFor="let vxlanData of vxlansData; let i = index">
+    <h5>{{vxlans[i].name}}</h5>
+    <app-form [data]="vxlanData"></app-form>
+  </div>
+</div>

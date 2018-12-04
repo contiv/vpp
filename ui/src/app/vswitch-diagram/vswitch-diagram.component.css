@@ -1,0 +1,41 @@
+#wrap {
+  width: 100%;
+  height: auto;
+  min-height: calc(100% - 96px);
+  position: absolute;
+  overflow: hidden;
+}
+
+.vswitch-version {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+}
+
+.content {
+  width: calc(100% - 500px);
+  padding-bottom: 40px;
+}
+
+.datagrid-wrap {
+  width: 100%;
+  padding: 15px;
+  display: flex;
+  justify-content: center;
+}
+
+.datagrid-wrap .datagrid-host {
+  padding-top: 0 !important;
+  min-width: 550px;
+  border: 2px solid #cccccc;
+}
+
+.datagrid-label {
+  border: 2px solid #cccccc;
+  padding: 10px;
+  width: 100px;
+  display: flex;
+  align-items: center;
+  font-weight: bold;
+  margin-right: 20px;
+}

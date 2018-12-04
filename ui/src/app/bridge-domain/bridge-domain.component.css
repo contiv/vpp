@@ -1,0 +1,58 @@
+#wrap {
+  width: 100%;
+  height: calc(100% - 96px);
+  position: absolute;
+  overflow: hidden;
+}
+
+clr-dropdown {
+  position: absolute !important;
+  top: 0;
+  right: 510px;
+  transition: right 0.3s linear;
+}
+
+clr-dropdown.spClosed {
+  right: 0;
+}
+
+.topo-heading {
+  width: calc(100% - 500px);
+  transition: width 0.3s linear;
+}
+
+.topo-heading.spClosed {
+  width: 100%
+}
+
+#bd-btn-group {
+  text-align: right;
+  position: absolute;
+  bottom: 30px;
+  right: 30px;
+  transition: right 0.3s linear;
+}
+
+#bd-btn-group .btn {
+  width: 110px;
+}
+
+#bd-btn-group .btn:not(.btn-primary) {
+  background-color: #17242b;
+}
+
+#bd-btn-group.spOpened {
+  right: 520px;
+}
+
+.table-wrap {
+  position: absolute;
+  top: 150px;
+  right: 50px;
+  transform: translateX(800px);
+  transition: transform 0.3s linear;
+}
+
+.table-wrap.opened {
+  transform: translateX(0);
+}

@@ -1,0 +1,14 @@
+<div class="spinner-wrap" *ngIf="!domain">
+  <span class="spinner">
+    Loading...
+  </span>
+</div>
+
+<div class="wrap" *ngIf="domain">
+  <h5>{{domain.node.name}}</h5>
+  <app-form [data]="formData"></app-form>
+
+  <div class="buttons btn-group">
+    <button class="btn" (click)="showIPAM()">Show IPAM</button>
+  </div>
+</div>

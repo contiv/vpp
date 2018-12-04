@@ -1,0 +1,10 @@
+<div class="spinner-wrap" *ngIf="!pod">
+  <span class="spinner">
+    Loading...
+  </span>
+</div>
+
+<div class="wrap" *ngIf="pod">
+  <h5>{{pod.name}}</h5>
+  <app-form [data]="formData"></app-form>
+</div>

@@ -1,0 +1,58 @@
+<div id="wrap">
+  <div *ngIf="isSummary">
+    <h4>Summary</h4>
+    <clr-datagrid *ngIf="summaryObj.length">
+      <clr-dg-column [clrDgSortBy]="'node'">Node</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'bviIp'">BVI IP</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'vrf'">VRF</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'vni'">VNI</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'poddCount'">Pod Count</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'vxlansCount'">VXLAN Tunnel Count</clr-dg-column>
+
+      <clr-dg-row *clrDgItems="let row of summaryObj">
+        <clr-dg-cell>{{row.node}}</clr-dg-cell>
+        <clr-dg-cell>{{row.bviIp}}</clr-dg-cell>
+        <clr-dg-cell>{{row.vrf}}</clr-dg-cell>
+        <clr-dg-cell>{{row.vni}}</clr-dg-cell>
+        <clr-dg-cell>{{row.podsCount}}</clr-dg-cell>
+        <clr-dg-cell>{{row.vxlansCount}}</clr-dg-cell>
+      </clr-dg-row>
+    </clr-datagrid>
+  </div>
+
+  <div *ngIf="isPods">
+    <h4>Pods</h4>
+    <clr-datagrid *ngIf="podsObj.length">
+      <clr-dg-column [clrDgSortBy]="'name'">Name</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'iface'">Interface</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'ip'">Pod IP</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'node'">Node</clr-dg-column>
+
+      <clr-dg-row *clrDgItems="let row of podsObj">
+        <clr-dg-cell>{{row.name}}</clr-dg-cell>
+        <clr-dg-cell>{{row.iface}}</clr-dg-cell>
+        <clr-dg-cell>{{row.ip}}</clr-dg-cell>
+        <clr-dg-cell>{{row.node}}</clr-dg-cell>
+      </clr-dg-row>
+    </clr-datagrid>
+  </div>
+
+  <div *ngIf="isTunnels">
+    <h4>Tunnels</h4>
+    <clr-datagrid *ngIf="tunnelsObj.length">
+      <clr-dg-column [clrDgSortBy]="'srcNode'">Source Node</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'dstNode'">Destination Node</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'name'">Name</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'srcIP'">Source IP</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'dstIP'">Destiantion IP</clr-dg-column>
+
+      <clr-dg-row *clrDgItems="let row of tunnelsObj">
+        <clr-dg-cell>{{row.srcNode}}</clr-dg-cell>
+        <clr-dg-cell>{{row.dstNode}}</clr-dg-cell>
+        <clr-dg-cell>{{row.name}}</clr-dg-cell>
+        <clr-dg-cell>{{row.srcIP}}</clr-dg-cell>
+        <clr-dg-cell>{{row.dstIP}}</clr-dg-cell>
+      </clr-dg-row>
+    </clr-datagrid>
+  </div>
+</div>

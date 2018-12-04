@@ -162,6 +162,10 @@ data:
 # This installs the contiv-etcd (ETCD server to be used by Contiv) on the master node in a Kubernetes cluster.
 # In odrer to dump the content of ETCD, you can use the kubectl exec command similar to this:
 #   kubectl exec contiv-etcd-cxqhr -n kube-system etcdctl -- get --endpoints=[127.0.0.1:12379] --prefix="true" ""
+{{- define "utils.commaseparated" -}}
+{{- $local := dict "first" true -}}
+{{- range $k, $v := . -}}{{- if not $local.first -}},{{- end -}}{{- $v -}}{{- $_ := set $local "first" false -}}{{- end -}}
+{{- end }}
 apiVersion: apps/v1beta2
 kind: StatefulSet
 metadata:
@@ -235,6 +239,9 @@ spec:
               --peer-client-cert-auth --peer-trusted-ca-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}
               --peer-cert-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverCert }} --peer-key-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverKey }}
               --advertise-client-urls=https://0.0.0.0:12379 --listen-client-urls=https://0.0.0.0:12379 --listen-peer-urls=https://0.0.0.0:12380
+              {{- if .Values.etcd.cipherSuites }}
+              --cipher-suites {{ include "utils.commaseparated" .Values.etcd.cipherSuites }}
+              {{- end }}
             {{- else }}
               --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380
             {{- end }}

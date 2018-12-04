@@ -17,6 +17,7 @@ package ipv4net
 import (
 	"fmt"
 	"net"
+	"sort"
 
 	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
@@ -188,9 +189,15 @@ func (n *IPv4Net) configureMainVPPInterface(event controller.Event, physicalIfac
 	}
 
 	if nicName == "" {
-		// name not specified in config, use heuristic - select first non-virtual interface
+		// name not specified in config, use heuristic - select first non-virtual interface (first by index)
+		var nicIdxs []int
+		for nicIdx := range physicalIfaces {
+			nicIdxs = append(nicIdxs, int(nicIdx))
+		}
+		sort.Ints(nicIdxs)
 	nextNIC:
-		for _, physicalIface := range physicalIfaces {
+		for _, nicIdx := range nicIdxs {
+			physicalIface := physicalIfaces[uint32(nicIdx)]
 			// exclude "other" (non-main) NICs
 			if n.thisNodeConfig != nil {
 				for _, otherNIC := range n.thisNodeConfig.OtherVPPInterfaces {

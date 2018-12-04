@@ -16,8 +16,6 @@ package kvscheduler
 
 import (
 	"sort"
-	"fmt"
-	"time"
 
 	"github.com/ligato/cn-infra/logging"
 	. "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
@@ -55,11 +53,6 @@ func (args *applyValueArgs) addFailed(key string, retriable bool) {
 // If <dry-run> is enabled, Add/Delete/Update/Modify operations will not be executed
 // and the graph will be returned to its original state at the end.
 func (scheduler *Scheduler) executeTransaction(txn *preProcessedTxn, dryRun bool) (executed recordedTxnOps, failed map[string]bool) {
-	start := time.Now()
-	defer func() {
-		fmt.Printf("executeTransaction (dryRun=%t) took %v\n", dryRun, time.Since(start))
-	}()
-
 	downstreamResync := txn.args.txnType == nbTransaction && txn.args.nb.resyncType == DownstreamResync
 	graphW := scheduler.graph.Write(!downstreamResync)
 	failed = make(map[string]bool) // non-derived values in a failed state

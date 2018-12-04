@@ -17,7 +17,6 @@ package kvscheduler
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
@@ -36,12 +35,6 @@ type resyncData struct {
 // refreshGraph updates all/some values in the graph to their *real* state
 // using the Dump methods from descriptors.
 func (scheduler *Scheduler) refreshGraph(graphW graph.RWAccess, keys utils.KeySet, resyncData *resyncData) {
-	start := time.Now()
-	defer func() {
-		fmt.Printf("refreshGraph took %v\n", time.Since(start))
-	}()
-
-
 	refreshedKeys := utils.NewKeySet()
 
 	// iterate over all descriptors, in order given by dump dependencies

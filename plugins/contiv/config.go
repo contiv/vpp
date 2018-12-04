@@ -40,6 +40,9 @@ type Config struct {
 	TAPInterfaceVersion         uint8
 	TAPv2RxRingSize             uint16
 	TAPv2TxRingSize             uint16
+	Vmxnet3RxRingSize           uint16
+	Vmxnet3TxRingSize           uint16
+	InterfaceRxMode             string // "" = polling / interrupt / adaptive
 	MTUSize                     uint32
 	StealFirstNIC               bool
 	StealInterface              string

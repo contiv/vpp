@@ -27,6 +27,15 @@ data:
     TAPv2RxRingSize: {{ .Values.contiv.tapv2RxRingSize }}
     TAPv2TxRingSize: {{ .Values.contiv.tapv2TxRingSize }}
     {{- end }}
+    {{- if ne (.Values.contiv.vmxnet3RxRingSize | int) 1024 }}
+    Vmxnet3RxRingSize: {{ .Values.contiv.vmxnet3RxRingSize }}
+    {{- end }}
+    {{- if ne (.Values.contiv.vmxnet3TxRingSize | int) 1024 }}
+    Vmxnet3TxRingSize: {{ .Values.contiv.vmxnet3TxRingSize }}
+    {{- end }}
+    {{- if ne .Values.contiv.interfaceRxMode "polling" }}
+    InterfaceRxMode: {{ .Values.contiv.interfaceRxMode }}
+    {{- end }}
     {{- if .Values.contiv.stealInterface }}
     StealInterface: {{ .Values.contiv.stealInterface }}
     {{- end }}

@@ -31,9 +31,10 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"path/filepath"
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
-	"path/filepath"
+	"github.com/contiv/vpp/pkg/pci"
 )
 
 const (
@@ -282,7 +283,7 @@ func (s *stnServer) revertLink(ifData *interfaceData) error {
 	log.Println("Reverting interface", ifData.name)
 
 	// bind to proper PCI driver
-	err := pciDriverBind(ifData.PCIAddress, ifData.driver)
+	err := pci.DriverBind(ifData.PCIAddress, ifData.driver)
 	if err != nil {
 		log.Printf("Unable to bind PCI device %s to driver %s", ifData.PCIAddress, ifData.driver)
 		return err

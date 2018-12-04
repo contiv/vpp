@@ -46,11 +46,11 @@ export class LayoutService {
 
     switch (pod.node) {
       case 'k8s-master':
-        return this.coreService.getPointOnEllipse(550, 250, (this.podCount[pod.node] - 2.4) * -25, {x: 700, y: 300});
+        return this.coreService.getPointOnEllipse(550, 250, (this.podCount[pod.node] - 2.8) * -25, {x: 700, y: 300});
       case 'k8s-worker1':
-        return {x: ((1 + this.podCount[pod.node]) * 2) * offsetX, y: 7.2 * offsetY};
+        return {x: ((this.podCount[pod.node]) * 2) * offsetX, y: 7.2 * offsetY};
       case 'k8s-worker2':
-        return {x: (6 + (1 + this.podCount[pod.node]) * 2) * offsetX, y: 8 * offsetY};
+        return {x: (6 + (this.podCount[pod.node]) * 2) * offsetX, y: 8 * offsetY};
       default:
         return {x: 100, y: 150};
     }
@@ -70,9 +70,9 @@ export class LayoutService {
       case 'k8s-master':
         return {x: ((1 + this.podCount[pod.node]) * 2) * offsetX, y: vswitchData.y - offsetY * 1.5};
       case 'k8s-worker1':
-        return {x: ((1 + this.podCount[pod.node]) * 2) * offsetX, y: 7.2 * offsetY};
+        return {x: ((this.podCount[pod.node]) * 2) * offsetX, y: 7.2 * offsetY};
       case 'k8s-worker2':
-        return {x: (6 + (1 + this.podCount[pod.node]) * 2) * offsetX, y: 8 * offsetY};
+        return {x: (6 + (this.podCount[pod.node]) * 2) * offsetX, y: 8 * offsetY};
       default:
         return {x: 100, y: 150};
     }

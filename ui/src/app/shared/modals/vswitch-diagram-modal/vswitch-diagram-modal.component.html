@@ -1,0 +1,17 @@
+<clr-modal [clrModalSize]="'lg'" [(clrModalOpen)]="isModalOpened">
+  <h3 class="modal-title">{{vswitchLabel}}</h3>
+  <div class="modal-body">
+    <app-topology-viz (nodeClicked)="onNodeClicked($event)"
+                      (nodeDblClicked)="onNodeDblClicked($event)"
+                      (bviClicked)="onBviClicked($event)"
+                      (linkClicked)="onLinkClicked($event)"
+                      (svgClicked)="onSvgClicked($event)"
+                      (transform)="onTransform($event)"
+                      (topologyRendered)="onRender($event)"
+                      [ngClass]="{'dragging': isDragging}">
+    </app-topology-viz>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-primary" (click)="isModalOpened = false">Close</button>
+  </div>
+</clr-modal>

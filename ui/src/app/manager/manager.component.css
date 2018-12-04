@@ -1,0 +1,38 @@
+#wrap {
+  width: 100%;
+  height: calc(100% - 96px);
+  position: absolute;
+  overflow: hidden;
+}
+
+.sidepanel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 500px;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  transform: translateX(500px);
+  transition: transform 0.3s linear;
+  border-left: 1px solid #cccccc;
+}
+
+.sidepanel.open {
+  transform: translateX(0);
+}
+
+.nav, .subnav {
+  box-shadow: none !important;
+}
+
+.diagram {
+  width: calc(100% - 500px);
+  height: 100%;
+  text-align: center;
+}
+
+.diagram img {
+  max-height: 100%;
+  width: auto;
+}

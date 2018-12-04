@@ -1,0 +1,6 @@
+<form clrForm clrLayout="vertical">
+  <clr-input-container *ngFor="let item of data">
+    <label>{{item.label}}</label>
+    <input clrInput type="text" [(ngModel)]="item.value" [name]="item.label" disabled>
+  </clr-input-container>
+</form>

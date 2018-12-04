@@ -1,0 +1,18 @@
+.header {
+  background: linear-gradient(to left, #00638e, #003655 70%) !important;
+}
+
+.subnav {
+  position: relative;
+}
+
+.nav-link {
+  cursor: pointer;
+}
+
+.btn-reload {
+  position: absolute;
+  right: 12px;
+  top: 6px;
+  cursor: pointer;
+}

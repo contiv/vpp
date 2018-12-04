@@ -1,0 +1,843 @@
+{
+	"info": {
+		"_postman_id": "756735b0-26e1-44cb-a950-72d86fb9aa87",
+		"name": "Contiv VPP",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "master",
+			"item": [
+				{
+					"name": "k8s/pods",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{k8s-master-port}}/api/v1/pods",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{k8s-master-port}}",
+							"path": [
+								"api",
+								"v1",
+								"pods"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "k8s/namespaces",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{k8s-master-port}}/api/v1/namespaces",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{k8s-master-port}}",
+							"path": [
+								"api",
+								"v1",
+								"namespaces"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "k8s/nodes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{k8s-master-port}}/api/v1/nodes",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{k8s-master-port}}",
+							"path": [
+								"api",
+								"v1",
+								"nodes"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "k8s/services",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{k8s-master-port}}/api/v1/services",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{k8s-master-port}}",
+							"path": [
+								"api",
+								"v1",
+								"services"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "k8s/networkpolicies",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{k8s-master-port}}/apis/networking.k8s.io/v1/networkpolicies",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{k8s-master-port}}",
+							"path": [
+								"apis",
+								"networking.k8s.io",
+								"v1",
+								"networkpolicies"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/ipam",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-master-port}}/contiv/v1/ipam",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-master-port}}",
+							"path": [
+								"contiv",
+								"v1",
+								"ipam"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/interfaces",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-master-port}}/vpp/dump/v1/interfaces",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-master-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"interfaces"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/interfaces/vxlan",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-master-port}}/vpp/dump/v1/interfaces/vxlan",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-master-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"interfaces",
+								"vxlan"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/interfaces/tap",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-master-port}}/vpp/dump/v1/interfaces/tap",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-master-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"interfaces",
+								"tap"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/bd",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-master-port}}/vpp/dump/v1/bd",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-master-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"bd"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/routes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-master-port}}/vpp/dump/v1/routes",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-master-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"routes"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/nat",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-master-port}}/vpp/dump/v1/nat",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-master-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"nat"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/arps",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-master-port}}/vpp/dump/v1/arps",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-master-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"arps"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "worker-1",
+			"item": [
+				{
+					"name": "vpp/ipam",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker1-port}}/contiv/v1/ipam",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker1-port}}",
+							"path": [
+								"contiv",
+								"v1",
+								"ipam"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/interfaces",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker1-port}}/vpp/dump/v1/interfaces",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker1-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"interfaces"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/interfaces/vxlan",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker1-port}}/vpp/dump/v1/interfaces/vxlan",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker1-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"interfaces",
+								"vxlan"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/interfaces/tap",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker1-port}}/vpp/dump/v1/interfaces/tap",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker1-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"interfaces",
+								"tap"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/bd",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker1-port}}/vpp/dump/v1/bd",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker1-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"bd"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/routes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker1-port}}/vpp/dump/v1/routes",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker1-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"routes"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/nat",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker1-port}}/vpp/dump/v1/nat",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker1-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"nat"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/arps",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker1-port}}/vpp/dump/v1/arps",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker1-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"arps"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "worker-2",
+			"item": [
+				{
+					"name": "vpp/ipam",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker2-port}}/contiv/v1/ipam",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker2-port}}",
+							"path": [
+								"contiv",
+								"v1",
+								"ipam"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/interfaces",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker2-port}}/vpp/dump/v1/interfaces",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker2-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"interfaces"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/interfaces/vxlan",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker2-port}}/vpp/dump/v1/interfaces/vxlan",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker2-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"interfaces",
+								"vxlan"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/interfaces/tap",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker2-port}}/vpp/dump/v1/interfaces/tap",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker2-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"interfaces",
+								"tap"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/bd",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker2-port}}/vpp/dump/v1/bd",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker2-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"bd"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/routes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker2-port}}/vpp/dump/v1/routes",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker2-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"routes"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/nat",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker2-port}}/vpp/dump/v1/nat",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker2-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"nat"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/arps",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker2-port}}/vpp/dump/v1/arps",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker2-port}}",
+							"path": [
+								"vpp",
+								"dump",
+								"v1",
+								"arps"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"id": "7f8dc5b1-1f24-49a8-9160-0a756bac9ebc",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"id": "5b54dfdd-b329-4f0f-a34f-244676a85c82",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"id": "f7d01ae6-3b2b-4fd1-9cc7-49edb76865ff",
+			"key": "host",
+			"value": "localhost",
+			"type": "string"
+		},
+		{
+			"id": "4e151c43-4df3-4f8e-981a-e8d0d14467dc",
+			"key": "k8s-master-port",
+			"value": "8080",
+			"type": "string"
+		},
+		{
+			"id": "685b1d82-72d8-41bc-9f14-52572de65a20",
+			"key": "k8s-worker1-port",
+			"value": "8081",
+			"type": "string"
+		},
+		{
+			"id": "90d01d13-9d84-4404-b50b-a88077cb109c",
+			"key": "k8s-worker2-port",
+			"value": "8082",
+			"type": "string"
+		},
+		{
+			"id": "4f01d28a-a6a8-42cc-8270-c800369d170e",
+			"key": "vpp-master-port",
+			"value": "9999",
+			"type": "string"
+		},
+		{
+			"id": "8f085653-ec53-4045-a37c-c32eefc3ae2e",
+			"key": "vpp-worker1-port",
+			"value": "9991",
+			"type": "string"
+		},
+		{
+			"id": "c6c88542-6ca5-45fd-8c93-fcc883367b44",
+			"key": "vpp-worker2-port",
+			"value": "9992",
+			"type": "string"
+		}
+	]
+}

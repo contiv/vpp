@@ -1,0 +1,13 @@
+<clr-datagrid>
+  <clr-dg-column>Name</clr-dg-column>
+  <clr-dg-column>Namespace</clr-dg-column>
+  <clr-dg-column>From</clr-dg-column>
+  <clr-dg-column>To</clr-dg-column>
+
+  <clr-dg-row *ngFor="let policy of policies">
+    <clr-dg-cell>{{policy.name}}</clr-dg-cell>
+    <clr-dg-cell>{{policy.namespace}}</clr-dg-cell>
+    <clr-dg-cell>{{policy.from}}</clr-dg-cell>
+    <clr-dg-cell>{{policy.to}}</clr-dg-cell>
+  </clr-dg-row>
+</clr-datagrid>

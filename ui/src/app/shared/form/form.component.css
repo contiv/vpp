@@ -1,0 +1,12 @@
+.clr-form-control-disabled {
+  opacity: 1 !important;
+}
+
+input[type=text]:disabled {
+  opacity: 1 !important;
+  cursor: default !important;
+}
+
+form {
+  margin-bottom: 30px;
+}

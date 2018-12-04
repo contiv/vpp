@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Load defaults, to be overwritten as desired
+. ./defaults
+
+export K8S_NODES=2
+export K8S_DEPLOYMENT_ENV="prod"
+export K8S_DEPLOYMENT_SCENARIO="nostn"
+
+echo
+echo "Creating a production environment, without STN and 2 worker nodes"
+echo 
+./vagrant-up

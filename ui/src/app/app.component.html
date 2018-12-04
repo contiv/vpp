@@ -1,0 +1,38 @@
+<header class="header clr-justify-content-center">
+  <div class="branding clr-justify-content-center">
+    <a routerLink="/" class="nav-link">
+      <span class="title">Contiv VPP</span>
+    </a>
+</div>
+</header>
+
+<nav class="subnav">
+  <ul class="nav">
+    <li class="nav-item">
+      <a class="nav-link" routerLink="kubernetes" routerLinkActive="active">Kubernetes</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" routerLink="contiv" routerLinkActive="active">Contiv</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" routerLink="bridge-domain" routerLinkActive="active">Bridge Domain</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link">Netctl</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" routerLink="services" routerLinkActive="active">Services</a>
+    </li>
+  </ul>
+  <clr-icon shape="refresh" class="btn-reload" size="22" (click)="reloadData()"></clr-icon>
+</nav>
+
+<div class="content">
+  <router-outlet></router-outlet>
+</div>
+
+<app-ip-mapping-modal></app-ip-mapping-modal>
+<app-vswitch-diagram-modal></app-vswitch-diagram-modal>
+<app-vswitch-interfaces-modal></app-vswitch-interfaces-modal>
+<app-node-detail-modal></app-node-detail-modal>
+<app-code-modal></app-code-modal>

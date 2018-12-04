@@ -47,7 +47,7 @@ import (
 )
 
 const (
-	defaultContivCfgFile    = "/etc/agent/contiv.yaml"
+	defaultContivCfgFile    = "/etc/agent/contiv.conf"
 	defaultEtcdCfgFile      = "/etc/etcd/etcd.conf"
 	defaultBoltCfgFile      = "/etc/agent/bolt.conf"
 	defaultSupervisorSocket = "/run/supervisor.sock"

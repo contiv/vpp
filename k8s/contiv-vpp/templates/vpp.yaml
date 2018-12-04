@@ -19,84 +19,90 @@ metadata:
   name: contiv-agent-cfg
   namespace: kube-system
 data:
-  contiv.yaml: |-
-    UseTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
-    TAPInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
+  contiv.conf: |-
+    use-tap-interfaces: {{ .Values.contiv.useTAPInterfaces }}
+    tap-interface-version: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}
-    TAPv2RxRingSize: {{ .Values.contiv.tapv2RxRingSize }}
-    TAPv2TxRingSize: {{ .Values.contiv.tapv2TxRingSize }}
+    tapv2-rx-ring-size: {{ .Values.contiv.tapv2RxRingSize }}
+    tapv2-tx-ring-size: {{ .Values.contiv.tapv2TxRingSize }}
     {{- end }}
+    tcp-checksum-offload-disabled: true
     {{- if .Values.contiv.stealInterface }}
-    StealInterface: {{ .Values.contiv.stealInterface }}
+    steal-interface: {{ .Values.contiv.stealInterface }}
     {{- end }}
     {{- if .Values.contiv.stealFirstNIC }}
-    StealFirstNIC: True
+    steal-first-nic: True
     {{- end }}
-    NatExternalTraffic: {{ .Values.contiv.natExternalTraffic }}
-    MTUSize: {{ .Values.contiv.mtuSize }}
-    {{- if .Values.contiv.cleanupIdleNATSessions }}
-    CleanupIdleNATSessions: True
-    TCPNATSessionTimeout: {{ .Values.contiv.tcpNATSessionTimeout }}
-    OtherNATSessionTimeout: {{ .Values.contiv.otherNATSessionTimeout }}
-    {{- end }}
-    ScanIPNeighbors: {{ .Values.contiv.scanIPNeighbors }}
-    IPNeighborScanInterval: {{ .Values.contiv.ipNeighborScanInterval }}
-    IPNeighborStaleThreshold: {{ .Values.contiv.ipNeighborStaleThreshold }}
-    {{- if .Values.contiv.serviceLocalEndpointWeight }}
-    ServiceLocalEndpointWeight: {{ .Values.contiv.serviceLocalEndpointWeight }}
-    {{- end }}
-    DisableNATVirtualReassembly: {{ .Values.contiv.disableNATVirtualReassembly }}
-    EnablePacketTrace: {{ .Values.contiv.enablePacketTrace }}
-    RouteServiceCIDRToVPP: {{ .Values.contiv.routeServiceCIDRToVPP }}
-    CRDNodeConfigurationDisabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
-    IPAMConfig:
-      NodeInterconnectDHCP: {{ .Values.contiv.ipamConfig.nodeInterconnectDHCP }}
-      {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
-      NodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
-      {{- end }}
-      {{- if .Values.contiv.ipamConfig.serviceCIDR }}
-      ServiceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
-      {{- end }}
-      {{- if .Values.contiv.ipamConfig.contivCIDR }}
-      ContivCIDR: {{ .Values.contiv.ipamConfig.contivCIDR }}
-      {{ else }}
-      PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
-      PodSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.podSubnetOneNodePrefixLen }}
-      PodVPPSubnetCIDR: {{ .Values.contiv.ipamConfig.podVPPSubnetCIDR }}
-      VPPHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
-      VPPHostSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.vppHostSubnetOneNodePrefixLen }}
-      VxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}
-      {{- end }}
+    nat-external-traffic: {{ .Values.contiv.natExternalTraffic }}
+    mtu-size: {{ .Values.contiv.mtuSize }}
+    scan-ip-neighbors: {{ .Values.contiv.scanIPNeighbors }}
+    ip-neighbor-scan-interval: {{ .Values.contiv.ipNeighborScanInterval }}
+    ip-neighbor-stale-threshold: {{ .Values.contiv.ipNeighborStaleThreshold }}
+    enable-packet-trace: {{ .Values.contiv.enablePacketTrace }}
+    route-service-cidr-to-vpp: {{ .Values.contiv.routeServiceCIDRToVPP }}
+    crd-node-configuration-disabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
     {{- if .Values.contiv.nodeConfig }}
-    NodeConfig:
+    node-config:
     {{- range .Values.contiv.nodeConfig }}
-    - NodeName: {{ .name }}
-      MainVppInterface:
-        InterfaceName: {{ .mainInterface.interfaceName }}
+    - node-name: {{ .name }}
+      main-vpp-interface:
+        interface-name: {{ .mainInterface.interfaceName }}
         {{- if .mainInterface.useDHCP }}
-        UseDHCP: {{ .mainInterface.useDHCP }}
+        use-dhcp: {{ .mainInterface.useDHCP }}
         {{- end -}}
         {{- if .mainInterface.ip }}
-        IP: {{ .mainInterface.ip }}
+        ip: {{ .mainInterface.ip }}
         {{- end -}}
       {{- if .natExternalTraffic }}
-      NatExternalTraffic: {{ .natExternalTraffic }}
+      nat-external-traffic: {{ .natExternalTraffic }}
       {{- end }}
       {{- if .gateway }}
-      Gateway: {{ .gateway }}
+      gateway: {{ .gateway }}
       {{- end -}}
       {{- if .stealInterface }}
-      StealInterface: {{ .stealInterface }}
+      steal-interface: {{ .stealInterface }}
       {{- end -}}
       {{- if .otherInterfaces }}
-      OtherVPPInterfaces:
+      other-vpp-interfaces:
       {{- range $iface := .otherInterfaces }}
-        - InterfaceName: {{ $iface.interfaceName }}
-          IP: {{ $iface.ip }}
+        - interface-name: {{ $iface.interfaceName }}
+          ip: {{ $iface.ip }}
+      {{- end }}
       {{- end }}
     {{- end }}
     {{- end }}
+  ipam.conf: |
+    node-interconnect-dhcp: {{ .Values.contiv.ipamConfig.nodeInterconnectDHCP }}
+    {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
+    node-interconnect-cidr: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
     {{- end }}
+    {{- if .Values.contiv.ipamConfig.serviceCIDR }}
+    service-cidr: {{ .Values.contiv.ipamConfig.serviceCIDR }}
+    {{- end }}
+    {{- if .Values.contiv.ipamConfig.contivCIDR }}
+    contiv-cidr: {{ .Values.contiv.ipamConfig.contivCIDR }}
+    {{ else }}
+    pod-subnet-cidr: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
+    pod-subnet-one-node-prefix-len: {{ .Values.contiv.ipamConfig.podSubnetOneNodePrefixLen }}
+    pod-vpp-subnet-cidr: {{ .Values.contiv.ipamConfig.podVPPSubnetCIDR }}
+    vpp-host-subnet-cidr: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
+    vpp-host-subnet-one-node-prefix-len: {{ .Values.contiv.ipamConfig.vppHostSubnetOneNodePrefixLen }}
+    vxlan-cidr: {{ .Values.contiv.ipamConfig.vxlanCIDR }}
+    {{- end }}
+  controller.conf: |
+    delay-local-resync: {{ .Values.controller.delayLocalResync | int64 }}
+    enable-periodic-healing: {{ .Values.controller.enablePeriodicHealing }}
+    periodic-healing-interval: {{ .Values.controller.periodicHealingInterval | int64 }}
+  service.conf: |
+    {{- if .Values.contiv.cleanupIdleNATSessions }}
+    cleanup-idle-nat-sessions: true
+    tcp-nat-session-timeout: {{ .Values.contiv.tcpNATSessionTimeout }}
+    other-nat-session-timeout: {{ .Values.contiv.otherNATSessionTimeout }}
+    {{- end }}
+    {{- if .Values.contiv.serviceLocalEndpointWeight }}
+    service-local-endpoint-weight: {{ .Values.contiv.serviceLocalEndpointWeight }}
+    {{- end }}
+    disable-nat-virtual-reassembly: {{ .Values.contiv.disableNATVirtualReassembly }}
   logs.conf: |
     default-level: {{ .Values.logs.defaultLevel }}
     loggers:
@@ -130,6 +136,10 @@ data:
   telemetry.conf: |
     polling-interval: {{ .Values.telemetry.pollingInterval | int64 }}
     disabled: {{ .Values.telemetry.disabled }}
+  linux-ifplugin.conf: |
+    dump-go-routines-count: 5
+  linux-l3plugin.conf: |
+    dump-go-routines-count: 5
 
 ---
 
@@ -414,6 +424,8 @@ data:
     {{- end }}
     dial-timeout: 10000000000
     auto-compact: 600000000000
+    allow-delayed-start: true
+    reconnect-interval: 2000000000
     endpoints:
       - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
 
@@ -665,6 +677,16 @@ spec:
             {{- end}}
             - name: TELEMETRY_CONFIG
               value: "/etc/agent/telemetry.conf"
+            - name: IPAM_CONFIG
+              value: "/etc/agent/ipam.conf"
+            - name: CONTROLLER_CONFIG
+              value: "/etc/agent/controller.conf"
+            - name: SERVICE_CONFIG
+              value: "/etc/agent/service.conf"
+            - name: LINUX_IFPLUGIN_CONFIG
+              value: "/etc/agent/linux-ifplugin.conf"
+            - name: LINUX_L3PLUGIN_CONFIG
+              value: "/etc/agent/linux-l3plugin.conf"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt
@@ -820,6 +842,7 @@ spec:
         - name: docker-socket
           hostPath:
             path: /var/run/docker.sock
+
 ---
 
 # This installs the contiv-ksr (Kubernetes State Reflector) on the master node in a Kubernetes cluster.

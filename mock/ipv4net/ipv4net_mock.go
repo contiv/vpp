@@ -34,11 +34,6 @@ type MockIPv4Net struct {
 	tcpStackDisabled            bool
 	stnMode                     bool
 	natExternalTraffic          bool
-	cleanupIdleNATSessions      bool
-	tcpNATSessionTimeout        uint32
-	otherNATSessionTimeout      uint32
-	disableNATVirtualReassembly bool
-	serviceLocalEndpointWeight  uint8
 	natLoopbackIP               net.IP
 	nodeIP                      *net.IPNet
 	mainPhysIf                  string
@@ -51,9 +46,7 @@ type MockIPv4Net struct {
 
 // NewMockIPv4Net is a constructor for MockIPv4Net.
 func NewMockIPv4Net() *MockIPv4Net {
-	return &MockIPv4Net{
-		podIf:                      make(map[podmodel.ID]string),
-		serviceLocalEndpointWeight: 1,
+	return &MockIPv4Net{podIf: make(map[podmodel.ID]string),
 	}
 }
 
@@ -122,18 +115,6 @@ func (mn *MockIPv4Net) SetNatExternalTraffic(natExternalTraffic bool) {
 	mn.natExternalTraffic = natExternalTraffic
 }
 
-// ServiceLocalEndpointWeight allows to set what tests will assume the weight for load-balancing
-// of locally deployed service endpoints is.
-func (mn *MockIPv4Net) SetServiceLocalEndpointWeight(weight uint8) {
-	mn.serviceLocalEndpointWeight = weight
-}
-
-// SetNATVirtualReassembly allows to set flag denoting if the NAT Virtual reassembly
-// is disabled or not.
-func (mn *MockIPv4Net) SetNATVirtualReassembly(disable bool) {
-	mn.disableNATVirtualReassembly = disable
-}
-
 // SetNatLoopbackIP allows to set what tests will assume the NAT loopback IP is.
 func (mn *MockIPv4Net) SetNatLoopbackIP(natLoopIP string) {
 	mn.natLoopbackIP = net.ParseIP(natLoopIP)
@@ -174,11 +155,6 @@ func (mn *MockIPv4Net) InSTNMode() bool {
 // with node IP before being sent out from the node.
 func (mn *MockIPv4Net) NatExternalTraffic() bool {
 	return mn.natExternalTraffic
-}
-
-// GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
-func (mn *MockIPv4Net) GetServiceLocalEndpointWeight() uint8 {
-	return mn.serviceLocalEndpointWeight
 }
 
 // GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
@@ -232,26 +208,6 @@ func (mn *MockIPv4Net) GetVxlanBVIIfName() string {
 // If the default GW is not configured, the function returns zero values.
 func (mn *MockIPv4Net) GetDefaultInterface() (ifName string, ifAddress net.IP) {
 	return mn.defaultIfName, mn.defaultIfIP
-}
-
-// CleanupIdleNATSessions returns true if cleanup of idle NAT sessions is enabled.
-func (mn *MockIPv4Net) CleanupIdleNATSessions() bool {
-	return mn.cleanupIdleNATSessions
-}
-
-// GetTCPNATSessionTimeout returns NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on.
-func (mn *MockIPv4Net) GetTCPNATSessionTimeout() uint32 {
-	return mn.tcpNATSessionTimeout
-}
-
-// GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
-func (mn *MockIPv4Net) GetOtherNATSessionTimeout() uint32 {
-	return mn.otherNATSessionTimeout
-}
-
-// DisableNATVirtualReassembly returns true if fragmented packets should be dropped by NAT.
-func (mn *MockIPv4Net) DisableNATVirtualReassembly() bool {
-	return mn.disableNATVirtualReassembly
 }
 
 // GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.

@@ -15,6 +15,7 @@
 package service
 
 import (
+	"github.com/ligato/cn-infra/config"
 	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
@@ -36,6 +37,9 @@ func NewPlugin(opts ...Option) *Plugin {
 
 	if p.Deps.Log == nil {
 		p.Deps.Log = logging.ForPlugin(p.String())
+	}
+	if p.Cfg == nil {
+		p.Cfg = config.ForPlugin(p.String())
 	}
 
 	return p

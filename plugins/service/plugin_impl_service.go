@@ -17,15 +17,15 @@ package service
 import (
 	"strings"
 
-	controller "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/service/processor"
-	"github.com/contiv/vpp/plugins/service/renderer/nat44"
-
 	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/service/processor"
+	"github.com/contiv/vpp/plugins/service/renderer/nat44"
+	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -38,6 +38,8 @@ import (
 // in the VPP accordingly.
 type Plugin struct {
 	Deps
+
+	config *config.Config
 
 	// ongoing transaction
 	resyncTxn controller.ResyncOperations
@@ -64,6 +66,14 @@ type Deps struct {
 func (p *Plugin) Init() error {
 	var err error
 
+	// load configuration
+	p.config = config.DefaultConfig()
+	_, err = p.Cfg.LoadValue(p.config)
+	if err != nil {
+		return err
+	}
+	p.Log.Infof("Service plugin configuration: %+v", *p.config)
+
 	const goVPPChanBufSize = 1 << 12
 	goVppCh, err := p.GoVPP.NewAPIChannelBuffered(goVPPChanBufSize, goVPPChanBufSize)
 	if err != nil {
@@ -83,6 +93,7 @@ func (p *Plugin) Init() error {
 	p.nat44Renderer = &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:       p.Log.NewLogger("-nat44Renderer"),
+			Config:    p.config,
 			IPv4Net:   p.IPv4Net,
 			GoVPPChan: goVppCh,
 			UpdateTxnFactory: func(change string) controller.UpdateOperations {

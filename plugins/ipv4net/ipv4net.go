@@ -336,31 +336,6 @@ func (n *IPv4Net) NatExternalTraffic() bool {
 	return false
 }
 
-// CleanupIdleNATSessions returns true if cleanup of idle NAT sessions is enabled.
-func (n *IPv4Net) CleanupIdleNATSessions() bool {
-	return n.config.CleanupIdleNATSessions
-}
-
-// GetTCPNATSessionTimeout returns NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on.
-func (n *IPv4Net) GetTCPNATSessionTimeout() uint32 {
-	return n.config.TCPNATSessionTimeout
-}
-
-// GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
-func (n *IPv4Net) GetOtherNATSessionTimeout() uint32 {
-	return n.config.OtherNATSessionTimeout
-}
-
-// GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
-func (n *IPv4Net) GetServiceLocalEndpointWeight() uint8 {
-	return n.config.ServiceLocalEndpointWeight
-}
-
-// DisableNATVirtualReassembly returns true if fragmented packets should be dropped by NAT.
-func (n *IPv4Net) DisableNATVirtualReassembly() bool {
-	return n.config.DisableNATVirtualReassembly
-}
-
 // GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
 // between clients and services via VPP even if the source and destination are the same
 // IP addresses and would otherwise be routed locally.

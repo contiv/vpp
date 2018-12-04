@@ -88,6 +88,9 @@ Parameter | Description | Default
 `contiv.vswitch.memoryLimit` | memory limit for vswitch container | `1024Mi`
 `contiv.vswitch.enableCoreDumps` | enable core dumps of VPP into coreDumpsDir | `false`
 `contiv.vswitch.coreDumpsDir` | location of the VPP core dumps | `/var/contiv/dumps`
+`controller.delayLocalResync` | how long to wait for etcd connection before using bolt DB as a fallback for startup resync | `5000000000`
+`controller.enablePeriodicHealing` | enable periodic resync | `False`
+`controller.periodicHealingInterval` | periodic resync time interval in nanoseconds | `30000000000`
 `cni.image.repository` | cni container image repository | `contivvpp/cni`
 `cni.image.tag`| cni container image tag | `latest`
 `cni.image.pullPolicy` | cni container image pull policy | `IfNotPresent`

@@ -21,33 +21,39 @@ metadata:
   name: contiv-agent-cfg
   namespace: kube-system
 data:
-  contiv.yaml: |-
-    UseTAPInterfaces: true
-    TAPInterfaceVersion: 2
-    TAPv2RxRingSize: 256
-    TAPv2TxRingSize: 256
-    NatExternalTraffic: true
-    MTUSize: 1450
-    CleanupIdleNATSessions: True
-    TCPNATSessionTimeout: 180
-    OtherNATSessionTimeout: 5
-    ScanIPNeighbors: true
-    IPNeighborScanInterval: 1
-    IPNeighborStaleThreshold: 4
-    ServiceLocalEndpointWeight: 1
-    DisableNATVirtualReassembly: false
-    EnablePacketTrace: false
-    RouteServiceCIDRToVPP: false
-    CRDNodeConfigurationDisabled: true
-    IPAMConfig:
-      NodeInterconnectDHCP: false
-      NodeInterconnectCIDR: 192.168.16.0/24
-      PodSubnetCIDR: 10.1.0.0/16
-      PodSubnetOneNodePrefixLen: 24
-      PodVPPSubnetCIDR: 10.2.1.0/24
-      VPPHostSubnetCIDR: 172.30.0.0/16
-      VPPHostSubnetOneNodePrefixLen: 24
-      VxlanCIDR: 192.168.30.0/24
+  contiv.conf: |-
+    use-tap-interfaces: true
+    tap-interface-version: 2
+    tapv2-rx-ring-size: 256
+    tapv2-tx-ring-size: 256
+    tcp-checksum-offload-disabled: true
+    nat-external-traffic: true
+    mtu-size: 1450
+    scan-ip-neighbors: true
+    ip-neighbor-scan-interval: 1
+    ip-neighbor-stale-threshold: 4
+    enable-packet-trace: false
+    route-service-cidr-to-vpp: false
+    crd-node-configuration-disabled: true
+  ipam.conf: |
+    node-interconnect-dhcp: false
+    node-interconnect-cidr: 192.168.16.0/24
+    pod-subnet-cidr: 10.1.0.0/16
+    pod-subnet-one-node-prefix-len: 24
+    pod-vpp-subnet-cidr: 10.2.1.0/24
+    vpp-host-subnet-cidr: 172.30.0.0/16
+    vpp-host-subnet-one-node-prefix-len: 24
+    vxlan-cidr: 192.168.30.0/24
+  controller.conf: |
+    delay-local-resync: 5000000000
+    enable-periodic-healing: false
+    periodic-healing-interval: 30000000000
+  service.conf: |
+    cleanup-idle-nat-sessions: true
+    tcp-nat-session-timeout: 180
+    other-nat-session-timeout: 5
+    service-local-endpoint-weight: 1
+    disable-nat-virtual-reassembly: false
   logs.conf: |
     default-level: debug
     loggers:
@@ -73,6 +79,10 @@ data:
   telemetry.conf: |
     polling-interval: 30000000000
     disabled: true
+  linux-ifplugin.conf: |
+    dump-go-routines-count: 5
+  linux-l3plugin.conf: |
+    dump-go-routines-count: 5
 
 ---
 
@@ -230,6 +240,8 @@ data:
     insecure-transport: true
     dial-timeout: 10000000000
     auto-compact: 600000000000
+    allow-delayed-start: true
+    reconnect-interval: 2000000000
     endpoints:
       - "127.0.0.1:32379"
 
@@ -381,6 +393,16 @@ spec:
               value: "/etc/agent/bolt.conf"
             - name: TELEMETRY_CONFIG
               value: "/etc/agent/telemetry.conf"
+            - name: IPAM_CONFIG
+              value: "/etc/agent/ipam.conf"
+            - name: CONTROLLER_CONFIG
+              value: "/etc/agent/controller.conf"
+            - name: SERVICE_CONFIG
+              value: "/etc/agent/service.conf"
+            - name: LINUX_IFPLUGIN_CONFIG
+              value: "/etc/agent/linux-ifplugin.conf"
+            - name: LINUX_L3PLUGIN_CONFIG
+              value: "/etc/agent/linux-l3plugin.conf"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt
@@ -404,6 +426,8 @@ spec:
               mountPath: /tmp
             - name: core-dumps
               mountPath: /var/contiv/dumps
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
           resources:
             requests:
               cpu: 250m
@@ -467,6 +491,9 @@ spec:
         - name: var-bolt
           hostPath:
             path: /var/bolt
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
 
 ---
 

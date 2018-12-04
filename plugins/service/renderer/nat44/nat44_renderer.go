@@ -31,6 +31,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
@@ -111,6 +112,7 @@ type Renderer struct {
 // Deps lists dependencies of the Renderer.
 type Deps struct {
 	Log              logging.Logger
+	Config           *config.Config
 	IPv4Net          ipv4net.API /* for GetNatLoopbackIP, GetServiceLocalEndpointWeight */
 	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
@@ -125,6 +127,9 @@ func (rndr *Renderer) Init(snatOnly bool) error {
 	rndr.snatOnly = snatOnly
 	rndr.natGlobalCfg = &nat.Nat44Global{
 		Forwarding: true,
+	}
+	if rndr.Config == nil {
+		rndr.Config = config.DefaultConfig()
 	}
 	return nil
 }
@@ -315,7 +320,7 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	rndr.natGlobalCfg = &nat.Nat44Global{
 		Forwarding: true,
 	}
-	if rndr.IPv4Net.DisableNATVirtualReassembly() {
+	if rndr.Config.DisableNATVirtualReassembly {
 		rndr.natGlobalCfg.VirtualReassembly = &nat.VirtualReassembly{
 			DropFragments: true, // drop fragmented packets
 		}
@@ -437,7 +442,7 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 					LocalPort: uint32(backend.Port),
 				}
 				if backend.Local {
-					local.Probability = uint32(rndr.IPv4Net.GetServiceLocalEndpointWeight())
+					local.Probability = uint32(rndr.Config.ServiceLocalEndpointWeight)
 				} else {
 					local.Probability = 1
 				}
@@ -523,12 +528,12 @@ func (rndr *Renderer) Close() error {
 // This should be removed once VPP supports timing out of the NAT sessions.
 func (rndr *Renderer) idleNATSessionCleanup() {
 	// run only if requested
-	if !rndr.IPv4Net.CleanupIdleNATSessions() {
+	if !rndr.Config.CleanupIdleNATSessions {
 		return
 	}
 
-	tcpTimeout := time.Duration(rndr.IPv4Net.GetTCPNATSessionTimeout()) * time.Minute
-	otherTimeout := time.Duration(rndr.IPv4Net.GetOtherNATSessionTimeout()) * time.Minute
+	tcpTimeout := time.Duration(rndr.Config.TCPNATSessionTimeout) * time.Minute
+	otherTimeout := time.Duration(rndr.Config.OtherNATSessionTimeout) * time.Minute
 	if tcpTimeout == 0 {
 		tcpTimeout = defaultIdleTCPTimeout
 	}

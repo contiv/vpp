@@ -38,6 +38,7 @@ import (
 	svc_processor "github.com/contiv/vpp/plugins/service/processor"
 	svc_renderer "github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/service/renderer/nat44"
+	"github.com/contiv/vpp/plugins/service/config"
 
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -159,7 +160,6 @@ func TestResyncAndSingleService(t *testing.T) {
 	ipv4Net := NewMockIPv4Net()
 	ipv4Net.SetNatExternalTraffic(true)
 	const localEndpointWeight uint8 = 1
-	ipv4Net.SetServiceLocalEndpointWeight(localEndpointWeight)
 	ipv4Net.SetSTNMode(false)
 	ipv4Net.SetNodeIP(nodeIP)
 	ipv4Net.SetDefaultInterface(mainIfName, nodeIP.IP)
@@ -213,6 +213,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
+			Config:           &config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
 			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
@@ -530,7 +531,6 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	ipv4Net := NewMockIPv4Net()
 	ipv4Net.SetNatExternalTraffic(true)
 	const localEndpointWeight uint8 = 2
-	ipv4Net.SetServiceLocalEndpointWeight(localEndpointWeight)
 	ipv4Net.SetSTNMode(false)
 	ipv4Net.SetNodeIP(nodeIP)
 	ipv4Net.SetDefaultInterface(mainIfName, nodeIP.IP)
@@ -580,6 +580,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
+			Config:           &config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
 			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
@@ -1091,6 +1092,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	renderer = &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
+			Config:           &config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
 			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
@@ -1593,7 +1595,6 @@ func TestServiceUpdates(t *testing.T) {
 	ipv4Net := NewMockIPv4Net()
 	ipv4Net.SetNatExternalTraffic(true)
 	const localEndpointWeight uint8 = 4
-	ipv4Net.SetServiceLocalEndpointWeight(localEndpointWeight)
 	ipv4Net.SetSTNMode(false)
 	ipv4Net.SetNodeIP(nodeIP)
 	ipv4Net.SetDefaultInterface(mainIfName, nodeIP.IP)
@@ -1647,6 +1648,7 @@ func TestServiceUpdates(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
+			Config:           &config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
 			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
@@ -2038,7 +2040,6 @@ func TestWithSNATOnly(t *testing.T) {
 	ipv4Net := NewMockIPv4Net()
 	ipv4Net.SetNatExternalTraffic(true)
 	const localEndpointWeight uint8 = 1
-	ipv4Net.SetServiceLocalEndpointWeight(localEndpointWeight)
 	ipv4Net.SetSTNMode(false)
 	ipv4Net.SetNodeIP(nodeIP)
 	ipv4Net.SetDefaultInterface(mainIfName, nodeIP.IP)
@@ -2092,6 +2093,7 @@ func TestWithSNATOnly(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
+			Config:           &config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
 			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
@@ -2222,7 +2224,6 @@ func TestLocalServicePolicy(t *testing.T) {
 	ipv4Net := NewMockIPv4Net()
 	ipv4Net.SetNatExternalTraffic(true)
 	const localEndpointWeight uint8 = 1
-	ipv4Net.SetServiceLocalEndpointWeight(localEndpointWeight)
 	ipv4Net.SetSTNMode(false)
 	ipv4Net.SetNodeIP(nodeIP)
 	ipv4Net.SetDefaultInterface(mainIfName, nodeIP.IP)
@@ -2276,6 +2277,7 @@ func TestLocalServicePolicy(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:              logger,
+			Config:           &config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
 			IPv4Net:          ipv4Net,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),

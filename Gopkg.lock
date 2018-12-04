@@ -729,7 +729,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:bbbc09e8aca77487cc6abbf715741561dfa9d97020169465dc17952bd483c869"
+  digest = "1:6f9b2c79260b5b8535a9c0ed1d3330a69dd098601adeda639e11a506182cc963"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv2/linux",
@@ -772,6 +772,7 @@
     "plugins/vpp/binapi/stats",
     "plugins/vpp/binapi/tap",
     "plugins/vpp/binapi/tapv2",
+    "plugins/vpp/binapi/vmxnet3",
     "plugins/vpp/binapi/vpe",
     "plugins/vpp/binapi/vxlan",
     "plugins/vpp/model/bfd",
@@ -809,7 +810,7 @@
     "plugins/vppv2/natplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "fddfb7d873ce7a54fe6635039f26ba9258bcc328"
+  revision = "b1e3649b7744f29da1b66d4120699926df8bcbff"
 
 [[projects]]
   branch = "master"

@@ -105,7 +105,9 @@ export class DataService {
     const url = this.getRestUrl(pod.node);
 
     return this.getArpByIp(url, pod.podIp).pipe(
-      switchMap(arp => this.getTapInterfaceByName(url, arp.interface))
+      switchMap(arp => {
+        return arp ? this.getTapInterfaceByName(url, arp.interface) : of(null);
+      })
     );
   }
 
@@ -149,9 +151,11 @@ export class DataService {
             map(res => {
               if (res) {
                 res.forEach((r, i) => {
-                  d.vppPods[i].vppIp = r.IPS;
-                  d.vppPods[i].tapInterface = r.name;
-                  d.vppPods[i].tapInternalInterface = r.internalName;
+                  if (r) {
+                    d.vppPods[i].vppIp = r.IPS;
+                    d.vppPods[i].tapInterface = r.name;
+                    d.vppPods[i].tapInternalInterface = r.internalName;
+                  }
                 });
               }
               return d;

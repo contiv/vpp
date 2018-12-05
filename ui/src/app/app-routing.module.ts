@@ -18,6 +18,7 @@ import { VswitchDiagramComponent } from './vswitch-diagram/vswitch-diagram.compo
 import { VswitchDiagramControlComponent } from './shared/sidepanel/vswitch-diagram-control/vswitch-diagram-control.component';
 
 const routes: Routes = [
+  { path: '', redirectTo: 'kubernetes', pathMatch: 'full' },
   { path: 'kubernetes', component: KubernetesComponent, children: [
     { path: '', redirectTo: 'nodes', pathMatch: 'full' },
     { path: 'nodes', component: NodesComponent },

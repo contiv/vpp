@@ -9,12 +9,14 @@ import { DataService } from './shared/services/data.service';
 export class AppComponent implements OnInit {
 
   public isDataLoading: boolean;
+  public isWebTerminalOpened: boolean;
 
   constructor(
     private dataService: DataService
   ) { }
 
   ngOnInit() {
+    this.isWebTerminalOpened = false;
     this.dataService.isDataLoading.subscribe(state => this.isDataLoading = state);
   }
 

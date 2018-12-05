@@ -26,6 +26,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"path/filepath"
 
 	"github.com/safchain/ethtool"
 	"github.com/vishvananda/netlink"
@@ -33,11 +34,10 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
-	"path/filepath"
+	"github.com/contiv/vpp/plugins/contivconf"
 )
 
 const (
-	defaultGRPCServerSocket = "/var/run/contiv/stn.sock" // socket file where the GRPC STN server listens for client connections
 	defaultStatusCheckPort  = 9999                       // port that STN server is checking to determine contiv-agent liveness
 
 	initStatusCheckTimeout = 30 * time.Second // initial timeout after which the STN server starts checking of the contiv-agent state
@@ -56,7 +56,7 @@ var (
 	// BuildDate contains date of the build, set by the Makefile using ldflags during build.
 	BuildDate string
 
-	grpcServerSocket = flag.String("grpc", defaultGRPCServerSocket, "socket file where the GRPC STN server listens for client connections")
+	grpcServerSocket = flag.String("grpc", contivconf.DefaultSTNSocketFile, "socket file where the GRPC STN server listens for client connections")
 	statusCheckPort  = flag.Int("statuscheck", defaultStatusCheckPort, "port that STN server is checking to determine contive-agent liveness")
 )
 

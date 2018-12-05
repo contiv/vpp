@@ -26,6 +26,7 @@ import (
 type API interface {
 	// InSTNMode returns true if the agent operates in the STN mode
 	// (node has single interface stolen from the host stack for VPP).
+	// STN configuration can be obtained via GetSTNConfig().
 	InSTNMode() bool
 
 	// UseDHCP returns true when the main VPP interface should be configured
@@ -40,15 +41,16 @@ type API interface {
 
 	// GetMainInterfaceName returns the logical name of the VPP physical interface
 	// to use for connecting the node with the cluster.
+	// If empty, a loopback interface should be configured instead.
 	GetMainInterfaceName() string
 
 	// GetMainInterfaceStaticIPs returns the list of IP addresses to assign
 	// to the main interface. Ignore if DHCP is enabled.
-	GetMainInterfaceStaticIPs() []IPWithNetwork
+	GetMainInterfaceStaticIPs() []*IPWithNetwork
 
 	// GetOtherVPPInterfaces returns configuration to apply for non-main physical
 	// VPP interfaces.
-	GetOtherVPPInterfaces() []OtherInterfaceConfig
+	GetOtherVPPInterfaces() []*OtherInterfaceConfig
 
 	// GetStaticDefaultGW returns the IP address of the default gateway.
 	// Ignore if DHCP is enabled (in that case it is provided by the DHCP server)
@@ -59,9 +61,9 @@ type API interface {
 	NatExternalTraffic() bool
 
 	// GetIPAMConfig returns configuration to be used by the IPAM module.
-	GetIPAMConfig() IPAMConfig
+	GetIPAMConfig() *IPAMConfig
 
-	// GetInterfaceConfig returns configuration related to VPP TAP interfaces.
+	// GetInterfaceConfig returns configuration related to VPP interfaces.
 	GetInterfaceConfig() *InterfaceConfig
 
 	// GetRoutingConfig returns configuration related to IP routing.
@@ -71,9 +73,9 @@ type API interface {
 	// scanning.
 	GetIPNeighborScanConfig() *IPNeighborScanConfig
 
-	// GetSTNRoutes returns the list of routes originally configured on the stolen
-	// interface. Ignore if agent runs in non-STN mode.
-	GetSTNRoutes() []*stn_grpc.STNReply_Route
+	// GetSTNConfig returns configuration related to STN feature.
+	// Use the method only in the STN mode - i.e. when InSTNMode() returns true.
+	GetSTNConfig() *STNConfig
 }
 
 /******************************** Configuration ********************************/
@@ -135,41 +137,49 @@ type CustomIPAMSubnets struct {
 
 // InterfaceConfig contains configuration related to interfaces.
 type InterfaceConfig struct {
-	MTUSize                    uint32
-	UseTAPInterfaces           bool
-	TAPInterfaceVersion        uint8
-	TAPv2RxRingSize            uint16
-	TAPv2TxRingSize            uint16
-	TCPChecksumOffloadDisabled bool
+	MTUSize                    uint32 `json:"mtuSize"`
+	UseTAPInterfaces           bool   `json:"useTAPInterfaces"`
+	TAPInterfaceVersion        uint8  `json:"tapInterfaceVersion"`
+	TAPv2RxRingSize            uint16 `json:"tapv2RxRingSize"`
+	TAPv2TxRingSize            uint16 `json:"tapv2TxRingSize"`
+	TCPChecksumOffloadDisabled bool   `json:"tcpChecksumOffloadDisabled"`
 }
 
 // RoutingConfig groups configuration options related to routing.
 type RoutingConfig struct {
 	// VRF IDs
-	MainVRFID uint32
-	PodVRFID  uint32
+	MainVRFID uint32 `json:"mainVRFID"`
+	PodVRFID  uint32 `json:"podVRFID"`
 
 	// enabled when nodes are on the same L2 network and VXLANs are therefore
 	// not needed
-	UseL2Interconnect bool
+	UseL2Interconnect bool `json:"useL2Interconnect"`
 
 	// when enabled, cluster IP CIDR should be routed towards VPP from Linux
-	RouteServiceCIDRToVPP bool
+	RouteServiceCIDRToVPP bool `json:"routeServiceCIDRToVPP"`
 }
 
 // IPNeighborScanConfig contains configuration related to IP neighbour scanning.
 type IPNeighborScanConfig struct {
 	// when enabled, IP neighbors should be periodically scanned and probed
 	// to maintain the ARP table
-	ScanIPNeighbors          bool
-	IPNeighborScanInterval   uint8
-	IPNeighborStaleThreshold uint8
+	ScanIPNeighbors          bool  `json:"scanIPNeighbors"`
+	IPNeighborScanInterval   uint8 `json:"ipNeighborScanInterval"`
+	IPNeighborStaleThreshold uint8 `json:"ipNeighborStaleThreshold"`
+}
+
+// STNConfig groups config options related to STN (Steal-the-NIC).
+type STNConfig struct {
+	StealInterface string // can be empty if the interface is already stolen
+	STNRoutes      []*stn_grpc.STNReply_Route
+	STNSocketFile  string
 }
 
 // OtherInterfaceConfig represents configuration for a non-main VPP interface.
 type OtherInterfaceConfig struct {
 	InterfaceName string
-	Addresses     IPWithNetwork
+	UseDHCP       bool
+	IP            *IPWithNetwork
 }
 
 // IPWithNetwork encapsulates IP address with the network address.

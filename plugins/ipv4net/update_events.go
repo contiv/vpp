@@ -24,24 +24,10 @@ import (
 )
 
 // Update is called for:
-//   - KubeStateChange for CRD node-specific config of this node
 //   - AddPod and DeletePod
 //   - NodeUpdate for other nodes
 //   - Shutdown event
 func (n *IPv4Net) Update(event controller.Event, txn controller.UpdateOperations) (change string, err error) {
-	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
-		if ksChange.Resource == nodeconfig.Keyword {
-			followUpEv := &NodeConfigChange{}
-			if ksChange.NewValue != nil {
-				followUpEv.NodeConfig = nodeConfigFromProto(
-					ksChange.NewValue.(*nodeconfig.NodeConfig))
-			}
-			err := n.EventLoop.PushEvent(followUpEv)
-			if err != nil {
-				return "", err
-			}
-		}
-	}
 	if addPod, isAddPod := event.(*podmanager.AddPod); isAddPod {
 		return n.addPod(addPod, txn)
 	}

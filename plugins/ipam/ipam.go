@@ -78,6 +78,148 @@ type IPAM struct {
 
 type uintIP = uint32
 
+/*
+// ApplyIPAMConfig populates the Config struct with the calculated subnets
+func (cfg *Config) ApplyIPAMConfig() error {
+
+	// set default ContivCIDR if not defined by user
+	if cfg.IPAMConfig.ContivCIDR == "" {
+		return nil
+	}
+
+	// check if subnet is big enough to apply IPAM for subnets
+	_, contivNetwork, _ := net.ParseCIDR(cfg.IPAMConfig.ContivCIDR)
+	maskSize, _ := contivNetwork.Mask.Size()
+	if maskSize > 14 {
+		return fmt.Errorf("ContivCIDR is not valid, netmask size must be 14-bits or less")
+	}
+
+	// podSubnetCIDR has a requriement of minimum 65K pod ip addresses use /16 mask
+	podPrefixLength := 16 - maskSize
+	podSubnetCIDR, _ := subnet(contivNetwork, podPrefixLength, 0)
+	podSubnetOneNodePrefixLen := uint8(25)
+
+	// vppHostSubnetCIDR has a requriement of minimum 65K pod ip addresses use /16 mask
+	vppHostSubnetCIDR, _ := subnet(contivNetwork, podPrefixLength, 1)
+	vppHostSubnetOneNodePrefixLen := uint8(25)
+
+	// use a /23 mask for the requirement of 500 nodes, same for vxlanCIDR
+	nodePrefixLength := 23 - maskSize
+	nodeInterconnectCIDR, _ := subnet(contivNetwork, nodePrefixLength, 256)
+	vxlanCIDR, _ := subnet(contivNetwork, nodePrefixLength, 257)
+
+	// podVPPSubnetCIDR uses a /25 network prefix length similar to vppHostSubnetOneNodePrefixLen
+	podIfSubnetPrefixLength := 25 - maskSize
+	podVPPSubnetCIDR, _ := subnet(contivNetwork, podIfSubnetPrefixLength, 1032)
+
+	cfg.IPAMConfig = ipam.Config{
+		PodVPPSubnetCIDR:              podVPPSubnetCIDR.String(),
+		PodSubnetCIDR:                 podSubnetCIDR.String(),
+		PodSubnetOneNodePrefixLen:     podSubnetOneNodePrefixLen,
+		VPPHostSubnetCIDR:             vppHostSubnetCIDR.String(),
+		VPPHostSubnetOneNodePrefixLen: vppHostSubnetOneNodePrefixLen,
+		VxlanCIDR:                     vxlanCIDR.String(),
+		NodeInterconnectCIDR:          cfg.IPAMConfig.NodeInterconnectCIDR,
+		NodeInterconnectDHCP:          cfg.IPAMConfig.NodeInterconnectDHCP,
+		ContivCIDR:                    cfg.IPAMConfig.ContivCIDR,
+	}
+
+	if cfg.IPAMConfig.NodeInterconnectCIDR == "" && cfg.IPAMConfig.NodeInterconnectDHCP == false {
+		cfg.IPAMConfig.NodeInterconnectCIDR = nodeInterconnectCIDR.String()
+	}
+
+	return nil
+}
+
+
+// subnet takes a CIDR range and creates a subnet from it
+// base: parent CIDR range
+// newBits: number of additional prefix bits
+// num: given network number.
+//
+// Example: 10.1.0.0/16, with additional 8 bits and a network number of 5
+// result = 10.1.5.0/24
+func subnet(base *net.IPNet, newBits int, num int) (*net.IPNet, error) {
+	ip := base.IP
+	mask := base.Mask
+
+	baseLength, addressLength := mask.Size()
+	newPrefixLen := baseLength + newBits
+
+	// check if there is sufficient address space to extend the network prefix
+	if newPrefixLen > addressLength {
+		return nil, fmt.Errorf("not enought space to extend prefix of %d by %d", baseLength, newBits)
+	}
+
+	// calculate the maximum network number
+	maxNetNum := uint64(1<<uint64(newBits)) - 1
+	if uint64(num) > maxNetNum {
+		return nil, fmt.Errorf("prefix extension of %d does not accommodate a subnet numbered %d", newBits, num)
+	}
+
+	return &net.IPNet{
+		IP:   insertNetworkNumIntoIP(ip, num, newPrefixLen),
+		Mask: net.CIDRMask(newPrefixLen, addressLength),
+	}, nil
+}
+
+// ipToInt is simple utility function for conversion between IPv4/IPv6 and int.
+func ipToInt(ip net.IP) (*big.Int, int) {
+	val := &big.Int{}
+	val.SetBytes([]byte(ip))
+	if len(ip) == net.IPv4len {
+		return val, 32
+	} else if len(ip) == net.IPv6len {
+		return val, 128
+	} else {
+		return nil, 0
+	}
+}
+
+// intToIP is simple utility function for conversion between int and IPv4/IPv6.
+func intToIP(ipInt *big.Int, bits int) net.IP {
+	ipBytes := ipInt.Bytes()
+	val := make([]byte, bits/8)
+
+	// big.Int.Bytes() removes front zero padding.
+	// IP bytes packed at the end of the return array,
+	for i := 1; i <= len(ipBytes); i++ {
+		val[len(val)-i] = ipBytes[len(ipBytes)-i]
+	}
+
+	return net.IP(val)
+}
+
+func insertNetworkNumIntoIP(ip net.IP, num int, prefixLen int) net.IP {
+	ipInt, totalBits := ipToInt(ip)
+	bigNum := big.NewInt(int64(num))
+	bigNum.Lsh(bigNum, uint(totalBits-prefixLen))
+	ipInt.Or(ipInt, bigNum)
+
+	return intToIP(ipInt, totalBits)
+}
+
+func (n *IPv4Net) excludedIPsFromNodeCIDR() []net.IP {
+	if n.config == nil {
+		return nil
+	}
+	var excludedIPs []string
+	for _, oneNodeConfig := range n.config.NodeConfig {
+		if oneNodeConfig.Gateway == "" {
+			continue
+		}
+		excludedIPs = appendIfMissing(excludedIPs, oneNodeConfig.Gateway)
+	}
+	var res []net.IP
+	for _, ip := range excludedIPs {
+		res = append(res, net.ParseIP(ip))
+	}
+	return res
+}
+
+
+ */
+
 // New returns new IPAM module to be used on the node specified by the nodeID.
 func New(logger logging.Logger, nodeSync nodesync.API, config *Config, nodeInterconnectExcludedIPs []net.IP) (*IPAM, error) {
 	// create basic IPAM

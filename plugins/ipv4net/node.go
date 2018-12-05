@@ -36,12 +36,6 @@ const (
 	loopbackNICLogicalName = "loopbackNIC"
 )
 
-/* VRFs */
-const (
-	defaultMainVrfID = 0
-	defaultPodVrfID  = 1
-)
-
 /* VXLANs */
 const (
 	// VXLAN Network Identifier (or VXLAN Segment ID)
@@ -205,7 +199,8 @@ func (n *IPv4Net) handleDHCPNotification(notif idxmap.NamedMappingGenericEvent) 
 		return
 	}
 	if dhcpLease.InterfaceName != n.mainPhysicalIf {
-		n.Log.Warn("DHCP notification for a non-main interface")
+		n.Log.Debugf("DHCP notification for a non-main interface (%s)",
+			dhcpLease.InterfaceName)
 		return
 	}
 	if proto.Equal(dhcpLease, lastDHCPLease) {

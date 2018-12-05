@@ -15,7 +15,7 @@ spec:
       containers:
         - name: server
           imagePullPolicy: IfNotPresent
-          image: nginx-gh
+          image: gilesheron/nginx-gh
           ports:
             - containerPort: 8080
           securityContext:

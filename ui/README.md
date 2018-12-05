@@ -15,20 +15,18 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 - Vagrant
 - VirtualBox
 
-## Installation
+### Running
 
-### Backend installation (Contiv VPP)
-Clone [Backend](https://github.com/contiv/vpp.git) and follow installation instructions for running [Vagrant version](https://github.com/contiv/vpp/tree/master/vagrant).
+From this directory run one of these commands:
+- `./start.sh` for fully automated setup - run 2 workers in production enviroment without STN along with kubectl proxy
+- `./start-professional.sh` for manual settings
+
+When everything is installed, navigate to `http://localhost:4300/` on Chrome with disabled web security.
 
 ### Accessing APIs
 
 #### Set kubectl proxy
-When everything is installed, run `vagrant ssh k8s-master` from backend vagrant's folder for connecting to the-k8s master node. When connected, run `kubectl proxy --port=8080 &` in order to access APIs on k8s master's localhost. You can test the APIs by running `curl http://localhost:8080/api/` from k8s-master node - [more info](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/).
+In case you chose "manual settings", the kubectl proxy must be set in order to access APIs. Run `vagrant ssh k8s-master` from backend vagrant's folder for connecting to the-k8s master node. When connected, run `kubectl proxy --port=8080 &` in order to access APIs on k8s master's localhost. You can test the APIs by running `curl http://localhost:8080/api/` from k8s-master node - [more info](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/).
 
-### Frontend installation
-Clone this repository, cd into directory and run `./start.sh`.
-
-When everything is installed, navigate to `http://localhost:4200/` on Chrome with disabled web security.
-
-#### Postman collection
+### Postman collection
 [Collection](./data/ContivVPP.postman_collection.json)

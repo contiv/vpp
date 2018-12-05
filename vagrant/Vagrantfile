@@ -146,7 +146,7 @@ systemctl start docker
 echo 'MaxStartups 20' >> /etc/ssh/sshd_config
 sudo service sshd restart
 
-if [ "#{dep_env}" == "dev" ]; then 
+if [ "#{dep_env}" == "dev" ]; then
   echo "Downloading Go '#{go_version}'..."
   curl --silent https://storage.googleapis.com/golang/go'#{go_version}'.linux-amd64.tar.gz > /tmp/go.tar.gz
 
@@ -268,7 +268,7 @@ echo Args passed: [[ $@ ]]
 sudo -E apt-get install -y python-pip \
                    python-dev \
                    python-virtualenv \
-                   build-essential 
+                   build-essential
 
 #Install pip
 sudo -E pip install --upgrade pip
@@ -701,6 +701,25 @@ VAGRANTFILE_API_VERSION = "2"
         s.inline = vbox_bootstrap_master
         s.args = ["k8s-master", k8smaster_ip]
       end
+
+      k8smaster.vm.provision "shell", run: "once", inline: <<-SHELL
+        echo "Installing Node.JS"
+        curl -sL https://deb.nodesource.com/setup_8.x | bash -
+        sudo -E apt-get install -y nodejs
+
+        npm install npm -g
+        echo "Installing Web-Terminal"
+        npm install --unsafe-perm -g web-terminal
+      SHELL
+
+      k8smaster.vm.provision "shell",
+        privileged: false,
+        run: "always",
+        inline: <<-SHELL
+          cd /vagrant && nohup web-terminal --port 8088 > /dev/null 2>&1 < /dev/null &
+          echo "Web-Terminal accessible at http://localhost:8088/terminal"
+          echo ""
+        SHELL
     end
 
     # Configure VBox Worker node(s)

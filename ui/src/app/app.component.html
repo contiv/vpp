@@ -18,7 +18,7 @@
       <a class="nav-link" routerLink="bridge-domain" routerLinkActive="active">Bridge Domain</a>
     </li>
     <li class="nav-item">
-      <a class="nav-link">Netctl</a>
+      <a class="nav-link" (click)="isWebTerminalOpened = true">Netctl</a>
     </li>
     <li class="nav-item">
       <a class="nav-link" routerLink="services" routerLinkActive="active">Services</a>
@@ -30,6 +30,16 @@
 <div class="content">
   <router-outlet></router-outlet>
 </div>
+
+<clr-modal [clrModalSize]="'xl'" clrModalOpen="true" [clrModalClosable]="false" class="terminal-modal" [ngClass]="{'active': isWebTerminalOpened}">
+  <div class="modal-body">
+    <iframe id="terminal" src="http://localhost:8088/terminal"></iframe>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-primary" (click)="isWebTerminalOpened = false">Close</button>
+  </div>
+</clr-modal>
+
 
 <app-ip-mapping-modal></app-ip-mapping-modal>
 <app-vswitch-diagram-modal></app-vswitch-diagram-modal>

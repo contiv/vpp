@@ -393,6 +393,8 @@ spec:
               mountPath: /dev/shm
             - name: dev
               mountPath: /dev
+            - name: sys-bus-pci
+              mountPath: /sys/bus/pci
             - name: vpp-run
               mountPath: /run/vpp
             - name: contiv-run
@@ -440,6 +442,10 @@ spec:
         - name: shm
           hostPath:
             path: /dev/shm
+        # /sys/bus/pci is required for binding PCI devices to specific drivers
+        - name: sys-bus-pci
+          hostPath:
+            path: /sys/bus/pci
         # For CLI unix socket.
         - name: vpp-run
           hostPath:

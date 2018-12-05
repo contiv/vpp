@@ -147,7 +147,7 @@
     </clr-datagrid>
   </div>
 
-  <div [ngClass]="{'topo-table': shownTopology, 'active': shownEndpoints}" class="grid-wrap endpoints-wrap" *ngIf="selectedEndpoint">
+  <div [ngClass]="{'topo-table': shownTopology, 'active': shownEndpoints}" class="grid-wrap endpoints-wrap" *ngIf="selectedEndpoint && !shownTopology">
     <div class="endpoints-table">
       <h2>
         {{ shownTopology && selectedService ? selectedService.name + ' Service Endpoints' : 'Endpoints' }}
@@ -197,5 +197,12 @@
                     (topologyRendered)="onRender($event)">
   </app-topology-viz>
 
-  <button class="btn btn-exit" [ngClass]="{'hidden': !shownTopology}" (click)="hideTopology()">Exit</button>
+  <div class="s-btn-group" [ngClass]="{'hidden': !shownTopology}">
+    <div>
+      <button class="btn btn-exit" (click)="hideTopology()">Show Service</button>
+    </div>
+    <div>
+      <button class="btn btn-exit" (click)="resetPage()">Exit</button>
+    </div>
+  </div>
 </div>

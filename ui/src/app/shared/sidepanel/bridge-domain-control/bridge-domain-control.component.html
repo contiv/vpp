@@ -22,7 +22,7 @@
 
   <div *ngIf="isPods">
     <h4>Pods</h4>
-    <clr-datagrid *ngIf="podsObj.length">
+    <clr-datagrid *ngIf="podsObj">
       <clr-dg-column [clrDgSortBy]="'name'">Name</clr-dg-column>
       <clr-dg-column [clrDgSortBy]="'iface'">Interface</clr-dg-column>
       <clr-dg-column [clrDgSortBy]="'ip'">Pod IP</clr-dg-column>

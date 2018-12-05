@@ -49,11 +49,6 @@ export class ServicesComponent implements OnInit, OnDestroy {
   ) { }
 
   ngOnInit() {
-    this.svgTransform = {
-      translate: [390, 280],
-      scale: [0.69]
-    };
-
     this.services = [];
     this.k8sNodes = [];
     this.subscriptions = [];
@@ -146,6 +141,12 @@ export class ServicesComponent implements OnInit, OnDestroy {
     const node = this.k8sNodes.find(n => n.name === nodeId);
 
     return node ? node.ip : '';
+  }
+
+  public resetPage() {
+    this.resetService();
+    this.selectedService = null;
+    this.selectedEndpoint = null;
   }
 
   private resetService() {

@@ -114,6 +114,10 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
               this.tunnelsObj.push(row);
             });
           });
+        } else {
+          this.summaryObj = [];
+          this.podsObj = [];
+          this.tunnelsObj = [];
         }
       })
     );

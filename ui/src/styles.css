@@ -83,3 +83,7 @@ clr-dropdown:focus, .btn:focus {
 #bridge-domain-sp form {
   padding-top: 0;
 }
+
+.terminal-modal .modal-dialog {
+  width: 85% !important;
+}

@@ -63,11 +63,14 @@ clr-dropdown {
   cursor: pointer;
 }
 
-.btn-exit {
+.s-btn-group {
   position: absolute;
   bottom: 30px;
   right: 30px;
-  width: 110px;
+}
+
+.s-btn-group .btn {
+  width: 140px;
 }
 
 .btn-vpp-state {

@@ -28,12 +28,16 @@ import (
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/nodesync"
+	"strings"
 )
 
 /* Main VPP interface */
 const (
 	// loopbackNICLogicalName is the logical name of the loopback interface configured instead of physical NICs.
 	loopbackNICLogicalName = "loopbackNIC"
+
+	// vmxnet3InterfacePrefix contains the prefix matching all vmxnet3 interfaces on VPP
+	vmxnet3InterfacePrefix = "vmxnet3-"
 )
 
 /* VRFs */
@@ -278,6 +282,9 @@ func (n *IPv4Net) physicalInterface(name string, ips []*nodesync.IPWithNetwork) 
 		Enabled: true,
 		Vrf:     n.GetMainVrfID(),
 	}
+	if strings.HasPrefix(name, vmxnet3InterfacePrefix) {
+		iface.Type = interfaces.Interface_VMXNET3_INTERFACE
+	}
 	for _, ip := range ips {
 		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.Address, ip.Network)))
 	}
@@ -424,7 +431,7 @@ func (n *IPv4Net) vxlanBridgeDomain() (key string, config *l2.BridgeDomain) {
 		UnknownUnicastFlood: false,
 		Interfaces: []*l2.BridgeDomain_Interface{
 			{
-				Name:                    vxlanBVIInterfaceName,
+				Name: vxlanBVIInterfaceName,
 				BridgedVirtualInterface: true,
 				SplitHorizonGroup:       vxlanSplitHorizonGroup,
 			},

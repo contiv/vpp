@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"github.com/contiv/vpp/pkg/pci"
 	"path/filepath"
 )
 
@@ -48,6 +49,8 @@ const (
 	configRetrySleep = 200 * time.Millisecond // sleep interval between individual config retry attempts
 
 	vppTapInterfaceName = "vpp1" // name of the TAP interface which VPP creates once STN is configured
+
+	preferredVPPDriver = "vfio-pci" // preferred driver for VPP interfaces
 )
 
 var (
@@ -98,6 +101,9 @@ func (s *stnServer) StealInterface(ctx context.Context, req *stn.STNRequest) (*s
 		log.Println(err)
 		return s.grpcReplyError(err), err
 	}
+
+	// attempt to bind to the preferred driver
+	pci.DriverBind(ifData.PCIAddress, preferredVPPDriver) // do not care about the error - VPP can bind it as well
 
 	// generate GRPC response
 	resp := s.grpcReplyData(ifData)
@@ -282,7 +288,7 @@ func (s *stnServer) revertLink(ifData *interfaceData) error {
 	log.Println("Reverting interface", ifData.name)
 
 	// bind to proper PCI driver
-	err := pciDriverBind(ifData.PCIAddress, ifData.driver)
+	err := pci.DriverBind(ifData.PCIAddress, ifData.driver)
 	if err != nil {
 		log.Printf("Unable to bind PCI device %s to driver %s", ifData.PCIAddress, ifData.driver)
 		return err
@@ -711,6 +717,8 @@ func (s *stnServer) grpcReplyData(ifData *interfaceData) *stn.STNReply {
 		}
 		reply.Routes = append(reply.Routes, route)
 	}
+
+	reply.KernelDriver = ifData.driver
 
 	return reply
 }

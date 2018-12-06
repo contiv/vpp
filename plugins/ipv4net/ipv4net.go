@@ -486,7 +486,9 @@ func (n *IPv4Net) loadNodeConfig(kubeStateData controller.KubeStateData) *NodeCo
 
 // getStolenInterfaceConfig returns IP addresses and routes associated with the main
 // interface before it was stolen from the host stack.
-func (n *IPv4Net) getStolenInterfaceConfig(ifName string) (ipNets []*nodesync.IPWithNetwork, gw net.IP, routes []*stn_grpc.STNReply_Route, err error) {
+func (n *IPv4Net) getStolenInterfaceConfig(ifName string) (
+	ipNets []*nodesync.IPWithNetwork, gw net.IP, routes []*stn_grpc.STNReply_Route, kernelDriver string, err error) {
+
 	if ifName == "" {
 		n.Log.Debug("Getting STN info for the first stolen interface")
 	} else {
@@ -535,6 +537,8 @@ func (n *IPv4Net) getStolenInterfaceConfig(ifName string) (ipNets []*nodesync.IP
 
 	// return routes without any processing
 	routes = reply.Routes
+
+	kernelDriver = reply.KernelDriver
 	return
 }
 

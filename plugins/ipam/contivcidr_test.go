@@ -60,23 +60,9 @@ func testApplyIPAM(t *testing.T) {
 	configData3 := &contivconf.IPAMConfig{
 		ContivCIDR: ipNet("192.254.0.0/12"),
 	}
-	// try with manual ipam config
-	configData4 := &contivconf.IPAMConfig{
-		ContivCIDR:           nil,
-		NodeInterconnectDHCP: false,
-		CustomIPAMSubnets: contivconf.CustomIPAMSubnets{
-			NodeInterconnectCIDR:          ipNet("192.168.16.0/24"),
-			PodSubnetCIDR:                 ipNet("10.1.0.0/16"),
-			PodSubnetOneNodePrefixLen:     24,
-			PodVPPSubnetCIDR:              ipNet("10.2.1.0/24"),
-			VPPHostSubnetCIDR:             ipNet("172.30.0.0/16"),
-			VPPHostSubnetOneNodePrefixLen: 24,
-			VxlanCIDR:                     ipNet("192.168.30.0/24"),
-		},
-	}
 
 	// Try with overridden NodeInterconnectCIDR
-	configData5 := &contivconf.IPAMConfig{
+	configData4 := &contivconf.IPAMConfig{
 		ContivCIDR: ipNet("10.128.0.0/14"),
 		CustomIPAMSubnets: contivconf.CustomIPAMSubnets{
 			NodeInterconnectCIDR: ipNet("192.168.16.0/24"),
@@ -84,7 +70,7 @@ func testApplyIPAM(t *testing.T) {
 	}
 
 	// Try with NodeInterconnectDHCP enabled
-	configData6 := &contivconf.IPAMConfig{
+	configData5 := &contivconf.IPAMConfig{
 		ContivCIDR:           ipNet("10.128.0.0/14"),
 		NodeInterconnectDHCP: true,
 	}
@@ -113,22 +99,13 @@ func testApplyIPAM(t *testing.T) {
 	subnets, err = dissectContivCIDR(configData4)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(subnets.PodSubnetCIDR.String()).To(gomega.Equal("10.1.0.0/16"))
-	gomega.Expect(subnets.VPPHostSubnetCIDR.String()).To(gomega.Equal("172.30.0.0/16"))
-	gomega.Expect(subnets.NodeInterconnectCIDR.String()).To(gomega.Equal("192.168.16.0/24"))
-	gomega.Expect(subnets.VxlanCIDR.String()).To(gomega.Equal("192.168.30.0/24"))
-	gomega.Expect(subnets.PodVPPSubnetCIDR.String()).To(gomega.Equal("10.2.1.0/24"))
-
-	subnets, err = dissectContivCIDR(configData5)
-	gomega.Expect(err).To(gomega.BeNil())
-
 	gomega.Expect(subnets.PodSubnetCIDR.String()).To(gomega.Equal("10.128.0.0/16"))
 	gomega.Expect(subnets.VPPHostSubnetCIDR.String()).To(gomega.Equal("10.129.0.0/16"))
 	gomega.Expect(subnets.NodeInterconnectCIDR.String()).To(gomega.Equal("192.168.16.0/24"))
 	gomega.Expect(subnets.VxlanCIDR.String()).To(gomega.Equal("10.130.2.0/23"))
 	gomega.Expect(subnets.PodVPPSubnetCIDR.String()).To(gomega.Equal("10.130.4.0/25"))
 
-	subnets, err = dissectContivCIDR(configData6)
+	subnets, err = dissectContivCIDR(configData5)
 	gomega.Expect(err).To(gomega.BeNil())
 
 	gomega.Expect(subnets.PodSubnetCIDR.String()).To(gomega.Equal("10.128.0.0/16"))

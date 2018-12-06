@@ -194,13 +194,13 @@ type Config struct {
 	IPNeighborScanConfig
 	IPAMConfigForJSON
 
-	StealFirstNIC  bool   `json:"stealFirstNIC"`
-	StealInterface string `json:"stealInterface"`
-	STNSocketFile  string `json:"stnSocketFile"`
+	StealFirstNIC  bool   `json:"stealFirstNIC,omitempty"`
+	StealInterface string `json:"stealInterface,omitempty"`
+	STNSocketFile  string `json:"stnSocketFile,omitempty"`
 
-	NatExternalTraffic           bool `json:"natExternalTraffic"`
-	EnablePacketTrace            bool `json:"enablePacketTrace"`
-	CRDNodeConfigurationDisabled bool `json:"crdNodeConfigurationDisabled"`
+	NatExternalTraffic           bool `json:"natExternalTraffic,omitempty"`
+	EnablePacketTrace            bool `json:"enablePacketTrace,omitempty"`
+	CRDNodeConfigurationDisabled bool `json:"crdNodeConfigurationDisabled,omitempty"`
 
 	NodeConfig []NodeConfig `json:"nodeConfig"`
 }
@@ -210,16 +210,16 @@ type Config struct {
 // The string fields are then parsed to *net.IPNet and returned as such in IPAMConfig
 // structure.
 type IPAMConfigForJSON struct {
-	ContivCIDR                    string `json:"contivCIDR"`
-	ServiceCIDR                   string `json:"serviceCIDR"`
-	NodeInterconnectDHCP          bool   `json:"nodeInterconnectDHCP"`
-	PodVPPSubnetCIDR              string `json:"podVPPSubnetCIDR"`
-	PodSubnetCIDR                 string `json:"podSubnetCIDR"`
-	PodSubnetOneNodePrefixLen     uint8  `json:"podSubnetOneNodePrefixLen"`
-	VPPHostSubnetCIDR             string `json:"vppHostSubnetCIDR"`
-	VPPHostSubnetOneNodePrefixLen uint8  `json:"vppHostSubnetOneNodePrefixLen"`
-	NodeInterconnectCIDR          string `json:"nodeInterconnectCIDR"`
-	VxlanCIDR                     string `json:"vxlanCIDR"`
+	ContivCIDR                    string `json:"contivCIDR,omitempty"`
+	ServiceCIDR                   string `json:"serviceCIDR,omitempty"`
+	NodeInterconnectDHCP          bool   `json:"nodeInterconnectDHCP,omitempty"`
+	PodVPPSubnetCIDR              string `json:"podVPPSubnetCIDR,omitempty"`
+	PodSubnetCIDR                 string `json:"podSubnetCIDR,omitempty"`
+	PodSubnetOneNodePrefixLen     uint8  `json:"podSubnetOneNodePrefixLen,omitempty"`
+	VPPHostSubnetCIDR             string `json:"vppHostSubnetCIDR,omitempty"`
+	VPPHostSubnetOneNodePrefixLen uint8  `json:"vppHostSubnetOneNodePrefixLen,omitempty"`
+	NodeInterconnectCIDR          string `json:"nodeInterconnectCIDR,omitempty"`
+	VxlanCIDR                     string `json:"vxlanCIDR,omitempty"`
 }
 
 // NodeConfig represents configuration specific to a given node.

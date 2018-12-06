@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
@@ -31,7 +32,7 @@ type API interface {
 	// - only if something has really changed an update will be sent.
 	// The method should be called only from within the main event loop (not thread
 	// safe) and not before the startup resync.
-	PublishNodeIPs(addresses []*IPWithNetwork, version IPVersion) error
+	PublishNodeIPs(addresses contivconf.IPsWithNetworks, version contivconf.IPVersion) error
 
 	// GetAllNodes returns information about all nodes in the cluster.
 	// The method should be called only from within the main event loop (not thread
@@ -43,7 +44,7 @@ type API interface {
 type Node struct {
 	ID              uint32
 	Name            string
-	VppIPAddresses  []*IPWithNetwork
+	VppIPAddresses  contivconf.IPsWithNetworks
 	MgmtIPAddresses []net.IP
 }
 
@@ -55,18 +56,8 @@ func (n *Node) String() string {
 	if n == nil {
 		return "<nil>"
 	}
-	vppIPs := "{"
-	first := true
-	for _, vppIP := range n.VppIPAddresses {
-		if !first {
-			vppIPs += ", "
-		}
-		first = false
-		vppIPs += fmt.Sprintf("(%s, %s)", vppIP.Address.String(), vppIP.Network.String())
-	}
-	vppIPs += "}"
 	return fmt.Sprintf("<ID: %d, Name: %s, VPP-IPs: %v, Mgmt-IPs: %v",
-		n.ID, n.Name, vppIPs, n.MgmtIPAddresses)
+		n.ID, n.Name, n.VppIPAddresses.String(), n.MgmtIPAddresses)
 }
 
 // String returns a string representation of nodes.

@@ -20,12 +20,15 @@ import (
 	"strconv"
 	"testing"
 
+	. "github.com/onsi/gomega"
+
 	. "github.com/contiv/vpp/mock/datasync"
 	. "github.com/contiv/vpp/mock/nodesync"
+	. "github.com/contiv/vpp/mock/servicelabel"
 
+	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging/logrus"
-
-	. "github.com/onsi/gomega"
+	"github.com/ligato/cn-infra/logging"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
@@ -40,8 +43,6 @@ const (
 	b11000000 = 1<<7 + 1<<6
 	b11000101 = 1<<7 + 1<<6 + 1<<2 + 1
 	b00000101 = 1<<2 + 1
-
-	incorrectHostIDForIPAllocation = ""
 )
 
 var (
@@ -86,34 +87,55 @@ func setup(t *testing.T, cfg *contivconf.Config) *IPAM {
 }
 
 func newIPAM(cfg *contivconf.Config, nodeID uint32) (i *IPAM, err error) {
+	datasync := NewMockDataSync()
+	resyncEv, _ := datasync.ResyncEvent(podmodel.KeyPrefix())
+
+	// service label
+	serviceLabel := NewMockServiceLabel()
+	serviceLabel.SetAgentLabel(nodeName)
+
+	// nodesync mock plugin
 	nodeSync := NewMockNodeSync(nodeName)
 	nodeSync.UpdateNode(&nodesync.Node{
 		ID:   nodeID,
 		Name: nodeName,
 	})
 
+	// contivConf real plugin
 	conf := &contivconf.ContivConf{
 		Deps: contivconf.Deps{
+			PluginDeps: infra.PluginDeps{
+				Log:  logging.ForPlugin("contivconf"),
+			},
+			ServiceLabel: serviceLabel,
 			UnitTestDeps: &contivconf.UnitTestDeps{
 				Config: cfg,
 			},
 		},
 	}
-
-	i = &IPAM{
-		Deps: Deps{
-			NodeSync:   nodeSync,
-			ContivConf: conf,
-		},
+	err = conf.Init()
+	if err != nil {
+		return nil, err
 	}
-
-	err = i.Init()
+	err = conf.Resync(resyncEv, resyncEv.KubeState, 1, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	datasync := NewMockDataSync()
-	resyncEv, _ := datasync.ResyncEvent(podmodel.KeyPrefix())
+	// IPAM real plugin
+	i = &IPAM{
+		Deps: Deps{
+			PluginDeps: infra.PluginDeps{
+				Log:  logging.ForPlugin("ipam"),
+			},
+			NodeSync:   nodeSync,
+			ContivConf: conf,
+		},
+	}
+	err = i.Init()
+	if err != nil {
+		return nil, err
+	}
 	err = i.Resync(resyncEv, resyncEv.KubeState, 1, nil)
 	if err != nil {
 		return nil, err

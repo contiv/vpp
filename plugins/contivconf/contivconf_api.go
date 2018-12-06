@@ -144,35 +144,35 @@ type CustomIPAMSubnets struct {
 
 // InterfaceConfig contains configuration related to interfaces.
 type InterfaceConfig struct {
-	MTUSize                    uint32 `json:"mtuSize"`
-	UseTAPInterfaces           bool   `json:"useTAPInterfaces"`
-	TAPInterfaceVersion        uint8  `json:"tapInterfaceVersion"`
-	TAPv2RxRingSize            uint16 `json:"tapv2RxRingSize"`
-	TAPv2TxRingSize            uint16 `json:"tapv2TxRingSize"`
-	TCPChecksumOffloadDisabled bool   `json:"tcpChecksumOffloadDisabled"`
+	MTUSize                    uint32 `json:"mtuSize,omitempty"`
+	UseTAPInterfaces           bool   `json:"useTAPInterfaces,omitempty"`
+	TAPInterfaceVersion        uint8  `json:"tapInterfaceVersion,omitempty"`
+	TAPv2RxRingSize            uint16 `json:"tapv2RxRingSize,omitempty"`
+	TAPv2TxRingSize            uint16 `json:"tapv2TxRingSize,omitempty"`
+	TCPChecksumOffloadDisabled bool   `json:"tcpChecksumOffloadDisabled,omitempty"`
 }
 
 // RoutingConfig groups configuration options related to routing.
 type RoutingConfig struct {
 	// VRF IDs
-	MainVRFID uint32 `json:"mainVRFID"`
-	PodVRFID  uint32 `json:"podVRFID"`
+	MainVRFID uint32 `json:"mainVRFID,omitempty"`
+	PodVRFID  uint32 `json:"podVRFID,omitempty"`
 
 	// enabled when nodes are on the same L2 network and VXLANs are therefore
 	// not needed
-	UseL2Interconnect bool `json:"useL2Interconnect"`
+	UseL2Interconnect bool `json:"useL2Interconnect,omitempty"`
 
 	// when enabled, cluster IP CIDR should be routed towards VPP from Linux
-	RouteServiceCIDRToVPP bool `json:"routeServiceCIDRToVPP"`
+	RouteServiceCIDRToVPP bool `json:"routeServiceCIDRToVPP,omitempty"`
 }
 
 // IPNeighborScanConfig contains configuration related to IP neighbour scanning.
 type IPNeighborScanConfig struct {
 	// when enabled, IP neighbors should be periodically scanned and probed
 	// to maintain the ARP table
-	ScanIPNeighbors          bool  `json:"scanIPNeighbors"`
-	IPNeighborScanInterval   uint8 `json:"ipNeighborScanInterval"`
-	IPNeighborStaleThreshold uint8 `json:"ipNeighborStaleThreshold"`
+	ScanIPNeighbors          bool  `json:"scanIPNeighbors,omitempty"`
+	IPNeighborScanInterval   uint8 `json:"ipNeighborScanInterval,omitempty"`
+	IPNeighborStaleThreshold uint8 `json:"ipNeighborStaleThreshold,omitempty"`
 }
 
 // STNConfig groups config options related to STN (Steal-the-NIC).

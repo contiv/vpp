@@ -8,7 +8,7 @@ from kubernetes.client.apis import core_v1_api
 from kubernetes.client.rest import ApiException
 from kubernetes.stream import stream
 
-class my_pod(object):
+class Pod(object):
 	_api = ""
 	_name = "" 
 	_conn = ""
@@ -114,29 +114,3 @@ class my_pod(object):
                                 exit(1)
 
 		return resp.status.pod_ip
-
-if __name__ == '__main__':
-	pod = []
-	config.load_kube_config()
-	c = Configuration()
-	c.assert_hostname = False
-	Configuration.set_default(c)
-
-	# list nodes
-	v = client.CoreV1Api()
-	hosts = v.list_node().items
- 
-	# create pods
-	for i in range (0, len(hosts)):
-		pod.append(my_pod('busyboxplus', 'radial/busyboxplus:curl', hosts[i].metadata.name))
-		pod[i].open_conn()
-
-	# test pods
-	for i in range (0, len(hosts)):
-		print pod[i].get_name(), "(", pod[i].get_address(), ")"
-		for j in range (0, 10):
-			pod[i].send('wget -O - 10.96.1.1/server_addr 2>/dev/null')
-
-	# close pods
-	for i in range(0, len(hosts)):
-		pod[i].close_conn()

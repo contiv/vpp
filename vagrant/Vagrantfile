@@ -273,6 +273,7 @@ sudo -E apt-get install -y python-pip \
 #Install pip
 sudo -E pip install --upgrade pip
 sudo -E pip install --upgrade virtualenv
+sudo -E pip install --upgrade kubernetes
 
 # Pull images if not present
 if [ -f /vagrant/images.tar ]; then

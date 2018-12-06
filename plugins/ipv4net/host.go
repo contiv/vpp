@@ -305,11 +305,17 @@ func (n *IPv4Net) stnRoutesForVPP() map[string]*l3.StaticRoute {
 	routes := make(map[string]*l3.StaticRoute)
 
 	for _, stnRoute := range n.stnRoutes {
+		if stnRoute.NextHopIp == "" {
+			continue // skip routes with no next hop IP (link-local)
+		}
 		route := &l3.StaticRoute{
 			DstNetwork:        stnRoute.DestinationSubnet,
 			NextHopAddr:       stnRoute.NextHopIp,
 			OutgoingInterface: n.mainPhysicalIf,
 			VrfId:             n.GetMainVrfID(),
+		}
+		if route.DstNetwork == "" {
+			route.DstNetwork = ipv4NetAny
 		}
 		key := l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 		routes[key] = route

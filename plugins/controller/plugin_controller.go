@@ -495,10 +495,18 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 
 		// update Controller's view of DB
 		if ksChange, isKSChange := event.(*api.KubeStateChange); isKSChange {
-			c.kubeStateData[ksChange.Resource][ksChange.Key] = ksChange.NewValue
+			if ksChange.NewValue == nil {
+				delete(c.kubeStateData[ksChange.Resource], ksChange.Key)
+			} else {
+				c.kubeStateData[ksChange.Resource][ksChange.Key] = ksChange.NewValue
+			}
 		}
 		if extChangeEv, isExtChangeEv := event.(*api.ExternalConfigChange); isExtChangeEv {
-			c.externalConfig[extChangeEv.Key] = extChangeEv.Value
+			if extChangeEv.Value == nil {
+				delete(c.externalConfig, extChangeEv.Key)
+			} else {
+				c.externalConfig[extChangeEv.Key] = extChangeEv.Value
+			}
 		}
 	}
 

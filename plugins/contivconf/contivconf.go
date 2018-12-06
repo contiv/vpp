@@ -387,6 +387,7 @@ func (c *ContivConf) Init() (err error) {
 				if c.nodeConfigCRD == nil && c.RemoteDB == nil {
 					return errors.New("nodeConfig CRD is not available")
 				}
+				c.Log.Debug("Waiting 1sec for NodeConfig CRD to be applied...")
 				time.Sleep(time.Second)
 			}
 		}
@@ -449,11 +450,13 @@ func (c *ContivConf) Resync(event controller.Event, kubeStateData controller.Kub
 
 	// re-sync NodeConfig CRD
 	c.nodeConfigCRD = nil
-	myNodeName := c.ServiceLabel.GetAgentLabel()
-	for key, nodeConfig := range kubeStateData[nodeconfig.Keyword] {
-		if key == nodeconfig.Key(myNodeName) {
-			c.nodeConfigCRD = nodeConfigFromProto(nodeConfig.(*nodeconfig.NodeConfig))
-			break
+	if !c.config.CRDNodeConfigurationDisabled {
+		myNodeName := c.ServiceLabel.GetAgentLabel()
+		for key, nodeConfig := range kubeStateData[nodeconfig.Keyword] {
+			if key == nodeconfig.Key(myNodeName) {
+				c.nodeConfigCRD = nodeConfigFromProto(nodeConfig.(*nodeconfig.NodeConfig))
+				break
+			}
 		}
 	}
 	nodeConfig := c.getNodeSpecificConfig()

@@ -28,12 +28,12 @@ const (
 )
 
 type ipamData struct {
-	NodeID            uint32                 `json:"nodeId"`
-	NodeName          string                 `json:"nodeName"`
-	NodeIP            string                 `json:"nodeIP"`
-	PodSubnetThisNode string                 `json:"podSubnetThisNode"`
-	VppHostNetwork    string                 `json:"vppHostNetwork"`
-	Config            *contivconf.IPAMConfig `json:"config"`
+	NodeID            uint32                        `json:"nodeId"`
+	NodeName          string                        `json:"nodeName"`
+	NodeIP            string                        `json:"nodeIP"`
+	PodSubnetThisNode string                        `json:"podSubnetThisNode"`
+	VppHostNetwork    string                        `json:"vppHostNetwork"`
+	Config            *contivconf.IPAMConfigForJSON `json:"config"`
 }
 
 func (n *IPv4Net) registerRESTHandlers() {
@@ -60,9 +60,9 @@ func (n *IPv4Net) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
 			NodeID:            n.NodeSync.GetNodeID(),
 			NodeName:          n.ServiceLabel.GetAgentLabel(),
 			NodeIP:            nodeIP.String(),
-			PodSubnetThisNode: n.ipam.PodSubnetThisNode().String(),
-			VppHostNetwork:    n.ipam.HostInterconnectSubnetThisNode().String(),
-			Config:            &n.config.IPAMConfig,
+			PodSubnetThisNode: n.IPAM.PodSubnetThisNode().String(),
+			VppHostNetwork:    n.IPAM.HostInterconnectSubnetThisNode().String(),
+			Config:            n.ContivConf.GetIPAMConfigForJson(),
 		})
 	}
 }

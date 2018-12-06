@@ -142,13 +142,3 @@ func ipv4ToUint32(ip net.IP) (uint32, error) {
 func uint32ToIpv4(ip uint32) net.IP {
 	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip)).To4()
 }
-
-// appendIfMissing adds string into the slice if it is not already there.
-func appendIfMissing(slice []string, s string) []string {
-	for _, el := range slice {
-		if el == s {
-			return slice
-		}
-	}
-	return append(slice, s)
-}

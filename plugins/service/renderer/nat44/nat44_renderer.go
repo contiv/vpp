@@ -375,6 +375,29 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	return nil
 }
 
+/*
+// GetDefaultInterface returns the name and the IP address of the interface
+// used by the default route to send packets out from VPP towards the default gateway.
+// If the default GW is not configured, the function returns zero values.
+func (n *IPv4Net) GetDefaultInterface() (ifName string, ifAddress net.IP) {
+	if n.defaultGw != nil {
+		if n.mainPhysicalIf != "" {
+			if n.nodeIPNet != nil && n.nodeIPNet.Contains(n.defaultGw) {
+				return n.mainPhysicalIf, n.nodeIP
+			}
+		}
+		for _, physicalIf := range n.thisNodeConfig.OtherVPPInterfaces {
+			intIP, intNet, _ := net.ParseCIDR(physicalIf.IP)
+			if intNet != nil && intNet.Contains(n.defaultGw) {
+				return physicalIf.InterfaceName, intIP
+			}
+		}
+	}
+
+	return "", nil
+}
+ */
+
 // contivServiceToDNat returns DNAT configuration corresponding to a given service.
 func (rndr *Renderer) contivServiceToDNat(service *renderer.ContivService) *nat.DNat44 {
 	dnat := &nat.DNat44{}

@@ -656,7 +656,7 @@ func (c *ContivConf) reloadNodeInterfaces() error {
 	}
 
 	// main interface configured IPs
-	c.mainInterfaceIPs = []*IPWithNetwork{}
+	c.mainInterfaceIPs = IPsWithNetworks{}
 	if !c.useDHCP {
 		if c.InSTNMode() {
 			c.mainInterfaceIPs = c.stnIPAddresses
@@ -693,6 +693,7 @@ func (c *ContivConf) reloadNodeInterfaces() error {
 	}
 
 	// static default GW
+	c.defaultGw = net.IP{}
 	if !c.useDHCP {
 		if c.InSTNMode() {
 			c.defaultGw = c.stnGW

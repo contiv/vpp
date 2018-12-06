@@ -251,7 +251,6 @@ func TestBasicStuff(t *testing.T) {
 	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 	nodeIP = &net.IPNet{IP: plugin.nodeIP, Mask: plugin.nodeIPNet.Mask}
 	Expect(nodeIP.String()).To(Equal(Gbe8IP))
-	Expect(plugin.defaultGw.String()).To(Equal(gwIP))
 
 	fmt.Println("Add another node -----------------------------------------")
 

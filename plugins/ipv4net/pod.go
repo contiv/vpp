@@ -58,7 +58,7 @@ func (n *IPv4Net) podConnectivityConfig(pod *podmanager.LocalPod) (config contro
 	config = make(controller.KeyValuePairs)
 
 	// create VPP to POD interconnect interface
-	if n.config.UseTAPInterfaces {
+	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		// TAP
 		key, vppTap := n.podVPPTap(pod)
 		config[key] = vppTap
@@ -99,7 +99,7 @@ func (n *IPv4Net) podConnectivityConfig(pod *podmanager.LocalPod) (config contro
 // podInterfaceName returns logical names of interfaces on both sides
 // of the interconnection between VPP and the given Pod.
 func (n *IPv4Net) podInterfaceName(pod *podmanager.LocalPod) (vppIfName, linuxIfName string) {
-	if n.config.UseTAPInterfaces {
+	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		return n.podVPPSideTAPName(pod), n.podLinuxSideTAPName(pod)
 	}
 	return n.podAFPacketName(pod), n.podVeth1Name(pod)
@@ -120,22 +120,23 @@ func (n *IPv4Net) podLinuxSideTAPName(pod *podmanager.LocalPod) string {
 // podVPPTap returns the configuration for TAP interface on the VPP side
 // connecting a given Pod.
 func (n *IPv4Net) podVPPTap(pod *podmanager.LocalPod) (key string, config *interfaces.Interface) {
+	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	tap := &interfaces.Interface{
 		Name:        n.podVPPSideTAPName(pod),
 		Type:        interfaces.Interface_TAP,
-		Mtu:         n.config.MTUSize,
+		Mtu:         interfaceCfg.MTUSize,
 		Enabled:     true,
-		Vrf:         n.GetPodVrfID(),
+		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
 		IpAddresses: []string{n.ipAddrForPodVPPIf(pod)},
 		PhysAddress: n.hwAddrForPod(pod, true),
 		Link: &interfaces.Interface_Tap{
 			Tap: &interfaces.TapLink{},
 		},
 	}
-	if n.config.TAPInterfaceVersion == 2 {
+	if interfaceCfg.TAPInterfaceVersion == 2 {
 		tap.GetTap().Version = 2
-		tap.GetTap().RxRingSize = uint32(n.config.TAPv2RxRingSize)
-		tap.GetTap().TxRingSize = uint32(n.config.TAPv2TxRingSize)
+		tap.GetTap().RxRingSize = uint32(interfaceCfg.TAPv2RxRingSize)
+		tap.GetTap().TxRingSize = uint32(interfaceCfg.TAPv2TxRingSize)
 	}
 	key = interfaces.InterfaceKey(tap.Name)
 	return key, tap
@@ -147,11 +148,11 @@ func (n *IPv4Net) podLinuxTAP(pod *podmanager.LocalPod) (key string, config *lin
 	tap := &linux_interfaces.Interface{
 		Name:        n.podLinuxSideTAPName(pod),
 		Type:        linux_interfaces.Interface_TAP_TO_VPP,
-		Mtu:         n.config.MTUSize,
+		Mtu:         n.ContivConf.GetInterfaceConfig().MTUSize,
 		Enabled:     true,
 		HostIfName:  podInterfaceHostName,
 		PhysAddress: n.hwAddrForPod(pod, false),
-		IpAddresses: []string{n.ipam.GetPodIP(pod.ID).String()},
+		IpAddresses: []string{n.IPAM.GetPodIP(pod.ID).String()},
 		Link: &linux_interfaces.Interface_Tap{
 			Tap: &linux_interfaces.TapLink{
 				VppTapIfName: n.podVPPSideTAPName(pod),
@@ -193,14 +194,15 @@ func (n *IPv4Net) podVeth2HostIfName(pod *podmanager.LocalPod) string {
 // podVeth1 returns the configuration for pod-side of the VETH interface
 // connecting the given pod with VPP.
 func (n *IPv4Net) podVeth1(pod *podmanager.LocalPod) (key string, config *linux_interfaces.Interface) {
+	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	veth := &linux_interfaces.Interface{
 		Name:        n.podVeth1Name(pod),
 		Type:        linux_interfaces.Interface_VETH,
-		Mtu:         n.config.MTUSize,
+		Mtu:         interfaceCfg.MTUSize,
 		Enabled:     true,
 		HostIfName:  podInterfaceHostName,
 		PhysAddress: n.hwAddrForPod(pod, false),
-		IpAddresses: []string{n.ipam.GetPodIP(pod.ID).String()},
+		IpAddresses: []string{n.IPAM.GetPodIP(pod.ID).String()},
 		Link: &linux_interfaces.Interface_Veth{
 			Veth: &linux_interfaces.VethLink{PeerIfName: n.podVeth2Name(pod)},
 		},
@@ -209,7 +211,7 @@ func (n *IPv4Net) podVeth1(pod *podmanager.LocalPod) (key string, config *linux_
 			Reference: pod.NetworkNamespace,
 		},
 	}
-	if n.config.TCPChecksumOffloadDisabled {
+	if interfaceCfg.TCPChecksumOffloadDisabled {
 		veth.GetVeth().RxChecksumOffloading = linux_interfaces.VethLink_CHKSM_OFFLOAD_DISABLED
 		veth.GetVeth().TxChecksumOffloading = linux_interfaces.VethLink_CHKSM_OFFLOAD_DISABLED
 	}
@@ -223,7 +225,7 @@ func (n *IPv4Net) podVeth2(pod *podmanager.LocalPod) (key string, config *linux_
 	veth := &linux_interfaces.Interface{
 		Name:       n.podVeth2Name(pod),
 		Type:       linux_interfaces.Interface_VETH,
-		Mtu:        n.config.MTUSize,
+		Mtu:        n.ContivConf.GetInterfaceConfig().MTUSize,
 		Enabled:    true,
 		HostIfName: n.podVeth2HostIfName(pod),
 		Link: &linux_interfaces.Interface_Veth{
@@ -238,9 +240,9 @@ func (n *IPv4Net) podAfPacket(pod *podmanager.LocalPod) (key string, config *int
 	afpacket := &interfaces.Interface{
 		Name:        n.podAFPacketName(pod),
 		Type:        interfaces.Interface_AF_PACKET,
-		Mtu:         n.config.MTUSize,
+		Mtu:         n.ContivConf.GetInterfaceConfig().MTUSize,
 		Enabled:     true,
-		Vrf:         n.GetPodVrfID(),
+		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
 		IpAddresses: []string{n.ipAddrForPodVPPIf(pod)},
 		PhysAddress: n.hwAddrForPod(pod, true),
 		Link: &interfaces.Interface_Afpacket{
@@ -261,7 +263,7 @@ func (n *IPv4Net) podToVPPArpEntry(pod *podmanager.LocalPod) (key string, config
 	_, linuxIfName := n.podInterfaceName(pod)
 	arp := &linux_l3.StaticARPEntry{
 		Interface: linuxIfName,
-		IpAddress: n.ipam.PodGatewayIP().String(),
+		IpAddress: n.IPAM.PodGatewayIP().String(),
 		HwAddress: n.hwAddrForPod(pod, true),
 	}
 	key = linux_l3.StaticArpKey(arp.Interface, arp.IpAddress)
@@ -276,7 +278,7 @@ func (n *IPv4Net) podToVPPLinkRoute(pod *podmanager.LocalPod) (key string, confi
 	route := &linux_l3.StaticRoute{
 		OutgoingInterface: linuxIfName,
 		Scope:             linux_l3.StaticRoute_LINK,
-		DstNetwork:        n.ipam.PodGatewayIP().String() + "/32",
+		DstNetwork:        n.IPAM.PodGatewayIP().String() + "/32",
 	}
 	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
 	return key, route
@@ -289,7 +291,7 @@ func (n *IPv4Net) podToVPPDefaultRoute(pod *podmanager.LocalPod) (key string, co
 		OutgoingInterface: linuxIfName,
 		DstNetwork:        ipv4NetAny,
 		Scope:             linux_l3.StaticRoute_GLOBAL,
-		GwAddr:            n.ipam.PodGatewayIP().String(),
+		GwAddr:            n.IPAM.PodGatewayIP().String(),
 	}
 	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
 	return key, route
@@ -303,7 +305,7 @@ func (n *IPv4Net) vppToPodArpEntry(pod *podmanager.LocalPod) (key string, config
 	vppIfName, _ := n.podInterfaceName(pod)
 	arp := &l3.ARPEntry{
 		Interface:   vppIfName,
-		IpAddress:   n.ipam.GetPodIP(pod.ID).IP.String(),
+		IpAddress:   n.IPAM.GetPodIP(pod.ID).IP.String(),
 		PhysAddress: n.hwAddrForPod(pod, false),
 		Static:      true,
 	}
@@ -315,12 +317,12 @@ func (n *IPv4Net) vppToPodArpEntry(pod *podmanager.LocalPod) (key string, config
 // to the IP address of the given pod.
 func (n *IPv4Net) vppToPodRoute(pod *podmanager.LocalPod) (key string, config *l3.StaticRoute) {
 	podVPPIfName, _ := n.podInterfaceName(pod)
-	podIP := n.ipam.GetPodIP(pod.ID)
+	podIP := n.IPAM.GetPodIP(pod.ID)
 	route := &l3.StaticRoute{
 		OutgoingInterface: podVPPIfName,
 		DstNetwork:        podIP.String(),
 		NextHopAddr:       podIP.IP.String(),
-		VrfId:             n.GetPodVrfID(),
+		VrfId:             n.ContivConf.GetRoutingConfig().PodVRFID,
 	}
 	key = l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	return key, route
@@ -330,10 +332,10 @@ func (n *IPv4Net) vppToPodRoute(pod *podmanager.LocalPod) (key string, config *l
 
 // ipAddrForPodVPPIf returns the IP address of the interface connecting pod on the VPP side.
 func (n *IPv4Net) ipAddrForPodVPPIf(pod *podmanager.LocalPod) string {
-	prefix, _ := ipv4ToUint32(*n.ipam.PodVPPSubnet())
+	prefix, _ := ipv4ToUint32(n.IPAM.PodVPPSubnet().IP)
 
-	podAddr, _ := ipv4ToUint32(n.ipam.GetPodIP(pod.ID).IP)
-	podMask, _ := ipv4ToUint32(net.IP(n.ipam.PodSubnetThisNode().Mask))
+	podAddr, _ := ipv4ToUint32(n.IPAM.GetPodIP(pod.ID).IP)
+	podMask, _ := ipv4ToUint32(net.IP(n.IPAM.PodSubnetThisNode().Mask))
 	podSuffix := podAddr &^ podMask
 
 	address := uint32ToIpv4(prefix + podSuffix)

@@ -15,22 +15,10 @@
 package ipv4net
 
 import (
-	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-)
-
-const (
-	// ConfigFlagName is name of flag that can be used to define config for the Contiv agent
-	ConfigFlagName = "contiv"
-
-	// ContivConfigPath is the default location of Agent's Contiv plugin. This path reflects configuration in k8s/contiv-vpp.yaml.
-	ContivConfigPath = "/etc/agent/contiv.conf"
-
-	// ContivConfigPathUsage explains the purpose of 'kube-config' flag.
-	ContivConfigPathUsage = "Path to the Agent's Contiv plugin configuration yaml file."
 )
 
 // DefaultPlugin is a default instance of IPv4Net.
@@ -51,10 +39,6 @@ func NewPlugin(opts ...Option) *IPv4Net {
 
 	if p.Deps.Log == nil {
 		p.Deps.Log = logging.ForPlugin(p.String())
-	}
-
-	if p.Deps.Cfg == nil {
-		p.Deps.Cfg = config.ForPlugin(p.String(), config.WithCustomizedFlag(ConfigFlagName, ContivConfigPath, ContivConfigPathUsage))
 	}
 	return p
 }

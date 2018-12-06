@@ -15,17 +15,11 @@
 package ipv4net
 
 import (
-	"context"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
-	"time"
 
 	"git.fd.io/govpp.git/api"
-	"github.com/apparentlymart/go-cidr/cidr"
-	"github.com/vishvananda/netlink"
-	"google.golang.org/grpc"
 
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/infra"
@@ -35,23 +29,16 @@ import (
 
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
-	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
-	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
-	"github.com/contiv/vpp/plugins/ipv4net/ipam"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/ipam"
 )
 
 const (
-	// defaultSTNSocketFile is the default socket file path where contiv-stn GRPC server
-	// listens for incoming requests.
-	defaultSTNSocketFile = "/var/run/contiv/stn.sock"
-
 	// interface host name length limit in Linux
 	linuxIfNameMaxLen = 15
 
@@ -79,23 +66,11 @@ type externalState struct {
 	// set to true when running unit tests
 	test bool
 
-	// global configuration
-	config *Config
-
-	// IPAM module used by the plugin
-	ipam *ipam.IPAM
-
 	// GoVPP channel for direct binary API calls (not needed for UTs)
 	govppCh api.Channel
 
 	// VPP DHCP index map
 	dhcpIndex idxmap.NamedMapping
-
-	// dumping of physical interfaces
-	physicalIfsDump PhysicalIfacesDumpClb
-
-	// callback to receive information about a stolen interface
-	getSTNInfo StolenInterfaceInfoClb
 
 	// dumping of host IPs
 	hostLinkIPsDump HostLinkIPsDumpClb
@@ -104,9 +79,6 @@ type externalState struct {
 // internalState groups attributes representing the internal state of the plugin.
 // The attributes are refreshed by Resync and updated during Update events.
 type internalState struct {
-	// node-specific configuration (can be updated)
-	thisNodeConfig *NodeConfig
-
 	// DHCP watching
 	watchingDHCP bool // true if dhcpIndex is being watched
 	useDHCP      bool // whether DHCP is disabled by the latest config (can be changed via CRD)
@@ -122,15 +94,6 @@ type internalState struct {
 	// pod ID from interface name
 	vppIfaceToPodMutex sync.RWMutex
 	vppIfaceToPod      map[string]podmodel.ID
-
-	// name of the main physical interface
-	mainPhysicalIf string
-
-	// name of extra physical interfaces configured by the agent
-	otherPhysicalIfs []string
-
-	// routes going via stolen interface
-	stnRoutes []*stn_grpc.STNReply_Route
 }
 
 // Deps groups the dependencies of the plugin.
@@ -138,18 +101,14 @@ type Deps struct {
 	infra.PluginDeps
 	EventLoop    controller.EventLoop
 	ServiceLabel servicelabel.ReaderAPI
+	ContivConf   contivconf.API
+	IPAM         ipam.API
 	NodeSync     nodesync.API
 	PodManager   podmanager.API
 	VPPIfPlugin  vpp_ifplugin.API
 	GoVPP        govppmux.API
 	HTTPHandlers rest.HTTPHandlers
 }
-
-// PhysicalIfacesDumpClb is callback for dumping physical interfaces on VPP.
-type PhysicalIfacesDumpClb func() (ifaces map[uint32]string, err error) // interface index -> interface name
-
-// StolenInterfaceInfoClb is callback for receiving information about a stolen interface.
-type StolenInterfaceInfoClb func(ifName string) (reply *stn_grpc.STNReply, err error)
 
 // HostLinkIPsDumpClb is callback for dumping all IP addresses assigned to interfaces
 // in the host stack.
@@ -163,13 +122,6 @@ func (n *IPv4Net) Init() error {
 	n.internalState = &internalState{}
 	n.externalState = &externalState{}
 
-	// load config file
-	if n.config == nil {
-		if err := n.loadExternalConfig(); err != nil {
-			return err
-		}
-	}
-
 	// create GoVPP channel
 	var err error
 	n.govppCh, err = n.GoVPP.NewAPIChannel()
@@ -180,21 +132,11 @@ func (n *IPv4Net) Init() error {
 	// get reference to map with DHCP leases
 	n.dhcpIndex = n.VPPIfPlugin.GetDHCPIndex()
 
-	// setup callbacks used to access external state
-	n.physicalIfsDump = n.dumpPhysicalInterfaces
-	n.getSTNInfo = n.getStolenInterfaceInfo
+	// setup callback used to access host interfaces (can be replaced in UTs with a mock)
 	n.hostLinkIPsDump = n.getHostLinkIPs
-
-	// initialize IPAM
-	n.ipam, err = ipam.New(n.Log, n.NodeSync, &n.config.IPAMConfig,
-		n.excludedIPsFromNodeCIDR())
-	if err != nil {
-		return err
-	}
 
 	// register REST handlers
 	n.registerRESTHandlers()
-
 	return nil
 }
 
@@ -215,14 +157,11 @@ func (s *internalState) StateToString() string {
 	}
 	vppIfaceToPod += "}"
 
-	return fmt.Sprintf("<thisNodeConfig: %+v, useDHCP: %t, watchingDHCP: %t, "+
-		"mainPhysicalIf: %s, otherPhysicalIfs: %v, "+
-		"nodeIP: %s, nodeIPNet: %s, defaultGw: %s, hostIPs: %v, "+
-		"vppIfaceToPod: %s, stnRoutes: %v",
-		s.thisNodeConfig, s.useDHCP, s.watchingDHCP,
-		s.mainPhysicalIf, s.otherPhysicalIfs,
-		s.nodeIP.String(), ipNetToString(s.nodeIPNet), s.defaultGw.String(), s.hostIPs,
-		vppIfaceToPod, s.stnRoutes)
+	return fmt.Sprintf("<useDHCP: %t, watchingDHCP: %t, "+
+		"nodeIP: %s, nodeIPNet: %s, hostIPs: %v, vppIfaceToPod: %s",
+		s.useDHCP, s.watchingDHCP,
+		s.nodeIP.String(), ipNetToString(s.nodeIPNet), s.hostIPs,
+		vppIfaceToPod)
 }
 
 // Close is called by the plugin infra upon agent cleanup.
@@ -240,7 +179,6 @@ func (n *IPv4Net) Close() error {
 //   - NodeUpdate for other nodes
 //   - Shutdown event
 func (n *IPv4Net) HandlesEvent(event controller.Event) bool {
-	myNodeName := n.ServiceLabel.GetAgentLabel()
 	if event.Method() != controller.Update {
 		return true
 	}
@@ -264,6 +202,7 @@ func (n *IPv4Net) HandlesEvent(event controller.Event) bool {
 /**************************** IPv4Net plugin API ******************************/
 
 // GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
+// The method can be called from outside of the main event loop.
 func (n *IPv4Net) GetPodByIf(ifName string) (podNamespace string, podName string, exists bool) {
 	n.vppIfaceToPodMutex.RLock()
 	defer n.vppIfaceToPodMutex.RUnlock()
@@ -296,34 +235,6 @@ func (n *IPv4Net) GetIfName(podNamespace string, podName string) (name string, e
 	return vppIfName, true
 }
 
-// GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
-func (n *IPv4Net) GetPodSubnet() *net.IPNet {
-	return n.ipam.PodSubnetAllNodes()
-}
-
-// GetPodSubnetThisNode provides subnet used for allocating pod IP addresses on this node.
-func (n *IPv4Net) GetPodSubnetThisNode() *net.IPNet {
-	return n.ipam.PodSubnetThisNode()
-}
-
-// InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
-func (n *IPv4Net) InSTNMode() bool {
-	return n.config.StealFirstNIC || n.config.StealInterface != "" ||
-		(n.thisNodeConfig != nil && n.thisNodeConfig.StealInterface != "")
-}
-
-// NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed
-// with node IP before being sent out from the node.
-func (n *IPv4Net) NatExternalTraffic() bool {
-	if n.config.NatExternalTraffic ||
-		(n.thisNodeConfig != nil && n.thisNodeConfig.NatExternalTraffic) {
-		return true
-	}
-	return false
-}
-
-
-
 // GetNodeIP returns the IP address of this node.
 func (n *IPv4Net) GetNodeIP() (ip net.IP, network *net.IPNet) {
 	return n.nodeIP, n.nodeIPNet
@@ -332,18 +243,6 @@ func (n *IPv4Net) GetNodeIP() (ip net.IP, network *net.IPNet) {
 // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
 func (n *IPv4Net) GetHostIPs() []net.IP {
 	return n.hostIPs
-}
-
-// GetMainPhysicalIfName returns name of the "main" interface - i.e. physical interface connecting
-// the node with the rest of the cluster.
-func (n *IPv4Net) GetMainPhysicalIfName() string {
-	return n.mainPhysicalIf
-}
-
-// GetOtherPhysicalIfNames returns a slice of names of all physical interfaces configured additionally
-// to the main interface.
-func (n *IPv4Net) GetOtherPhysicalIfNames() []string {
-	return n.otherPhysicalIfs
 }
 
 // GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
@@ -355,46 +254,9 @@ func (n *IPv4Net) GetHostInterconnectIfName() string {
 // GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
 // Returns an empty string if VXLAN is not used (in L2 interconnect mode).
 func (n *IPv4Net) GetVxlanBVIIfName() string {
-	if n.config.UseL2Interconnect {
+	if n.ContivConf.GetRoutingConfig().UseL2Interconnect {
 		return ""
 	}
 
 	return vxlanBVIInterfaceName
-}
-
-// GetDefaultInterface returns the name and the IP address of the interface
-// used by the default route to send packets out from VPP towards the default gateway.
-// If the default GW is not configured, the function returns zero values.
-func (n *IPv4Net) GetDefaultInterface() (ifName string, ifAddress net.IP) {
-	if n.defaultGw != nil {
-		if n.mainPhysicalIf != "" {
-			if n.nodeIPNet != nil && n.nodeIPNet.Contains(n.defaultGw) {
-				return n.mainPhysicalIf, n.nodeIP
-			}
-		}
-		for _, physicalIf := range n.thisNodeConfig.OtherVPPInterfaces {
-			intIP, intNet, _ := net.ParseCIDR(physicalIf.IP)
-			if intNet != nil && intNet.Contains(n.defaultGw) {
-				return physicalIf.InterfaceName, intIP
-			}
-		}
-	}
-
-	return "", nil
-}
-
-// GetMainVrfID returns the ID of the main network connectivity VRF.
-func (n *IPv4Net) GetMainVrfID() uint32 {
-	if n.config.MainVRFID != 0 && n.config.PodVRFID != 0 {
-		return n.config.MainVRFID
-	}
-	return defaultMainVrfID
-}
-
-// GetPodVrfID returns the ID of the POD VRF.
-func (n *IPv4Net) GetPodVrfID() uint32 {
-	if n.config.MainVRFID != 0 && n.config.PodVRFID != 0 {
-		return n.config.PodVRFID
-	}
-	return defaultPodVrfID
 }

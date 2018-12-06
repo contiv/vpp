@@ -18,7 +18,6 @@ import (
 	"fmt"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 )
@@ -51,7 +50,7 @@ func (n *IPv4Net) Update(event controller.Event, txn controller.UpdateOperations
 func (n *IPv4Net) Revert(event controller.Event) error {
 	addPod := event.(*podmanager.AddPod)
 	pod := n.PodManager.GetLocalPods()[addPod.Pod]
-	n.ipam.ReleasePodIP(pod.ID)
+	n.IPAM.ReleasePodIP(pod.ID)
 
 	vppIface, _ := n.podInterfaceName(pod)
 	n.vppIfaceToPodMutex.Lock()
@@ -66,7 +65,7 @@ func (n *IPv4Net) addPod(event *podmanager.AddPod, txn controller.UpdateOperatio
 
 	// 1. try to allocate an IP address for this pod
 
-	_, err = n.ipam.AllocatePodIP(pod.ID)
+	_, err = n.IPAM.AllocatePodIP(pod.ID)
 	if err != nil {
 		err = fmt.Errorf("failed to allocate new IP address for pod %v: %v", pod.ID, err)
 		n.Log.Error(err)
@@ -125,7 +124,7 @@ func (n *IPv4Net) deletePod(event *podmanager.DeletePod, txn controller.UpdateOp
 
 	// 3. release IP address of the POD
 
-	err = n.ipam.ReleasePodIP(pod.ID)
+	err = n.IPAM.ReleasePodIP(pod.ID)
 	if err != nil {
 		return "", err
 	}
@@ -200,7 +199,7 @@ func (n *IPv4Net) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn co
 	}
 
 	// update BD if node was newly connected or disconnected
-	if !n.config.UseL2Interconnect &&
+	if !n.ContivConf.GetRoutingConfig().UseL2Interconnect &&
 		nodeHasIPAddress(nodeUpdate.PrevState) != nodeHasIPAddress(nodeUpdate.NewState) {
 
 		key, bd := n.vxlanBridgeDomain()
@@ -214,7 +213,7 @@ func (n *IPv4Net) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn co
 // cleanupVswitchConnectivity cleans up base vSwitch VPP connectivity
 // configuration in the host IP stack.
 func (n *IPv4Net) cleanupVswitchConnectivity(txn controller.UpdateOperations) (change string, err error) {
-	if n.config.UseTAPInterfaces {
+	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		// everything configured in the host will disappear automatically
 		return
 	}

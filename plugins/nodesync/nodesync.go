@@ -118,6 +118,16 @@ func (ns *NodeSync) GetNodeID() uint32 {
 // The method should be called only from within the main event loop (not thread
 // safe) and not before the startup resync.
 func (ns *NodeSync) PublishNodeIPs(addresses []*IPWithNetwork, version IPVersion) error {
+	// do not publish if db is not connected
+	dbIsConnected := false
+	ns.DB.OnConnect(func() error {
+		dbIsConnected = true
+		return nil
+	})
+	if !dbIsConnected {
+		return errNoConnection
+	}
+
 	// build the list of addresses after the update
 	var newAddrs []*IPWithNetwork
 

@@ -35,7 +35,6 @@ import { PodDetailComponent } from './shared/sidepanel/pod-detail/pod-detail.com
 import { FormComponent } from './shared/form/form.component';
 import { BviDetailComponent } from './shared/sidepanel/bvi-detail/bvi-detail.component';
 import { IpMappingModalComponent } from './shared/modals/ip-mapping-modal/ip-mapping-modal.component';
-import { VswitchDiagramModalComponent } from './shared/modals/vswitch-diagram-modal/vswitch-diagram-modal.component';
 import { VppLinkDetailComponent } from './shared/sidepanel/vpp-link-detail/vpp-link-detail.component';
 import { VxtunnelDetailComponent } from './shared/sidepanel/vxtunnel-detail/vxtunnel-detail.component';
 import { VppPodDetailComponent } from './shared/sidepanel/vpp-pod-detail/vpp-pod-detail.component';
@@ -68,7 +67,6 @@ import { BridgeDomainService } from './bridge-domain/bridge-domain.service';
     FormComponent,
     BviDetailComponent,
     IpMappingModalComponent,
-    VswitchDiagramModalComponent,
     VppLinkDetailComponent,
     VxtunnelDetailComponent,
     VppPodDetailComponent,

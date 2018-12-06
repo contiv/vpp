@@ -5,6 +5,7 @@
       <clr-icon shape="caret down"></clr-icon>
     </button>
     <clr-dropdown-menu *clrIfOpen clrPosition="bottom-right">
+      <h4 class="dropdown-header">Topology Views</h4>
       <button type="button"
               clrDropdownItem
               (click)="setContivPodsLayer()"
@@ -14,6 +15,7 @@
               (click)="setAppPodsLayer()"
               [ngClass]="{'active': activeLayers[1]}">Application Pods</button>
       <div class="dropdown-divider"></div>
+      <h4 class="dropdown-header">Namespaces</h4>
       <button *ngFor="let namespace of namespaces; let i = index"
               type="button"
               clrDropdownItem

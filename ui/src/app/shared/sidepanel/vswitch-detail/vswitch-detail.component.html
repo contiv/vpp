@@ -5,10 +5,5 @@
 </div>
 
 <div class="wrap" *ngIf="pod">
-  <h5>{{pod.name}}</h5>
-  <app-form [data]="formData"></app-form>
-
-  <div class="buttons btn-group">
-    <button class="btn" (click)="showInterfaces()">Show Interfaces</button>
-  </div>
+  <app-form [data]="formData" [title]="pod.name" [buttons]="['Show Interfaces']" (btnclick)="showInterfaces()"></app-form>
 </div>

@@ -77,7 +77,6 @@ export class BridgeDomainComponent implements OnInit, OnDestroy {
   }
 
   public onNodeDblClicked(data: NodeClickEvent) {
-    // this.modalService.showVswitchDiagram(data.node.id);
     this.router.navigate(['vswitch-diagram', data.node.id]);
 
     this.resetTables();

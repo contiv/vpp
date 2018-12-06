@@ -43,7 +43,11 @@ clr-dropdown:focus, .btn:focus {
 }
 
 .wrap {
-  padding: 15px;
+  padding: 30px 15px 0 15px;
+}
+
+#kubernetes-sp .wrap {
+  padding: 5px 15px 0 15px;
 }
 
 .clr-input {
@@ -86,4 +90,30 @@ clr-dropdown:focus, .btn:focus {
 
 .terminal-modal .modal-dialog {
   width: 85% !important;
+}
+
+.clr-form-control:first-child {
+  margin-top: 0 !important;
+}
+
+.card {
+  margin-top: 0.5rem !important;
+}
+
+#bridge-domain-sp .card-header {
+  font-size: 17px !important;
+  font-weight: 400 !important;
+  padding: 7px 0.75rem !important;
+}
+
+a, button {
+  user-select: none;
+}
+
+.dropdown-menu {
+  padding: 2px 0 !important;
+}
+
+.dropdown-header {
+  padding: 7px 0.5rem !important;
 }

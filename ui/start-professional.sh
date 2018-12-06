@@ -18,6 +18,8 @@ echo ""
 echo "Application has been deployed on http://localhost:4300"
 echo ""
 
+cd ..
+
 case "$OSTYPE" in
 
   darwin*)

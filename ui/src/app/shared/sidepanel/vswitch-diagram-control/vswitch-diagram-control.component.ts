@@ -84,7 +84,7 @@ export class VswitchDiagramControlComponent implements OnInit, OnDestroy {
   }
 
   public showNodeData() {
-    this.modalService.showNodeDetail(this.domain.node.name);
+    this.modalService.showNodeDetail(this.domain);
   }
 
   public showInterfaces() {

@@ -75,7 +75,7 @@ export class BridgeDomainService {
   }
 
   private createTopologyVppPod(pod: K8sPodModel, vswitch: NodeData): NodeData {
-    const position = this.layoutService.getVppPodPosition(pod, vswitch);
+    const position = this.layoutService.getVppPodPosition(pod, vswitch, true);
     const node: NodeData = {
       id: pod.name,
       label: pod.name,

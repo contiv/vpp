@@ -5,10 +5,5 @@
 </div>
 
 <div class="wrap" *ngIf="domain">
-  <h5>{{domain.node.name}}</h5>
-  <app-form [data]="formData"></app-form>
-
-  <div class="buttons btn-group">
-    <button class="btn" (click)="showIPAM()">Show IPAM</button>
-  </div>
+  <app-form [data]="formData" [title]="domain.node.name" [buttons]="['Show IPAM']" (btnclick)="showIPAM()"></app-form>
 </div>

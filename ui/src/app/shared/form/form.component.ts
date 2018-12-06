@@ -1,4 +1,4 @@
-import { Component, OnInit, Input, ViewEncapsulation } from '@angular/core';
+import { Component, OnInit, Input, ViewEncapsulation, Output, EventEmitter } from '@angular/core';
 import { FormObject } from '../interfaces/form-object';
 
 @Component({
@@ -10,10 +10,18 @@ import { FormObject } from '../interfaces/form-object';
 export class FormComponent implements OnInit {
 
   @Input() data: FormObject[];
+  @Input() title: string;
+  @Input() buttons: string[];
+
+  @Output() btnclick: EventEmitter<number> = new EventEmitter<number>();
 
   constructor() { }
 
   ngOnInit() {
+  }
+
+  public buttonClick(i: number) {
+    this.btnclick.emit(i);
   }
 
 }

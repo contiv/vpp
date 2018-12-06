@@ -35,7 +35,7 @@ export class LayoutService {
   }
 
   public getPodPosition(pod: K8sPodModel): {x: number, y: number} {
-    const offsetX = 100;
+    const offsetX = 110;
     const offsetY = 100;
 
     if (this.podCount[pod.node]) {
@@ -56,9 +56,12 @@ export class LayoutService {
     }
   }
 
-  public getVppPodPosition(pod: K8sPodModel, vswitchData: NodeData): {x: number, y: number} {
-    const offsetX = 100;
+  public getVppPodPosition(pod: K8sPodModel, vswitchData: NodeData, isBd?: boolean): {x: number, y: number} {
+    const offsetX = 110;
     const offsetY = 100;
+
+    const w1Offset = isBd ? 2 : 0;
+    const w2Offset = isBd ? 2 : 0;
 
     if (this.podCount[pod.node]) {
       this.podCount[pod.node]++;
@@ -70,9 +73,9 @@ export class LayoutService {
       case 'k8s-master':
         return {x: ((1 + this.podCount[pod.node]) * 2) * offsetX, y: vswitchData.y - offsetY * 1.5};
       case 'k8s-worker1':
-        return {x: ((this.podCount[pod.node]) * 2) * offsetX, y: 7.2 * offsetY};
+        return {x: (w1Offset + (this.podCount[pod.node]) * 2) * offsetX, y: 7.2 * offsetY};
       case 'k8s-worker2':
-        return {x: (6 + (this.podCount[pod.node]) * 2) * offsetX, y: 8 * offsetY};
+        return {x: (6 + w2Offset + (this.podCount[pod.node]) * 2) * offsetX, y: 8 * offsetY};
       default:
         return {x: 100, y: 150};
     }

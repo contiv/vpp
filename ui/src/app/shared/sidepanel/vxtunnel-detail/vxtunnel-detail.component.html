@@ -5,9 +5,6 @@
 </div>
 
 <div class="wrap" *ngIf="domainFrom && domainTo">
-  <h5>{{vxlans[0].name}}</h5>
-  <app-form [data]="vxlanData1"></app-form>
-
-  <h5>{{vxlans[1].name}}</h5>
-  <app-form [data]="vxlanData2"></app-form>
+  <app-form [data]="vxlanData1" [title]="vxlans[0].name"></app-form>
+  <app-form [data]="vxlanData2" [title]="vxlans[1].name"></app-form>
 </div>

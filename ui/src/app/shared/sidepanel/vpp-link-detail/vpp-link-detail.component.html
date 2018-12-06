@@ -5,9 +5,6 @@
 </div>
 
 <div class="wrap" *ngIf="domain">
-  <h5>{{domain.vswitch.name}}</h5>
-  <app-form [data]="ifaceData"></app-form>
-
-  <h5>{{pod.name}}</h5>
-  <app-form [data]="podData"></app-form>
+  <app-form [data]="ifaceData" [title]="domain.vswitch.name"></app-form>
+  <app-form [data]="podData" [title]="pod.name"></app-form>
 </div>

@@ -48,6 +48,7 @@ export class BviDetailComponent implements OnInit, OnDestroy {
               this.setFormData();
               this.sidepanelService.openSidepanel();
               this.topologyHighlightService.highlightBVI(params.id);
+              this.topologyHighlightService.highlightTunnelFromToNode(params.id);
             }
           })
         );

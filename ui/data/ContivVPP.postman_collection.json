@@ -109,6 +109,31 @@
 					"response": []
 				},
 				{
+					"name": "k8s/endpoints",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "http://{{host}}:{{k8s-master-port}}/api/v1/endpoints",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{k8s-master-port}}",
+							"path": [
+								"api",
+								"v1",
+								"endpoints"
+							]
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "k8s/networkpolicies",
 					"request": {
 						"method": "GET",
@@ -342,6 +367,35 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "vpp/command/show version",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"vppclicommand\":\"show version\"}"
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-master-port}}/vpp/command",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-master-port}}",
+							"path": [
+								"vpp",
+								"command"
+							]
+						}
+					},
+					"response": []
 				}
 			]
 		},
@@ -556,6 +610,35 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "vpp/command/show version",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"vppclicommand\":\"show version\"}"
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker1-port}}/vpp/command",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker1-port}}",
+							"path": [
+								"vpp",
+								"command"
+							]
+						}
+					},
+					"response": []
 				}
 			]
 		},
@@ -766,6 +849,35 @@
 								"dump",
 								"v1",
 								"arps"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "vpp/command/show version",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"vppclicommand\":\"show version\"}"
+						},
+						"url": {
+							"raw": "http://{{host}}:{{vpp-worker2-port}}/vpp/command",
+							"protocol": "http",
+							"host": [
+								"{{host}}"
+							],
+							"port": "{{vpp-worker2-port}}",
+							"path": [
+								"vpp",
+								"command"
 							]
 						}
 					},

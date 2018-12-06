@@ -1,6 +1,5 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Subscription } from 'rxjs';
-import { DataService } from '../../services/data.service';
 import { ModalService } from '../../services/modal.service';
 import { ContivNodeDataModel } from '../../models/contiv-node-data-model';
 import { IpCidrMap } from '../../interfaces/ip-cidr-map';
@@ -21,7 +20,6 @@ export class NodeDetailModalComponent implements OnInit, OnDestroy {
   public isModalOpened: boolean;
 
   constructor(
-    private dataService: DataService,
     private modalService: ModalService
   ) { }
 
@@ -32,19 +30,12 @@ export class NodeDetailModalComponent implements OnInit, OnDestroy {
     this.isModalOpened = false;
 
     this.subscriptions.push(
-      this.modalService.nodeDetailSubject.subscribe(nodeId => {
-        this.nodeLabel = nodeId;
-
-        this.subscriptions.push(
-          this.dataService.isContivDataLoaded.subscribe(isLoaded => {
-            if (isLoaded) {
-              this.domain = this.dataService.contivData.getDomainByNodeId(nodeId);
-              this.setFormData();
-              this.setIPAM();
-              this.isModalOpened = true;
-            }
-          })
-        );
+      this.modalService.nodeDetailSubject.subscribe(domain => {
+        this.domain = domain;
+        this.nodeLabel = domain.node.name;
+        this.setFormData();
+        this.setIPAM();
+        this.isModalOpened = true;
       })
     );
   }

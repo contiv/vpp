@@ -35,9 +35,6 @@ import (
 const (
 	// loopbackNICLogicalName is the logical name of the loopback interface configured instead of physical NICs.
 	loopbackNICLogicalName = "loopbackNIC"
-
-	// vmxnet3InterfacePrefix contains the prefix matching all vmxnet3 interfaces on VPP
-	vmxnet3InterfacePrefix = "vmxnet3-"
 )
 
 /* VRFs */

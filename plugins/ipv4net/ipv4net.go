@@ -487,7 +487,7 @@ func (n *IPv4Net) loadNodeConfig(kubeStateData controller.KubeStateData) *NodeCo
 // getStolenInterfaceConfig returns IP addresses and routes associated with the main
 // interface before it was stolen from the host stack.
 func (n *IPv4Net) getStolenInterfaceConfig(ifName string) (
-	ipNets []*nodesync.IPWithNetwork, gw net.IP, routes []*stn_grpc.STNReply_Route, kernelDriver string, err error) {
+	ipNets []*nodesync.IPWithNetwork, gw net.IP, routes []*stn_grpc.STNReply_Route, kernelDriver string, pciAddr string, err error) {
 
 	if ifName == "" {
 		n.Log.Debug("Getting STN info for the first stolen interface")
@@ -539,6 +539,7 @@ func (n *IPv4Net) getStolenInterfaceConfig(ifName string) (
 	routes = reply.Routes
 
 	kernelDriver = reply.KernelDriver
+	pciAddr = reply.PciAddress
 	return
 }
 
@@ -591,16 +592,22 @@ func (n *IPv4Net) dumpPhysicalInterfaces() (ifaces map[uint32]string, err error)
 	ifaces = make(map[uint32]string)
 	ifHandler := intf_vppcalls.NewIfVppHandler(n.govppCh, n.Log)
 
-	// TODO: when supported dump also VMXNET3 interfaces (?)
-
 	dump, err := ifHandler.DumpInterfacesByType(interfaces.Interface_DPDK)
 	if err != nil {
 		return ifaces, err
 	}
-
 	for ifIdx, iface := range dump {
 		ifaces[ifIdx] = iface.Interface.Name
 	}
+
+	dump, err = ifHandler.DumpInterfacesByType(interfaces.Interface_VMXNET3_INTERFACE)
+	if err != nil {
+		return ifaces, err
+	}
+	for ifIdx, iface := range dump {
+		ifaces[ifIdx] = iface.Interface.Name
+	}
+
 	return ifaces, err
 }
 

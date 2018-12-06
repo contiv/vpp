@@ -249,14 +249,14 @@ func (n *IPv4Net) configureMainVPPInterface(event controller.Event, physicalIfac
 		} // else go with the first stolen interface
 
 		// obtain STN interface configuration
-		var kernelDriver string
-		nicStaticIPs, n.defaultGw, n.stnRoutes, kernelDriver, err = n.getStolenInterfaceConfig(stolenIface)
+		var kernelDriver, pciAddr string
+		nicStaticIPs, n.defaultGw, n.stnRoutes, kernelDriver, pciAddr, err = n.getStolenInterfaceConfig(stolenIface)
 		if err != nil {
 			n.Log.Errorf("Unable to get STN interface info: %v, disabling the interface.", err)
 			return err
 		}
-		if nicName == "" && kernelDriver == "vmxnet3" {
-			nicName = "vmxnet3-0/b/0/0" // TODO
+		if nicName == "" && kernelDriver == vmxnet3KernelDriver {
+			nicName = vmxnet3IfNameFromPCI(pciAddr)
 			n.Log.Errorf("vmxnet3 interface name derived from the PCI address: %s", nicName)
 		}
 	}

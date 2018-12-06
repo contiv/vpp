@@ -25,6 +25,11 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 )
 
+const (
+	vmxnet3KernelDriver    = "vmxnet3"  // name of the kernel driver for vmxnet3 interfaces
+	vmxnet3InterfacePrefix = "vmxnet3-" // prefix matching all vmxnet3 interfaces on VPP
+)
+
 // executeDebugCLI executes VPP CLI command
 func (n *IPv4Net) executeDebugCLI(cmd string) (string, error) {
 	n.Log.Infof("Executing debug CLI: %s", cmd)
@@ -122,4 +127,13 @@ func appendIfMissing(slice []string, s string) []string {
 		}
 	}
 	return append(slice, s)
+}
+
+// vmxnet3IfNameFromPCI returns vmxnet3 interface name on VPP from provided PCI address
+func vmxnet3IfNameFromPCI(pciAddr string) string {
+	var a, b, c, d uint32
+
+	fmt.Sscanf(pciAddr, "%x:%x:%x.%x", &a, &b, &c, &d) // e.g. "0000:0b:00.0"
+
+	return fmt.Sprintf("%s%x/%x/%x/%x", vmxnet3InterfacePrefix, a, b, c, d) // e.g. "vmxnet3-0/b/0/0"
 }

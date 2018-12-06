@@ -78,15 +78,15 @@ func DriverBind(pciAddr string, driver string) error {
 	err = writeToFile(fmt.Sprintf(pciDriverNewDevFile, driver),
 		fmt.Sprintf("%4x %4x", vendor, devID))
 	if err != nil {
-		log.Println(err)
-		// do not return an error here, proceed with the next step which would return an error in case of any issue
+		log.Printf("(non-fatal) %s", err)
+		// do not return an error here, on some systems it returns an error even if it actually works
 	}
 
 	// bind by writing to proper file
 	err = writeToFile(fmt.Sprintf(pciDriverBindFile, driver), pciAddr)
 	if err != nil {
-		log.Println(err)
-		return err
+		log.Printf("(non-fatal) %s", err)
+		// do not return an error here, on some systems it returns an error even if it actually works
 	}
 
 	return nil
@@ -98,6 +98,9 @@ func DriverUnbind(pciAddr string) error {
 
 	// unbind by writing to proper file
 	err := writeToFile(fmt.Sprintf(pciDevUnbindFile, pciAddr), pciAddr)
+	if err != nil {
+		log.Println(err)
+	}
 
 	return err
 }
@@ -117,8 +120,7 @@ func readFromFileFile(fileName string) (string, error) {
 	// try opening the file
 	f, err := os.OpenFile(fileName, os.O_RDONLY, os.ModePerm)
 	if err != nil {
-		log.Printf("Error by opening %s: %v", fileName, err)
-		return "", err
+		return "", fmt.Errorf("error by opening %s: %v", fileName, err)
 	}
 	defer f.Close()
 
@@ -126,8 +128,7 @@ func readFromFileFile(fileName string) (string, error) {
 	buf := make([]byte, maxReadSize)
 	_, err = f.Read(buf)
 	if err != nil {
-		log.Printf("Error by reading from %s: %v", fileName, err)
-		return "", err
+		return "", fmt.Errorf("error by reading from %s: %v", fileName, err)
 	}
 
 	return strings.TrimSpace(fmt.Sprintf("%s", buf)), nil
@@ -141,16 +142,14 @@ func writeToFile(fileName string, content string) error {
 	// try opening the file
 	f, err := os.OpenFile(fileName, os.O_WRONLY, os.ModePerm)
 	if err != nil {
-		log.Printf("Error by opening %s: %v", fileName, err)
-		return err
+		return fmt.Errorf("error by opening %s: %v", fileName, err)
 	}
 	defer f.Close()
 
 	// write to file
 	_, err = f.Write([]byte(content))
 	if err != nil {
-		log.Printf("Error by writing to %s: %v", fileName, err)
-		return err
+		return fmt.Errorf("error by writing to %s: %v", fileName, err)
 	}
 
 	return nil

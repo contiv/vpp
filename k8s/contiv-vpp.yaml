@@ -49,9 +49,6 @@ data:
       VPPHostSubnetCIDR: 172.30.0.0/16
       VPPHostSubnetOneNodePrefixLen: 24
       VxlanCIDR: 192.168.30.0/24
-    NodeConfig:
-    - NodeName: ubuntu-1
-      StealInterface: enp0s8
   logs.conf: |
     default-level: debug
     loggers:
@@ -226,7 +223,6 @@ data:
     dial-timeout: 10000000000
     endpoints:
       - "127.0.0.1:32379"
-    allow-delayed-start: true
 
 ---
 

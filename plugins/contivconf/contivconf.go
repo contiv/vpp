@@ -23,6 +23,7 @@ import (
 	"time"
 
 	govpp "git.fd.io/govpp.git/api"
+	"github.com/ghodss/yaml"
 	"github.com/go-errors/errors"
 	"github.com/vishvananda/netlink"
 	"google.golang.org/grpc"
@@ -70,6 +71,16 @@ const (
 	defaultIPNeighborScanInterval   = 1
 	defaultIPNeighborStaleThreshold = 4
 
+	// default IPAM configuration
+	defaultServiceCIDR                   = "10.96.0.0/12"
+	defaultPodSubnetCIDR                 = "10.1.0.0/16"
+	defaultPodSubnetOneNodePrefixLen     = 24
+	defaultPodVPPSubnetCIDR              = "10.2.1.0/24"
+	defaultVPPHostSubnetCIDR             = "172.30.0.0/16"
+	defaultVPPHostSubnetOneNodePrefixLen = 24
+	defaultVxlanCIDR                     = "192.168.30.0/24"
+	// NodeInterconnectCIDR & ContivCIDR can be empty
+
 	defaultMainVrfID = 0
 	defaultPodVrfID  = 1
 )
@@ -87,7 +98,8 @@ type ContivConf struct {
 	Deps
 
 	// configuration loaded from the file
-	config *Config
+	config     *Config
+	ipamConfig *IPAMConfig // IPAM subnets parsed to net.IPNet
 
 	// node-specific configuration defined via CRD, can be nil
 	nodeConfigCRD *NodeConfig
@@ -100,16 +112,21 @@ type ContivConf struct {
 
 	// STN run-time configuration
 	stnInterface   string
-	stnIPAddresses []*IPWithNetwork
+	stnIPAddresses IPsWithNetworks
 	stnGW          net.IP
 	stnRoutes      []*stn_grpc.STNReply_Route
 
 	// node interface run-time configuration
 	useDHCP          bool
 	mainInterface    string
-	mainInterfaceIPs []*IPWithNetwork
-	otherInterfaces  []*OtherInterfaceConfig
-	staticGW         net.IP
+	mainInterfaceIPs IPsWithNetworks
+	otherInterfaces  OtherInterfaces
+	defaultGw        net.IP
+
+	// callbacks that can be replaced with mocks for unit testing in UnitTestDeps.
+	dumpDPDKInterfacesClb        DumpDPDKInterfacesClb
+	requestSTNInfoClb            RequestSTNInfoClb
+	getFirstHostInterfaceNameClb GetFirstHostInterfaceNameClb
 }
 
 // Deps lists dependencies of the ContivConf plugin.
@@ -125,6 +142,10 @@ type Deps struct {
 	//    by the Controller plugin (inject ContivAgentDeps)
 	*ContivInitDeps
 	*ContivAgentDeps
+
+	// Dependencies to be injected for unit testing to replace any external access
+	// with mocks
+	*UnitTestDeps
 }
 
 // ContivAgentDeps lists dependencies of the plugin for use in contiv-agent.
@@ -137,6 +158,25 @@ type ContivInitDeps struct {
 	RemoteDB KVBrokerFactory // can be nil
 	LocalDB  KVBrokerFactory // can be nil
 }
+
+// UnitTestDeps lists dependencies for unit testing.
+type UnitTestDeps struct {
+	Config                       *Config
+	DumpDPDKInterfacesClb        DumpDPDKInterfacesClb
+	RequestSTNInfoClb            RequestSTNInfoClb
+	GetFirstHostInterfaceNameClb GetFirstHostInterfaceNameClb
+}
+
+// DumpDPDKInterfacesClb is callback for dumping DPDK interfaces configured on VPP.
+type DumpDPDKInterfacesClb func() (ifaces []string, err error)
+
+// RequestSTNInfoClb is callback for sending request to the STN daemon to obtain information
+// about a stolen interface.
+type RequestSTNInfoClb func(ifName string) (reply *stn_grpc.STNReply, err error)
+
+// GetFirstHostInterfaceNameClb is callback for retrieving the name of the first
+// non-virtual interface in the host stack.
+type GetFirstHostInterfaceNameClb func() string
 
 // KVBrokerFactory is used to generalize different means of accessing KV-store
 // for the purpose of reading CRD-defined node configuration.
@@ -152,7 +192,7 @@ type Config struct {
 	InterfaceConfig
 	RoutingConfig
 	IPNeighborScanConfig
-	IPAMConfig
+	IPAMConfigForJSON
 
 	StealFirstNIC  bool   `json:"stealFirstNIC"`
 	StealInterface string `json:"stealInterface"`
@@ -163,6 +203,23 @@ type Config struct {
 	CRDNodeConfigurationDisabled bool `json:"crdNodeConfigurationDisabled"`
 
 	NodeConfig []NodeConfig `json:"nodeConfig"`
+}
+
+// IPAMConfigForJSON groups IPAM configuration options as basic data types and with
+// JSON tags, ready to be un-marshalled from the configuration.
+// The string fields are then parsed to *net.IPNet and returned as such in IPAMConfig
+// structure.
+type IPAMConfigForJSON struct {
+	ContivCIDR                    string `json:"contivCIDR"`
+	ServiceCIDR                   string `json:"serviceCIDR"`
+	NodeInterconnectDHCP          bool   `json:"nodeInterconnectDHCP"`
+	PodVPPSubnetCIDR              string `json:"podVPPSubnetCIDR"`
+	PodSubnetCIDR                 string `json:"podSubnetCIDR"`
+	PodSubnetOneNodePrefixLen     uint8  `json:"podSubnetOneNodePrefixLen"`
+	VPPHostSubnetCIDR             string `json:"vppHostSubnetCIDR"`
+	VPPHostSubnetOneNodePrefixLen uint8  `json:"vppHostSubnetOneNodePrefixLen"`
+	NodeInterconnectCIDR          string `json:"nodeInterconnectCIDR"`
+	VxlanCIDR                     string `json:"vxlanCIDR"`
 }
 
 // NodeConfig represents configuration specific to a given node.
@@ -187,10 +244,41 @@ func (cfg *Config) getNodeConfig(nodeName string) *NodeConfig {
 
 // Init does several operations:
 //  - loads Contiv configuration file
+//  - parses IP subnets configured for IPAM
 //  - for contiv-init:
 //       * if crdNodeConfigurationDisabled=false, waits for NodeConfig CRD to be available
 //       * if stealFirstNIC=true, lists Linux interfaces to obtain the first one
-func (c *ContivConf) Init() error {
+func (c *ContivConf) Init() (err error) {
+	// initialize callbacks
+	if c.UnitTestDeps != nil {
+		// real methods replaced with mocks for unit testing
+		if c.UnitTestDeps.RequestSTNInfoClb != nil {
+			c.requestSTNInfoClb = c.UnitTestDeps.RequestSTNInfoClb
+		} else {
+			c.requestSTNInfoClb = func(ifName string) (reply *stn_grpc.STNReply, err error) {
+				return nil, errors.New("callback RequestSTNInfoClb was not injected")
+			}
+		}
+		if c.UnitTestDeps.DumpDPDKInterfacesClb != nil {
+			c.dumpDPDKInterfacesClb = c.UnitTestDeps.DumpDPDKInterfacesClb
+		} else {
+			c.dumpDPDKInterfacesClb = func() (ifaces []string, err error) {
+				return ifaces, nil
+			}
+		}
+		if c.UnitTestDeps.GetFirstHostInterfaceNameClb != nil {
+			c.getFirstHostInterfaceNameClb = c.UnitTestDeps.GetFirstHostInterfaceNameClb
+		} else {
+			c.getFirstHostInterfaceNameClb = func() string {
+				return "eth0"
+			}
+		}
+	} else {
+		c.requestSTNInfoClb = c.requestSTNInfo
+		c.dumpDPDKInterfacesClb = c.dumpDPDKInterfaces
+		c.getFirstHostInterfaceNameClb = c.getFirstHostInterfaceName
+	}
+
 	// default configuration
 	c.config = &Config{
 		STNSocketFile:                DefaultSTNSocketFile,
@@ -209,20 +297,84 @@ func (c *ContivConf) Init() error {
 			MainVRFID: defaultMainVrfID,
 			PodVRFID:  defaultPodVrfID,
 		},
+		IPAMConfigForJSON: IPAMConfigForJSON{
+			ServiceCIDR:                   defaultServiceCIDR,
+			PodSubnetCIDR:                 defaultPodSubnetCIDR,
+			PodSubnetOneNodePrefixLen:     defaultPodSubnetOneNodePrefixLen,
+			PodVPPSubnetCIDR:              defaultPodVPPSubnetCIDR,
+			VPPHostSubnetCIDR:             defaultVPPHostSubnetCIDR,
+			VPPHostSubnetOneNodePrefixLen: defaultVPPHostSubnetOneNodePrefixLen,
+			VxlanCIDR:                     defaultVxlanCIDR,
+		},
 		NatExternalTraffic: defaultNatExternalTraffic,
 	}
 
-	// load configuration from the file
-	_, err := c.Cfg.LoadValue(c.config)
-	if err != nil {
-		return controller.NewFatalError(err)
+	if c.UnitTestDeps != nil {
+		// use injected configuration
+		marshalled, err := yaml.Marshal(c.UnitTestDeps.Config)
+		if err != nil {
+			return err
+		}
+		err = yaml.Unmarshal(marshalled, c.config)
+		if err != nil {
+			return err
+		}
+	} else {
+		// load configuration from the file
+		_, err = c.Cfg.LoadValue(c.config)
+		if err != nil {
+			return err
+		}
 	}
 	c.Log.Infof("Contiv configuration: %+v", *c.config)
 
-	// create GoVPP channel
-	c.govppCh, err = c.GoVPP.NewAPIChannel()
+	// parse IPAM subnets
+	c.ipamConfig = &IPAMConfig{
+		NodeInterconnectDHCP: c.config.NodeInterconnectDHCP,
+		CustomIPAMSubnets: CustomIPAMSubnets{
+			PodSubnetOneNodePrefixLen:     c.config.PodSubnetOneNodePrefixLen,
+			VPPHostSubnetOneNodePrefixLen: c.config.VPPHostSubnetOneNodePrefixLen,
+		},
+	}
+	if c.config.ContivCIDR != "" {
+		_, c.ipamConfig.ContivCIDR, err = net.ParseCIDR(c.config.ContivCIDR)
+		if err != nil {
+			return fmt.Errorf("failed to parse ContivCIDR: %v", err)
+		}
+	}
+	if c.config.NodeInterconnectCIDR != "" {
+		_, c.ipamConfig.NodeInterconnectCIDR, err = net.ParseCIDR(c.config.NodeInterconnectCIDR)
+		if err != nil {
+			return fmt.Errorf("failed to parse NodeInterconnectCIDR: %v", err)
+		}
+	}
+	_, c.ipamConfig.ServiceCIDR, err = net.ParseCIDR(c.config.ServiceCIDR)
 	if err != nil {
-		return controller.NewFatalError(err)
+		return fmt.Errorf("failed to parse ServiceCIDR: %v", err)
+	}
+	_, c.ipamConfig.PodSubnetCIDR, err = net.ParseCIDR(c.config.PodSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse PodSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.PodVPPSubnetCIDR, err = net.ParseCIDR(c.config.PodVPPSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse PodVPPSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.VPPHostSubnetCIDR, err = net.ParseCIDR(c.config.VPPHostSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse VPPHostSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.VxlanCIDR, err = net.ParseCIDR(c.config.VxlanCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse VxlanCIDR: %v", err)
+	}
+
+	// create GoVPP channel
+	if c.UnitTestDeps == nil {
+		c.govppCh, err = c.GoVPP.NewAPIChannel()
+		if err != nil {
+			return err
+		}
 	}
 
 	if c.ContivInitDeps != nil {
@@ -245,7 +397,7 @@ func (c *ContivConf) Init() error {
 			c.stnInterface = nodeConfig.StealInterface
 		}
 		if c.stnInterface == "" && c.config.StealFirstNIC {
-			c.stnInterface = c.getFirstHostInterfaceName()
+			c.stnInterface = c.getFirstHostInterfaceNameClb()
 			if c.stnInterface != "" {
 				c.Log.Infof("No specific NIC to steal specified, stealing the first one: %s",
 					c.stnInterface)
@@ -253,7 +405,10 @@ func (c *ContivConf) Init() error {
 		}
 
 		// re-load node interface names, IPs, default GW, DHCP option
-		c.reloadNodeInterfaces()
+		err = c.reloadNodeInterfaces()
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -317,14 +472,17 @@ func (c *ContivConf) Resync(event controller.Event, kubeStateData controller.Kub
 		}
 
 		// dump DPDK interfaces configured on VPP
-		c.dpdkIfaces, err = c.dumpDPDKInterfaces()
+		c.dpdkIfaces, err = c.dumpDPDKInterfacesClb()
 		if err != nil {
 			return controller.NewFatalError(err)
 		}
 	}
 
 	// re-load node interface names, IPs, default GW, DHCP option
-	c.reloadNodeInterfaces()
+	err = c.reloadNodeInterfaces()
+	if err != nil {
+		return controller.NewFatalError(err)
+	}
 	return nil
 }
 
@@ -380,22 +538,24 @@ func (c *ContivConf) GetMainInterfaceName() string {
 	return c.mainInterface
 }
 
-// GetMainInterfaceStaticIPs returns the list of IP addresses to assign
-// to the main interface. Ignore if DHCP is enabled.
-func (c *ContivConf) GetMainInterfaceStaticIPs() []*IPWithNetwork {
+// GetMainInterfaceConfiguredIPs returns the list of IP addresses configured
+// to be assigned to the main interface. Ignore if DHCP is enabled.
+// The function may return an empty list, then it is necessary to request
+// node IP from IPAM.
+func (c *ContivConf) GetMainInterfaceConfiguredIPs() IPsWithNetworks {
 	return c.mainInterfaceIPs
 }
 
 // GetOtherVPPInterfaces returns configuration to apply for non-main physical
 // VPP interfaces.
-func (c *ContivConf) GetOtherVPPInterfaces() []*OtherInterfaceConfig {
+func (c *ContivConf) GetOtherVPPInterfaces() OtherInterfaces {
 	return c.otherInterfaces
 }
 
 // GetStaticDefaultGW returns the IP address of the default gateway.
 // Ignore if DHCP is enabled (in that case it is provided by the DHCP server)
 func (c *ContivConf) GetStaticDefaultGW() net.IP {
-	return c.staticGW
+	return c.defaultGw
 }
 
 // NatExternalTraffic returns true when it is required to S-NAT traffic
@@ -407,7 +567,14 @@ func (c *ContivConf) NatExternalTraffic() bool {
 
 // GetIPAMConfig returns configuration to be used by the IPAM module.
 func (c *ContivConf) GetIPAMConfig() *IPAMConfig {
-	return &c.config.IPAMConfig
+	return c.ipamConfig
+}
+
+// GetIPAMConfigForJson returns IPAM configuration in format suitable
+// for marshalling to JSON (subnets not converted to net.IPNet + defined
+// JSON flag for every option).
+func (c *ContivConf) GetIPAMConfigForJson() *IPAMConfigForJSON {
+	return &c.config.IPAMConfigForJSON
 }
 
 // GetInterfaceConfig returns configuration related to VPP interfaces.
@@ -442,7 +609,7 @@ func (c *ContivConf) Close() error {
 }
 
 // reloadNodeInterfaces re-loads node interface names, IPs, default GW, DHCP option.
-func (c *ContivConf) reloadNodeInterfaces() {
+func (c *ContivConf) reloadNodeInterfaces() error {
 	nodeConfig := c.getNodeSpecificConfig()
 
 	// DHCP
@@ -485,14 +652,64 @@ func (c *ContivConf) reloadNodeInterfaces() {
 		}
 	}
 
-	// main interface static IPs (FIXME: static is not good name, it is not calculated by IPAM)
-	// TODO
+	// main interface configured IPs
+	c.mainInterfaceIPs = []*IPWithNetwork{}
+	if !c.useDHCP {
+		if c.InSTNMode() {
+			c.mainInterfaceIPs = c.stnIPAddresses
+		} else if nodeConfig != nil && nodeConfig.MainVPPInterface.IP != "" {
+			ipAddr, ipNet, err := net.ParseCIDR(nodeConfig.MainVPPInterface.IP)
+			if err != nil {
+				c.Log.Errorf("Failed to parse main interface IP address from the config: %v", err)
+				return err
+			}
+			c.mainInterfaceIPs = []*IPWithNetwork{{Address: ipAddr, Network: ipNet}}
+		}
+	}
 
 	// other interfaces
-	// TODO
+	c.otherInterfaces = OtherInterfaces{}
+	if nodeConfig != nil {
+		for _, iface := range nodeConfig.OtherVPPInterfaces {
+			cfg := &OtherInterfaceConfig{
+				InterfaceName: iface.InterfaceName,
+				UseDHCP:       iface.UseDHCP,
+			}
+			if iface.IP != "" {
+				ipAddr, ipNet, err := net.ParseCIDR(iface.IP)
+				if err != nil {
+					err := fmt.Errorf("failed to parse IP address configured for interface %s: %v",
+						iface.InterfaceName, err)
+					return err
+				}
+				cfg.UseDHCP = false // IP overrides UseDHCP
+				cfg.IPs = []*IPWithNetwork{{Address: ipAddr, Network: ipNet}}
+			}
+			c.otherInterfaces = append(c.otherInterfaces, cfg)
+		}
+	}
 
 	// static default GW
-	// TODO
+	if !c.useDHCP {
+		if c.InSTNMode() {
+			c.defaultGw = c.stnGW
+		} else if nodeConfig != nil && nodeConfig.Gateway != "" {
+			c.defaultGw = net.ParseIP(nodeConfig.Gateway)
+			if c.defaultGw == nil {
+				err := fmt.Errorf("failed to parse gateway IP address from the config (%s)",
+					nodeConfig.Gateway)
+				return err
+			}
+		}
+	}
+
+	c.Log.Infof("ContivConf state after re-load: "+
+		"useDHCP=%t, mainInterface=%s, mainInterfaceIPs=%s, otherInterfaces=%s, "+
+		"defaultGw=%v, dpdkIfaces=%v, stnInterface=%s, stnIPAddresses=%s, "+
+		"stnGW=%v, stnRoutes=%v", c.useDHCP, c.mainInterface, c.mainInterfaceIPs.String(),
+		c.otherInterfaces.String(), c.defaultGw, c.dpdkIfaces, c.stnInterface,
+		c.stnIPAddresses.String(), c.stnGW, c.stnRoutes)
+	return nil
 }
 
 // getNodeSpecificConfig returns configuration specific to this node, prioritizing
@@ -597,7 +814,7 @@ func (c *ContivConf) dumpDPDKInterfaces() (ifaces []string, err error) {
 
 // getSTNConfig returns IP addresses and routes associated with the main
 // interface before it was stolen from the host stack.
-func (c *ContivConf) getSTNConfig(ifName string) (ipNets []*IPWithNetwork, gw net.IP, routes []*stn_grpc.STNReply_Route, err error) {
+func (c *ContivConf) getSTNConfig(ifName string) (ipNets IPsWithNetworks, gw net.IP, routes []*stn_grpc.STNReply_Route, err error) {
 	if ifName == "" {
 		c.Log.Debug("Getting STN info for the first stolen interface")
 	} else {
@@ -605,7 +822,7 @@ func (c *ContivConf) getSTNConfig(ifName string) (ipNets []*IPWithNetwork, gw ne
 	}
 
 	// request info about the stolen interface
-	reply, err := c.requestSTNInfo(ifName)
+	reply, err := c.requestSTNInfoClb(ifName)
 	if err != nil {
 		c.Log.Errorf("Error by executing STN GRPC: %v", err)
 		return

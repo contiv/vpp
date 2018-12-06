@@ -33,6 +33,9 @@ const (
 	ContivConfigPathUsage = "Path to the Agent's Contiv plugin configuration yaml file."
 )
 
+// DefaultPlugin is a default instance of IPv4Net.
+var DefaultPlugin = *NewPlugin()
+
 // NewPlugin creates a new Plugin with the provides Options
 func NewPlugin(opts ...Option) *IPv4Net {
 	p := &IPv4Net{}

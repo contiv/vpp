@@ -44,13 +44,15 @@ type API interface {
 	// If empty, a loopback interface should be configured instead.
 	GetMainInterfaceName() string
 
-	// GetMainInterfaceStaticIPs returns the list of IP addresses to assign
-	// to the main interface. Ignore if DHCP is enabled.
-	GetMainInterfaceStaticIPs() []*IPWithNetwork
+	// GetMainInterfaceConfiguredIPs returns the list of IP addresses configured
+	// to be assigned to the main interface. Ignore if DHCP is enabled.
+	// The function may return an empty list, then it is necessary to request
+	// node IP from IPAM.
+	GetMainInterfaceConfiguredIPs() IPsWithNetworks
 
 	// GetOtherVPPInterfaces returns configuration to apply for non-main physical
 	// VPP interfaces.
-	GetOtherVPPInterfaces() []*OtherInterfaceConfig
+	GetOtherVPPInterfaces() OtherInterfaces
 
 	// GetStaticDefaultGW returns the IP address of the default gateway.
 	// Ignore if DHCP is enabled (in that case it is provided by the DHCP server)
@@ -62,6 +64,11 @@ type API interface {
 
 	// GetIPAMConfig returns configuration to be used by the IPAM module.
 	GetIPAMConfig() *IPAMConfig
+
+	// GetIPAMConfigForJson returns IPAM configuration in format suitable
+	// for marshalling to JSON (subnets not converted to net.IPNet + defined
+	// JSON flag for every option).
+	GetIPAMConfigForJson() *IPAMConfigForJSON
 
 	// GetInterfaceConfig returns configuration related to VPP interfaces.
 	GetInterfaceConfig() *InterfaceConfig
@@ -83,7 +90,7 @@ type API interface {
 // IPAMConfig groups configuration options related to IP address allocation.
 type IPAMConfig struct {
 	// CIDR to use for all IP address allocations.
-	// If defined, the manually selected subnets (CustomIPAMSubnets, see below)
+	// If defined (non-nil), the manually selected subnets (CustomIPAMSubnets, see below)
 	// should be ignored - i.e. this field takes precedence.
 	// IPAM implementation should subdivide the network into smaller chunks to split
 	// the address space between nodes and different kinds of endpoints (pods, vxlans, ...)
@@ -91,14 +98,14 @@ type IPAMConfig struct {
 	// The IPAM algorithm should consider the expected maximum usage of every subnet
 	// and allocate the space accordingly to avoid collisions or inefficient
 	// address space usage.
-	ContivCIDR string `json:"contivCIDR"`
+	ContivCIDR *net.IPNet // can be nil
 
 	// Subnet used by services.
-	ServiceCIDR string `json:"serviceCIDR"`
+	ServiceCIDR *net.IPNet
 
 	// if set to true, DHCP is used to acquire IP for the main VPP interface
 	// (NodeInterconnectCIDR does not have to be allocated in that case)
-	NodeInterconnectDHCP bool `json:"nodeInterconnectDHCP"`
+	NodeInterconnectDHCP bool
 
 	// Manually selected subnets (if ContivCIDR is defined, this is overridden
 	// by IPAM's own allocation algorithm).
@@ -112,27 +119,27 @@ type IPAMConfig struct {
 type CustomIPAMSubnets struct {
 	// Subnet from which individual VPP-side POD interface networks are allocated.
 	// This subnet is reused by every node - not routed outside of the nodes.
-	PodVPPSubnetCIDR string `json:"podVPPSubnetCIDR"`
+	PodVPPSubnetCIDR *net.IPNet
 
 	// Subnet from which individual POD networks are allocated.
 	// This is subnet for all PODs across all nodes.
-	PodSubnetCIDR string `json:"podSubnetCIDR"`
+	PodSubnetCIDR *net.IPNet
 
 	// Prefix length of subnet used for all PODs within 1 node.
-	PodSubnetOneNodePrefixLen uint8 `json:"podSubnetOneNodePrefixLen"`
+	PodSubnetOneNodePrefixLen uint8
 
 	// Subnet used across all nodes for VPP to host Linux stack interconnect.
-	VPPHostSubnetCIDR string `json:"vppHostSubnetCIDR"`
+	VPPHostSubnetCIDR *net.IPNet
 
 	// Prefix length of subnet used for VPP to host stack interconnect
 	// within 1 node.
-	VPPHostSubnetOneNodePrefixLen uint8 `json:"vppHostSubnetOneNodePrefixLen"`
+	VPPHostSubnetOneNodePrefixLen uint8
 
 	// Subnet used for inter-node connections.
-	NodeInterconnectCIDR string `json:"nodeInterconnectCIDR"`
+	NodeInterconnectCIDR *net.IPNet
 
 	// Subnet used for inter-node VXLANs.
-	VxlanCIDR string `json:"vxlanCIDR"`
+	VxlanCIDR *net.IPNet
 }
 
 // InterfaceConfig contains configuration related to interfaces.
@@ -179,7 +186,26 @@ type STNConfig struct {
 type OtherInterfaceConfig struct {
 	InterfaceName string
 	UseDHCP       bool
-	IP            *IPWithNetwork
+	IPs           IPsWithNetworks
+}
+
+// OtherInterfaces is a list of other interfaces.
+type OtherInterfaces []*OtherInterfaceConfig
+
+// String return string representation of configurations for other interfaces.
+func (ifaces OtherInterfaces) String() string {
+	str := "["
+	first := true
+	for _, iface := range ifaces {
+		if !first {
+			str += ", "
+		}
+		first = false
+		str += fmt.Sprintf("{name:%s, useDHCP:%t, IPs: %s}",
+			iface.InterfaceName, iface.UseDHCP, iface.IPs)
+	}
+	str += "]"
+	return str
 }
 
 // IPWithNetwork encapsulates IP address with the network address.
@@ -198,6 +224,24 @@ const (
 	// IPv6 represents IP version 6.
 	IPv6
 )
+
+// IPsWithNetworks is a list of pairs (address, network).
+type IPsWithNetworks []*IPWithNetwork
+
+// String return string representation of IP addresses with networks.
+func (ips IPsWithNetworks) String() string {
+	str := "["
+	first := true
+	for _, ip := range ips {
+		if !first {
+			str += ", "
+		}
+		first = false
+		str += fmt.Sprintf("(%s, %s)", ip.Address.String(), ip.Network.String())
+	}
+	str += "]"
+	return str
+}
 
 /************************** Node Config Change Event **************************/
 

@@ -88,7 +88,7 @@ func (n *IPv4Net) Resync(event controller.Event, kubeStateData controller.KubeSt
 		controller.PutAll(txn, config)
 	}
 
-	n.Log.Infof("ipv4net plugin internal state after RESYNC: %s",
+	n.Log.Infof("IPv4Net plugin internal state after RESYNC: %s",
 		n.internalState.StateToString())
 	return wasErr
 }

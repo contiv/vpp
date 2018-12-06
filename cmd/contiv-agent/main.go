@@ -46,6 +46,8 @@ import (
 
 	"github.com/contiv/vpp/plugins/controller"
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
@@ -79,8 +81,10 @@ type ContivAgent struct {
 	GRPC      *grpc.Plugin
 
 	Controller *controller.Controller
+	ContivConf *contivconf.ContivConf
 	NodeSync   *nodesync.NodeSync
 	PodManager *podmanager.PodManager
+	IPAM       *ipam.IPAM
 	IPv4Net    *ipv4net.IPv4Net
 	Policy     *policy.Plugin
 	Service    *service.Plugin
@@ -122,9 +126,16 @@ func main() {
 	grpc.DefaultPlugin.HTTP = &rest.DefaultPlugin
 
 	// initialize Contiv plugins
+	contivConf := &contivconf.DefaultPlugin
+
 	nodeSyncPlugin := &nodesync.DefaultPlugin
 
 	podManager := &podmanager.DefaultPlugin
+
+	ipamPlugin := ipam.NewPlugin(ipam.UseDeps(func(deps *ipam.Deps) {
+		deps.ContivConf = contivConf
+		deps.NodeSync = nodeSyncPlugin
+	}))
 
 	ipv4NetPlugin := ipv4net.NewPlugin(ipv4net.UseDeps(func(deps *ipv4net.Deps) {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
@@ -149,8 +160,10 @@ func main() {
 		deps.LocalDB = &bolt.DefaultPlugin
 		deps.RemoteDB = &etcd.DefaultPlugin
 		deps.EventHandlers = []controller_api.EventHandler{
+			contivConf,
 			nodeSyncPlugin,
 			podManager,
+			ipamPlugin,
 			ipv4NetPlugin,
 			servicePlugin,
 			policyPlugin,
@@ -158,6 +171,9 @@ func main() {
 		}
 	}))
 
+	contivConf.ContivAgentDeps = &contivconf.ContivAgentDeps{
+		EventLoop: controller,
+	}
 	nodeSyncPlugin.EventLoop = controller
 	podManager.EventLoop = controller
 	ipv4NetPlugin.EventLoop = controller
@@ -181,8 +197,10 @@ func main() {
 		Telemetry:     &telemetry.DefaultPlugin,
 		GRPC:          &grpc.DefaultPlugin,
 		Controller:    controller,
+		ContivConf:    contivConf,
 		NodeSync:      nodeSyncPlugin,
 		PodManager:    podManager,
+		IPAM:          ipamPlugin,
 		IPv4Net:       ipv4NetPlugin,
 		Policy:        policyPlugin,
 		Service:       servicePlugin,

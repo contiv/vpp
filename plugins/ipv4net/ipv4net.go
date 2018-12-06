@@ -322,15 +322,7 @@ func (n *IPv4Net) NatExternalTraffic() bool {
 	return false
 }
 
-// GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
-// between clients and services via VPP even if the source and destination are the same
-// IP addresses and would otherwise be routed locally.
-func (n *IPv4Net) GetNatLoopbackIP() net.IP {
-	// Last unicast IP from the pod subnet is used as NAT-loopback.
-	podNet := n.ipam.PodSubnetThisNode()
-	_, broadcastIP := cidr.AddressRange(podNet)
-	return cidr.Dec(broadcastIP)
-}
+
 
 // GetNodeIP returns the IP address of this node.
 func (n *IPv4Net) GetNodeIP() (ip net.IP, network *net.IPNet) {

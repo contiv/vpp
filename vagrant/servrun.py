@@ -5,6 +5,12 @@ from kubernetes import config, client
 from my_pod import Pod
 
 if __name__ == '__main__':
+	service = "nginx"
+	namespace = "default"
+	hostname = service + "." + namespace + ".svc.cluster.local"
+	url = "/server_addr"
+	command = "wget -O - " + hostname + url + " 2>dev/null"
+	iterations = 10
 	pod = []
 	config.load_kube_config()
 	c = client.Configuration()
@@ -14,18 +20,23 @@ if __name__ == '__main__':
 	# list nodes
 	v = client.CoreV1Api()
 	hosts = v.list_node().items
- 
-	# create pods
+
+	# get service IP
+	service_ip = v.read_namespaced_service_status(service, namespace).spec.cluster_ip
+
+	# open connections
 	for i in range (0, len(hosts)):
-		pod.append(Pod('busyboxplus', 'radial/busyboxplus:curl', hosts[i].metadata.name))
+		pod.append(Pod('busyboxplus', hosts[i].metadata.name))
 		pod[i].open_conn()
 
 	# test pods
 	for i in range (0, len(hosts)):
-		print pod[i].get_name(), "(", pod[i].get_address(), ")"
-		for j in range (0, 10):
-			pod[i].send('wget -O - 10.96.1.1/server_addr 2>/dev/null')
+		print "client pod " +  pod[i].get_name(), "(", pod[i].get_address(), ")"
+		print "testing service " + service + " ( " + service_ip + " )"
+		print iterations, "iterations.  Responses: \n" 
+		for j in range (0, iterations):
+			pod[i].send(command)
 
-	# close pods
+	# close connections
 	for i in range(0, len(hosts)):
 		pod[i].close_conn()

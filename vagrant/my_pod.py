@@ -13,7 +13,7 @@ class Pod(object):
 	_name = "" 
 	_conn = ""
 
-	def __init__(self, name, image, host):
+	def __init__(self, name, host, image=""):
 		self._api = core_v1_api.CoreV1Api()
 		self._name = name + "-" + host
 		resp = None
@@ -65,8 +65,6 @@ class Pod(object):
 				}
 			}
 
-			print pod_manifest
-
 			resp = self._api.create_namespaced_pod(body=pod_manifest,
                         				       namespace='default')
     			while True:
@@ -76,7 +74,18 @@ class Pod(object):
 					break
 				time.sleep(1)
 			print("Done.")
- 
+
+	def delete(self):
+                resp = None
+		body = client.V1DeleteOptions()
+                try:
+			resp = self._api.delete_namespaced_pod(self._name, "default", body)
+                
+		except ApiException as e:
+                        if e.status != 404:
+                                print("Unknown error: %s" %e)
+                                exit(1)
+
  	def open_conn(self):
 		self._conn = stream(	self._api.connect_get_namespaced_pod_exec,
 					self._name,

@@ -117,6 +117,7 @@ export class ServicesComponent implements OnInit, OnDestroy {
   public onRender() {
     this.selectedEndpoint.subsets.forEach(s => {
       if (s.addresses) {
+        this.topologyHighlightService.setTopologyOpacity(0.3);
         s.addresses.forEach(a => this.topologyHighlightService.highlightNode(a.podName));
       }
     });
@@ -134,7 +135,7 @@ export class ServicesComponent implements OnInit, OnDestroy {
   public showVppState(nodeId: string) {
     const url = this.getRestUrl(nodeId);
 
-    this.vppService.getNatRaw(url).subscribe(output => this.modalService.showApiOutput('NAT', JSON.stringify(output)));
+    this.vppService.getNatRaw(url).subscribe(output => this.modalService.showApiOutput('IP Mappings', JSON.stringify(output)));
   }
 
   public getHostIp(nodeId: string): string {

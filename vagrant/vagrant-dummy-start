@@ -8,8 +8,9 @@ set -euo pipefail
 export K8S_NODES=2
 export K8S_DEPLOYMENT_ENV="prod"
 export K8S_DEPLOYMENT_SCENARIO="nostn"
+export KUBECTL_PROXY="proxy"
 
 echo
 echo "Creating a production environment, without STN and 2 worker nodes"
-echo 
+echo
 ./vagrant-up

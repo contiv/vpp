@@ -64,6 +64,8 @@ export class VswitchDetailComponent implements OnInit, OnDestroy {
   }
 
   private setFormData() {
+    const gig = this.domain.getGigInterface();
+
     this.formData = [
       {
         label: 'Namespace',
@@ -75,7 +77,7 @@ export class VswitchDetailComponent implements OnInit, OnDestroy {
       },
       {
         label: 'Pod IP',
-        value: this.pod.podIp
+        value: gig.getIP()
       }
     ];
   }

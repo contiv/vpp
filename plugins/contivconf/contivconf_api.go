@@ -65,10 +65,10 @@ type API interface {
 	// GetIPAMConfig returns configuration to be used by the IPAM module.
 	GetIPAMConfig() *IPAMConfig
 
-	// GetIPAMConfigForJson returns IPAM configuration in format suitable
+	// GetIPAMConfigForJSON returns IPAM configuration in format suitable
 	// for marshalling to JSON (subnets not converted to net.IPNet + defined
 	// JSON flag for every option).
-	GetIPAMConfigForJson() *IPAMConfigForJSON
+	GetIPAMConfigForJSON() *IPAMConfigForJSON
 
 	// GetInterfaceConfig returns configuration related to VPP interfaces.
 	GetInterfaceConfig() *InterfaceConfig

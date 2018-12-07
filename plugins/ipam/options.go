@@ -17,8 +17,8 @@ package ipam
 import (
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/nodesync"
 )
 
 // DefaultPlugin is a default instance of IPAM plugin.

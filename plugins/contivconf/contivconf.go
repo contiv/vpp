@@ -45,7 +45,8 @@ import (
 )
 
 const (
-	// socket file where the GRPC STN server listens for client connections by default
+	// DefaultSTNSocketFile is a path to the socket file where the GRPC STN server
+	// listens for client connections by default
 	DefaultSTNSocketFile = "/var/run/contiv/stn.sock"
 
 	// by default, NodeConfig CRD is not waited for (can be applied later for smaller
@@ -573,10 +574,10 @@ func (c *ContivConf) GetIPAMConfig() *IPAMConfig {
 	return c.ipamConfig
 }
 
-// GetIPAMConfigForJson returns IPAM configuration in format suitable
+// GetIPAMConfigForJSON returns IPAM configuration in format suitable
 // for marshalling to JSON (subnets not converted to net.IPNet + defined
 // JSON flag for every option).
-func (c *ContivConf) GetIPAMConfigForJson() *IPAMConfigForJSON {
+func (c *ContivConf) GetIPAMConfigForJSON() *IPAMConfigForJSON {
 	return &c.config.IPAMConfig
 }
 
@@ -873,9 +874,6 @@ func (c *ContivConf) getSTNConfig(ifName string) (ipNets IPsWithNetworks, gw net
 // requestSTNInfo sends request to the STN daemon to obtain information about a stolen interface.
 func (c *ContivConf) requestSTNInfo(ifName string) (reply *stn_grpc.STNReply, err error) {
 	// connect to STN GRPC server
-	if c.config.STNSocketFile == "" {
-		c.config.STNSocketFile = c.config.STNSocketFile
-	}
 	conn, err := grpc.Dial(
 		c.config.STNSocketFile,
 		grpc.WithInsecure(),

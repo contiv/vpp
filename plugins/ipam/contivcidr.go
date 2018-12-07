@@ -16,8 +16,8 @@ package ipam
 
 import (
 	"fmt"
-	"net"
 	"math/big"
+	"net"
 
 	"github.com/go-errors/errors"
 

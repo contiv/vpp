@@ -117,20 +117,20 @@ var (
 	}
 
 	/*
-	configVethL2NoTCP = &contivconf.Config{
-		RoutingConfig: contivconf.RoutingConfig{
-			UseL2Interconnect: true,
-		},
-		IPAMConfig: contivconf.IPAMConfigForJSON{
-			PodSubnetCIDR:                 "10.1.0.0/16",
-			PodSubnetOneNodePrefixLen:     24,
-			PodVPPSubnetCIDR:              "10.2.1.0/24",
-			VPPHostSubnetCIDR:             "172.30.0.0/16",
-			VPPHostSubnetOneNodePrefixLen: 24,
-			NodeInterconnectCIDR:          "192.168.16.0/24",
-			VxlanCIDR:                     "192.168.30.0/24",
-		},
-	}
+		configVethL2NoTCP = &contivconf.Config{
+			RoutingConfig: contivconf.RoutingConfig{
+				UseL2Interconnect: true,
+			},
+			IPAMConfig: contivconf.IPAMConfigForJSON{
+				PodSubnetCIDR:                 "10.1.0.0/16",
+				PodSubnetOneNodePrefixLen:     24,
+				PodVPPSubnetCIDR:              "10.2.1.0/24",
+				VPPHostSubnetCIDR:             "172.30.0.0/16",
+				VPPHostSubnetOneNodePrefixLen: 24,
+				NodeInterconnectCIDR:          "192.168.16.0/24",
+				VxlanCIDR:                     "192.168.30.0/24",
+			},
+		}
 	*/
 )
 
@@ -185,7 +185,7 @@ func TestBasicStuff(t *testing.T) {
 	contivConfPlugin := &contivconf.ContivConf{
 		Deps: contivconf.Deps{
 			PluginDeps: infra.PluginDeps{
-				Log:  logging.ForPlugin("contivconf"),
+				Log: logging.ForPlugin("contivconf"),
 			},
 			ServiceLabel: serviceLabel,
 			UnitTestDeps: &contivconf.UnitTestDeps{
@@ -203,7 +203,7 @@ func TestBasicStuff(t *testing.T) {
 	ipamPlugin := &ipam.IPAM{
 		Deps: ipam.Deps{
 			PluginDeps: infra.PluginDeps{
-				Log:  logging.ForPlugin("ipam"),
+				Log: logging.ForPlugin("ipam"),
 			},
 			NodeSync:   nodeSync,
 			ContivConf: contivConfPlugin,
@@ -225,6 +225,8 @@ func TestBasicStuff(t *testing.T) {
 		},
 		EventLoop:    eventLoop,
 		ServiceLabel: serviceLabel,
+		ContivConf:   contivConfPlugin,
+		IPAM:         ipamPlugin,
 		NodeSync:     nodeSync,
 		PodManager:   podManager,
 	}

@@ -109,7 +109,7 @@ func (n *IPv4Net) deletePod(event *podmanager.DeletePod, txn controller.UpdateOp
 	if !podExists {
 		return "", nil
 	}
-	ip := n.ipam.GetPodIP(pod.ID)
+	ip := n.IPAM.GetPodIP(pod.ID)
 	if ip == nil {
 		return "", nil
 	}

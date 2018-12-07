@@ -15,8 +15,8 @@
 package service
 
 import (
-	"github.com/ligato/cn-infra/config"
 	"github.com/contiv/vpp/plugins/statscollector"
+	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"

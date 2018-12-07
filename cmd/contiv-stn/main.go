@@ -23,10 +23,10 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
-	"path/filepath"
 
 	"github.com/safchain/ethtool"
 	"github.com/vishvananda/netlink"
@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	defaultStatusCheckPort  = 9999                       // port that STN server is checking to determine contiv-agent liveness
+	defaultStatusCheckPort = 9999 // port that STN server is checking to determine contiv-agent liveness
 
 	initStatusCheckTimeout = 30 * time.Second // initial timeout after which the STN server starts checking of the contiv-agent state
 	statusCheckInterval    = 1 * time.Second  // periodic interval in which the STN server checks for contiv-agent state

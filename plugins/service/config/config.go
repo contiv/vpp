@@ -22,19 +22,19 @@ const (
 // Config holds the Service configuration.
 type Config struct {
 	// if enabled, the agent will periodically check for idle NAT sessions and delete inactive ones
-	CleanupIdleNATSessions      bool   `json:"cleanupIdleNATSessions"`
+	CleanupIdleNATSessions bool `json:"cleanupIdleNATSessions"`
 
 	// NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on
-	TCPNATSessionTimeout        uint32 `json:"tcpNATSessionTimeout"`
+	TCPNATSessionTimeout uint32 `json:"tcpNATSessionTimeout"`
 
 	// NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on
-	OtherNATSessionTimeout      uint32 `json:"otherNATSessionTimeout"`
+	OtherNATSessionTimeout uint32 `json:"otherNATSessionTimeout"`
 
 	// how much locally deployed endpoints are more likely to receive a connection
-	ServiceLocalEndpointWeight  uint8  `json:"serviceLocalEndpointWeight"`
+	ServiceLocalEndpointWeight uint8 `json:"serviceLocalEndpointWeight"`
 
 	// if true, NAT plugin will drop fragmented packets
-	DisableNATVirtualReassembly bool   `json:"disableNATVirtualReassembly"`
+	DisableNATVirtualReassembly bool `json:"disableNATVirtualReassembly"`
 }
 
 // DefaultConfig returns configuration for service plugin with default values.

@@ -36,26 +36,26 @@ import (
 
 	"github.com/contiv/vpp/mock/localclient"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/service/config"
 	svc_processor "github.com/contiv/vpp/plugins/service/processor"
 	svc_renderer "github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/service/renderer/nat44"
-	"github.com/contiv/vpp/plugins/service/config"
 
+	"github.com/contiv/vpp/plugins/contivconf"
+	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
+	"github.com/contiv/vpp/plugins/ipam"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
-	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
-	"github.com/contiv/vpp/plugins/contivconf"
-	"github.com/contiv/vpp/plugins/ipam"
 )
 
 const (
 	masterLabel = "master"
-	masterID = uint32(1)
+	masterID    = uint32(1)
 	workerLabel = "worker"
-	workerID = uint32(2)
+	workerID    = uint32(2)
 
 	// master
 	mainIfName      = "GbE"
@@ -66,9 +66,9 @@ const (
 
 	// extected NAT loopback IP for master based on default config
 	natLoopbackIP = "10.1.1.254"
-	
-	namespace1    = "default"
-	namespace2    = "another-ns"
+
+	namespace1 = "default"
+	namespace2 = "another-ns"
 
 	mainVrfID = 1
 	podVrfID  = 2
@@ -171,7 +171,7 @@ func defaultConfig(withOtherIfaces bool) *contivconf.Config {
 				NodeConfigSpec: nodeconfigcrd.NodeConfigSpec{
 					MainVPPInterface: nodeconfigcrd.InterfaceConfig{
 						InterfaceName: mainIfName,
-						IP: nodeIP.String(),
+						IP:            nodeIP.String(),
 					},
 					Gateway: gateway.String(),
 				},
@@ -203,9 +203,9 @@ type mocks struct {
 	ipv4Net      *MockIPv4Net
 }
 
-func initMocks(testName string, config *contivconf.Config, withoutMaster... bool) *mocks {
+func initMocks(testName string, config *contivconf.Config, withoutMaster ...bool) *mocks {
 	mocks := &mocks{}
-	
+
 	// logger
 	mocks.logger = logrus.DefaultLogger()
 	mocks.logger.SetLevel(logging.DebugLevel)
@@ -233,7 +233,7 @@ func initMocks(testName string, config *contivconf.Config, withoutMaster... bool
 	mocks.contivConf = &contivconf.ContivConf{
 		Deps: contivconf.Deps{
 			PluginDeps: infra.PluginDeps{
-				Log:  logging.ForPlugin("contivconf"),
+				Log: logging.ForPlugin("contivconf"),
 			},
 			ServiceLabel: mocks.serviceLabel,
 			UnitTestDeps: &contivconf.UnitTestDeps{
@@ -247,7 +247,7 @@ func initMocks(testName string, config *contivconf.Config, withoutMaster... bool
 	mocks.ipam = &ipam.IPAM{
 		Deps: ipam.Deps{
 			PluginDeps: infra.PluginDeps{
-				Log:  logging.ForPlugin("ipam"),
+				Log: logging.ForPlugin("ipam"),
 			},
 			NodeSync:   mocks.nodeSync,
 			ContivConf: mocks.contivConf,
@@ -280,7 +280,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	const localEndpointWeight uint8 = 1
 	config := defaultConfig(false)
 	mocks := initMocks("TestResyncAndSingleService", config)
-	
+
 	// Prepare processor.
 	svcProcessor := &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
@@ -608,7 +608,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	const localEndpointWeight uint8 = 2
 	config := defaultConfig(false)
 	mocks := initMocks("TestMultipleServicesWithMultiplePortsAndResync", config)
-	
+
 	// Prepare processor.
 	svcProcessor := &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{

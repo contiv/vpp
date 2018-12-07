@@ -75,7 +75,7 @@ test:
 	@echo "# running unit tests"
 	go test ./cmd/contiv-cni -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/ipv4net -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/ipv4net/ipam -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/ipam -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/ksr -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
@@ -97,7 +97,7 @@ test-race:
 	@echo "# running unit tests with -race"
 	go test ./cmd/contiv-cni -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/ipv4net -race -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/ipv4net/ipam -race -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/ipam -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/ksr -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/configurator -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/cache -race -tags="${GO_BUILD_TAGS}"
@@ -124,7 +124,7 @@ test-cover: get-covtools
 	@echo "# running unit tests with coverage analysis"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u1.out ./cmd/contiv-cni -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u2.out ./plugins/ipv4net -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u3.out ./plugins/ipv4net/ipam -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u3.out ./plugins/ipam -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u6.out ./plugins/ksr -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u7.out ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u8.out ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
@@ -182,7 +182,6 @@ generate: get-generators
 	@echo "# generating sources"
 	cd plugins/nodesync && go generate
 	cd plugins/podmanager && go generate
-	cd plugins/ipv4net/ipam && go generate
 	cd plugins/ksr && go generate
 	cd cmd/contiv-stn && go generate
 	cd plugins/crd/handler/nodeconfig && go generate

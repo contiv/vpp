@@ -45,9 +45,9 @@ import (
 	vpp_natplugin "github.com/ligato/vpp-agent/plugins/vppv2/natplugin"
 	vpp_stnplugin "github.com/ligato/vpp-agent/plugins/vppv2/stnplugin"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	"github.com/contiv/vpp/plugins/controller"
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/contivconf"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/nodesync"

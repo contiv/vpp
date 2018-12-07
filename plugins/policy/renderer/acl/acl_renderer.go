@@ -24,9 +24,9 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipv4net"
-	"github.com/contiv/vpp/plugins/contivconf"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"

@@ -15,13 +15,13 @@
 package ipv4net
 
 import (
-	"strings"
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
 
-	"github.com/vishvananda/netlink"
 	"git.fd.io/govpp.git/api"
+	"github.com/vishvananda/netlink"
 
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stats"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"

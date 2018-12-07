@@ -26,9 +26,9 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/nodesync"
-	"github.com/contiv/vpp/plugins/contivconf"
 )
 
 /* Main VPP interface */
@@ -318,7 +318,7 @@ func (n *IPv4Net) defaultRoute(gwIP net.IP, outIfName string) (key string, confi
 func (n *IPv4Net) routesPodToMainVRF() map[string]*l3.StaticRoute {
 	routes := make(map[string]*l3.StaticRoute)
 	routingCfg := n.ContivConf.GetRoutingConfig()
-	
+
 	// by default to go from Pod VRF via Main VRF
 	r1 := &l3.StaticRoute{
 		Type:       l3.StaticRoute_INTER_VRF,

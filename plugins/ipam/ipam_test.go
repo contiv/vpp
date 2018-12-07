@@ -27,8 +27,8 @@ import (
 	. "github.com/contiv/vpp/mock/servicelabel"
 
 	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/logging/logrus"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
@@ -67,7 +67,7 @@ var (
 
 func newDefaultConfig() *contivconf.Config {
 	return &contivconf.Config{
-		IPAMConfigForJSON: contivconf.IPAMConfigForJSON{
+		IPAMConfig: contivconf.IPAMConfigForJSON{
 			PodVPPSubnetCIDR:              "10.2.1.0/24",
 			PodSubnetCIDR:                 "1.2." + str(b10000000) + ".0/17",
 			PodSubnetOneNodePrefixLen:     29, // 3 bits left -> 4 free IP addresses (gateway IP + NAT-loopback IP + network addr + broadcast are reserved)
@@ -105,7 +105,7 @@ func newIPAM(cfg *contivconf.Config, nodeID uint32) (i *IPAM, err error) {
 	conf := &contivconf.ContivConf{
 		Deps: contivconf.Deps{
 			PluginDeps: infra.PluginDeps{
-				Log:  logging.ForPlugin("contivconf"),
+				Log: logging.ForPlugin("contivconf"),
 			},
 			ServiceLabel: serviceLabel,
 			UnitTestDeps: &contivconf.UnitTestDeps{
@@ -126,7 +126,7 @@ func newIPAM(cfg *contivconf.Config, nodeID uint32) (i *IPAM, err error) {
 	i = &IPAM{
 		Deps: Deps{
 			PluginDeps: infra.PluginDeps{
-				Log:  logging.ForPlugin("ipam"),
+				Log: logging.ForPlugin("ipam"),
 			},
 			NodeSync:   nodeSync,
 			ContivConf: conf,
@@ -268,8 +268,8 @@ func TestReleaseOfSomeIPAddresses(t *testing.T) {
 // Test8bitPodIPPoolSize tests pod IP allocation for nice-looking distinct case when subnet/network is aligned to IP Address bytes
 func Test8bitPodIPPoolSize(t *testing.T) {
 	customConfig := newDefaultConfig()
-	customConfig.PodSubnetCIDR = "1.2.3.4/16"
-	customConfig.PodSubnetOneNodePrefixLen = 24
+	customConfig.IPAMConfig.PodSubnetCIDR = "1.2.3.4/16"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 24
 	i := setup(t, customConfig)
 
 	podNetwork := network("1.2." + str(int(nodeID1)) + ".0/24")
@@ -282,8 +282,8 @@ func Test8bitPodIPPoolSize(t *testing.T) {
 // TestBiggerThan8bitPodIPPoolSize tests pod IP allocation for more than 256 IP Addresses (mare then 8-bit allocated for IP addresses)
 func TestBiggerThan8bitPodIPPoolSize(t *testing.T) {
 	customConfig := newDefaultConfig()
-	customConfig.PodSubnetCIDR = "1.4.1.2/14"
-	customConfig.PodSubnetOneNodePrefixLen = 22
+	customConfig.IPAMConfig.PodSubnetCIDR = "1.4.1.2/14"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 22
 	i := setup(t, customConfig)
 
 	b00000100 := 1 << 2
@@ -299,12 +299,12 @@ func TestPodSubnetThisNodeSubnets(t *testing.T) {
 	RegisterTestingT(t)
 
 	customConfig := newDefaultConfig()
-	customConfig.PodSubnetCIDR = "1.4.1.0/24"
-	customConfig.PodSubnetOneNodePrefixLen = 28
+	customConfig.IPAMConfig.PodSubnetCIDR = "1.4.1.0/24"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 28
 
 	var firstID uint32 = 1
 	var lastID uint32 = 16
-	var outOfRangeId uint32 = 17
+	var outOfRangeID uint32 = 17
 
 	first, err := newIPAM(customConfig, firstID)
 	Expect(err).To(BeNil())
@@ -323,7 +323,7 @@ func TestPodSubnetThisNodeSubnets(t *testing.T) {
 	Expect(err).To(BeNil())
 	Expect(lastNodeIP.String()).To(BeEquivalentTo("3.4.5.208"))
 
-	outOfRange, err := newIPAM(customConfig, outOfRangeId)
+	outOfRange, err := newIPAM(customConfig, outOfRangeID)
 	Expect(err).NotTo(BeNil())
 	Expect(outOfRange).To(BeNil())
 }
@@ -333,10 +333,10 @@ func TestMoreThan256Node(t *testing.T) {
 	RegisterTestingT(t)
 
 	customConfig := newDefaultConfig()
-	customConfig.PodSubnetCIDR = "1.4.0.0/17"
-	customConfig.PodSubnetOneNodePrefixLen = 28
-	customConfig.VxlanCIDR = "2.2.128.0/17"
-	customConfig.NodeInterconnectCIDR = "1.1.128.0/17"
+	customConfig.IPAMConfig.PodSubnetCIDR = "1.4.0.0/17"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 28
+	customConfig.IPAMConfig.VxlanCIDR = "2.2.128.0/17"
+	customConfig.IPAMConfig.NodeInterconnectCIDR = "1.1.128.0/17"
 
 	last, err := newIPAM(customConfig, 257)
 	Expect(err).To(BeNil())
@@ -359,9 +359,9 @@ func TestExceededVxlanRange(t *testing.T) {
 	RegisterTestingT(t)
 
 	customConfig := newDefaultConfig()
-	customConfig.PodSubnetCIDR = "1.4.1.0/17"
-	customConfig.PodSubnetOneNodePrefixLen = 28
-	customConfig.VxlanCIDR = "2.2.2.128/28"
+	customConfig.IPAMConfig.PodSubnetCIDR = "1.4.1.0/17"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 28
+	customConfig.IPAMConfig.VxlanCIDR = "2.2.2.128/28"
 
 	// valid nodID from pod subnet perspective, however it doesn't fit into vxlan range
 	last, err := newIPAM(customConfig, 17)
@@ -383,10 +383,10 @@ func TestExceededNodeIPRange(t *testing.T) {
 	RegisterTestingT(t)
 
 	customConfig := newDefaultConfig()
-	customConfig.PodSubnetCIDR = "1.4.1.0/17"
-	customConfig.PodSubnetOneNodePrefixLen = 28
-	customConfig.VxlanCIDR = "2.2.2.128/25"
-	customConfig.NodeInterconnectCIDR = "3.3.3.0/28"
+	customConfig.IPAMConfig.PodSubnetCIDR = "1.4.1.0/17"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 28
+	customConfig.IPAMConfig.VxlanCIDR = "2.2.2.128/25"
+	customConfig.IPAMConfig.NodeInterconnectCIDR = "3.3.3.0/28"
 
 	// valid nodID from pod subnet perspective, however it doesn't fit into nodeIP range
 	last, err := newIPAM(customConfig, 17)
@@ -408,17 +408,17 @@ func TestConfigWithBadCIDR(t *testing.T) {
 	RegisterTestingT(t)
 
 	customConfig := newDefaultConfig()
-	customConfig.PodSubnetCIDR = "1.2.3./19"
+	customConfig.IPAMConfig.PodSubnetCIDR = "1.2.3./19"
 	_, err := newIPAM(customConfig, nodeID1)
 	Expect(err).NotTo(BeNil(), "Pod subnet CIDR is unparsable, but IPAM initialization didn't fail")
 
 	customConfig = newDefaultConfig()
-	customConfig.VPPHostSubnetCIDR = "1.2.3./19"
+	customConfig.IPAMConfig.VPPHostSubnetCIDR = "1.2.3./19"
 	_, err = newIPAM(customConfig, nodeID1)
 	Expect(err).NotTo(BeNil(), "VSwitch subnet CIDR is unparsable, but IPAM initialization didn't fail")
 
 	customConfig = newDefaultConfig()
-	customConfig.NodeInterconnectCIDR = "1.2.3./19"
+	customConfig.IPAMConfig.NodeInterconnectCIDR = "1.2.3./19"
 	_, err = newIPAM(customConfig, nodeID1)
 	Expect(err).NotTo(BeNil(), "Host subnet CIDR is unparsable, but IPAM initialization didn't fail")
 }
@@ -428,14 +428,14 @@ func TestConfigWithBadPrefixSizes(t *testing.T) {
 	RegisterTestingT(t)
 
 	customConfig := newDefaultConfig()
-	customConfig.PodSubnetCIDR = "1.2.3.4/19"
-	customConfig.PodSubnetOneNodePrefixLen = 18
+	customConfig.IPAMConfig.PodSubnetCIDR = "1.2.3.4/19"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 18
 	_, err := newIPAM(customConfig, nodeID1)
 	Expect(err).NotTo(BeNil())
 
 	customConfig = newDefaultConfig()
-	customConfig.VPPHostSubnetCIDR = "1.2.3.4/19"
-	customConfig.VPPHostSubnetOneNodePrefixLen = 18
+	customConfig.IPAMConfig.VPPHostSubnetCIDR = "1.2.3.4/19"
+	customConfig.IPAMConfig.VPPHostSubnetOneNodePrefixLen = 18
 	_, err = newIPAM(customConfig, nodeID1)
 	Expect(err).NotTo(BeNil())
 }

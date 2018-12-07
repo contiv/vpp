@@ -184,7 +184,7 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 		"excludedIPsfromNodeSubnet=%v, podSubnetAllNodes=%v, podSubnetThisNode=%v, "+
 		"podSubnetGatewayIP=%v, podVPPSubnet=%v, hostInterconnectSubnetAllNodes=%v, "+
 		"hostInterconnectSubnetThisNode=%v, hostInterconnectIPInVpp=%v, hostInterconnectIPInLinux=%v, "+
-		"nodeInterconnectSubnet=%v, vxlanSubnet=%v, serviceCIDR=%v, " +
+		"nodeInterconnectSubnet=%v, vxlanSubnet=%v, serviceCIDR=%v, "+
 		"assignedPodIPs=%+v, podToIP=%v, lastPodIPAssigned=%v",
 		i.excludedIPsfromNodeSubnet, i.podSubnetAllNodes, i.podSubnetThisNode,
 		i.podSubnetGatewayIP, i.podVPPSubnet, i.hostInterconnectSubnetAllNodes,

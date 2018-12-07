@@ -1,25 +1,14 @@
 #!/bin/sh
 
 echo "Starting Contiv VPP ..."
-echo ""
 
 cd ../vagrant
 sh ./vagrant-dummy-start
 
-echo "Setting Kubernetes proxy ..."
-vagrant ssh k8s-master -c "nohup kubectl proxy --port=8080 > /dev/null 2>&1 < /dev/null &"
+echo "Starting UI ..."
 
-cd ../ui
-sh ./setVMs.sh
-
-echo "Starting vagrant ..."
-
-cd ./vagrant
+cd ../ui/vagrant
 vagrant up
-
-echo ""
-echo "Application has been deployed on http://localhost:4300"
-echo ""
 
 cd ../
 
@@ -45,3 +34,7 @@ case "$OSTYPE" in
     start chrome.exe --user-data-dir="C://Chrome dev session" --disable-web-security http://localhost:4300 || echo "Open URL http://localhost:4300 in your browser with disabled web security."
     ;;
 esac
+
+echo ""
+echo "Application has been deployed on http://localhost:4300"
+echo ""

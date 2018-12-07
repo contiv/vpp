@@ -61,6 +61,12 @@ const (
 	// connecting host stack with VPP
 	//  - the Linux side
 	HostInterconnectTAPinLinuxHostName = "vpp1"
+
+	/* STN */
+
+	// MAC address of the TAP/veth interface connecting host stack with VPP - Linux side
+	// VPP STN plugin can only send packets to this destination MAC
+	hostInterconnectMACinLinuxSTN = "00:00:00:00:00:02"
 )
 
 // prefix for the hardware address of host interconnects
@@ -135,6 +141,9 @@ func (n *IPv4Net) interconnectTapHost() (key string, config *linux_interfaces.In
 		Enabled:    true,
 	}
 	if n.InSTNMode() {
+		// TODO: this specific MAC address can be removed after moving to the IP punt redirect instead of the STN plugin
+		tap.PhysAddress = hostInterconnectMACinLinuxSTN
+
 		if len(n.nodeIP) > 0 {
 			tap.IpAddresses = []string{combineAddrWithNet(n.nodeIP, n.nodeIPNet).String()}
 		}
@@ -194,10 +203,19 @@ func (n *IPv4Net) interconnectVethHost() (key string, config *linux_interfaces.I
 		Link: &linux_interfaces.Interface_Veth{
 			Veth: &linux_interfaces.VethLink{PeerIfName: hostInterconnectVETH2LogicalName},
 		},
-		Mtu:         n.config.MTUSize,
-		Enabled:     true,
-		HostIfName:  hostInterconnectVETH1HostName,
-		IpAddresses: []string{n.ipam.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)},
+		Mtu:        n.config.MTUSize,
+		Enabled:    true,
+		HostIfName: hostInterconnectVETH1HostName,
+	}
+	if n.InSTNMode() {
+		// TODO: this specific MAC address can be removed after moving to the IP punt redirect instead of the STN plugin
+		veth.PhysAddress = hostInterconnectMACinLinuxSTN
+
+		if len(n.nodeIP) > 0 {
+			veth.IpAddresses = []string{combineAddrWithNet(n.nodeIP, n.nodeIPNet).String()}
+		}
+	} else {
+		veth.IpAddresses = []string{n.ipam.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)}
 	}
 	if n.config.TCPChecksumOffloadDisabled {
 		veth.GetVeth().RxChecksumOffloading = linux_interfaces.VethLink_CHKSM_OFFLOAD_DISABLED
@@ -305,11 +323,17 @@ func (n *IPv4Net) stnRoutesForVPP() map[string]*l3.StaticRoute {
 	routes := make(map[string]*l3.StaticRoute)
 
 	for _, stnRoute := range n.stnRoutes {
+		if stnRoute.NextHopIp == "" {
+			continue // skip routes with no next hop IP (link-local)
+		}
 		route := &l3.StaticRoute{
 			DstNetwork:        stnRoute.DestinationSubnet,
 			NextHopAddr:       stnRoute.NextHopIp,
 			OutgoingInterface: n.mainPhysicalIf,
 			VrfId:             n.GetMainVrfID(),
+		}
+		if route.DstNetwork == "" {
+			route.DstNetwork = ipv4NetAny
 		}
 		key := l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 		routes[key] = route

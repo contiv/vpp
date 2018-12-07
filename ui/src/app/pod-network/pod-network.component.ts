@@ -153,7 +153,7 @@ export class PodNetworkComponent implements OnInit, OnDestroy {
     this.namespaces = [];
     this.layerTitle = 'Contiv Pods';
     this.layerType = 'vpp-1';
-    this.isSidepanelOpen = true;
+    this.isSidepanelOpen = false;
     this.activeLayers = [true, false, false];
     this.highlightedNamespace = [false, false, false];
   }

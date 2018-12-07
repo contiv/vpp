@@ -135,7 +135,7 @@ export class ServicesComponent implements OnInit, OnDestroy {
   public showVppState(nodeId: string) {
     const url = this.getRestUrl(nodeId);
 
-    this.vppService.getNatRaw(url).subscribe(output => this.modalService.showApiOutput('IP Mappings', JSON.stringify(output)));
+    this.vppService.getNatRaw(url).subscribe(output => this.modalService.showApiOutput('Service Map', JSON.stringify(output)));
   }
 
   public getHostIp(nodeId: string): string {

@@ -386,7 +386,7 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
             - name: CONTIV_CONFIG
-              value: "/etc/etcd/contiv.conf"
+              value: "/etc/agent/contiv.conf"
             - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
             - name: BOLT_CONFIG

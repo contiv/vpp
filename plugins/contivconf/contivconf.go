@@ -82,8 +82,12 @@ const (
 	defaultVxlanCIDR                     = "192.168.30.0/24"
 	// NodeInterconnectCIDR & ContivCIDR can be empty
 
+	// default VRF IDs
 	defaultMainVrfID = 0
 	defaultPodVrfID  = 1
+
+	// UTs
+	defaultFirstHostInterfaceForUTs = "eth0"
 )
 
 // ContivConf plugins simplifies the Contiv configuration processing for other
@@ -271,7 +275,7 @@ func (c *ContivConf) Init() (err error) {
 			c.getFirstHostInterfaceNameClb = c.UnitTestDeps.GetFirstHostInterfaceNameClb
 		} else {
 			c.getFirstHostInterfaceNameClb = func() string {
-				return "eth0"
+				return defaultFirstHostInterfaceForUTs
 			}
 		}
 	} else {
@@ -442,10 +446,8 @@ func (c *ContivConf) HandlesEvent(event controller.Event) bool {
 	return false
 }
 
-// Resync is called by Controller to handle event that requires full
-// re-synchronization.
-// For startup resync, resyncCount is 1. Higher counter values identify
-// run-time resync.
+// Resync reloads the configuration - configuration file and STN configuration,
+// however, are loaded only once during the startup resync.
 func (c *ContivConf) Resync(event controller.Event, kubeStateData controller.KubeStateData,
 	resyncCount int, txn controller.ResyncOperations) (err error) {
 

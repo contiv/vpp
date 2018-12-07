@@ -36,7 +36,7 @@ import (
 
 	"github.com/contiv/vpp/mock/localclient"
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/service/config"
+	svc_config "github.com/contiv/vpp/plugins/service/config"
 	svc_processor "github.com/contiv/vpp/plugins/service/processor"
 	svc_renderer "github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/service/renderer/nat44"
@@ -81,10 +81,11 @@ var (
 
 	// workers
 	workerIP, workerIPAddr, workerIPNet = ipNet("192.168.16.20/24")
-	otherIfIP                           = net.ParseIP("192.168.17.10")
+	otherIfIP, otherIfAddr, otherIfNet  = ipNet("192.168.17.10/24")
 	workerMgmtIP                        = net.ParseIP("172.30.1.2")
 
-	gateway = net.ParseIP("192.168.16.1")
+	gateway      = net.ParseIP("192.168.16.1")
+	otherGateway = net.ParseIP("192.168.17.4")
 
 	// pods
 	pod1 = podmodel.ID{Name: "pod1", Namespace: namespace1}
@@ -182,6 +183,7 @@ func defaultConfig(withOtherIfaces bool) *contivconf.Config {
 		config.NodeConfig[0].OtherVPPInterfaces = []nodeconfigcrd.InterfaceConfig{
 			{
 				InterfaceName: OtherIfName,
+				IP:            otherIfIP.String(),
 			},
 			{
 				InterfaceName: OtherIfName2,
@@ -190,7 +192,7 @@ func defaultConfig(withOtherIfaces bool) *contivconf.Config {
 	return config
 }
 
-type mocks struct {
+type plugins struct {
 	logger       logging.Logger
 	datasync     *MockDataSync
 	serviceLabel *MockServiceLabel
@@ -201,130 +203,147 @@ type mocks struct {
 	natPlugin    *MockNatPlugin
 	txnTracker   *localclient.TxnTracker
 	ipv4Net      *MockIPv4Net
+	svcProcessor *svc_processor.ServiceProcessor
+	renderer     *nat44.Renderer
 }
 
-func initMocks(testName string, config *contivconf.Config, withoutMaster ...bool) *mocks {
-	mocks := &mocks{}
+func initPlugins(testName string, config *contivconf.Config, localEndpointWeight uint8, snatOnly bool, withoutMasterIPs ...bool) *plugins {
+	plugins := &plugins{}
 
 	// logger
-	mocks.logger = logrus.DefaultLogger()
-	mocks.logger.SetLevel(logging.DebugLevel)
-	mocks.logger.Debug(testName)
+	plugins.logger = logrus.DefaultLogger()
+	plugins.logger.SetLevel(logging.DebugLevel)
+	plugins.logger.Debug(testName)
 
 	// datasync
-	mocks.datasync = NewMockDataSync()
+	plugins.datasync = NewMockDataSync()
 
 	// mock service label
-	mocks.serviceLabel = NewMockServiceLabel()
-	mocks.serviceLabel.SetAgentLabel(masterLabel)
+	plugins.serviceLabel = NewMockServiceLabel()
+	plugins.serviceLabel.SetAgentLabel(masterLabel)
 
 	// nodesync mock plugin
-	mocks.nodeSync = NewMockNodeSync(masterLabel)
-	if len(withoutMaster) == 0 || withoutMaster[0] == false {
-		mocks.nodeSync.UpdateNode(&nodesync.Node{
+	plugins.nodeSync = NewMockNodeSync(masterLabel)
+	if len(withoutMasterIPs) > 0 && withoutMasterIPs[0] {
+		plugins.nodeSync.UpdateNode(&nodesync.Node{
+			Name: masterLabel,
+			ID:   masterID,
+		})
+	} else {
+		plugins.nodeSync.UpdateNode(&nodesync.Node{
 			Name:            masterLabel,
 			ID:              masterID,
 			VppIPAddresses:  contivconf.IPsWithNetworks{{Address: nodeIPAddr, Network: nodeIPNet}},
 			MgmtIPAddresses: []net.IP{mgmtIP},
 		})
 	}
+	Expect(plugins.nodeSync.GetNodeID()).To(BeEquivalentTo(1))
 
 	// contivConf (real) plugin
-	mocks.contivConf = &contivconf.ContivConf{
+	plugins.contivConf = &contivconf.ContivConf{
 		Deps: contivconf.Deps{
 			PluginDeps: infra.PluginDeps{
 				Log: logging.ForPlugin("contivconf"),
 			},
-			ServiceLabel: mocks.serviceLabel,
+			ServiceLabel: plugins.serviceLabel,
 			UnitTestDeps: &contivconf.UnitTestDeps{
 				Config: config,
 			},
 		},
 	}
-	Expect(mocks.contivConf.Init()).To(BeNil())
+	Expect(plugins.contivConf.Init()).To(BeNil())
+	resyncEv, _ := plugins.datasync.ResyncEvent()
+	Expect(plugins.contivConf.Resync(resyncEv, resyncEv.KubeState, 1, nil)).To(BeNil())
 
 	// IPAM real plugin
-	mocks.ipam = &ipam.IPAM{
+	plugins.ipam = &ipam.IPAM{
 		Deps: ipam.Deps{
 			PluginDeps: infra.PluginDeps{
 				Log: logging.ForPlugin("ipam"),
 			},
-			NodeSync:   mocks.nodeSync,
-			ContivConf: mocks.contivConf,
+			NodeSync:   plugins.nodeSync,
+			ContivConf: plugins.contivConf,
 		},
 	}
-	Expect(mocks.ipam.Init()).To(BeNil())
+	Expect(plugins.ipam.Init()).To(BeNil())
+	Expect(plugins.ipam.Resync(resyncEv, resyncEv.KubeState, 1, nil)).To(BeNil())
+	Expect(plugins.ipam.NatLoopbackIP().String()).To(Equal(natLoopbackIP))
+	plugins.datasync.RestartResyncCount()
 
 	// podmanager
-	mocks.podManager = NewMockPodManager()
+	plugins.podManager = NewMockPodManager()
 
 	// NAT plugin
-	mocks.natPlugin = NewMockNatPlugin(mocks.logger)
+	plugins.natPlugin = NewMockNatPlugin(plugins.logger)
 
 	// transactions
-	mocks.txnTracker = localclient.NewTxnTracker(mocks.natPlugin.ApplyTxn)
+	plugins.txnTracker = localclient.NewTxnTracker(plugins.natPlugin.ApplyTxn)
 
 	// IPv4Net plugin
-	mocks.ipv4Net = NewMockIPv4Net()
-	mocks.ipv4Net.SetNodeIP(nodeIP)
-	mocks.ipv4Net.SetVxlanBVIIfName(vxlanIfName)
-	mocks.ipv4Net.SetHostInterconnectIfName(hostInterIfName)
-	mocks.ipv4Net.SetPodIfName(pod1, pod1If)
-	mocks.ipv4Net.SetPodIfName(pod2, pod2If)
-	mocks.ipv4Net.SetHostIPs([]net.IP{mgmtIP})
-	return mocks
+	plugins.ipv4Net = NewMockIPv4Net()
+	plugins.ipv4Net.SetNodeIP(nodeIP)
+	plugins.ipv4Net.SetVxlanBVIIfName(vxlanIfName)
+	plugins.ipv4Net.SetHostInterconnectIfName(hostInterIfName)
+	plugins.ipv4Net.SetPodIfName(pod1, pod1If)
+	plugins.ipv4Net.SetPodIfName(pod2, pod2If)
+	plugins.ipv4Net.SetHostIPs([]net.IP{mgmtIP})
+
+	// Prepare processor.
+	plugins.svcProcessor = &svc_processor.ServiceProcessor{
+		Deps: svc_processor.Deps{
+			Log:          plugins.logger,
+			ServiceLabel: plugins.serviceLabel,
+			ContivConf:   plugins.contivConf,
+			IPAM:         plugins.ipam,
+			IPv4Net:      plugins.ipv4Net,
+			NodeSync:     plugins.nodeSync,
+			PodManager:   plugins.podManager,
+		},
+	}
+
+	// Prepare NAT44 Renderer.
+	plugins.renderer = &nat44.Renderer{
+		Deps: nat44.Deps{
+			Log:              plugins.logger,
+			Config:           &svc_config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
+			ContivConf:       plugins.contivConf,
+			IPAM:             plugins.ipam,
+			IPv4Net:          plugins.ipv4Net,
+			ResyncTxnFactory: resyncTxnFactory(plugins.txnTracker),
+			UpdateTxnFactory: updateTxnFactory(plugins.txnTracker),
+		},
+	}
+
+	Expect(plugins.svcProcessor.Init()).To(BeNil())
+	Expect(plugins.renderer.Init(snatOnly)).To(BeNil())
+	Expect(plugins.svcProcessor.RegisterRenderer(plugins.renderer)).To(BeNil())
+	return plugins
 }
 
 func TestResyncAndSingleService(t *testing.T) {
 	RegisterTestingT(t)
 	const localEndpointWeight uint8 = 1
 	config := defaultConfig(false)
-	mocks := initMocks("TestResyncAndSingleService", config)
-
-	// Prepare processor.
-	svcProcessor := &svc_processor.ServiceProcessor{
-		Deps: svc_processor.Deps{
-			Log:          mocks.logger,
-			ServiceLabel: mocks.serviceLabel,
-			IPv4Net:      mocks.ipv4Net,
-			NodeSync:     mocks.nodeSync,
-			PodManager:   mocks.podManager,
-		},
-	}
-
-	// Prepare NAT44 Renderer.
-	renderer := &nat44.Renderer{
-		Deps: nat44.Deps{
-			Log:              mocks.logger,
-			Config:           &config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
-			IPv4Net:          mocks.ipv4Net,
-			ResyncTxnFactory: resyncTxnFactory(mocks.txnTracker),
-			UpdateTxnFactory: updateTxnFactory(mocks.txnTracker),
-		},
-	}
-
-	Expect(svcProcessor.Init()).To(BeNil())
-	Expect(renderer.Init(false)).To(BeNil())
-	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
+	plugins := initPlugins("TestResyncAndSingleService", config, localEndpointWeight, false)
 
 	// Test resync with empty VPP configuration.
-	resyncEv, _ := mocks.datasync.ResyncEvent(keyPrefixes...)
-	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	resyncEv, _ := plugins.datasync.ResyncEvent(keyPrefixes...)
+	Expect(plugins.svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
 
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
 
 	vxlanID := &IdentityMapping{
 		IP:       nodeIP.IP,
@@ -344,10 +363,10 @@ func TestResyncAndSingleService(t *testing.T) {
 		Port:     0,
 		VrfID:    podVrfID,
 	}
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Add service metadata.
 	service1 := &svcmodel.Service{
@@ -367,56 +386,56 @@ func TestResyncAndSingleService(t *testing.T) {
 		},
 	}
 
-	updateEv1 := mocks.datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(svcProcessor.Update(updateEv1)).To(BeNil())
+	updateEv1 := plugins.datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(plugins.svcProcessor.Update(updateEv1)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// No change in the NAT configuration.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
 
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Add pods.
-	updateEv2 := mocks.podManager.AddPod(&podmanager.LocalPod{ID: pod1})
-	Expect(svcProcessor.Update(updateEv2)).To(BeNil())
+	updateEv2 := plugins.podManager.AddPod(&podmanager.LocalPod{ID: pod1})
+	Expect(plugins.svcProcessor.Update(updateEv2)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	updateEv3 := mocks.podManager.AddPod(&podmanager.LocalPod{ID: pod2})
-	Expect(svcProcessor.Update(updateEv3)).To(BeNil())
+	updateEv3 := plugins.podManager.AddPod(&podmanager.LocalPod{ID: pod2})
+	Expect(plugins.svcProcessor.Update(updateEv3)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Interface attaching pods should have NAT/OUT enabled.
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
 
 	// Add endpoints.
 	eps1 := &epmodel.Endpoints{
@@ -455,31 +474,31 @@ func TestResyncAndSingleService(t *testing.T) {
 		},
 	}
 
-	updateEv4 := mocks.datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(svcProcessor.Update(updateEv4)).To(BeNil())
+	updateEv4 := plugins.datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(plugins.svcProcessor.Update(updateEv4)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// New interfaces with enabled NAT features.
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
 
 	// New static mappings.
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(2))
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(2))
 	staticMapping1 := &StaticMapping{
 		ExternalIP:   net.ParseIP("10.96.0.1"),
 		ExternalPort: 80,
@@ -499,11 +518,11 @@ func TestResyncAndSingleService(t *testing.T) {
 			},
 		},
 	}
-	Expect(mocks.natPlugin.HasStaticMapping(staticMapping1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMapping1)).To(BeTrue())
 	staticMapping2 := staticMapping1.Copy()
 	staticMapping2.ExternalIP = net.ParseIP("20.20.20.20")
 	staticMapping2.TwiceNAT = true
-	Expect(mocks.natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
 
 	// Change port number for pod2.
 	eps2 := &epmodel.Endpoints{
@@ -553,101 +572,76 @@ func TestResyncAndSingleService(t *testing.T) {
 		},
 	}
 
-	updateEv5 := mocks.datasync.PutEvent(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
-	Expect(svcProcessor.Update(updateEv5)).To(BeNil())
+	updateEv5 := plugins.datasync.PutEvent(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
+	Expect(plugins.svcProcessor.Update(updateEv5)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// New static mappings.
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(2))
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(2))
 	staticMapping1.Locals[1].Port = 9080
 	staticMapping2.Locals[1].Port = 9080
-	Expect(mocks.natPlugin.HasStaticMapping(staticMapping1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMapping1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
 
 	// Finally remove the service.
-	updateEv6 := mocks.datasync.DeleteEvent(svcmodel.Key(service1.Name, service1.Namespace))
-	Expect(svcProcessor.Update(updateEv6)).To(BeNil())
+	updateEv6 := plugins.datasync.DeleteEvent(svcmodel.Key(service1.Name, service1.Namespace))
+	Expect(plugins.svcProcessor.Update(updateEv6)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// NAT configuration without the service.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
 
 	// Cleanup
-	Expect(svcProcessor.Close()).To(BeNil())
-	Expect(renderer.Close()).To(BeNil())
+	Expect(plugins.svcProcessor.Close()).To(BeNil())
+	Expect(plugins.renderer.Close()).To(BeNil())
 }
 
 func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	RegisterTestingT(t)
 	const localEndpointWeight uint8 = 2
 	config := defaultConfig(false)
-	mocks := initMocks("TestMultipleServicesWithMultiplePortsAndResync", config)
+	plugins := initPlugins("TestMultipleServicesWithMultiplePortsAndResync", config, localEndpointWeight, false, true)
 
-	// Prepare processor.
-	svcProcessor := &svc_processor.ServiceProcessor{
-		Deps: svc_processor.Deps{
-			Log:          mocks.logger,
-			ServiceLabel: mocks.serviceLabel,
-			IPv4Net:      mocks.ipv4Net,
-			NodeSync:     mocks.nodeSync,
-			PodManager:   mocks.podManager,
-		},
-	}
-
-	// Prepare NAT44 Renderer.
-	renderer := &nat44.Renderer{
-		Deps: nat44.Deps{
-			Log:              mocks.logger,
-			Config:           &config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
-			IPv4Net:          mocks.ipv4Net,
-			ResyncTxnFactory: resyncTxnFactory(mocks.txnTracker),
-			UpdateTxnFactory: updateTxnFactory(mocks.txnTracker),
-		},
-	}
-
-	// Initialize and resync.
-	Expect(svcProcessor.Init()).To(BeNil())
-	Expect(renderer.Init(false)).To(BeNil())
-	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
-	resyncEv, _ := mocks.datasync.ResyncEvent(keyPrefixes...)
-	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	// startup resync
+	resyncEv, _ := plugins.datasync.ResyncEvent(keyPrefixes...)
+	Expect(plugins.svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Add pods.
-	updateEv1 := mocks.podManager.AddPod(&podmanager.LocalPod{ID: pod1})
-	Expect(svcProcessor.Update(updateEv1)).To(BeNil())
+	updateEv1 := plugins.podManager.AddPod(&podmanager.LocalPod{ID: pod1})
+	Expect(plugins.svcProcessor.Update(updateEv1)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	updateEv2 := mocks.podManager.AddPod(&podmanager.LocalPod{ID: pod2})
-	Expect(svcProcessor.Update(updateEv2)).To(BeNil())
+	updateEv2 := plugins.podManager.AddPod(&podmanager.LocalPod{ID: pod2})
+	Expect(plugins.svcProcessor.Update(updateEv2)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	updateEv3 := mocks.podManager.AddPod(&podmanager.LocalPod{ID: pod3})
-	Expect(svcProcessor.Update(updateEv3)).To(BeNil())
+	updateEv3 := plugins.podManager.AddPod(&podmanager.LocalPod{ID: pod3})
+	Expect(plugins.svcProcessor.Update(updateEv3)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Service1: http + https with nodePort.
@@ -697,29 +691,29 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		},
 	}
 
-	updateEv4 := mocks.datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(svcProcessor.Update(updateEv4)).To(BeNil())
+	updateEv4 := plugins.datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(plugins.svcProcessor.Update(updateEv4)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	updateEv5 := mocks.datasync.PutEvent(svcmodel.Key(service2.Name, service2.Namespace), service2)
-	Expect(svcProcessor.Update(updateEv5)).To(BeNil())
+	updateEv5 := plugins.datasync.PutEvent(svcmodel.Key(service2.Name, service2.Namespace), service2)
+	Expect(plugins.svcProcessor.Update(updateEv5)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
 
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
 
 	vxlanID := &IdentityMapping{
 		IP:       nodeIP.IP,
@@ -739,10 +733,10 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Port:     0,
 		VrfID:    podVrfID,
 	}
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Add endpoints.
 	eps1 := &epmodel.Endpoints{
@@ -843,31 +837,31 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		},
 	}
 
-	updateEv6 := mocks.datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(svcProcessor.Update(updateEv6)).To(BeNil())
+	updateEv6 := plugins.datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(plugins.svcProcessor.Update(updateEv6)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	updateEv7 := mocks.datasync.PutEvent(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
-	Expect(svcProcessor.Update(updateEv7)).To(BeNil())
+	updateEv7 := plugins.datasync.PutEvent(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
+	Expect(plugins.svcProcessor.Update(updateEv7)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// New interfaces with enabled NAT features.
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
 
 	// New static mappings.
 	// -> service 1
@@ -909,16 +903,16 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			},
 		},
 	}
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
 	staticMappingHTTP2 := staticMappingHTTP.Copy()
 	staticMappingHTTP2.ExternalIP = net.ParseIP("20.20.20.20")
 	staticMappingHTTP2.TwiceNAT = true
 	staticMappingHTTPS2 := staticMappingHTTPS.Copy()
 	staticMappingHTTPS2.ExternalIP = net.ParseIP("20.20.20.20")
 	staticMappingHTTPS2.TwiceNAT = true
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
 
 	// -> service 2
 	staticMappingDNSTCP := &StaticMapping{
@@ -959,45 +953,45 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			},
 		},
 	}
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
 
 	// -> total
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(6))
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(6))
 
 	// Propagate NodeIP and Node Mgmt IP of the master.
-	event := mocks.nodeSync.UpdateNode(&nodesync.Node{
+	event := plugins.nodeSync.UpdateNode(&nodesync.Node{
 		Name:            masterLabel,
 		ID:              masterID,
 		VppIPAddresses:  contivconf.IPsWithNetworks{{Address: nodeIPAddr, Network: nodeIPNet}},
 		MgmtIPAddresses: []net.IP{mgmtIP},
 	})
 
-	Expect(svcProcessor.Update(event)).To(BeNil())
+	Expect(plugins.svcProcessor.Update(event)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
 
 	// New static mappings for the https nodeport.
 	staticMappingHTTPSNodeIP := &StaticMapping{
@@ -1039,478 +1033,358 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		},
 	}
 
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(8))
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(8))
 
 	// Propagate NodeIP and Node Mgmt IP of the worker.
-	event = mocks.nodeSync.UpdateNode(&nodesync.Node{
+	event = plugins.nodeSync.UpdateNode(&nodesync.Node{
 		Name:            workerLabel,
 		ID:              workerID,
 		VppIPAddresses:  contivconf.IPsWithNetworks{{Address: workerIPAddr, Network: workerIPNet}},
 		MgmtIPAddresses: []net.IP{workerMgmtIP},
 	})
-	Expect(svcProcessor.Update(event)).To(BeNil())
+	Expect(plugins.svcProcessor.Update(event)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
 
 	// New static mappings for the https nodeport - worker.
 	staticMappingHTTPSWorkerNodeIP := staticMappingHTTPSNodeIP.Copy()
 	staticMappingHTTPSWorkerNodeIP.ExternalIP = workerIP.IP
 	staticMappingHTTPSWorkerNodeMgmtIP := staticMappingHTTPSNodeMgmtIP.Copy()
 	staticMappingHTTPSWorkerNodeMgmtIP.ExternalIP = workerMgmtIP
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSWorkerNodeIP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSWorkerNodeMgmtIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(10))
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSWorkerNodeIP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSWorkerNodeMgmtIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(10))
 
 	// Remove worker mgmt IP.
-	event = mocks.nodeSync.UpdateNode(&nodesync.Node{
+	event = plugins.nodeSync.UpdateNode(&nodesync.Node{
 		Name:            workerLabel,
 		ID:              workerID,
 		VppIPAddresses:  contivconf.IPsWithNetworks{{Address: workerIPAddr, Network: workerIPNet}},
 		MgmtIPAddresses: []net.IP{}, // removed
 	})
-	Expect(svcProcessor.Update(event)).To(BeNil())
+	Expect(plugins.svcProcessor.Update(event)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check that the static mapping for worker mgmt IP was removed.
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSWorkerNodeIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(9))
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSWorkerNodeIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(9))
 
 	// Remove worker node completely.
-	event = mocks.nodeSync.DeleteNode(workerLabel)
-	Expect(svcProcessor.Update(event)).To(BeNil())
+	event = plugins.nodeSync.DeleteNode(workerLabel)
+	Expect(plugins.svcProcessor.Update(event)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check that the static mapping for worker IP was removed.
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(8))
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(8))
 
 	// Simulate Resync.
 	// -> simulate restart of the service plugin components
-	svcProcessor = &svc_processor.ServiceProcessor{
+	plugins.svcProcessor = &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
-			Log:          mocks.logger,
-			ServiceLabel: mocks.serviceLabel,
-			IPv4Net:      mocks.ipv4Net,
-			NodeSync:     mocks.nodeSync,
-			PodManager:   mocks.podManager,
+			Log:          plugins.logger,
+			ServiceLabel: plugins.serviceLabel,
+			ContivConf:   plugins.contivConf,
+			IPAM:         plugins.ipam,
+			IPv4Net:      plugins.ipv4Net,
+			NodeSync:     plugins.nodeSync,
+			PodManager:   plugins.podManager,
 		},
 	}
-	renderer = &nat44.Renderer{
+	plugins.renderer = &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:              mocks.logger,
-			Config:           &config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
-			IPv4Net:          mocks.ipv4Net,
-			ResyncTxnFactory: resyncTxnFactory(mocks.txnTracker),
-			UpdateTxnFactory: updateTxnFactory(mocks.txnTracker),
+			Log:              plugins.logger,
+			Config:           &svc_config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
+			ContivConf:       plugins.contivConf,
+			IPAM:             plugins.ipam,
+			IPv4Net:          plugins.ipv4Net,
+			ResyncTxnFactory: resyncTxnFactory(plugins.txnTracker),
+			UpdateTxnFactory: updateTxnFactory(plugins.txnTracker),
 		},
 	}
 	// -> let's simulate that during downtime the service1 was removed
-	mocks.datasync.Delete(svcmodel.Key(service1.Name, service1.Namespace))
+	plugins.datasync.Delete(svcmodel.Key(service1.Name, service1.Namespace))
 	// -> initialize and resync
-	Expect(svcProcessor.Init()).To(BeNil())
-	Expect(renderer.Init(false)).To(BeNil())
-	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
-	resyncEv2, _ := mocks.datasync.ResyncEvent(keyPrefixes...)
-	Expect(svcProcessor.Resync(resyncEv2.KubeState)).To(BeNil())
+	Expect(plugins.svcProcessor.Init()).To(BeNil())
+	Expect(plugins.renderer.Init(false)).To(BeNil())
+	Expect(plugins.svcProcessor.RegisterRenderer(plugins.renderer)).To(BeNil())
+	resyncEv2, _ := plugins.datasync.ResyncEvent(keyPrefixes...)
+	Expect(plugins.svcProcessor.Resync(resyncEv2.KubeState)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
 
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(2))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(2))
 
 	// Simulate run-time resync.
 	// -> let's simulate that while the agent was out-of-sync, the service1 was re-added, while service2 was removed.
-	mocks.datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	mocks.datasync.Delete(svcmodel.Key(service2.Name, service2.Namespace))
-	resyncEv3, _ := mocks.datasync.ResyncEvent(keyPrefixes...)
-	Expect(svcProcessor.Resync(resyncEv3.KubeState)).To(BeNil())
+	plugins.datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	plugins.datasync.Delete(svcmodel.Key(service2.Name, service2.Namespace))
+	resyncEv3, _ := plugins.datasync.ResyncEvent(keyPrefixes...)
+	Expect(plugins.svcProcessor.Resync(resyncEv3.KubeState)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
 	// -> service1 was re-added.
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(6))
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(6))
 
 	// Cleanup
-	Expect(svcProcessor.Close()).To(BeNil())
-	Expect(renderer.Close()).To(BeNil())
+	Expect(plugins.svcProcessor.Close()).To(BeNil())
+	Expect(plugins.renderer.Close()).To(BeNil())
 }
 
 func TestWithVXLANButNoGateway(t *testing.T) {
 	RegisterTestingT(t)
 	config := defaultConfig(false)
 	config.NodeConfig[0].Gateway = ""
-	mocks := initMocks("TestWithVXLANButNoGateway", config)
-
-	// Prepare processor.
-	svcProcessor := &svc_processor.ServiceProcessor{
-		Deps: svc_processor.Deps{
-			Log:          mocks.logger,
-			ServiceLabel: mocks.serviceLabel,
-			IPv4Net:      mocks.ipv4Net,
-			NodeSync:     mocks.nodeSync,
-			PodManager:   mocks.podManager,
-		},
-	}
-
-	// Prepare NAT44 Renderer.
-	renderer := &nat44.Renderer{
-		Deps: nat44.Deps{
-			Log:              mocks.logger,
-			IPv4Net:          mocks.ipv4Net,
-			ResyncTxnFactory: resyncTxnFactory(mocks.txnTracker),
-			UpdateTxnFactory: updateTxnFactory(mocks.txnTracker),
-		},
-	}
-
-	Expect(svcProcessor.Init()).To(BeNil())
-	Expect(renderer.Init(false)).To(BeNil())
-	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
+	plugins := initPlugins("TestWithVXLANButNoGateway", config, 1, false)
 
 	// Resync from empty VPP.
-	resyncEv, _ := mocks.datasync.ResyncEvent(keyPrefixes...)
-	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	resyncEv, _ := plugins.datasync.ResyncEvent(keyPrefixes...)
+	Expect(plugins.svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check that SNAT is NOT configured.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeFalse())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(0))
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeFalse())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(0))
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
 
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(0))
 
 	// Cleanup
-	Expect(svcProcessor.Close()).To(BeNil())
-	Expect(renderer.Close()).To(BeNil())
+	Expect(plugins.svcProcessor.Close()).To(BeNil())
+	Expect(plugins.renderer.Close()).To(BeNil())
 }
 
 func TestWithoutVXLAN(t *testing.T) {
 	RegisterTestingT(t)
 	config := defaultConfig(false)
-	mocks := initMocks("TestWithoutVXLAN", config)
-	mocks.ipv4Net.SetVxlanBVIIfName("")
-
-	// Prepare processor.
-	svcProcessor := &svc_processor.ServiceProcessor{
-		Deps: svc_processor.Deps{
-			Log:          mocks.logger,
-			ServiceLabel: mocks.serviceLabel,
-			IPv4Net:      mocks.ipv4Net,
-			NodeSync:     mocks.nodeSync,
-			PodManager:   mocks.podManager,
-		},
-	}
-
-	// Prepare NAT44 Renderer.
-	renderer := &nat44.Renderer{
-		Deps: nat44.Deps{
-			Log:              mocks.logger,
-			IPv4Net:          mocks.ipv4Net,
-			ResyncTxnFactory: resyncTxnFactory(mocks.txnTracker),
-			UpdateTxnFactory: updateTxnFactory(mocks.txnTracker),
-		},
-	}
-
-	Expect(svcProcessor.Init()).To(BeNil())
-	Expect(renderer.Init(false)).To(BeNil())
-	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
+	plugins := initPlugins("TestWithoutVXLAN", config, 1, false)
+	plugins.ipv4Net.SetVxlanBVIIfName("")
 
 	// Resync from empty VPP.
-	resyncEv, _ := mocks.datasync.ResyncEvent(keyPrefixes...)
-	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	resyncEv, _ := plugins.datasync.ResyncEvent(keyPrefixes...)
+	Expect(plugins.svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check that SNAT is NOT configured.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeFalse())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(0))
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeFalse())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(0))
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(2))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(2))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
 
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(0))
 
 	// Cleanup
-	Expect(svcProcessor.Close()).To(BeNil())
-	Expect(renderer.Close()).To(BeNil())
+	Expect(plugins.svcProcessor.Close()).To(BeNil())
+	Expect(plugins.renderer.Close()).To(BeNil())
 }
 
 func TestWithOtherInterfaces(t *testing.T) {
 	RegisterTestingT(t)
 	config := defaultConfig(true)
-	mocks := initMocks("TestWithOtherInterfaces", config)
-
-	// Prepare processor.
-	svcProcessor := &svc_processor.ServiceProcessor{
-		Deps: svc_processor.Deps{
-			Log:          mocks.logger,
-			ServiceLabel: mocks.serviceLabel,
-			IPv4Net:      mocks.ipv4Net,
-			NodeSync:     mocks.nodeSync,
-			PodManager:   mocks.podManager,
-		},
-	}
-
-	// Prepare NAT44 Renderer.
-	renderer := &nat44.Renderer{
-		Deps: nat44.Deps{
-			Log:              mocks.logger,
-			IPv4Net:          mocks.ipv4Net,
-			ResyncTxnFactory: resyncTxnFactory(mocks.txnTracker),
-			UpdateTxnFactory: updateTxnFactory(mocks.txnTracker),
-		},
-	}
-
-	Expect(svcProcessor.Init()).To(BeNil())
-	Expect(renderer.Init(false)).To(BeNil())
-	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
+	config.NodeConfig[0].Gateway = otherGateway.String()
+	plugins := initPlugins("TestWithOtherInterfaces", config, 1, false)
 
 	// Resync from empty VPP.
-	resyncEv, _ := mocks.datasync.ResyncEvent(keyPrefixes...)
-	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	resyncEv, _ := plugins.datasync.ResyncEvent(keyPrefixes...)
+	Expect(plugins.svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check that SNAT is configured.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(otherIfIP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(otherIfAddr)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(OtherIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(OtherIfName2)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(OtherIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(OtherIfName2)).To(Equal(NewNatFeatures(OUT)))
 
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
 
 	vxlanID := &IdentityMapping{
-		IP:       otherIfIP,
+		IP:       otherIfAddr,
 		Protocol: svc_renderer.UDP,
 		Port:     4789,
 		VrfID:    mainVrfID,
 	}
 	mainIfID1 := &IdentityMapping{
-		IP:       otherIfIP,
+		IP:       otherIfAddr,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    mainVrfID,
 	}
 	mainIfID2 := &IdentityMapping{
-		IP:       otherIfIP,
+		IP:       otherIfAddr,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    podVrfID,
 	}
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Cleanup
-	Expect(svcProcessor.Close()).To(BeNil())
-	Expect(renderer.Close()).To(BeNil())
+	Expect(plugins.svcProcessor.Close()).To(BeNil())
+	Expect(plugins.renderer.Close()).To(BeNil())
 }
 
 func TestWithoutNodeIP(t *testing.T) {
 	RegisterTestingT(t)
-	config := defaultConfig(true)
-	mocks := initMocks("TestWithoutNodeIP", config)
-	mocks.ipv4Net.SetNodeIP(nil)
-
-	// Prepare processor.
-	svcProcessor := &svc_processor.ServiceProcessor{
-		Deps: svc_processor.Deps{
-			Log:          mocks.logger,
-			ServiceLabel: mocks.serviceLabel,
-			IPv4Net:      mocks.ipv4Net,
-			NodeSync:     mocks.nodeSync,
-			PodManager:   mocks.podManager,
-		},
-	}
-
-	// Prepare NAT44 Renderer.
-	renderer := &nat44.Renderer{
-		Deps: nat44.Deps{
-			Log:              mocks.logger,
-			IPv4Net:          mocks.ipv4Net,
-			ResyncTxnFactory: resyncTxnFactory(mocks.txnTracker),
-			UpdateTxnFactory: updateTxnFactory(mocks.txnTracker),
-		},
-	}
-
-	Expect(svcProcessor.Init()).To(BeNil())
-	Expect(renderer.Init(false)).To(BeNil())
-	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
+	config := defaultConfig(false)
+	plugins := initPlugins("TestWithoutNodeIP", config, 1, false)
+	plugins.ipv4Net.SetNodeIP(nil)
 
 	// Resync from empty VPP.
-	resyncEv, _ := mocks.datasync.ResyncEvent(keyPrefixes...)
-	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	resyncEv, _ := plugins.datasync.ResyncEvent(keyPrefixes...)
+	Expect(plugins.svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check that SNAT is NOT configured.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeFalse())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(0))
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeFalse())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(0))
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
 
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(0))
 
 	// Cleanup
-	Expect(svcProcessor.Close()).To(BeNil())
-	Expect(renderer.Close()).To(BeNil())
+	Expect(plugins.svcProcessor.Close()).To(BeNil())
+	Expect(plugins.renderer.Close()).To(BeNil())
 }
 
 func TestServiceUpdates(t *testing.T) {
 	RegisterTestingT(t)
 	const localEndpointWeight uint8 = 1
-	config := defaultConfig(true)
-	mocks := initMocks("TestServiceUpdates", config)
+	config := defaultConfig(false)
+	plugins := initPlugins("TestServiceUpdates", config, localEndpointWeight, false)
 
-	// Prepare processor.
-	svcProcessor := &svc_processor.ServiceProcessor{
-		Deps: svc_processor.Deps{
-			Log:          mocks.logger,
-			ServiceLabel: mocks.serviceLabel,
-			IPv4Net:      mocks.ipv4Net,
-			NodeSync:     mocks.nodeSync,
-			PodManager:   mocks.podManager,
-		},
-	}
-
-	// Prepare NAT44 Renderer.
-	renderer := &nat44.Renderer{
-		Deps: nat44.Deps{
-			Log:              mocks.logger,
-			Config:           &config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
-			IPv4Net:          mocks.ipv4Net,
-			ResyncTxnFactory: resyncTxnFactory(mocks.txnTracker),
-			UpdateTxnFactory: updateTxnFactory(mocks.txnTracker),
-		},
-	}
-
-	// Initialize and resync.
-	Expect(svcProcessor.Init()).To(BeNil())
-	Expect(renderer.Init(false)).To(BeNil())
-	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
-	resyncEv, _ := mocks.datasync.ResyncEvent(keyPrefixes...)
-	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	// Startup resync.
+	resyncEv, _ := plugins.datasync.ResyncEvent(keyPrefixes...)
+	Expect(plugins.svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Add pods.
-	updateEv1 := mocks.podManager.AddPod(&podmanager.LocalPod{ID: pod1})
-	Expect(svcProcessor.Update(updateEv1)).To(BeNil())
+	updateEv1 := plugins.podManager.AddPod(&podmanager.LocalPod{ID: pod1})
+	Expect(plugins.svcProcessor.Update(updateEv1)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	updateEv2 := mocks.podManager.AddPod(&podmanager.LocalPod{ID: pod2})
-	Expect(svcProcessor.Update(updateEv2)).To(BeNil())
+	updateEv2 := plugins.podManager.AddPod(&podmanager.LocalPod{ID: pod2})
+	Expect(plugins.svcProcessor.Update(updateEv2)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	updateEv3 := mocks.podManager.AddPod(&podmanager.LocalPod{ID: pod3})
-	Expect(svcProcessor.Update(updateEv3)).To(BeNil())
+	updateEv3 := plugins.podManager.AddPod(&podmanager.LocalPod{ID: pod3})
+	Expect(plugins.svcProcessor.Update(updateEv3)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Service1: http only (not https yet).
@@ -1531,8 +1405,8 @@ func TestServiceUpdates(t *testing.T) {
 		},
 	}
 
-	updateEv4 := mocks.datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(svcProcessor.Update(updateEv4)).To(BeNil())
+	updateEv4 := plugins.datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(plugins.svcProcessor.Update(updateEv4)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Add endpoints.
@@ -1581,24 +1455,24 @@ func TestServiceUpdates(t *testing.T) {
 		},
 	}
 
-	updateEv5 := mocks.datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(svcProcessor.Update(updateEv5)).To(BeNil())
+	updateEv5 := plugins.datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(plugins.svcProcessor.Update(updateEv5)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
 
 	staticMappingHTTP := &StaticMapping{
 		ExternalIP:   net.ParseIP("10.96.0.1"),
@@ -1625,12 +1499,12 @@ func TestServiceUpdates(t *testing.T) {
 			},
 		},
 	}
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
 	staticMappingHTTP2 := staticMappingHTTP.Copy()
 	staticMappingHTTP2.ExternalIP = net.ParseIP("20.20.20.20")
 	staticMappingHTTP2.TwiceNAT = true
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(2))
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(2))
 
 	vxlanID := &IdentityMapping{
 		IP:       nodeIP.IP,
@@ -1650,14 +1524,14 @@ func TestServiceUpdates(t *testing.T) {
 		Port:     0,
 		VrfID:    podVrfID,
 	}
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Remove pod2.
-	updateEv6 := mocks.podManager.DeletePod(pod2)
-	Expect(svcProcessor.Update(updateEv6)).To(BeNil())
+	updateEv6 := plugins.podManager.DeletePod(pod2)
+	Expect(plugins.svcProcessor.Update(updateEv6)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Update endpoints accordingly (also add https port)
@@ -1718,23 +1592,23 @@ func TestServiceUpdates(t *testing.T) {
 		},
 	}
 
-	updateEv7 := mocks.datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(svcProcessor.Update(updateEv7)).To(BeNil())
+	updateEv7 := plugins.datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(plugins.svcProcessor.Update(updateEv7)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(4))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(4))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
 
 	staticMappingHTTP = &StaticMapping{
 		ExternalIP:   net.ParseIP("10.96.0.1"),
@@ -1755,16 +1629,16 @@ func TestServiceUpdates(t *testing.T) {
 			},
 		},
 	}
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
 	staticMappingHTTP2 = staticMappingHTTP.Copy()
 	staticMappingHTTP2.ExternalIP = net.ParseIP("20.20.20.20")
 	staticMappingHTTP2.TwiceNAT = true
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(2))
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(2))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Update service - add https.
 	service1 = &svcmodel.Service{
@@ -1790,23 +1664,23 @@ func TestServiceUpdates(t *testing.T) {
 		},
 	}
 
-	updateEv8 := mocks.datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(svcProcessor.Update(updateEv8)).To(BeNil())
+	updateEv8 := plugins.datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(plugins.svcProcessor.Update(updateEv8)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(4))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(4))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
 
 	staticMappingHTTPS := &StaticMapping{
 		ExternalIP:   net.ParseIP("10.96.0.1"),
@@ -1827,78 +1701,52 @@ func TestServiceUpdates(t *testing.T) {
 			},
 		},
 	}
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
 	staticMappingHTTPS2 := staticMappingHTTPS.Copy()
 	staticMappingHTTPS2.ExternalIP = net.ParseIP("20.20.20.20")
 	staticMappingHTTPS2.TwiceNAT = true
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
-	Expect(mocks.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(4))
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(4))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Remove all endpoints.
-	updateEv9 := mocks.podManager.DeletePod(pod1)
-	Expect(svcProcessor.Update(updateEv9)).To(BeNil())
+	updateEv9 := plugins.podManager.DeletePod(pod1)
+	Expect(plugins.svcProcessor.Update(updateEv9)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	updateEv10 := mocks.datasync.DeleteEvent(epmodel.Key(eps1.Name, eps1.Namespace))
-	Expect(svcProcessor.Update(updateEv10)).To(BeNil())
+	updateEv10 := plugins.datasync.DeleteEvent(epmodel.Key(eps1.Name, eps1.Namespace))
+	Expect(plugins.svcProcessor.Update(updateEv10)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
 
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 }
 
 func TestWithSNATOnly(t *testing.T) {
 	RegisterTestingT(t)
 	const localEndpointWeight uint8 = 1
 	config := defaultConfig(false)
-	mocks := initMocks("TestWithSNATOnly", config)
-
-	// Prepare processor.
-	svcProcessor := &svc_processor.ServiceProcessor{
-		Deps: svc_processor.Deps{
-			Log:          mocks.logger,
-			ServiceLabel: mocks.serviceLabel,
-			IPv4Net:      mocks.ipv4Net,
-			NodeSync:     mocks.nodeSync,
-			PodManager:   mocks.podManager,
-		},
-	}
-
-	// Prepare NAT44 Renderer.
-	renderer := &nat44.Renderer{
-		Deps: nat44.Deps{
-			Log:              mocks.logger,
-			Config:           &config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
-			IPv4Net:          mocks.ipv4Net,
-			ResyncTxnFactory: resyncTxnFactory(mocks.txnTracker),
-			UpdateTxnFactory: updateTxnFactory(mocks.txnTracker),
-		},
-	}
-
-	Expect(svcProcessor.Init()).To(BeNil())
-	Expect(renderer.Init(true)).To(BeNil())
-	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
+	plugins := initPlugins("TestWithSNATOnly", config, localEndpointWeight, true)
 
 	// Prepare configuration before resync.
 
@@ -1919,11 +1767,11 @@ func TestWithSNATOnly(t *testing.T) {
 			},
 		},
 	}
-	mocks.datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	plugins.datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
 
 	// Add pods.
-	mocks.podManager.AddPod(&podmanager.LocalPod{ID: pod1})
-	mocks.podManager.AddPod(&podmanager.LocalPod{ID: pod2})
+	plugins.podManager.AddPod(&podmanager.LocalPod{ID: pod1})
+	plugins.podManager.AddPod(&podmanager.LocalPod{ID: pod2})
 
 	// Add endpoints.
 	eps1 := &epmodel.Endpoints{
@@ -1961,25 +1809,25 @@ func TestWithSNATOnly(t *testing.T) {
 			},
 		},
 	}
-	mocks.datasync.Put(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	plugins.datasync.Put(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
 
 	// Resync.
-	resyncEv, _ := mocks.datasync.ResyncEvent(keyPrefixes...)
-	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	resyncEv, _ := plugins.datasync.ResyncEvent(keyPrefixes...)
+	Expect(plugins.svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// Check that SNAT is configured, but service-related configuration
 	// was ignored.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(0))
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(0))
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(1))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(1))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
 
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
 
 	vxlanID := &IdentityMapping{
 		IP:       nodeIP.IP,
@@ -1999,66 +1847,40 @@ func TestWithSNATOnly(t *testing.T) {
 		Port:     0,
 		VrfID:    podVrfID,
 	}
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Cleanup
-	Expect(svcProcessor.Close()).To(BeNil())
-	Expect(renderer.Close()).To(BeNil())
+	Expect(plugins.svcProcessor.Close()).To(BeNil())
+	Expect(plugins.renderer.Close()).To(BeNil())
 }
 
 func TestLocalServicePolicy(t *testing.T) {
 	RegisterTestingT(t)
 	const localEndpointWeight uint8 = 1
 	config := defaultConfig(false)
-	mocks := initMocks("TestLocalServicePolicy", config)
-
-	// Prepare processor.
-	svcProcessor := &svc_processor.ServiceProcessor{
-		Deps: svc_processor.Deps{
-			Log:          mocks.logger,
-			ServiceLabel: mocks.serviceLabel,
-			IPv4Net:      mocks.ipv4Net,
-			NodeSync:     mocks.nodeSync,
-			PodManager:   mocks.podManager,
-		},
-	}
-
-	// Prepare NAT44 Renderer.
-	renderer := &nat44.Renderer{
-		Deps: nat44.Deps{
-			Log:              mocks.logger,
-			Config:           &config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
-			IPv4Net:          mocks.ipv4Net,
-			ResyncTxnFactory: resyncTxnFactory(mocks.txnTracker),
-			UpdateTxnFactory: updateTxnFactory(mocks.txnTracker),
-		},
-	}
-
-	Expect(svcProcessor.Init()).To(BeNil())
-	Expect(renderer.Init(false)).To(BeNil())
-	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
+	plugins := initPlugins("TestLocalServicePolicy", config, localEndpointWeight, false)
 
 	// Test resync with empty VPP configuration.
-	resyncEv, _ := mocks.datasync.ResyncEvent(keyPrefixes...)
-	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	resyncEv, _ := plugins.datasync.ResyncEvent(keyPrefixes...)
+	Expect(plugins.svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
 
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
 
 	vxlanID := &IdentityMapping{
 		IP:       nodeIP.IP,
@@ -2078,10 +1900,10 @@ func TestLocalServicePolicy(t *testing.T) {
 		Port:     0,
 		VrfID:    podVrfID,
 	}
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Add service metadata.
 	service1 := &svcmodel.Service{
@@ -2101,56 +1923,56 @@ func TestLocalServicePolicy(t *testing.T) {
 		},
 	}
 
-	updateEv1 := mocks.datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(svcProcessor.Update(updateEv1)).To(BeNil())
+	updateEv1 := plugins.datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(plugins.svcProcessor.Update(updateEv1)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// No change in the NAT configuration.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
 
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Add pods.
-	updateEv2 := mocks.podManager.AddPod(&podmanager.LocalPod{ID: pod1})
-	Expect(svcProcessor.Update(updateEv2)).To(BeNil())
+	updateEv2 := plugins.podManager.AddPod(&podmanager.LocalPod{ID: pod1})
+	Expect(plugins.svcProcessor.Update(updateEv2)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
-	updateEv3 := mocks.podManager.AddPod(&podmanager.LocalPod{ID: pod2})
-	Expect(svcProcessor.Update(updateEv3)).To(BeNil())
+	updateEv3 := plugins.podManager.AddPod(&podmanager.LocalPod{ID: pod2})
+	Expect(plugins.svcProcessor.Update(updateEv3)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Interface attaching pods should have NAT/OUT enabled.
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
 
 	// Add endpoints.
 	eps1 := &epmodel.Endpoints{
@@ -2198,31 +2020,31 @@ func TestLocalServicePolicy(t *testing.T) {
 		},
 	}
 
-	updateEv4 := mocks.datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(svcProcessor.Update(updateEv4)).To(BeNil())
+	updateEv4 := plugins.datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(plugins.svcProcessor.Update(updateEv4)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// New interfaces with enabled NAT features.
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
 
 	// New static mappings.
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(2))
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(2))
 	staticMapping1 := &StaticMapping{
 		ExternalIP:   net.ParseIP("10.96.0.1"),
 		ExternalPort: 80,
@@ -2243,36 +2065,36 @@ func TestLocalServicePolicy(t *testing.T) {
 			// no pod3 - deployed on the worker node
 		},
 	}
-	Expect(mocks.natPlugin.HasStaticMapping(staticMapping1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMapping1)).To(BeTrue())
 	staticMapping2 := staticMapping1.Copy()
 	staticMapping2.ExternalIP = net.ParseIP("20.20.20.20")
 	staticMapping2.TwiceNAT = false // local service policy
-	Expect(mocks.natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
+	Expect(plugins.natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
 
 	// Finally remove the service.
-	updateEv6 := mocks.datasync.DeleteEvent(svcmodel.Key(service1.Name, service1.Namespace))
-	Expect(svcProcessor.Update(updateEv6)).To(BeNil())
+	updateEv6 := plugins.datasync.DeleteEvent(svcmodel.Key(service1.Name, service1.Namespace))
+	Expect(plugins.svcProcessor.Update(updateEv6)).To(BeNil())
 	Expect(commitTxn()).To(BeNil())
 
 	// NAT configuration without the service.
-	Expect(mocks.natPlugin.IsForwardingEnabled()).To(BeTrue())
-	Expect(mocks.natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
-	Expect(mocks.natPlugin.TwiceNatPoolSize()).To(Equal(1))
-	Expect(mocks.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfStaticMappings()).To(Equal(0))
-	Expect(mocks.natPlugin.NumOfIdentityMappings()).To(Equal(3))
-	Expect(mocks.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
-	Expect(mocks.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
-	Expect(mocks.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
-	Expect(mocks.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(plugins.natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(plugins.natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(plugins.natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(plugins.natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(plugins.natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(plugins.natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(plugins.natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(plugins.natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
 
 	// Cleanup
-	Expect(svcProcessor.Close()).To(BeNil())
-	Expect(renderer.Close()).To(BeNil())
+	Expect(plugins.svcProcessor.Close()).To(BeNil())
+	Expect(plugins.renderer.Close()).To(BeNil())
 }

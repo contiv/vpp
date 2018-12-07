@@ -75,8 +75,8 @@ type MockACLEngine struct {
 	sync.Mutex
 
 	Log        logging.Logger
-	IPv4Net    ipv4net.API    /* for GetIfName(), GetVxlanBVIIfName() */
-	ContivConf ContivConfAPI  /* for GetMainInterfaceName() */
+	IPv4Net    ipv4net.API   /* for GetIfName(), GetVxlanBVIIfName() */
+	ContivConf ContivConfAPI /* for GetMainInterfaceName() */
 
 	pods      map[podmodel.ID]*PodConfig
 	aclConfig *ACLConfig

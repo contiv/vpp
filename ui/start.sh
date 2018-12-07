@@ -24,7 +24,7 @@ case "$OSTYPE" in
     gnome-terminal --working-directory=$PWD/../vagrant
     echo "For accessing k8s nodes via 'vagrant ssh', cd into vpp/vagrant directory."
 
-    google-chrome --user-data-dir=”/var/tmp/Chrome” --disable-web-security "http://localhost:4300" || echo "Open URL http://localhost:4300 in your browser with disabled web security."
+    google-chrome --user-data-dir="/var/tmp/Chrome" --disable-web-security "http://localhost:4300" || echo "Open URL http://localhost:4300 in your browser with disabled web security."
     ;;
 
   *)

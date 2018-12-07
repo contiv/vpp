@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Cisco and/or its affiliates.
+// Copyright (c) 2018 Cisco and/or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -143,7 +143,6 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 	// initialize subnets based on the configuration
 	ipamConfig := i.ContivConf.GetIPAMConfig()
 	subnets := &ipamConfig.CustomIPAMSubnets
-	// TODO: Contiv CIDR
 	if err := i.initializePods(subnets, nodeID); err != nil {
 		return err
 	}
@@ -286,11 +285,11 @@ func (i *IPAM) HostInterconnectIPInVPP() net.IP {
 	return newIP(i.hostInterconnectIPInVpp)
 }
 
-// HostInterconnectIPInLinux provides the IPv4 address of the host(Linux)-end of the VPP to host interconnect veth pair.
+// HostInterconnectIPInLinux provides the IPv4 address of the host(Linux)-end of the VPP to host interconnect.
 func (i *IPAM) HostInterconnectIPInLinux() net.IP {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
-	return newIP(i.hostInterconnectIPInLinux) // defensive copy
+	return newIP(i.hostInterconnectIPInLinux)
 }
 
 // HostInterconnectSubnetThisNode returns vswitch network used to connect VPP to its host Linux Stack

@@ -82,6 +82,6 @@ type API interface {
 	// Returns nil if the pod does not have allocated IP address.
 	GetPodIP(podID podmodel.ID) *net.IPNet
 
-	// ReleasePodIP releases the pod IP address making it available for new PODs..
+	// ReleasePodIP releases the pod IP address making it available for new PODs.
 	ReleasePodIP(podID podmodel.ID) error
 }

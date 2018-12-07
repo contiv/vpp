@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Cisco and/or its affiliates.
+// Copyright (c) 2018 Cisco and/or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,12 +45,11 @@ import (
 )
 
 const (
-	// DefaultSTNSocketFile is a path to the socket file where the GRPC STN server
+	// defaultSTNSocketFile is a path to the socket file where the GRPC STN server
 	// listens for client connections by default
-	DefaultSTNSocketFile = "/var/run/contiv/stn.sock"
+	defaultSTNSocketFile = "/var/run/contiv/stn.sock"
 
-	// by default, NodeConfig CRD is not waited for (can be applied later for smaller
-	// changed, such as interface IP address, DHCP option, etc.)
+	// by default, NodeConfig CRD is disabled (and ignored if applied)
 	defaultCRDNodeConfigurationDisabled = true
 
 	// by default, TAP interfaces are used over AF-PACKETs and VETHs
@@ -286,7 +285,7 @@ func (c *ContivConf) Init() (err error) {
 
 	// default configuration
 	c.config = &Config{
-		STNSocketFile:                DefaultSTNSocketFile,
+		STNSocketFile:                defaultSTNSocketFile,
 		CRDNodeConfigurationDisabled: defaultCRDNodeConfigurationDisabled,
 		InterfaceConfig: InterfaceConfig{
 			UseTAPInterfaces:           defaultUseTAPInterfaces,
@@ -494,18 +493,15 @@ func (c *ContivConf) Resync(event controller.Event, kubeStateData controller.Kub
 
 // Update is called for KubeStateChange for CRD node-specific config of this node.
 func (c *ContivConf) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
-	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
-		if ksChange.Resource == nodeconfig.Keyword {
-			var nodeConfig *NodeConfig
-			if ksChange.NewValue != nil {
-				nodeConfig = nodeConfigFromProto(ksChange.NewValue.(*nodeconfig.NodeConfig))
-			}
-			followUpEv := &NodeConfigChange{nodeConfig: nodeConfig}
-			err := c.EventLoop.PushEvent(followUpEv)
-			if err != nil {
-				return "", err
-			}
-		}
+	var nodeConfig *NodeConfig
+	ksChange := event.(*controller.KubeStateChange)
+	if ksChange.NewValue != nil {
+		nodeConfig = nodeConfigFromProto(ksChange.NewValue.(*nodeconfig.NodeConfig))
+	}
+	followUpEv := &NodeConfigChange{nodeConfig: nodeConfig}
+	err = c.EventLoop.PushEvent(followUpEv)
+	if err != nil {
+		return "", err
 	}
 	return "", nil
 }
@@ -620,11 +616,12 @@ func (c *ContivConf) reloadNodeInterfaces() error {
 
 	// DHCP
 	c.useDHCP = false
-	if nodeConfig == nil || nodeConfig.MainVPPInterface.IP == "" {
-		if c.ipamConfig.NodeInterconnectDHCP ||
-			(nodeConfig != nil && nodeConfig.MainVPPInterface.UseDHCP) {
-			c.useDHCP = true
-		}
+	if c.ipamConfig.NodeInterconnectDHCP ||	(nodeConfig != nil && nodeConfig.MainVPPInterface.UseDHCP) {
+		c.useDHCP = true
+	}
+	if nodeConfig != nil && nodeConfig.MainVPPInterface.IP != "" {
+		// MainVPPInterface.IP overrides DHCP options
+		c.useDHCP = false
 	}
 
 	// main interface
@@ -786,7 +783,6 @@ func (c *ContivConf) getFirstHostInterfaceName() string {
 		return ""
 	}
 
-	// find link to steal
 	for _, l := range links {
 		if !strings.HasPrefix(l.Attrs().Name, "lo") &&
 			!strings.HasPrefix(l.Attrs().Name, "vir") &&

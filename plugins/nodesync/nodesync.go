@@ -457,11 +457,17 @@ func (ns *NodeSync) Update(event controller.Event, txn controller.UpdateOperatio
 			node.ID = vppNode.Id
 			node.VppIPAddresses = ns.nodeVPPAddresses(vppNode)
 		}
-		ns.EventLoop.PushEvent(&NodeUpdate{
+		ev := &NodeUpdate{
 			NodeName:  nodeName,
 			PrevState: prev,
 			NewState:  node,
-		})
+		}
+		// do not include prevState if it doesn't contain
+		// allocated node.ID
+		if ev.PrevState != nil && ev.PrevState.ID == 0 {
+			ev.PrevState = nil
+		}
+		ns.EventLoop.PushEvent(ev)
 	}
 	return "", nil
 }

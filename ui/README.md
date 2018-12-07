@@ -69,6 +69,9 @@ Be sure that [nginx services](#nginx) are deployed.
 2. run test script: `python servrun.py` - you can see the cluster switching between different nginx IPs.
 3. now you can delete testing busyboxes: `delete-client.py`
 
+### Shutdown App
+When you finished the work with the application, run `./stop.sh` from `vpp/ui` folder - this will shutdown all Vagrant instances.
+
 ### Wiping all data/settings
 
 Run `./clear-all.sh` from vpp/ui directory for clearing all data and settings (destroy each Vagrant instance). After this command you need to follow [running steps](#running) from the 3rd point and build application again.

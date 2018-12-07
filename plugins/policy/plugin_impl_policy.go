@@ -17,7 +17,9 @@ package policy
 import (
 	"github.com/ligato/cn-infra/infra"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/ksr/model/namespace"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -60,7 +62,9 @@ type Plugin struct {
 // Deps defines dependencies of policy plugin.
 type Deps struct {
 	infra.PluginDeps
-	IPv4Net ipv4net.API /* for GetIfName() */
+	ContivConf contivconf.API
+	IPAM       ipam.API
+	IPv4Net    ipv4net.API /* for GetIfName() */
 
 	// Note: L4 was removed from Contiv but may be re-added in the future
 	// GoVPP   govppmux.API  /* for VPPTCP Renderer */
@@ -77,16 +81,16 @@ func (p *Plugin) Init() error {
 
 	p.configurator = &configurator.PolicyConfigurator{
 		Deps: configurator.Deps{
-			Log:     p.Log.NewLogger("-policyConfigurator"),
-			Cache:   p.policyCache,
-			IPv4Net: p.IPv4Net,
+			Log:   p.Log.NewLogger("-policyConfigurator"),
+			Cache: p.policyCache,
+			IPAM:  p.IPAM,
 		},
 	}
 
 	p.processor = &processor.PolicyProcessor{
 		Deps: processor.Deps{
 			Log:          p.Log.NewLogger("-policyProcessor"),
-			IPv4Net:      p.IPv4Net,
+			IPAM:         p.IPAM,
 			Cache:        p.policyCache,
 			Configurator: p.configurator,
 		},
@@ -96,6 +100,7 @@ func (p *Plugin) Init() error {
 		Deps: acl.Deps{
 			Log:        p.Log.NewLogger("-aclRenderer"),
 			LogFactory: p.Log,
+			ContivConf: p.ContivConf,
 			IPv4Net:    p.IPv4Net,
 			UpdateTxnFactory: func() controller.UpdateOperations {
 				p.withChange = true

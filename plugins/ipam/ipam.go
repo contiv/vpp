@@ -373,10 +373,10 @@ func (i *IPAM) PodGatewayIP() net.IP {
 	return newIP(i.podSubnetGatewayIP) // defensive copy
 }
 
-// GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
+// NatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
 // between clients and services via VPP even if the source and destination are the same
 // IP addresses and would otherwise be routed locally.
-func (i *IPAM) GetNatLoopbackIP() net.IP {
+func (i *IPAM) NatLoopbackIP() net.IP {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 

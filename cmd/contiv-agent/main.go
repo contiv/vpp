@@ -139,6 +139,8 @@ func main() {
 
 	ipv4NetPlugin := ipv4net.NewPlugin(ipv4net.UseDeps(func(deps *ipv4net.Deps) {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
+		deps.ContivConf = contivConf
+		deps.IPAM = ipamPlugin
 		deps.NodeSync = nodeSyncPlugin
 		deps.PodManager = podManager
 	}))
@@ -147,10 +149,14 @@ func main() {
 	statsCollector.IPv4Net = ipv4NetPlugin
 
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
+		deps.ContivConf = contivConf
+		deps.IPAM = ipamPlugin
 		deps.IPv4Net = ipv4NetPlugin
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
+		deps.ContivConf = contivConf
+		deps.IPAM = ipamPlugin
 		deps.IPv4Net = ipv4NetPlugin
 		deps.NodeSync = nodeSyncPlugin
 		deps.PodManager = podManager

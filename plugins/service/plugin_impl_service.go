@@ -22,15 +22,17 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/service/processor"
-	"github.com/contiv/vpp/plugins/service/renderer/nat44"
-	"github.com/contiv/vpp/plugins/service/config"
+	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/contiv/vpp/plugins/service/config"
+	"github.com/contiv/vpp/plugins/service/processor"
+	"github.com/contiv/vpp/plugins/service/renderer/nat44"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -55,6 +57,8 @@ type Plugin struct {
 type Deps struct {
 	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
+	ContivConf   contivconf.API
+	IPAM         ipam.API
 	IPv4Net      ipv4net.API        /* to get the Node IP and all interface names */
 	NodeSync     nodesync.API       /* to get the list of all node IPs for nodePort services */
 	PodManager   podmanager.API     /* to get the list or running pods which determines frontend interfaces */
@@ -84,6 +88,8 @@ func (p *Plugin) Init() error {
 		Deps: processor.Deps{
 			Log:          p.Log.NewLogger("-serviceProcessor"),
 			ServiceLabel: p.ServiceLabel,
+			ContivConf:   p.ContivConf,
+			IPAM:         p.IPAM,
 			IPv4Net:      p.IPv4Net,
 			NodeSync:     p.NodeSync,
 			PodManager:   p.PodManager,
@@ -92,10 +98,12 @@ func (p *Plugin) Init() error {
 
 	p.nat44Renderer = &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:       p.Log.NewLogger("-nat44Renderer"),
-			Config:    p.config,
-			IPv4Net:   p.IPv4Net,
-			GoVPPChan: goVppCh,
+			Log:        p.Log.NewLogger("-nat44Renderer"),
+			Config:     p.config,
+			ContivConf: p.ContivConf,
+			IPAM:       p.IPAM,
+			IPv4Net:    p.IPv4Net,
+			GoVPPChan:  goVppCh,
 			UpdateTxnFactory: func(change string) controller.UpdateOperations {
 				p.changes = append(p.changes, change)
 				return p.updateTxn

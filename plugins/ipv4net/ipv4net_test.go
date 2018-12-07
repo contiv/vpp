@@ -40,9 +40,10 @@ import (
 	. "github.com/contiv/vpp/mock/servicelabel"
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
-	"github.com/contiv/vpp/plugins/ipv4net/ipam"
+	"github.com/contiv/vpp/plugins/ipam"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
@@ -82,7 +83,7 @@ var (
 
 	hostIPs = []net.IP{net.ParseIP(hostIP1), net.ParseIP(hostIP2)}
 
-	nodeDHCPConfig = &NodeConfig{
+	nodeDHCPConfig = &contivconf.NodeConfig{
 		NodeName: node1,
 		NodeConfigSpec: nodeconfig.NodeConfigSpec{
 			StealInterface: "eth0",
@@ -99,10 +100,12 @@ var (
 		},
 	}
 
-	configTapVxlanDHCP = &Config{
-		UseTAPInterfaces:    true,
-		TAPInterfaceVersion: 2,
-		IPAMConfig: ipam.Config{
+	configTapVxlanDHCP = &contivconf.Config{
+		InterfaceConfig: contivconf.InterfaceConfig{
+			UseTAPInterfaces:    true,
+			TAPInterfaceVersion: 2,
+		},
+		IPAMConfig: contivconf.IPAMConfigForJSON{
 			PodSubnetCIDR:                 "10.1.0.0/16",
 			PodSubnetOneNodePrefixLen:     24,
 			PodVPPSubnetCIDR:              "10.2.1.0/24",
@@ -114,18 +117,20 @@ var (
 	}
 
 	/*
-		configVethL2NoTCP = &Config{
+	configVethL2NoTCP = &contivconf.Config{
+		RoutingConfig: contivconf.RoutingConfig{
 			UseL2Interconnect: true,
-			IPAMConfig: ipam.Config{
-				PodSubnetCIDR:                 "10.1.0.0/16",
-				PodSubnetOneNodePrefixLen:     24,
-				PodVPPSubnetCIDR:              "10.2.1.0/24",
-				VPPHostSubnetCIDR:             "172.30.0.0/16",
-				VPPHostSubnetOneNodePrefixLen: 24,
-				NodeInterconnectCIDR:          "192.168.16.0/24",
-				VxlanCIDR:                     "192.168.30.0/24",
-			},
-		}
+		},
+		IPAMConfig: contivconf.IPAMConfigForJSON{
+			PodSubnetCIDR:                 "10.1.0.0/16",
+			PodSubnetOneNodePrefixLen:     24,
+			PodVPPSubnetCIDR:              "10.2.1.0/24",
+			VPPHostSubnetCIDR:             "172.30.0.0/16",
+			VPPHostSubnetOneNodePrefixLen: 24,
+			NodeInterconnectCIDR:          "192.168.16.0/24",
+			VxlanCIDR:                     "192.168.30.0/24",
+		},
+	}
 	*/
 )
 
@@ -140,11 +145,8 @@ func TestBasicStuff(t *testing.T) {
 	// DHCP
 	dhcpIndexes := idxmap_mem.NewNamedMapping(logrus.DefaultLogger(), "test-dhcp_indexes", nil)
 
-	// NICs
-	physicalIfaces := map[uint32]string{
-		1: Gbe8,
-		2: Gbe9,
-	}
+	// DPDK interfaces
+	dpdkIfaces := []string{Gbe8, Gbe9}
 
 	// STN
 	stnReply := &stn_grpc.STNReply{
@@ -179,20 +181,40 @@ func TestBasicStuff(t *testing.T) {
 	// config
 	config := configTapVxlanDHCP
 
-	// IPAM
-	ipam, err := ipam.New(logrus.DefaultLogger(), nodeSync, &config.IPAMConfig, nil)
-	Expect(err).To(BeNil())
+	// contivConf plugin
+	contivConfPlugin := &contivconf.ContivConf{
+		Deps: contivconf.Deps{
+			PluginDeps: infra.PluginDeps{
+				Log:  logging.ForPlugin("contivconf"),
+			},
+			ServiceLabel: serviceLabel,
+			UnitTestDeps: &contivconf.UnitTestDeps{
+				Config: config,
+				DumpDPDKInterfacesClb: func() ([]string, error) {
+					return dpdkIfaces, nil
+				},
+				RequestSTNInfoClb: requestSTNInfo("eth0", stnReply),
+			},
+		},
+	}
+	Expect(contivConfPlugin.Init()).To(BeNil())
+
+	// IPAM plugin
+	ipamPlugin := &ipam.IPAM{
+		Deps: ipam.Deps{
+			PluginDeps: infra.PluginDeps{
+				Log:  logging.ForPlugin("ipam"),
+			},
+			NodeSync:   nodeSync,
+			ContivConf: contivConfPlugin,
+		},
+	}
+	Expect(ipamPlugin.Init()).To(BeNil())
 
 	// ipv4Net plugin
 	externalState := &externalState{
 		test:      true,
-		config:    config,
-		ipam:      ipam,
 		dhcpIndex: dhcpIndexes,
-		physicalIfsDump: func() (map[uint32]string, error) {
-			return physicalIfaces, nil
-		},
-		getSTNInfo: stolenInterfaceInfo("eth0", stnReply),
 		hostLinkIPsDump: func() ([]net.IP, error) {
 			return hostIPs, nil
 		},
@@ -216,8 +238,10 @@ func TestBasicStuff(t *testing.T) {
 
 	// resync against empty K8s state data
 	resyncEv, resyncCount := datasync.ResyncEvent(keyPrefixes...)
+	Expect(contivConfPlugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
+	Expect(ipamPlugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
 	txn := txnTracker.NewControllerTxn(true)
-	err = plugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
+	err := plugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
 	Expect(err).To(BeNil())
 	err = commitTransaction(txn, true)
 	Expect(err).To(BeNil())
@@ -260,7 +284,7 @@ func TestBasicStuff(t *testing.T) {
 	node2 := &nodesync.Node{
 		Name:            node2Name,
 		ID:              node2ID,
-		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: addr, Network: network}},
+		VppIPAddresses:  contivconf.IPsWithNetworks{{Address: addr, Network: network}},
 		MgmtIPAddresses: []net.IP{mgmt},
 	}
 	nodeUpdateEvent := nodeSync.UpdateNode(node2)
@@ -281,7 +305,7 @@ func TestBasicStuff(t *testing.T) {
 	node2Update := &nodesync.Node{
 		Name:            node2Name,
 		ID:              node2ID,
-		VppIPAddresses:  []*nodesync.IPWithNetwork{{Address: addr, Network: network}},
+		VppIPAddresses:  contivconf.IPsWithNetworks{{Address: addr, Network: network}},
 		MgmtIPAddresses: []net.IP{mgmt},
 	}
 	nodeUpdateEvent = nodeSync.UpdateNode(node2Update)
@@ -331,7 +355,7 @@ func TestBasicStuff(t *testing.T) {
 	datasync.Put(k8sPod.Key(pod1Name, pod1Namespace), &k8sPod.Pod{
 		Namespace: pod1Namespace,
 		Name:      pod1Name,
-		IpAddress: plugin.ipam.GetPodIP(pod1ID).IP.String(),
+		IpAddress: ipamPlugin.GetPodIP(pod1ID).IP.String(),
 	})
 
 	fmt.Println("Restart (without node IP) --------------------------------")
@@ -423,8 +447,8 @@ func commitTransaction(txn controller.Transaction, isResync bool) error {
 	return txn.Commit(ctx)
 }
 
-// stolenInterfaceInfo is a factory for StolenInterfaceInfoClb
-func stolenInterfaceInfo(expInterface string, reply *stn_grpc.STNReply) StolenInterfaceInfoClb {
+// requestSTNInfo is a factory for contivconf.RequestSTNInfoClb
+func requestSTNInfo(expInterface string, reply *stn_grpc.STNReply) contivconf.RequestSTNInfoClb {
 	return func(ifName string) (*stn_grpc.STNReply, error) {
 		if ifName != expInterface {
 			return nil, errors.New("not the expected stolen interface")

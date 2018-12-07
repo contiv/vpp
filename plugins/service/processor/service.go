@@ -169,7 +169,7 @@ func (s *Service) Refresh() {
 			if epAddr.GetNodeName() == "" || epAddr.GetNodeName() == s.sp.ServiceLabel.GetAgentLabel() {
 				local = true
 			}
-			if !s.sp.IPv4Net.GetPodSubnet().Contains(epIP) {
+			if !s.sp.IPAM.PodSubnetAllNodes().Contains(epIP) {
 				hostNetwork = true
 			}
 

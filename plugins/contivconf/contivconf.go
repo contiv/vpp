@@ -192,7 +192,6 @@ type Config struct {
 	InterfaceConfig
 	RoutingConfig
 	IPNeighborScanConfig
-	IPAMConfigForJSON
 
 	StealFirstNIC  bool   `json:"stealFirstNIC,omitempty"`
 	StealInterface string `json:"stealInterface,omitempty"`
@@ -202,7 +201,8 @@ type Config struct {
 	EnablePacketTrace            bool `json:"enablePacketTrace,omitempty"`
 	CRDNodeConfigurationDisabled bool `json:"crdNodeConfigurationDisabled,omitempty"`
 
-	NodeConfig []NodeConfig `json:"nodeConfig"`
+	IPAMConfig IPAMConfigForJSON `json:"ipamConfig"`
+	NodeConfig []NodeConfig      `json:"nodeConfig"`
 }
 
 // IPAMConfigForJSON groups IPAM configuration options as basic data types and with
@@ -297,7 +297,7 @@ func (c *ContivConf) Init() (err error) {
 			MainVRFID: defaultMainVrfID,
 			PodVRFID:  defaultPodVrfID,
 		},
-		IPAMConfigForJSON: IPAMConfigForJSON{
+		IPAMConfig: IPAMConfigForJSON{
 			ServiceCIDR:                   defaultServiceCIDR,
 			PodSubnetCIDR:                 defaultPodSubnetCIDR,
 			PodSubnetOneNodePrefixLen:     defaultPodSubnetOneNodePrefixLen,
@@ -330,41 +330,41 @@ func (c *ContivConf) Init() (err error) {
 
 	// parse IPAM subnets
 	c.ipamConfig = &IPAMConfig{
-		NodeInterconnectDHCP: c.config.NodeInterconnectDHCP,
+		NodeInterconnectDHCP: c.config.IPAMConfig.NodeInterconnectDHCP,
 		CustomIPAMSubnets: CustomIPAMSubnets{
-			PodSubnetOneNodePrefixLen:     c.config.PodSubnetOneNodePrefixLen,
-			VPPHostSubnetOneNodePrefixLen: c.config.VPPHostSubnetOneNodePrefixLen,
+			PodSubnetOneNodePrefixLen:     c.config.IPAMConfig.PodSubnetOneNodePrefixLen,
+			VPPHostSubnetOneNodePrefixLen: c.config.IPAMConfig.VPPHostSubnetOneNodePrefixLen,
 		},
 	}
-	if c.config.ContivCIDR != "" {
-		_, c.ipamConfig.ContivCIDR, err = net.ParseCIDR(c.config.ContivCIDR)
+	if c.config.IPAMConfig.ContivCIDR != "" {
+		_, c.ipamConfig.ContivCIDR, err = net.ParseCIDR(c.config.IPAMConfig.ContivCIDR)
 		if err != nil {
 			return fmt.Errorf("failed to parse ContivCIDR: %v", err)
 		}
 	}
-	if c.config.NodeInterconnectCIDR != "" {
-		_, c.ipamConfig.NodeInterconnectCIDR, err = net.ParseCIDR(c.config.NodeInterconnectCIDR)
+	if c.config.IPAMConfig.NodeInterconnectCIDR != "" {
+		_, c.ipamConfig.NodeInterconnectCIDR, err = net.ParseCIDR(c.config.IPAMConfig.NodeInterconnectCIDR)
 		if err != nil {
 			return fmt.Errorf("failed to parse NodeInterconnectCIDR: %v", err)
 		}
 	}
-	_, c.ipamConfig.ServiceCIDR, err = net.ParseCIDR(c.config.ServiceCIDR)
+	_, c.ipamConfig.ServiceCIDR, err = net.ParseCIDR(c.config.IPAMConfig.ServiceCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse ServiceCIDR: %v", err)
 	}
-	_, c.ipamConfig.PodSubnetCIDR, err = net.ParseCIDR(c.config.PodSubnetCIDR)
+	_, c.ipamConfig.PodSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.PodSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse PodSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.PodVPPSubnetCIDR, err = net.ParseCIDR(c.config.PodVPPSubnetCIDR)
+	_, c.ipamConfig.PodVPPSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.PodVPPSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse PodVPPSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.VPPHostSubnetCIDR, err = net.ParseCIDR(c.config.VPPHostSubnetCIDR)
+	_, c.ipamConfig.VPPHostSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.VPPHostSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse VPPHostSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.VxlanCIDR, err = net.ParseCIDR(c.config.VxlanCIDR)
+	_, c.ipamConfig.VxlanCIDR, err = net.ParseCIDR(c.config.IPAMConfig.VxlanCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse VxlanCIDR: %v", err)
 	}
@@ -577,7 +577,7 @@ func (c *ContivConf) GetIPAMConfig() *IPAMConfig {
 // for marshalling to JSON (subnets not converted to net.IPNet + defined
 // JSON flag for every option).
 func (c *ContivConf) GetIPAMConfigForJson() *IPAMConfigForJSON {
-	return &c.config.IPAMConfigForJSON
+	return &c.config.IPAMConfig
 }
 
 // GetInterfaceConfig returns configuration related to VPP interfaces.
@@ -618,7 +618,7 @@ func (c *ContivConf) reloadNodeInterfaces() error {
 	// DHCP
 	c.useDHCP = false
 	if nodeConfig == nil || nodeConfig.MainVPPInterface.IP == "" {
-		if c.config.NodeInterconnectDHCP ||
+		if c.ipamConfig.NodeInterconnectDHCP ||
 			(nodeConfig != nil && nodeConfig.MainVPPInterface.UseDHCP) {
 			c.useDHCP = true
 		}

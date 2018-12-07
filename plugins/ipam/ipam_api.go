@@ -70,6 +70,11 @@ type API interface {
 	// PodGatewayIP returns gateway IP address of the POD subnet of this node.
 	PodGatewayIP() net.IP
 
+	// NatLoopbackIP returns the IP address of a virtual loopback, used to route
+	// traffic between clients and services via VPP even if the source and destination
+	// are the same IP addresses and would otherwise be routed locally.
+	NatLoopbackIP() net.IP
+
 	// AllocatePodIP tries to allocate IP address for the given pod.
 	AllocatePodIP(podID podmodel.ID) (net.IP, error)
 

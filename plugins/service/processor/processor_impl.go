@@ -27,9 +27,11 @@ import (
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/service/renderer"
+	"github.com/contiv/vpp/plugins/contivconf"
 )
 
 // ServiceProcessor implements ServiceProcessorAPI.
@@ -51,9 +53,11 @@ type ServiceProcessor struct {
 type Deps struct {
 	Log          logging.Logger
 	ServiceLabel servicelabel.ReaderAPI
+	ContivConf   contivconf.API
 	NodeSync     nodesync.API
 	PodManager   podmanager.API
-	IPv4Net      ipv4net.API /* to get all interface names and pod IP network */
+	IPAM         ipam.API
+	IPv4Net      ipv4net.API
 }
 
 // LocalEndpoint represents a node-local endpoint.
@@ -423,7 +427,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		sp.backendIfs.Add(vxlanBVIIf)
 	}
 	// -> main physical interfaces
-	mainPhysIf := sp.IPv4Net.GetMainPhysicalIfName()
+	mainPhysIf := sp.ContivConf.GetMainInterfaceName()
 	if mainPhysIf != "" {
 		if vxlanBVIIf == "" {
 			sp.backendIfs.Add(mainPhysIf)
@@ -431,8 +435,8 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		sp.frontendIfs.Add(mainPhysIf)
 	}
 	// -> other physical interfaces
-	for _, physIf := range sp.IPv4Net.GetOtherPhysicalIfNames() {
-		sp.frontendIfs.Add(physIf)
+	for _, physIf := range sp.ContivConf.GetOtherVPPInterfaces() {
+		sp.frontendIfs.Add(physIf.InterfaceName)
 	}
 	// -> host interconnect
 	hostInterconnect := sp.IPv4Net.GetHostInterconnectIfName()

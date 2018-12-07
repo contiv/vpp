@@ -113,6 +113,7 @@ Parameter | Description | Default
 `etcd.serverKey` | Name of the file with private key of the ETCD server. | `server-key.pem`
 `etcd.clientCert` | Name of the file with certificate of the ETCD client. | `client.pem`
 `etcd.clientKey` | Name of the file with private key of the ETCD client. | `client-key.pem`
+`etcd.cipherSuites` | Supported TLS cipher suite for ETCD | AES128 SHA256/384
 `govpp.healthCheckProbeInterval` | Health check proble interval (nanoseconds) | `1000000000`
 `govpp.healthCheckReplyTimeout` | Health check reply timeout (nanoseconds) | `500000000`
 `govpp.healthCheckThreshold` | Health check threshold | 3

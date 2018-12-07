@@ -120,6 +120,16 @@ func (ns *NodeSync) GetNodeID() uint32 {
 // The method should be called only from within the main event loop (not thread
 // safe) and not before the startup resync.
 func (ns *NodeSync) PublishNodeIPs(addresses contivconf.IPsWithNetworks, version contivconf.IPVersion) error {
+	// do not publish if db is not connected
+	dbIsConnected := false
+	ns.DB.OnConnect(func() error {
+		dbIsConnected = true
+		return nil
+	})
+	if !dbIsConnected {
+		return errNoConnection
+	}
+
 	// build the list of addresses after the update
 	var newAddrs contivconf.IPsWithNetworks
 
@@ -449,11 +459,17 @@ func (ns *NodeSync) Update(event controller.Event, txn controller.UpdateOperatio
 			node.ID = vppNode.Id
 			node.VppIPAddresses = ns.nodeVPPAddresses(vppNode)
 		}
-		ns.EventLoop.PushEvent(&NodeUpdate{
+		ev := &NodeUpdate{
 			NodeName:  nodeName,
 			PrevState: prev,
 			NewState:  node,
-		})
+		}
+		// do not include prevState if it doesn't contain
+		// allocated node.ID
+		if ev.PrevState != nil && ev.PrevState.ID == 0 {
+			ev.PrevState = nil
+		}
+		ns.EventLoop.PushEvent(ev)
 	}
 	return "", nil
 }

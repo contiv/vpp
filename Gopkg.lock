@@ -729,7 +729,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:6f9b2c79260b5b8535a9c0ed1d3330a69dd098601adeda639e11a506182cc963"
+  digest = "1:87588f69cc0897bb7e480657ef70b258d613ef4a9b74279611cf1bc12dc76e05"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv2/linux",
@@ -770,6 +770,7 @@
     "plugins/vpp/binapi/nat",
     "plugins/vpp/binapi/session",
     "plugins/vpp/binapi/stats",
+    "plugins/vpp/binapi/stn",
     "plugins/vpp/binapi/tap",
     "plugins/vpp/binapi/tapv2",
     "plugins/vpp/binapi/vmxnet3",
@@ -808,6 +809,10 @@
     "plugins/vppv2/natplugin/descriptor",
     "plugins/vppv2/natplugin/descriptor/adapter",
     "plugins/vppv2/natplugin/vppcalls",
+    "plugins/vppv2/stnplugin",
+    "plugins/vppv2/stnplugin/descriptor",
+    "plugins/vppv2/stnplugin/descriptor/adapter",
+    "plugins/vppv2/stnplugin/vppcalls",
   ]
   pruneopts = "UT"
   revision = "b1e3649b7744f29da1b66d4120699926df8bcbff"
@@ -1711,6 +1716,7 @@
     "github.com/ligato/vpp-agent/plugins/vppv2/model/nat",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/stn",
     "github.com/ligato/vpp-agent/plugins/vppv2/natplugin",
+    "github.com/ligato/vpp-agent/plugins/vppv2/stnplugin",
     "github.com/namsral/flag",
     "github.com/nerdtakula/supervisor",
     "github.com/onsi/gomega",

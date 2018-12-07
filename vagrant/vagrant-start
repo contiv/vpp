@@ -77,18 +77,21 @@ do
     esac
 done
 
-if [ "$K8S_DEPLOYMENT_ENV" == "prod" ]; then 
+if [ "$K8S_DEPLOYMENT_ENV" == "prod" ]; then
     DEP_ENV="production"
-else 
+else
     DEP_ENV="development"
 fi
 
 if [ "$K8S_DEPLOYMENT_SCENARIO" == "nostn" ]; then
     DEP_SCEN="without STN"
-else 
+else
     DEP_SCEN="with STN"
 fi
 echo
 echo "Creating a $DEP_ENV environment, $DEP_SCEN and $K8S_NODES worker node(s)"
-echo 
+echo
+
+export KUBECTL_PROXY="noproxy"
+
 ./vagrant-up

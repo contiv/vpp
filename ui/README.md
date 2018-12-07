@@ -17,11 +17,14 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 
 ### Running
 
-From this directory run one of these commands:
+1. pull this repository (git pull https://github.com/contiv/vpp.git)
+2. checkout kubecon2018 branch (git checkout kubecon2018)
+3. cd into vpp/ui directory (cd vpp/ui)
+4. from this directory run one of these commands:
 - `./start.sh` for fully automated setup - run 2 workers in production enviroment without STN along with kubectl proxy
-- `./start-professional.sh` for manual settings
+- `./start-professional.sh` for manual settings - need to specify workers, enviroment, [set kubectl proxy](#set-kubectl-proxy)
 
-When everything is installed, navigate to `http://localhost:4300/` on Chrome with disabled web security.
+When everything is installed, navigate to `http://localhost:4300/` on Chrome with disabled web security - it should be automatically opened if installed.
 
 ### Accessing APIs
 
@@ -30,3 +33,7 @@ In case you chose "manual settings", the kubectl proxy must be set in order to a
 
 ### Postman collection
 [Collection](./data/ContivVPP.postman_collection.json)
+
+### Wiping data/settings
+
+Run `./clear-all.sh` from vpp/ui directory.

@@ -16,13 +16,13 @@ package main
 
 import (
 	"context"
-	"flag"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/namsral/flag"
 	"github.com/nerdtakula/supervisor"
 	"google.golang.org/grpc"
 
@@ -44,7 +44,7 @@ import (
 
 const (
 	defaultEtcdCfgFile      = "/etc/etcd/etcd.conf"
-	defaultBoltCfgFile      = "/etc/agent/bolt.conf"
+	defaultBoltCfgFile      = "/etc/vpp-agent/bolt.conf"
 	defaultSupervisorSocket = "/run/supervisor.sock"
 	defaultStnServerSocket  = "/var/run/contiv/stn.sock"
 	defaultCNISocketFile    = "/var/run/contiv/cni.sock"
@@ -273,9 +273,12 @@ func prepareForLocalResync(nodeName string, boltDB contivconf.KVBrokerFactory, e
 }
 
 func main() {
-	flag.Parse()
-
 	logger.Debugf("Starting contiv-init process")
+
+	// init and parse flags
+	contivConf := contivconf.NewPlugin()
+	config.DefineFlagsFor(contivConf.String())
+	flag.Parse()
 
 	// get microservice label
 	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
@@ -293,15 +296,19 @@ func main() {
 		logger.Errorf("Failed to open Bolt DB: %v", err)
 		os.Exit(-1)
 	}
-	defer boltDB.Close()
+	defer func() {
+		if boltDB != nil {
+			// if Bolt DB was not closed properly (exiting with error), close it now
+			boltDB.Close()
+		}
+	}()
 
 	// use ContivConf plugin to load the configuration
-	config := contivconf.NewPlugin()
-	config.ContivInitDeps = &contivconf.ContivInitDeps{
+	contivConf.ContivInitDeps = &contivconf.ContivInitDeps{
 		LocalDB:  boltDB,
 		RemoteDB: etcdDB,
 	}
-	err = config.Init()
+	err = contivConf.Init()
 	if err != nil {
 		logger.Errorf("Failed to initialize ContivConf plugin: %v", err)
 		os.Exit(-1)
@@ -309,10 +316,10 @@ func main() {
 
 	// check whether STN is required and get NIC name
 	var nicToSteal string
-	if config.InSTNMode() {
-		nicToSteal = config.GetSTNConfig().StealInterface
+	if contivConf.InSTNMode() {
+		nicToSteal = contivConf.GetSTNConfig().StealInterface
 	}
-	useDHCP := config.UseDHCP()
+	useDHCP := contivConf.UseDHCP()
 
 	var stnData *stn.STNReply
 	if nicToSteal != "" {
@@ -326,7 +333,7 @@ func main() {
 		stnData, err = stealNIC(nicToSteal, useDHCP)
 		if err != nil {
 			logger.Warnf("Error by stealing the NIC %s: %v", nicToSteal, err)
-			// do not fail of STN was not successful
+			// do not fail if STN was not successful
 			nicToSteal = ""
 		}
 		// Check if the STN Daemon has been initialized
@@ -351,6 +358,9 @@ func main() {
 
 	// start contiv-agent
 	logger.Debugf("Starting contiv-agent")
+	// release bolt DB before starting the Contiv agent
+	boltDB.Close()
+	boltDB = nil
 	// remove CNI server socket file
 	// TODO: this should be done automatically by CNI-infra before socket bind, remove once implemented
 	os.Remove(defaultCNISocketFile)

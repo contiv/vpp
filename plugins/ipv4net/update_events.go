@@ -16,6 +16,7 @@ package ipv4net
 
 import (
 	"fmt"
+	"net"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/nodesync"
@@ -99,6 +100,24 @@ func (n *IPv4Net) addPod(event *podmanager.AddPod, txn controller.UpdateOperatio
 	n.vppIfaceToPodMutex.Lock()
 	n.vppIfaceToPod[vppIface] = pod.ID
 	n.vppIfaceToPodMutex.Unlock()
+
+	// 5. fill event with the attributes of the configured pod connectivity for the CNI reply
+
+	event.Interfaces = append(event.Interfaces, podmanager.PodInterface{
+		HostName: podInterfaceHostName,
+		IPAddresses: []*podmanager.IPWithGateway{
+			{
+				Version: podmanager.IPv4,
+				Address: n.IPAM.GetPodIP(pod.ID),
+				Gateway: n.IPAM.PodGatewayIP(),
+			},
+		},
+	})
+	_, anyDstNet, _ := net.ParseCIDR("0.0.0.0/0")
+	event.Routes = append(event.Routes, podmanager.Route{
+		Network: anyDstNet,
+		Gateway: n.IPAM.PodGatewayIP(),
+	})
 
 	return "configure IPv4 connectivity", nil
 }

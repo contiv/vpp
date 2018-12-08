@@ -18,8 +18,6 @@ import (
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
-
-	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
 // DefaultPlugin is a default instance of ContivConf.
@@ -31,7 +29,6 @@ func NewPlugin(opts ...Option) *ContivConf {
 
 	p.PluginName = "contivconf"
 	p.ServiceLabel = &servicelabel.DefaultPlugin
-	p.GoVPP = &govppmux.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)
@@ -41,7 +38,8 @@ func NewPlugin(opts ...Option) *ContivConf {
 		p.Deps.Log = logging.ForPlugin(p.String())
 	}
 	if p.Cfg == nil {
-		p.Cfg = config.ForPlugin("contiv")
+		p.Cfg = config.ForPlugin(p.String(),
+			config.WithCustomizedFlag(config.FlagName("contiv"), "contiv.conf"))
 	}
 
 	return p

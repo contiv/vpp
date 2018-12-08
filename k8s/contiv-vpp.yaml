@@ -386,29 +386,29 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
             - name: CONTIV_CONFIG
-              value: "/etc/agent/contiv.conf"
+              value: "/etc/contiv/contiv.conf"
+            - name: CONTROLLER_CONFIG
+              value: "/etc/contiv/controller.conf"
+            - name: SERVICE_CONFIG
+              value: "/etc/contiv/service.conf"
             - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
             - name: BOLT_CONFIG
-              value: "/etc/agent/bolt.conf"
+              value: "/etc/vpp-agent/bolt.conf"
             - name: TELEMETRY_CONFIG
-              value: "/etc/agent/telemetry.conf"
+              value: "/etc/vpp-agent/telemetry.conf"
             - name: GOVPP_CONFIG
-              value: "/etc/agent/govpp.conf"
+              value: "/etc/vpp-agent/govpp.conf"
             - name: LOGS_CONFIG
-              value: "/etc/agent/logs.conf"
+              value: "/etc/vpp-agent/logs.conf"
             - name: HTTP_CONFIG
-              value: "/etc/agent/http.conf"
+              value: "/etc/vpp-agent/http.conf"
             - name: GRPC_CONFIG
-              value: "/etc/agent/grpc.conf"
-            - name: CONTROLLER_CONFIG
-              value: "/etc/agent/controller.conf"
-            - name: SERVICE_CONFIG
-              value: "/etc/agent/service.conf"
+              value: "/etc/vpp-agent/grpc.conf"
             - name: LINUX_IFPLUGIN_CONFIG
-              value: "/etc/agent/linux-ifplugin.conf"
+              value: "/etc/vpp-agent/linux-ifplugin.conf"
             - name: LINUX_L3PLUGIN_CONFIG
-              value: "/etc/agent/linux-l3plugin.conf"
+              value: "/etc/vpp-agent/linux-l3plugin.conf"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt
@@ -425,9 +425,9 @@ spec:
             - name: contiv-run
               mountPath: /var/run/contiv
             - name: contiv-agent-cfg
-              mountPath: /etc/agent
+              mountPath: /etc/contiv
             - name: vpp-agent-cfg
-              mountPath: /etc/agent
+              mountPath: /etc/vpp-agent
             - name: tmp
               mountPath: /tmp
             - name: core-dumps

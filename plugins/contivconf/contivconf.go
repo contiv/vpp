@@ -137,7 +137,10 @@ type ContivConf struct {
 type Deps struct {
 	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
-	GoVPP        govppmux.API
+
+	// GoVPP is not needed for contiv-init but as a plugin it has to be here
+	// to be initialized first
+	GoVPP govppmux.API
 
 	// The ContivConf plugin can be run either from contiv-init or contiv-agent:
 	//  - for contiv-init the plugin requires KV broker factory to reload
@@ -373,8 +376,8 @@ func (c *ContivConf) Init() (err error) {
 		return fmt.Errorf("failed to parse VxlanCIDR: %v", err)
 	}
 
-	// create GoVPP channel
-	if c.UnitTestDeps == nil {
+	// create GoVPP channel for contiv-agent
+	if c.ContivAgentDeps != nil && c.UnitTestDeps == nil {
 		c.govppCh, err = c.GoVPP.NewAPIChannel()
 		if err != nil {
 			return err
@@ -391,7 +394,7 @@ func (c *ContivConf) Init() (err error) {
 				if c.nodeConfigCRD == nil && c.RemoteDB == nil {
 					return errors.New("nodeConfig CRD is not available")
 				}
-				c.Log.Debug("Waiting 1sec for NodeConfig CRD to be applied...")
+				c.Log.Info("Waiting 1sec for NodeConfig CRD to be applied...")
 				time.Sleep(time.Second)
 			}
 		}
@@ -430,8 +433,9 @@ func (c *ContivConf) HandlesEvent(event controller.Event) bool {
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
 		switch ksChange.Resource {
 		case nodeconfig.Keyword:
-			// interested only in the node config for this node
-			if ksChange.Key == nodeconfig.Key(myNodeName) {
+			// interested in the node config for this node if CRD is enabled
+			if !c.config.CRDNodeConfigurationDisabled &&
+				ksChange.Key == nodeconfig.Key(myNodeName) {
 				return true
 			}
 
@@ -616,7 +620,7 @@ func (c *ContivConf) reloadNodeInterfaces() error {
 
 	// DHCP
 	c.useDHCP = false
-	if c.ipamConfig.NodeInterconnectDHCP ||	(nodeConfig != nil && nodeConfig.MainVPPInterface.UseDHCP) {
+	if c.ipamConfig.NodeInterconnectDHCP || (nodeConfig != nil && nodeConfig.MainVPPInterface.UseDHCP) {
 		c.useDHCP = true
 	}
 	if nodeConfig != nil && nodeConfig.MainVPPInterface.IP != "" {

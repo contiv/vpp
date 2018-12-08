@@ -143,6 +143,12 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 	// initialize subnets based on the configuration
 	ipamConfig := i.ContivConf.GetIPAMConfig()
 	subnets := &ipamConfig.CustomIPAMSubnets
+	if ipamConfig.ContivCIDR != nil {
+		subnets, err = dissectContivCIDR(ipamConfig)
+		if err != nil {
+			return err
+		}
+	}
 	if err := i.initializePods(subnets, nodeID); err != nil {
 		return err
 	}
@@ -369,7 +375,7 @@ func (i *IPAM) ServiceNetwork() *net.IPNet {
 func (i *IPAM) PodGatewayIP() net.IP {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
-	return newIP(i.podSubnetGatewayIP) // defensive copy
+	return newIP(i.podSubnetGatewayIP)
 }
 
 // NatLoopbackIP returns the IP address of a virtual loopback, used to route traffic

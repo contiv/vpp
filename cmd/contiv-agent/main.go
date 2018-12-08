@@ -128,7 +128,9 @@ func main() {
 	grpc.DefaultPlugin.HTTP = &rest.DefaultPlugin
 
 	// initialize Contiv plugins
-	contivConf := &contivconf.DefaultPlugin
+	contivConf := contivconf.NewPlugin(contivconf.UseDeps(func(deps *contivconf.Deps) {
+		deps.GoVPP = &govppmux.DefaultPlugin
+	}))
 
 	nodeSyncPlugin := &nodesync.DefaultPlugin
 

@@ -87,8 +87,8 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
           });
 
           this.domains.forEach(d => {
-            if (!d.node.isMaster()) {
-              d.vppPods.forEach(pod => {
+            d.vppPods.forEach(pod => {
+              if (!pod.name.includes('coredns')) {
                 const row: PodRow = {
                   name: pod.name,
                   iface: pod.tapInternalInterface,
@@ -97,8 +97,8 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
                 };
 
                 this.podsObj.push(row);
-              });
-            }
+              }
+            });
           });
 
           this.domains.forEach(d => {

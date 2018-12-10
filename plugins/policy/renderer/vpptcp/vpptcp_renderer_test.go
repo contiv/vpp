@@ -24,7 +24,6 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/sessionrules"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
@@ -33,6 +32,34 @@ import (
 )
 
 var mockSessionRules *MockSessionRules
+
+type mockIPv4Net struct {
+	podToNsIndex map[podmodel.ID]uint32
+}
+
+func newMockIPv4Net() *mockIPv4Net {
+	return &mockIPv4Net{
+		podToNsIndex: make(map[podmodel.ID]uint32),
+	}
+}
+
+func (m *mockIPv4Net) SetPodAppNsIndex(pod podmodel.ID, podNsIndex uint32) {
+	m.podToNsIndex[pod] = podNsIndex
+}
+
+func (m *mockIPv4Net) GetNsIndex(podNamespace, podName string) (nsIndex uint32, exists bool) {
+	nsIndex, exists = m.podToNsIndex[podmodel.ID{Name: podName, Namespace: podNamespace}]
+	return
+}
+
+func (m *mockIPv4Net) GetPodByAppNsIndex(nsIndex uint32) (podNamespace, podName string, exists bool) {
+	for pod, index := range m.podToNsIndex {
+		if index == nsIndex {
+			return pod.Namespace, pod.Name, true
+		}
+	}
+	return "", "", false
+}
 
 func ipNetwork(addr string) *net.IPNet {
 	if addr == "" {
@@ -77,8 +104,8 @@ func TestSingleEgressRuleSinglePod(t *testing.T) {
 	egress := []*renderer.ContivRule{rule}
 
 	// Prepare mocks.
-	contiv := NewMockContiv()
-	contiv.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
+	ipv4Net := newMockIPv4Net()
+	ipv4Net.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
 	mockSessionRules.Clear()
 	vppChan := mockSessionRules.NewVPPChan()
 	gomega.Expect(vppChan).ToNot(gomega.BeNil())
@@ -87,7 +114,7 @@ func TestSingleEgressRuleSinglePod(t *testing.T) {
 	vppTCPRenderer := &Renderer{
 		Deps: Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			GoVPPChan:        vppChan,
 			GoVPPChanBufSize: 20,
 		},
@@ -132,8 +159,8 @@ func TestSingleIngressRuleSinglePod(t *testing.T) {
 	egress := []*renderer.ContivRule{}
 
 	// Prepare mocks.
-	contiv := NewMockContiv()
-	contiv.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
+	ipv4Net := newMockIPv4Net()
+	ipv4Net.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
 	mockSessionRules.Clear()
 	vppChan := mockSessionRules.NewVPPChan()
 	gomega.Expect(vppChan).ToNot(gomega.BeNil())
@@ -142,7 +169,7 @@ func TestSingleIngressRuleSinglePod(t *testing.T) {
 	vppTCPRenderer := &Renderer{
 		Deps: Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			GoVPPChan:        vppChan,
 			GoVPPChanBufSize: 2,
 		},
@@ -212,8 +239,8 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 	egress := []*renderer.ContivRule{egRule1, egRule2}
 
 	// Prepare mocks.
-	contiv := NewMockContiv()
-	contiv.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
+	ipv4Net := newMockIPv4Net()
+	ipv4Net.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
 	mockSessionRules.Clear()
 	vppChan := mockSessionRules.NewVPPChan()
 	gomega.Expect(vppChan).ToNot(gomega.BeNil())
@@ -222,7 +249,7 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 	vppTCPRenderer := &Renderer{
 		Deps: Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			GoVPPChan:        vppChan,
 			GoVPPChanBufSize: 5,
 		},
@@ -331,9 +358,9 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 	egressPod2 := []*renderer.ContivRule{egRule2}
 
 	// Prepare mocks.
-	contiv := NewMockContiv()
-	contiv.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
-	contiv.SetPodAppNsIndex(pod2, pod2VPPNsIndex)
+	ipv4Net := newMockIPv4Net()
+	ipv4Net.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
+	ipv4Net.SetPodAppNsIndex(pod2, pod2VPPNsIndex)
 	mockSessionRules.Clear()
 	vppChan := mockSessionRules.NewVPPChan()
 	gomega.Expect(vppChan).ToNot(gomega.BeNil())
@@ -342,7 +369,7 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 	vppTCPRenderer := &Renderer{
 		Deps: Deps{
 			Log:       logger,
-			Contiv:    contiv,
+			IPv4Net:   ipv4Net,
 			GoVPPChan: vppChan,
 		},
 	}
@@ -464,9 +491,9 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 	egressPod2 := []*renderer.ContivRule{egRule2}
 
 	// Prepare mocks.
-	contiv := NewMockContiv()
-	contiv.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
-	contiv.SetPodAppNsIndex(pod2, pod2VPPNsIndex)
+	ipv4Net := newMockIPv4Net()
+	ipv4Net.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
+	ipv4Net.SetPodAppNsIndex(pod2, pod2VPPNsIndex)
 	mockSessionRules.Clear()
 	vppChan := mockSessionRules.NewVPPChan()
 	gomega.Expect(vppChan).ToNot(gomega.BeNil())
@@ -475,7 +502,7 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 	vppTCPRenderer := &Renderer{
 		Deps: Deps{
 			Log:              logger,
-			Contiv:           contiv,
+			IPv4Net:          ipv4Net,
 			GoVPPChan:        vppChan,
 			GoVPPChanBufSize: 12,
 		},
@@ -523,7 +550,7 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 	vppTCPRenderer = &Renderer{
 		Deps: Deps{
 			Log:       logger,
-			Contiv:    contiv,
+			IPv4Net:   ipv4Net,
 			GoVPPChan: vppChan,
 		},
 	}
@@ -593,8 +620,8 @@ func TestSinglePodWithResync(t *testing.T) {
 	egress := []*renderer.ContivRule{egRule1}
 
 	// Prepare mocks.
-	contiv := NewMockContiv()
-	contiv.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
+	ipv4Net := newMockIPv4Net()
+	ipv4Net.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
 	mockSessionRules.Clear()
 	vppChan := mockSessionRules.NewVPPChan()
 	gomega.Expect(vppChan).ToNot(gomega.BeNil())
@@ -603,7 +630,7 @@ func TestSinglePodWithResync(t *testing.T) {
 	vppTCPRenderer := &Renderer{
 		Deps: Deps{
 			Log:       logger,
-			Contiv:    contiv,
+			IPv4Net:   ipv4Net,
 			GoVPPChan: vppChan,
 		},
 	}
@@ -625,7 +652,7 @@ func TestSinglePodWithResync(t *testing.T) {
 	vppTCPRenderer = &Renderer{
 		Deps: Deps{
 			Log:       logger,
-			Contiv:    contiv,
+			IPv4Net:   ipv4Net,
 			GoVPPChan: vppChan,
 		},
 	}
@@ -647,7 +674,7 @@ func TestSinglePodWithResync(t *testing.T) {
 	vppTCPRenderer = &Renderer{
 		Deps: Deps{
 			Log:       logger,
-			Contiv:    contiv,
+			IPv4Net:   ipv4Net,
 			GoVPPChan: vppChan,
 		},
 	}

@@ -23,7 +23,6 @@ import (
 	govpp "git.fd.io/govpp.git/api"
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
@@ -43,7 +42,7 @@ type Renderer struct {
 type Deps struct {
 	Log              logging.Logger
 	LogFactory       logging.LoggerFactory /* optional */
-	Contiv           contiv.API            /* for GetNsIndex() */
+	IPv4Net          vpptcprule.IPv4Net
 	GoVPPChan        govpp.Channel
 	GoVPPChanBufSize int
 }
@@ -109,7 +108,7 @@ func (art *RendererTxn) Commit() error {
 		if err != nil {
 			return err
 		}
-		tables := vpptcprule.ImportSessionRules(rules, art.renderer.Contiv, art.Log)
+		tables := vpptcprule.ImportSessionRules(rules, art.renderer.IPv4Net, art.Log)
 		err = art.renderer.cache.Resync(tables)
 		if err != nil {
 			return err
@@ -158,12 +157,12 @@ func (art *RendererTxn) Commit() error {
 
 		// -> export new session rules
 		newSessionRules := vpptcprule.ExportSessionRules(
-			newContivRules, &pod, podCfg.PodIP.IP, art.renderer.Contiv, art.Log)
+			newContivRules, &pod, podCfg.PodIP.IP, art.renderer.IPv4Net, art.Log)
 		added = append(added, newSessionRules...)
 
 		// -> export removed session rules.
 		removedSessionRules := vpptcprule.ExportSessionRules(
-			removedContivRules, &pod, podCfg.PodIP.IP, art.renderer.Contiv, art.Log)
+			removedContivRules, &pod, podCfg.PodIP.IP, art.renderer.IPv4Net, art.Log)
 		removed = append(removed, removedSessionRules...)
 	}
 
@@ -171,9 +170,9 @@ func (art *RendererTxn) Commit() error {
 	origGlobalTable := art.renderer.cache.GetGlobalTable()
 	newGlobalTable := art.cacheTxn.GetGlobalTable()
 	removedContivRules, newContivRules := origGlobalTable.DiffRules(newGlobalTable)
-	newSessionRules := vpptcprule.ExportSessionRules(newContivRules, nil, nil, art.renderer.Contiv, art.Log)
+	newSessionRules := vpptcprule.ExportSessionRules(newContivRules, nil, nil, art.renderer.IPv4Net, art.Log)
 	added = append(added, newSessionRules...)
-	removedSessionRules := vpptcprule.ExportSessionRules(removedContivRules, nil, nil, art.renderer.Contiv, art.Log)
+	removedSessionRules := vpptcprule.ExportSessionRules(removedContivRules, nil, nil, art.renderer.IPv4Net, art.Log)
 	removed = append(removed, removedSessionRules...)
 
 	if len(added) == 0 && len(removed) == 0 {

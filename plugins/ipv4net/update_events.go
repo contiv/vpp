@@ -16,32 +16,18 @@ package ipv4net
 
 import (
 	"fmt"
+	"net"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 )
 
 // Update is called for:
-//   - KubeStateChange for CRD node-specific config of this node
 //   - AddPod and DeletePod
 //   - NodeUpdate for other nodes
 //   - Shutdown event
 func (n *IPv4Net) Update(event controller.Event, txn controller.UpdateOperations) (change string, err error) {
-	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
-		if ksChange.Resource == nodeconfig.Keyword {
-			followUpEv := &NodeConfigChange{}
-			if ksChange.NewValue != nil {
-				followUpEv.NodeConfig = nodeConfigFromProto(
-					ksChange.NewValue.(*nodeconfig.NodeConfig))
-			}
-			err := n.EventLoop.PushEvent(followUpEv)
-			if err != nil {
-				return "", err
-			}
-		}
-	}
 	if addPod, isAddPod := event.(*podmanager.AddPod); isAddPod {
 		return n.addPod(addPod, txn)
 	}
@@ -65,7 +51,7 @@ func (n *IPv4Net) Update(event controller.Event, txn controller.UpdateOperations
 func (n *IPv4Net) Revert(event controller.Event) error {
 	addPod := event.(*podmanager.AddPod)
 	pod := n.PodManager.GetLocalPods()[addPod.Pod]
-	n.ipam.ReleasePodIP(pod.ID)
+	n.IPAM.ReleasePodIP(pod.ID)
 
 	vppIface, _ := n.podInterfaceName(pod)
 	n.vppIfaceToPodMutex.Lock()
@@ -80,7 +66,7 @@ func (n *IPv4Net) addPod(event *podmanager.AddPod, txn controller.UpdateOperatio
 
 	// 1. try to allocate an IP address for this pod
 
-	_, err = n.ipam.AllocatePodIP(pod.ID)
+	_, err = n.IPAM.AllocatePodIP(pod.ID)
 	if err != nil {
 		err = fmt.Errorf("failed to allocate new IP address for pod %v: %v", pod.ID, err)
 		n.Log.Error(err)
@@ -115,6 +101,24 @@ func (n *IPv4Net) addPod(event *podmanager.AddPod, txn controller.UpdateOperatio
 	n.vppIfaceToPod[vppIface] = pod.ID
 	n.vppIfaceToPodMutex.Unlock()
 
+	// 5. fill event with the attributes of the configured pod connectivity for the CNI reply
+
+	event.Interfaces = append(event.Interfaces, podmanager.PodInterface{
+		HostName: podInterfaceHostName,
+		IPAddresses: []*podmanager.IPWithGateway{
+			{
+				Version: podmanager.IPv4,
+				Address: n.IPAM.GetPodIP(pod.ID),
+				Gateway: n.IPAM.PodGatewayIP(),
+			},
+		},
+	})
+	_, anyDstNet, _ := net.ParseCIDR("0.0.0.0/0")
+	event.Routes = append(event.Routes, podmanager.Route{
+		Network: anyDstNet,
+		Gateway: n.IPAM.PodGatewayIP(),
+	})
+
 	return "configure IPv4 connectivity", nil
 }
 
@@ -122,6 +126,10 @@ func (n *IPv4Net) addPod(event *podmanager.AddPod, txn controller.UpdateOperatio
 func (n *IPv4Net) deletePod(event *podmanager.DeletePod, txn controller.UpdateOperations) (change string, err error) {
 	pod, podExists := n.PodManager.GetLocalPods()[event.Pod]
 	if !podExists {
+		return "", nil
+	}
+	ip := n.IPAM.GetPodIP(pod.ID)
+	if ip == nil {
 		return "", nil
 	}
 
@@ -139,7 +147,7 @@ func (n *IPv4Net) deletePod(event *podmanager.DeletePod, txn controller.UpdateOp
 
 	// 3. release IP address of the POD
 
-	err = n.ipam.ReleasePodIP(pod.ID)
+	err = n.IPAM.ReleasePodIP(pod.ID)
 	if err != nil {
 		return "", err
 	}
@@ -214,7 +222,7 @@ func (n *IPv4Net) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn co
 	}
 
 	// update BD if node was newly connected or disconnected
-	if !n.config.UseL2Interconnect &&
+	if !n.ContivConf.GetRoutingConfig().UseL2Interconnect &&
 		nodeHasIPAddress(nodeUpdate.PrevState) != nodeHasIPAddress(nodeUpdate.NewState) {
 
 		key, bd := n.vxlanBridgeDomain()
@@ -228,7 +236,7 @@ func (n *IPv4Net) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn co
 // cleanupVswitchConnectivity cleans up base vSwitch VPP connectivity
 // configuration in the host IP stack.
 func (n *IPv4Net) cleanupVswitchConnectivity(txn controller.UpdateOperations) (change string, err error) {
-	if n.config.UseTAPInterfaces {
+	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		// everything configured in the host will disappear automatically
 		return
 	}

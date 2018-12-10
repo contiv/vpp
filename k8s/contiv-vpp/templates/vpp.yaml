@@ -8,9 +8,9 @@
 #  Configuration
 ###########################################################
 
-# This config map contains contiv-agent configuration. The most important part is the IPAMConfig,
+# This config map contains contiv-agent configuration. The most important part is the ipamConfig,
 # which may be updated in case the default IPAM settings do not match your needs.
-# NodeConfig may be used in case your nodes have more than 1 VPP interface. In that case, one
+# nodeConfig may be used in case your nodes have more than 1 VPP interface. In that case, one
 # of them needs to be marked as the main inter-node interface, and the rest of them can be
 # configured with any IP addresses (the IPs cannot conflict with the main IPAM config).
 apiVersion: v1
@@ -19,84 +19,104 @@ metadata:
   name: contiv-agent-cfg
   namespace: kube-system
 data:
-  contiv.yaml: |-
-    UseTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
-    TAPInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
+  contiv.conf: |-
+    useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
+    tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}
-    TAPv2RxRingSize: {{ .Values.contiv.tapv2RxRingSize }}
-    TAPv2TxRingSize: {{ .Values.contiv.tapv2TxRingSize }}
+    tapv2RxRingSize: {{ .Values.contiv.tapv2RxRingSize }}
+    tapv2TxRingSize: {{ .Values.contiv.tapv2TxRingSize }}
     {{- end }}
+    tcpChecksumOffloadDisabled: true
     {{- if .Values.contiv.stealInterface }}
-    StealInterface: {{ .Values.contiv.stealInterface }}
+    stealInterface: {{ .Values.contiv.stealInterface }}
     {{- end }}
     {{- if .Values.contiv.stealFirstNIC }}
-    StealFirstNIC: True
+    stealFirstNIC: True
     {{- end }}
-    NatExternalTraffic: {{ .Values.contiv.natExternalTraffic }}
-    MTUSize: {{ .Values.contiv.mtuSize }}
-    {{- if .Values.contiv.cleanupIdleNATSessions }}
-    CleanupIdleNATSessions: True
-    TCPNATSessionTimeout: {{ .Values.contiv.tcpNATSessionTimeout }}
-    OtherNATSessionTimeout: {{ .Values.contiv.otherNATSessionTimeout }}
-    {{- end }}
-    ScanIPNeighbors: {{ .Values.contiv.scanIPNeighbors }}
-    IPNeighborScanInterval: {{ .Values.contiv.ipNeighborScanInterval }}
-    IPNeighborStaleThreshold: {{ .Values.contiv.ipNeighborStaleThreshold }}
-    {{- if .Values.contiv.serviceLocalEndpointWeight }}
-    ServiceLocalEndpointWeight: {{ .Values.contiv.serviceLocalEndpointWeight }}
-    {{- end }}
-    DisableNATVirtualReassembly: {{ .Values.contiv.disableNATVirtualReassembly }}
-    EnablePacketTrace: {{ .Values.contiv.enablePacketTrace }}
-    RouteServiceCIDRToVPP: {{ .Values.contiv.routeServiceCIDRToVPP }}
-    CRDNodeConfigurationDisabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
-    IPAMConfig:
-      NodeInterconnectDHCP: {{ .Values.contiv.ipamConfig.nodeInterconnectDHCP }}
+    natExternalTraffic: {{ .Values.contiv.natExternalTraffic }}
+    mtuSize: {{ .Values.contiv.mtuSize }}
+    scanIPNeighbors: {{ .Values.contiv.scanIPNeighbors }}
+    ipNeighborScanInterval: {{ .Values.contiv.ipNeighborScanInterval }}
+    ipNeighborStaleThreshold: {{ .Values.contiv.ipNeighborStaleThreshold }}
+    enablePacketTrace: {{ .Values.contiv.enablePacketTrace }}
+    routeServiceCIDRToVPP: {{ .Values.contiv.routeServiceCIDRToVPP }}
+    crdNodeConfigurationDisabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
+    ipamConfig:
+      {{- if .Values.contiv.ipamConfig.contivCIDR }}
+      contivCIDR: {{ .Values.contiv.ipamConfig.contivCIDR }}
+      {{ else }}
+      nodeInterconnectDHCP: {{ .Values.contiv.ipamConfig.nodeInterconnectDHCP }}
       {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
-      NodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
+      nodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
       {{- end }}
       {{- if .Values.contiv.ipamConfig.serviceCIDR }}
-      ServiceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
+      serviceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
       {{- end }}
-      {{- if .Values.contiv.ipamConfig.contivCIDR }}
-      ContivCIDR: {{ .Values.contiv.ipamConfig.contivCIDR }}
-      {{ else }}
-      PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
-      PodSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.podSubnetOneNodePrefixLen }}
-      PodVPPSubnetCIDR: {{ .Values.contiv.ipamConfig.podVPPSubnetCIDR }}
-      VPPHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
-      VPPHostSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.vppHostSubnetOneNodePrefixLen }}
-      VxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}
+      podSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
+      podSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.podSubnetOneNodePrefixLen }}
+      podVPPSubnetCIDR: {{ .Values.contiv.ipamConfig.podVPPSubnetCIDR }}
+      vppHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
+      vppHostSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.vppHostSubnetOneNodePrefixLen }}
+      vxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}
       {{- end }}
     {{- if .Values.contiv.nodeConfig }}
-    NodeConfig:
+    nodeConfig:
     {{- range .Values.contiv.nodeConfig }}
-    - NodeName: {{ .name }}
-      MainVppInterface:
-        InterfaceName: {{ .mainInterface.interfaceName }}
+    - nodeName: {{ .name }}
+      mainVPPInterface:
+        interfaceName: {{ .mainInterface.interfaceName }}
         {{- if .mainInterface.useDHCP }}
-        UseDHCP: {{ .mainInterface.useDHCP }}
+        useDHCP: {{ .mainInterface.useDHCP }}
         {{- end -}}
         {{- if .mainInterface.ip }}
-        IP: {{ .mainInterface.ip }}
+        ip: {{ .mainInterface.ip }}
         {{- end -}}
       {{- if .natExternalTraffic }}
-      NatExternalTraffic: {{ .natExternalTraffic }}
+      natExternalTraffic: {{ .natExternalTraffic }}
       {{- end }}
       {{- if .gateway }}
-      Gateway: {{ .gateway }}
+      gateway: {{ .gateway }}
       {{- end -}}
       {{- if .stealInterface }}
-      StealInterface: {{ .stealInterface }}
+      stealInterface: {{ .stealInterface }}
       {{- end -}}
       {{- if .otherInterfaces }}
-      OtherVPPInterfaces:
+      otherVPPInterfaces:
       {{- range $iface := .otherInterfaces }}
-        - InterfaceName: {{ $iface.interfaceName }}
-          IP: {{ $iface.ip }}
+        - interfaceName: {{ $iface.interfaceName }}
+          ip: {{ $iface.ip }}
+      {{- end }}
       {{- end }}
     {{- end }}
     {{- end }}
+  controller.conf: |
+    delayLocalResync: {{ .Values.controller.delayLocalResync | int64 }}
+    enablePeriodicHealing: {{ .Values.controller.enablePeriodicHealing }}
+    periodicHealingInterval: {{ .Values.controller.periodicHealingInterval | int64 }}
+  service.conf: |
+    {{- if .Values.contiv.cleanupIdleNATSessions }}
+    cleanupIdleNATSessions: true
+    tcpNATSessionTimeout: {{ .Values.contiv.tcpNATSessionTimeout }}
+    otherNATSessionTimeout: {{ .Values.contiv.otherNATSessionTimeout }}
     {{- end }}
+    {{- if .Values.contiv.serviceLocalEndpointWeight }}
+    serviceLocalEndpointWeight: {{ .Values.contiv.serviceLocalEndpointWeight }}
+    {{- end }}
+    disableNATVirtualReassembly: {{ .Values.contiv.disableNATVirtualReassembly }}
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vpp-agent-cfg
+  namespace: kube-system
+data:
+  govpp.conf: |
+    health-check-probe-interval: {{ .Values.govpp.healthCheckProbeInterval | int64 }}
+    health-check-reply-timeout: {{ .Values.govpp.healthCheckReplyTimeout | int64 }}
+    health-check-threshold: {{ .Values.govpp.healthCheckThreshold | int64 }}
+    reply-timeout: {{ .Values.govpp.replyTimeout | int64 }}
   logs.conf: |
     default-level: {{ .Values.logs.defaultLevel }}
     loggers:
@@ -130,20 +150,10 @@ data:
   telemetry.conf: |
     polling-interval: {{ .Values.telemetry.pollingInterval | int64 }}
     disabled: {{ .Values.telemetry.disabled }}
-
----
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: govpp-cfg
-  namespace: kube-system
-data:
-  govpp.conf: |
-    health-check-probe-interval: {{ .Values.govpp.healthCheckProbeInterval | int64 }}
-    health-check-reply-timeout: {{ .Values.govpp.healthCheckReplyTimeout | int64 }}
-    health-check-threshold: {{ .Values.govpp.healthCheckThreshold | int64 }}
-    reply-timeout: {{ .Values.govpp.replyTimeout | int64 }}
+  linux-ifplugin.conf: |
+    dump-go-routines-count: 5
+  linux-l3plugin.conf: |
+    dump-go-routines-count: 5
 
 ---
 
@@ -421,6 +431,8 @@ data:
     {{- end }}
     dial-timeout: 10000000000
     auto-compact: 600000000000
+    allow-delayed-start: true
+    reconnect-interval: 2000000000
     endpoints:
       - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
 
@@ -662,16 +674,34 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: CONTIV_CONFIG
+              value: "/etc/contiv/contiv.conf"
+            - name: CONTROLLER_CONFIG
+              value: "/etc/contiv/controller.conf"
+            - name: SERVICE_CONFIG
+              value: "/etc/contiv/service.conf"
             - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
             - name: BOLT_CONFIG
-              value: "/etc/agent/bolt.conf"
+              value: "/etc/vpp-agent/bolt.conf"
             {{- if .Values.bolt.debug }}
             - name: DEBUG_BOLT_CLIENT
               value: "true"
             {{- end}}
             - name: TELEMETRY_CONFIG
-              value: "/etc/agent/telemetry.conf"
+              value: "/etc/vpp-agent/telemetry.conf"
+            - name: GOVPP_CONFIG
+              value: "/etc/vpp-agent/govpp.conf"
+            - name: LOGS_CONFIG
+              value: "/etc/vpp-agent/logs.conf"
+            - name: HTTP_CONFIG
+              value: "/etc/vpp-agent/http.conf"
+            - name: GRPC_CONFIG
+              value: "/etc/vpp-agent/grpc.conf"
+            - name: LINUX_IFPLUGIN_CONFIG
+              value: "/etc/vpp-agent/linux-ifplugin.conf"
+            - name: LINUX_L3PLUGIN_CONFIG
+              value: "/etc/vpp-agent/linux-l3plugin.conf"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt
@@ -697,10 +727,10 @@ spec:
               mountPath: /run/vpp
             - name: contiv-run
               mountPath: /var/run/contiv
-            - name: contiv-plugin-cfg
-              mountPath: /etc/agent
-            - name: govpp-plugin-cfg
-              mountPath: /etc/govpp
+            - name: contiv-agent-cfg
+              mountPath: /etc/contiv
+            - name: vpp-agent-cfg
+              mountPath: /etc/vpp-agent
             - name: tmp
               mountPath: /tmp
             {{- if .Values.vswitch.enableCoreDumps }}
@@ -802,14 +832,14 @@ spec:
         - name: contiv-run
           hostPath:
             path: /var/run/contiv
-        # Used to configure contiv plugin.
-        - name: contiv-plugin-cfg
+        # Used to configure contiv agent.
+        - name: contiv-agent-cfg
           configMap:
             name: contiv-agent-cfg
-        # Used to configure govpp plugin.
-        - name: govpp-plugin-cfg
+        # Used to configure vpp agent.
+        - name: vpp-agent-cfg
           configMap:
-            name: govpp-cfg
+            name: vpp-agent-cfg
         {{- if .Values.vswitch.enableCoreDumps }}
         # Used for vswitch core dumps
         - name: core-dumps
@@ -827,6 +857,7 @@ spec:
         - name: docker-socket
           hostPath:
             path: /var/run/docker.sock
+
 ---
 
 # This installs the contiv-ksr (Kubernetes State Reflector) on the master node in a Kubernetes cluster.

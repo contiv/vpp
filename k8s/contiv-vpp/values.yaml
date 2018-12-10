@@ -53,6 +53,12 @@ contiv:
 logs:
   defaultLevel: debug
 
+controller:
+  delayLocalResync: 5000000000
+  enablePeriodicHealing: false
+  periodicHealingInterval: 30000000000
+
+
 # ETCD server to be used by Contiv
 etcd:
   image:

@@ -17,6 +17,7 @@
 package nodesync
 
 import (
+	"github.com/contiv/vpp/plugins/contivconf"
 	"github.com/contiv/vpp/plugins/nodesync"
 )
 
@@ -45,7 +46,7 @@ func (m *MockNodeSync) GetNodeID() uint32 {
 }
 
 // PublishNodeIPs does nothing here.
-func (m *MockNodeSync) PublishNodeIPs(addresses []*nodesync.IPWithNetwork, version nodesync.IPVersion) error {
+func (m *MockNodeSync) PublishNodeIPs(addresses contivconf.IPsWithNetworks, version contivconf.IPVersion) error {
 	return nil
 }
 

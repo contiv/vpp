@@ -12,26 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package contivconf
 
 import (
+	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
-// DefaultPlugin is a default instance of IPv4Net.
+// DefaultPlugin is a default instance of ContivConf.
 var DefaultPlugin = *NewPlugin()
 
-// NewPlugin creates a new Plugin with the provides Options
-func NewPlugin(opts ...Option) *IPv4Net {
-	p := &IPv4Net{}
+// NewPlugin creates a new Plugin with the provides Options.
+func NewPlugin(opts ...Option) *ContivConf {
+	p := &ContivConf{}
 
-	p.PluginName = "ipv4net"
+	p.PluginName = "contivconf"
 	p.ServiceLabel = &servicelabel.DefaultPlugin
-	p.GoVPP = &govppmux.DefaultPlugin
-	p.HTTPHandlers = &rest.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)
@@ -40,15 +37,20 @@ func NewPlugin(opts ...Option) *IPv4Net {
 	if p.Deps.Log == nil {
 		p.Deps.Log = logging.ForPlugin(p.String())
 	}
+	if p.Cfg == nil {
+		p.Cfg = config.ForPlugin(p.String(),
+			config.WithCustomizedFlag(config.FlagName("contiv"), "contiv.conf"))
+	}
+
 	return p
 }
 
 // Option is a function that acts on a Plugin to inject Dependencies or configuration
-type Option func(*IPv4Net)
+type Option func(conf *ContivConf)
 
 // UseDeps returns Option that can inject custom dependencies.
 func UseDeps(cb func(*Deps)) Option {
-	return func(p *IPv4Net) {
+	return func(p *ContivConf) {
 		cb(&p.Deps)
 	}
 }

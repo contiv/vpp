@@ -18,8 +18,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
 
 	"git.fd.io/govpp.git/api"
+	"github.com/vishvananda/netlink"
 
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stats"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
@@ -29,6 +31,33 @@ const (
 	vmxnet3KernelDriver    = "vmxnet3"  // name of the kernel driver for vmxnet3 interfaces
 	vmxnet3InterfacePrefix = "vmxnet3-" // prefix matching all vmxnet3 interfaces on VPP
 )
+
+// getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
+// network stack.
+func (n *IPv4Net) getHostLinkIPs() (hostIPs []net.IP, err error) {
+	links, err := netlink.LinkList()
+	if err != nil {
+		n.Log.Error("Unable to list host links:", err)
+		return hostIPs, err
+	}
+
+	for _, l := range links {
+		if !strings.HasPrefix(l.Attrs().Name, "lo") && !strings.HasPrefix(l.Attrs().Name, "docker") &&
+			!strings.HasPrefix(l.Attrs().Name, "virbr") && !strings.HasPrefix(l.Attrs().Name, "vpp") {
+			// not a virtual interface, list its IP addresses
+			addrList, err := netlink.AddrList(l, netlink.FAMILY_V4)
+			if err != nil {
+				n.Log.Error("Unable to list link IPs:", err)
+				return hostIPs, err
+			}
+			// return all IPs
+			for _, addr := range addrList {
+				hostIPs = append(hostIPs, addr.IP)
+			}
+		}
+	}
+	return hostIPs, nil
+}
 
 // executeDebugCLI executes VPP CLI command
 func (n *IPv4Net) executeDebugCLI(cmd string) (string, error) {

@@ -168,21 +168,21 @@ type Deps struct {
 // Config holds the Controller configuration.
 type Config struct {
 	// retry
-	EnableRetry           bool          `json:"enable-retry"`
-	DelayRetry            time.Duration `json:"delay-retry"`
-	EnableExpBackoffRetry bool          `json:"enable-exp-backoff-retry"`
+	EnableRetry           bool          `json:"enableRetry"`
+	DelayRetry            time.Duration `json:"delayRetry"`
+	EnableExpBackoffRetry bool          `json:"enableExpBackoffRetry"`
 
 	// startup resync
-	DelayLocalResync      time.Duration `json:"delay-local-resync"`
-	StartupResyncDeadline time.Duration `json:"startup-resync-deadline"`
+	DelayLocalResync      time.Duration `json:"delayLocalResync"`
+	StartupResyncDeadline time.Duration `json:"startupResyncDeadline"`
 
 	// healing
-	EnablePeriodicHealing   bool          `json:"enable-periodic-healing"`
-	PeriodicHealingInterval time.Duration `json:"periodic-healing-interval"`
-	DelayAfterErrorHealing  time.Duration `json:"delay-after-error-healing"`
+	EnablePeriodicHealing   bool          `json:"enablePeriodicHealing"`
+	PeriodicHealingInterval time.Duration `json:"periodicHealingInterval"`
+	DelayAfterErrorHealing  time.Duration `json:"delayAfterErrorHealing"`
 
 	// remote DB status
-	RemoteDBProbingInterval time.Duration `json:"remotedb-probing-interval"`
+	RemoteDBProbingInterval time.Duration `json:"remoteDBProbingInterval"`
 }
 
 // EventRecord is a record of a processed event, added into the history of events,
@@ -495,10 +495,18 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 
 		// update Controller's view of DB
 		if ksChange, isKSChange := event.(*api.KubeStateChange); isKSChange {
-			c.kubeStateData[ksChange.Resource][ksChange.Key] = ksChange.NewValue
+			if ksChange.NewValue == nil {
+				delete(c.kubeStateData[ksChange.Resource], ksChange.Key)
+			} else {
+				c.kubeStateData[ksChange.Resource][ksChange.Key] = ksChange.NewValue
+			}
 		}
 		if extChangeEv, isExtChangeEv := event.(*api.ExternalConfigChange); isExtChangeEv {
-			c.externalConfig[extChangeEv.Key] = extChangeEv.Value
+			if extChangeEv.Value == nil {
+				delete(c.externalConfig, extChangeEv.Key)
+			} else {
+				c.externalConfig[extChangeEv.Key] = extChangeEv.Value
+			}
 		}
 	}
 

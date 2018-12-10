@@ -22,17 +22,19 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"sync"
+
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/servicelabel"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ksr"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/nodesync/vppnode"
-	"github.com/gogo/protobuf/proto"
-	"sync"
 )
 
 const (
@@ -117,7 +119,7 @@ func (ns *NodeSync) GetNodeID() uint32 {
 // - only if something has really changed an update will be sent.
 // The method should be called only from within the main event loop (not thread
 // safe) and not before the startup resync.
-func (ns *NodeSync) PublishNodeIPs(addresses []*IPWithNetwork, version IPVersion) error {
+func (ns *NodeSync) PublishNodeIPs(addresses contivconf.IPsWithNetworks, version contivconf.IPVersion) error {
 	// do not publish if db is not connected
 	dbIsConnected := false
 	ns.DB.OnConnect(func() error {
@@ -129,15 +131,15 @@ func (ns *NodeSync) PublishNodeIPs(addresses []*IPWithNetwork, version IPVersion
 	}
 
 	// build the list of addresses after the update
-	var newAddrs []*IPWithNetwork
+	var newAddrs contivconf.IPsWithNetworks
 
 	// keep addresses of the other IP version intact
 	for _, addr := range ns.thisNode.VppIPAddresses {
-		var addrVersion IPVersion
+		var addrVersion contivconf.IPVersion
 		if addr.Address.To4() != nil {
-			addrVersion = IPv4
+			addrVersion = contivconf.IPv4
 		} else {
-			addrVersion = IPv6
+			addrVersion = contivconf.IPv6
 		}
 		if addrVersion != version {
 			newAddrs = append(newAddrs, addr)
@@ -286,14 +288,14 @@ func (ns *NodeSync) nodeMgmtAddresses(nodeProto proto.Message) (addresses []net.
 }
 
 // nodeVPPAddresses returns a list of node IP addresses on the VPP side.
-func (ns *NodeSync) nodeVPPAddresses(vppNode *vppnode.VppNode) (addresses []*IPWithNetwork) {
+func (ns *NodeSync) nodeVPPAddresses(vppNode *vppnode.VppNode) (addresses contivconf.IPsWithNetworks) {
 	var err error
 	vppIPs := append(vppNode.IpAddresses, vppNode.IpAddress) // backward compatibility
 	for _, vppIPStr := range vppIPs {
 		if vppIPStr == "" {
 			continue
 		}
-		vppIP := &IPWithNetwork{}
+		vppIP := &contivconf.IPWithNetwork{}
 		vppIP.Address, vppIP.Network, err = net.ParseCIDR(vppIPStr)
 		if err != nil {
 			ns.Log.Warnf("Failed to parse IP address '%s' of the node '%s': %v",
@@ -457,11 +459,17 @@ func (ns *NodeSync) Update(event controller.Event, txn controller.UpdateOperatio
 			node.ID = vppNode.Id
 			node.VppIPAddresses = ns.nodeVPPAddresses(vppNode)
 		}
-		ns.EventLoop.PushEvent(&NodeUpdate{
+		ev := &NodeUpdate{
 			NodeName:  nodeName,
 			PrevState: prev,
 			NewState:  node,
-		})
+		}
+		// do not include prevState if it doesn't contain
+		// allocated node.ID
+		if ev.PrevState != nil && ev.PrevState.ID == 0 {
+			ev.PrevState = nil
+		}
+		ns.EventLoop.PushEvent(ev)
 	}
 	return "", nil
 }
@@ -525,7 +533,7 @@ func equalAddresses(addrs1, addrs2 []net.IP) bool {
 }
 
 // equalAddrsWithNetworks compares two slices of IP addresses with networks.
-func equalAddrsWithNetworks(addrs1, addrs2 []*IPWithNetwork) bool {
+func equalAddrsWithNetworks(addrs1, addrs2 contivconf.IPsWithNetworks) bool {
 	if len(addrs1) != len(addrs2) {
 		return false
 	}

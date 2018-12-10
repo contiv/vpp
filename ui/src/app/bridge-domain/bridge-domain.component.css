@@ -41,10 +41,6 @@ clr-dropdown.spClosed {
   background-color: #17242b;
 }
 
-#bd-btn-group.spOpened {
-  right: 520px;
-}
-
 .table-wrap {
   position: absolute;
   top: 150px;

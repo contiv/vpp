@@ -123,7 +123,7 @@ export class KubernetesComponent implements OnInit, OnDestroy {
     this.namespaces = [];
     this.layerTitle = 'K8s Nodes';
     this.layerType = 'k8s-1';
-    this.isSidepanelOpen = true;
+    this.isSidepanelOpen = false;
     this.activeLayers = [true, false, false];
     this.highlightedNamespace = [false, false, false];
   }

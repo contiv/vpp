@@ -83,10 +83,9 @@ type internalState struct {
 	watchingDHCP bool // true if dhcpIndex is being watched
 	useDHCP      bool // whether DHCP is disabled by the latest config (can be changed via CRD)
 
-	// this node's main IP address and the default gateway
+	// this node's main IP address
 	nodeIP    net.IP
 	nodeIPNet *net.IPNet
-	defaultGw net.IP
 
 	// IP addresses of this node present in the host network namespace (Linux)
 	hostIPs []net.IP

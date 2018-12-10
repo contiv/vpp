@@ -480,7 +480,7 @@ func (c *ContivConf) Resync(event controller.Event, kubeStateData controller.Kub
 			if nodeConfig != nil && nodeConfig.StealInterface != "" {
 				c.stnInterface = nodeConfig.StealInterface
 			}
-			c.stnIPAddresses, c.stnGW, c.stnRoutes, c.stnPCIAddress, c.stnKernelDriver, err = c.getSTNConfig(c.stnInterface)
+			err = c.loadSTNHostConfig(c.stnInterface)
 			if err != nil {
 				return controller.NewFatalError(err)
 			}
@@ -829,10 +829,9 @@ func (c *ContivConf) dumpDPDKInterfaces() (ifaces []string, err error) {
 	return ifaces, nil
 }
 
-// getSTNConfig returns IP addresses and routes associated with the main
-// interface before it was stolen from the host stack.
-func (c *ContivConf) getSTNConfig(ifName string) (
-	ipNets IPsWithNetworks, gw net.IP, routes []*stn_grpc.STNReply_Route, pciAddr string, kernelDriver string, err error) {
+// loadSTNHostConfig loads IP addresses and routes associated with the main interface
+// before it was stolen from the host stack.
+func (c *ContivConf) loadSTNHostConfig(ifName string) error {
 	if ifName == "" {
 		c.Log.Debug("Getting STN info for the first stolen interface")
 	} else {
@@ -843,7 +842,7 @@ func (c *ContivConf) getSTNConfig(ifName string) (
 	reply, err := c.requestSTNInfoClb(ifName)
 	if err != nil {
 		c.Log.Errorf("Error by executing STN GRPC: %v", err)
-		return
+		return err
 	}
 	c.Log.Debugf("STN GRPC reply: %v", reply)
 
@@ -853,37 +852,37 @@ func (c *ContivConf) getSTNConfig(ifName string) (
 		ipNet.Address, ipNet.Network, err = net.ParseCIDR(address)
 		if err != nil {
 			c.Log.Errorf("Failed to parse IP address returned by STN GRPC: %v", err)
-			return
+			return err
 		}
-		ipNets = append(ipNets, ipNet)
+		c.stnIPAddresses = append(c.stnIPAddresses, ipNet)
 	}
 
 	// try to find the default gateway in the list of routes
 	for _, r := range reply.Routes {
 		if r.DestinationSubnet == "" || strings.HasPrefix(r.DestinationSubnet, "0.0.0.0") {
-			gw = net.ParseIP(r.NextHopIp)
+			c.stnGW = net.ParseIP(r.NextHopIp)
 			if err != nil {
 				err = fmt.Errorf("failed to parse GW address returned by STN GRPC (%s)", r.NextHopIp)
-				return
+				return err
 			}
 			break
 		}
 	}
-	if len(gw) == 0 && len(ipNets) > 0 {
+	if len(c.stnGW) == 0 && len(c.stnIPAddresses) > 0 {
 		// no default gateway in routes, calculate fake gateway address for route pointing to VPP
-		firstIP, lastIP := cidr.AddressRange(ipNets[0].Network)
-		if !cidr.Inc(firstIP).Equal(ipNets[0].Address) {
-			gw = cidr.Inc(firstIP)
+		firstIP, lastIP := cidr.AddressRange(c.stnIPAddresses[0].Network)
+		if !cidr.Inc(firstIP).Equal(c.stnIPAddresses[0].Address) {
+			c.stnGW = cidr.Inc(firstIP)
 		} else {
-			gw = cidr.Dec(lastIP)
+			c.stnGW = cidr.Dec(lastIP)
 		}
 	}
 
-	routes = reply.Routes
-	pciAddr = reply.PciAddress
-	kernelDriver = reply.KernelDriver
+	c.stnRoutes = reply.Routes
+	c.stnPCIAddress = reply.PciAddress
+	c.stnKernelDriver = reply.KernelDriver
 
-	return
+	return nil
 }
 
 // requestSTNInfo sends request to the STN daemon to obtain information about a stolen interface.

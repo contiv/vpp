@@ -150,6 +150,9 @@ func (p *Plugin) Resync(controller.Event, controller.KubeStateData, int, control
 //   - NodeUpdate for other nodes
 //   - Shutdown event
 func (p *Plugin) Update(event controller.Event, _ controller.UpdateOperations) (changeDescription string, err error) {
+	p.Lock()
+	defer p.Unlock()
+
 	deletePod := event.(*podmanager.DeletePod)
 
 	nsmap, exists := p.podIfs[deletePod.Pod.Namespace]

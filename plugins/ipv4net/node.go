@@ -185,6 +185,7 @@ func (n *IPv4Net) handleDHCPNotification(notif idxmap.NamedMappingGenericEvent) 
 
 	// check for validity of the DHCP event
 	if notif.Del {
+		lastDHCPLease = nil
 		n.Log.Info("Ignoring event of removed DHCP lease")
 		return
 	}

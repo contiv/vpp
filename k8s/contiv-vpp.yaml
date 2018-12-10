@@ -222,6 +222,7 @@ data:
   etcd.conf: |
     insecure-transport: true
     dial-timeout: 10000000000
+    allow-delayed-start: true
     endpoints:
       - "127.0.0.1:32379"
 

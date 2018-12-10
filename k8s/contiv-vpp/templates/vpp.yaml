@@ -408,6 +408,7 @@ data:
     insecure-transport: true
     {{- end }}
     dial-timeout: 10000000000
+    allow-delayed-start: true
     endpoints:
       - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
 

@@ -222,7 +222,7 @@ func (n *IPv4Net) configureMainVPPInterface(event controller.Event, txn controll
 	if !n.ContivConf.InSTNMode() && !n.useDHCP && nicName != "" {
 		defaultGw := n.ContivConf.GetStaticDefaultGW()
 		if len(defaultGw) > 0 {
-			key, defaultRoute := n.defaultRoute(n.defaultGw, nicName)
+			key, defaultRoute := n.defaultRoute(defaultGw, nicName)
 			txn.Put(key, defaultRoute)
 		}
 	}

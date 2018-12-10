@@ -24,6 +24,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -59,8 +60,22 @@ type Deps struct {
 	Log              logging.Logger
 	LogFactory       logging.LoggerFactory /* optional */
 	IPv4Net          ipv4net.API           /* for GetIfName() */
+	ContivConf       ContivConf
 	UpdateTxnFactory func() (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
+}
+
+// ContivConf interface lists methods from ContivConf plugin which are needed
+// by ACL Renderer.
+type ContivConf interface {
+	// GetMainInterfaceName returns the logical name of the VPP physical interface
+	// to use for connecting the node with the cluster.
+	// If empty, a loopback interface should be configured instead.
+	GetMainInterfaceName() string
+
+	// GetOtherVPPInterfaces returns configuration to apply for non-main physical
+	// VPP interfaces.
+	GetOtherVPPInterfaces() contivconf.OtherInterfaces
 }
 
 // RendererTxn represents a single transaction of Renderer.
@@ -262,8 +277,13 @@ func (art *RendererTxn) reflectiveACL() *vpp_acl.Acl {
 func (art *RendererTxn) getNodeOutputInterfaces() []string {
 	interfaces := []string{}
 	interfaces = append(interfaces, art.renderer.IPv4Net.GetHostInterconnectIfName())
-	interfaces = append(interfaces, art.renderer.IPv4Net.GetMainPhysicalIfName())
-	interfaces = append(interfaces, art.renderer.IPv4Net.GetOtherPhysicalIfNames()...)
+	mainIface := art.renderer.ContivConf.GetMainInterfaceName()
+	if mainIface != "" {
+		interfaces = append(interfaces, mainIface)
+	}
+	for _, otherIface := range art.renderer.ContivConf.GetOtherVPPInterfaces() {
+		interfaces = append(interfaces, otherIface.InterfaceName)
+	}
 	vxlanBVI := art.renderer.IPv4Net.GetVxlanBVIIfName()
 	if vxlanBVI != "" {
 		interfaces = append(interfaces, vxlanBVI)

@@ -12,26 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package ipam
 
 import (
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/rest"
-	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/plugins/govppmux"
+
+	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/nodesync"
 )
 
-// DefaultPlugin is a default instance of IPv4Net.
+// DefaultPlugin is a default instance of IPAM plugin.
 var DefaultPlugin = *NewPlugin()
 
 // NewPlugin creates a new Plugin with the provides Options
-func NewPlugin(opts ...Option) *IPv4Net {
-	p := &IPv4Net{}
+func NewPlugin(opts ...Option) *IPAM {
+	p := &IPAM{}
 
-	p.PluginName = "ipv4net"
-	p.ServiceLabel = &servicelabel.DefaultPlugin
-	p.GoVPP = &govppmux.DefaultPlugin
-	p.HTTPHandlers = &rest.DefaultPlugin
+	p.PluginName = "ipam"
+	p.NodeSync = &nodesync.DefaultPlugin
+	p.ContivConf = &contivconf.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)
@@ -40,15 +39,16 @@ func NewPlugin(opts ...Option) *IPv4Net {
 	if p.Deps.Log == nil {
 		p.Deps.Log = logging.ForPlugin(p.String())
 	}
+
 	return p
 }
 
 // Option is a function that acts on a Plugin to inject Dependencies or configuration
-type Option func(*IPv4Net)
+type Option func(*IPAM)
 
 // UseDeps returns Option that can inject custom dependencies.
 func UseDeps(cb func(*Deps)) Option {
-	return func(p *IPv4Net) {
+	return func(p *IPAM) {
 		cb(&p.Deps)
 	}
 }

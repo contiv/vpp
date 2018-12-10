@@ -18,12 +18,41 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
 
 	"git.fd.io/govpp.git/api"
+	"github.com/vishvananda/netlink"
 
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stats"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 )
+
+// getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
+// network stack.
+func (n *IPv4Net) getHostLinkIPs() (hostIPs []net.IP, err error) {
+	links, err := netlink.LinkList()
+	if err != nil {
+		n.Log.Error("Unable to list host links:", err)
+		return hostIPs, err
+	}
+
+	for _, l := range links {
+		if !strings.HasPrefix(l.Attrs().Name, "lo") && !strings.HasPrefix(l.Attrs().Name, "docker") &&
+			!strings.HasPrefix(l.Attrs().Name, "virbr") && !strings.HasPrefix(l.Attrs().Name, "vpp") {
+			// not a virtual interface, list its IP addresses
+			addrList, err := netlink.AddrList(l, netlink.FAMILY_V4)
+			if err != nil {
+				n.Log.Error("Unable to list link IPs:", err)
+				return hostIPs, err
+			}
+			// return all IPs
+			for _, addr := range addrList {
+				hostIPs = append(hostIPs, addr.IP)
+			}
+		}
+	}
+	return hostIPs, nil
+}
 
 // executeDebugCLI executes VPP CLI command
 func (n *IPv4Net) executeDebugCLI(cmd string) (string, error) {
@@ -112,14 +141,4 @@ func ipv4ToUint32(ip net.IP) (uint32, error) {
 // uint32ToIpv4 is a simple utility function for conversion from uint32 to IPv4.
 func uint32ToIpv4(ip uint32) net.IP {
 	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip)).To4()
-}
-
-// appendIfMissing adds string into the slice if it is not already there.
-func appendIfMissing(slice []string, s string) []string {
-	for _, el := range slice {
-		if el == s {
-			return slice
-		}
-	}
-	return append(slice, s)
 }

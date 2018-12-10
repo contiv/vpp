@@ -10,9 +10,9 @@
 #  Configuration
 ###########################################################
 
-# This config map contains contiv-agent configuration. The most important part is the IPAMConfig,
+# This config map contains contiv-agent configuration. The most important part is the ipamConfig,
 # which may be updated in case the default IPAM settings do not match your needs.
-# NodeConfig may be used in case your nodes have more than 1 VPP interface. In that case, one
+# nodeConfig may be used in case your nodes have more than 1 VPP interface. In that case, one
 # of them needs to be marked as the main inter-node interface, and the rest of them can be
 # configured with any IP addresses (the IPs cannot conflict with the main IPAM config).
 apiVersion: v1
@@ -21,34 +21,53 @@ metadata:
   name: contiv-agent-cfg
   namespace: kube-system
 data:
-  contiv.yaml: |-
-    UseTAPInterfaces: true
-    TAPInterfaceVersion: 2
-    TAPv2RxRingSize: 256
-    TAPv2TxRingSize: 256
-    TCPChecksumOffloadDisabled: true
-    NatExternalTraffic: true
-    MTUSize: 1450
-    CleanupIdleNATSessions: True
-    TCPNATSessionTimeout: 180
-    OtherNATSessionTimeout: 5
-    ScanIPNeighbors: true
-    IPNeighborScanInterval: 1
-    IPNeighborStaleThreshold: 4
-    ServiceLocalEndpointWeight: 1
-    DisableNATVirtualReassembly: false
-    EnablePacketTrace: false
-    RouteServiceCIDRToVPP: false
-    CRDNodeConfigurationDisabled: true
-    IPAMConfig:
-      NodeInterconnectDHCP: false
-      NodeInterconnectCIDR: 192.168.16.0/24
-      PodSubnetCIDR: 10.1.0.0/16
-      PodSubnetOneNodePrefixLen: 24
-      PodVPPSubnetCIDR: 10.2.1.0/24
-      VPPHostSubnetCIDR: 172.30.0.0/16
-      VPPHostSubnetOneNodePrefixLen: 24
-      VxlanCIDR: 192.168.30.0/24
+  contiv.conf: |-
+    useTAPInterfaces: true
+    tapInterfaceVersion: 2
+    tapv2RxRingSize: 256
+    tapv2TxRingSize: 256
+    tcpChecksumOffloadDisabled: true
+    natExternalTraffic: true
+    mtuSize: 1450
+    scanIPNeighbors: true
+    ipNeighborScanInterval: 1
+    ipNeighborStaleThreshold: 4
+    enablePacketTrace: false
+    routeServiceCIDRToVPP: false
+    crdNodeConfigurationDisabled: true
+    ipamConfig:
+      nodeInterconnectDHCP: false
+      nodeInterconnectCIDR: 192.168.16.0/24
+      podSubnetCIDR: 10.1.0.0/16
+      podSubnetOneNodePrefixLen: 24
+      podVPPSubnetCIDR: 10.2.1.0/24
+      vppHostSubnetCIDR: 172.30.0.0/16
+      vppHostSubnetOneNodePrefixLen: 24
+      vxlanCIDR: 192.168.30.0/24
+  controller.conf: |
+    delayLocalResync: 5000000000
+    enablePeriodicHealing: false
+    periodicHealingInterval: 30000000000
+  service.conf: |
+    cleanupIdleNATSessions: true
+    tcpNATSessionTimeout: 180
+    otherNATSessionTimeout: 5
+    serviceLocalEndpointWeight: 1
+    disableNATVirtualReassembly: false
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vpp-agent-cfg
+  namespace: kube-system
+data:
+  govpp.conf: |
+    health-check-probe-interval: 3000000000
+    health-check-reply-timeout: 500000000
+    health-check-threshold: 3
+    reply-timeout: 3000000000
   logs.conf: |
     default-level: debug
     loggers:
@@ -74,28 +93,10 @@ data:
   telemetry.conf: |
     polling-interval: 30000000000
     disabled: true
-  controller.conf: |
-    delay-local-resync: 5000000000
-    enable-periodic-healing: false
-    periodic-healing-interval: 30000000000
   linux-ifplugin.conf: |
     dump-go-routines-count: 5
   linux-l3plugin.conf: |
     dump-go-routines-count: 5
-
----
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: govpp-cfg
-  namespace: kube-system
-data:
-  govpp.conf: |
-    health-check-probe-interval: 3000000000
-    health-check-reply-timeout: 500000000
-    health-check-threshold: 3
-    reply-timeout: 3000000000
 
 ---
 
@@ -237,10 +238,10 @@ data:
     insecure-transport: true
     dial-timeout: 10000000000
     auto-compact: 600000000000
-    endpoints:
-      - "127.0.0.1:32379"
     allow-delayed-start: true
     reconnect-interval: 2000000000
+    endpoints:
+      - "127.0.0.1:32379"
 
 ---
 
@@ -384,18 +385,30 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: CONTIV_CONFIG
+              value: "/etc/contiv/contiv.conf"
+            - name: CONTROLLER_CONFIG
+              value: "/etc/contiv/controller.conf"
+            - name: SERVICE_CONFIG
+              value: "/etc/contiv/service.conf"
             - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
             - name: BOLT_CONFIG
-              value: "/etc/agent/bolt.conf"
+              value: "/etc/vpp-agent/bolt.conf"
             - name: TELEMETRY_CONFIG
-              value: "/etc/agent/telemetry.conf"
-            - name: CONTROLLER_CONFIG
-              value: "/etc/agent/controller.conf"
+              value: "/etc/vpp-agent/telemetry.conf"
+            - name: GOVPP_CONFIG
+              value: "/etc/vpp-agent/govpp.conf"
+            - name: LOGS_CONFIG
+              value: "/etc/vpp-agent/logs.conf"
+            - name: HTTP_CONFIG
+              value: "/etc/vpp-agent/http.conf"
+            - name: GRPC_CONFIG
+              value: "/etc/vpp-agent/grpc.conf"
             - name: LINUX_IFPLUGIN_CONFIG
-              value: "/etc/agent/linux-ifplugin.conf"
+              value: "/etc/vpp-agent/linux-ifplugin.conf"
             - name: LINUX_L3PLUGIN_CONFIG
-              value: "/etc/agent/linux-l3plugin.conf"
+              value: "/etc/vpp-agent/linux-l3plugin.conf"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt
@@ -411,10 +424,10 @@ spec:
               mountPath: /run/vpp
             - name: contiv-run
               mountPath: /var/run/contiv
-            - name: contiv-plugin-cfg
-              mountPath: /etc/agent
-            - name: govpp-plugin-cfg
-              mountPath: /etc/govpp
+            - name: contiv-agent-cfg
+              mountPath: /etc/contiv
+            - name: vpp-agent-cfg
+              mountPath: /etc/vpp-agent
             - name: tmp
               mountPath: /tmp
             - name: core-dumps
@@ -464,14 +477,14 @@ spec:
         - name: contiv-run
           hostPath:
             path: /var/run/contiv
-        # Used to configure contiv plugin.
-        - name: contiv-plugin-cfg
+        # Used to configure contiv agent.
+        - name: contiv-agent-cfg
           configMap:
             name: contiv-agent-cfg
-        # Used to configure govpp plugin.
-        - name: govpp-plugin-cfg
+        # Used to configure vpp agent.
+        - name: vpp-agent-cfg
           configMap:
-            name: govpp-cfg
+            name: vpp-agent-cfg
         # Used for vswitch core dumps
         - name: core-dumps
           hostPath:

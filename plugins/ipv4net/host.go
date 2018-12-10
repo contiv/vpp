@@ -77,7 +77,7 @@ var hostInterconnectHwAddrPrefix = []byte{0x34, 0x3c}
 // hostInterconnectVPPIfName returns the logical name of the VPP-host interconnect
 // interface on the VPP side.
 func (n *IPv4Net) hostInterconnectVPPIfName() string {
-	if n.config.UseTAPInterfaces {
+	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		return HostInterconnectTAPinVPPLogicalName
 	}
 	return hostInterconnectAFPacketLogicalName
@@ -86,7 +86,7 @@ func (n *IPv4Net) hostInterconnectVPPIfName() string {
 // hostInterconnectLinuxIfName returns the logical name of the VPP-host interconnect
 // interface on the Linux side.
 func (n *IPv4Net) hostInterconnectLinuxIfName() string {
-	if n.config.UseTAPInterfaces {
+	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		return HostInterconnectTAPinLinuxLogicalName
 	}
 	return hostInterconnectVETH1LogicalName
@@ -95,30 +95,31 @@ func (n *IPv4Net) hostInterconnectLinuxIfName() string {
 // interconnectTapVPP returns configuration for the VPP-side of the TAP interface
 // connecting VPP with the host stack.
 func (n *IPv4Net) interconnectTapVPP() (key string, config *interfaces.Interface) {
-	size, _ := n.ipam.HostInterconnectSubnetThisNode().Mask.Size()
+	interfaceCfg := n.ContivConf.GetInterfaceConfig()
+	size, _ := n.IPAM.HostInterconnectSubnetThisNode().Mask.Size()
 	tap := &interfaces.Interface{
 		Name:    HostInterconnectTAPinVPPLogicalName,
 		Type:    interfaces.Interface_TAP,
-		Mtu:     n.config.MTUSize,
+		Mtu:     interfaceCfg.MTUSize,
 		Enabled: true,
-		Vrf:     n.GetMainVrfID(),
+		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
 		Link: &interfaces.Interface_Tap{
 			Tap: &interfaces.TapLink{},
 		},
 		PhysAddress: hwAddrForNodeInterface(n.NodeSync.GetNodeID(), hostInterconnectHwAddrPrefix),
 	}
-	if n.InSTNMode() {
+	if n.ContivConf.InSTNMode() {
 		tap.Unnumbered = &interfaces.Interface_Unnumbered{
-			InterfaceWithIp: n.mainPhysicalIf,
+			InterfaceWithIp: n.ContivConf.GetMainInterfaceName(),
 		}
 	} else {
-		tap.IpAddresses = []string{n.ipam.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)}
+		tap.IpAddresses = []string{n.IPAM.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)}
 
 	}
-	if n.config.TAPInterfaceVersion == 2 {
+	if interfaceCfg.TAPInterfaceVersion == 2 {
 		tap.GetTap().Version = 2
-		tap.GetTap().RxRingSize = uint32(n.config.TAPv2RxRingSize)
-		tap.GetTap().TxRingSize = uint32(n.config.TAPv2TxRingSize)
+		tap.GetTap().RxRingSize = uint32(interfaceCfg.TAPv2RxRingSize)
+		tap.GetTap().TxRingSize = uint32(interfaceCfg.TAPv2TxRingSize)
 	}
 	key = interfaces.InterfaceKey(tap.Name)
 	return key, tap
@@ -127,7 +128,7 @@ func (n *IPv4Net) interconnectTapVPP() (key string, config *interfaces.Interface
 // interconnectTapHost returns configuration for the Host-side of the TAP interface
 // connecting VPP with the host stack.
 func (n *IPv4Net) interconnectTapHost() (key string, config *linux_interfaces.Interface) {
-	size, _ := n.ipam.HostInterconnectSubnetThisNode().Mask.Size()
+	size, _ := n.IPAM.HostInterconnectSubnetThisNode().Mask.Size()
 	tap := &linux_interfaces.Interface{
 		Name: HostInterconnectTAPinLinuxLogicalName,
 		Type: linux_interfaces.Interface_TAP_TO_VPP,
@@ -136,11 +137,11 @@ func (n *IPv4Net) interconnectTapHost() (key string, config *linux_interfaces.In
 				VppTapIfName: HostInterconnectTAPinVPPLogicalName,
 			},
 		},
-		Mtu:        n.config.MTUSize,
+		Mtu:        n.ContivConf.GetInterfaceConfig().MTUSize,
 		HostIfName: HostInterconnectTAPinLinuxHostName,
 		Enabled:    true,
 	}
-	if n.InSTNMode() {
+	if n.ContivConf.InSTNMode() {
 		// TODO: this specific MAC address can be removed after moving to the IP punt redirect instead of the STN plugin
 		tap.PhysAddress = hostInterconnectMACinLinuxSTN
 
@@ -148,7 +149,7 @@ func (n *IPv4Net) interconnectTapHost() (key string, config *linux_interfaces.In
 			tap.IpAddresses = []string{combineAddrWithNet(n.nodeIP, n.nodeIPNet).String()}
 		}
 	} else {
-		tap.IpAddresses = []string{n.ipam.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)}
+		tap.IpAddresses = []string{n.IPAM.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)}
 	}
 	key = linux_interfaces.InterfaceKey(tap.Name)
 	return key, tap
@@ -157,7 +158,7 @@ func (n *IPv4Net) interconnectTapHost() (key string, config *linux_interfaces.In
 // interconnectAfpacket returns configuration for the AF-Packet interface attached
 // to interconnectVethVpp (see below)
 func (n *IPv4Net) interconnectAfpacket() (key string, config *interfaces.Interface) {
-	size, _ := n.ipam.HostInterconnectSubnetThisNode().Mask.Size()
+	size, _ := n.IPAM.HostInterconnectSubnetThisNode().Mask.Size()
 	afpacket := &interfaces.Interface{
 		Name: hostInterconnectAFPacketLogicalName,
 		Type: interfaces.Interface_AF_PACKET,
@@ -166,10 +167,10 @@ func (n *IPv4Net) interconnectAfpacket() (key string, config *interfaces.Interfa
 				HostIfName: hostInterconnectVETH2HostName,
 			},
 		},
-		Mtu:         n.config.MTUSize,
+		Mtu:         n.ContivConf.GetInterfaceConfig().MTUSize,
 		Enabled:     true,
-		Vrf:         n.GetMainVrfID(),
-		IpAddresses: []string{n.ipam.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)},
+		Vrf:         n.ContivConf.GetRoutingConfig().MainVRFID,
+		IpAddresses: []string{n.IPAM.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)},
 		PhysAddress: hwAddrForNodeInterface(n.NodeSync.GetNodeID(), hostInterconnectHwAddrPrefix),
 	}
 	key = interfaces.InterfaceKey(afpacket.Name)
@@ -185,7 +186,7 @@ func (n *IPv4Net) interconnectVethVpp() (key string, config *linux_interfaces.In
 		Link: &linux_interfaces.Interface_Veth{
 			Veth: &linux_interfaces.VethLink{PeerIfName: hostInterconnectVETH1LogicalName},
 		},
-		Mtu:        n.config.MTUSize,
+		Mtu:        n.ContivConf.GetInterfaceConfig().MTUSize,
 		Enabled:    true,
 		HostIfName: hostInterconnectVETH2HostName,
 	}
@@ -196,18 +197,19 @@ func (n *IPv4Net) interconnectVethVpp() (key string, config *linux_interfaces.In
 // interconnectVethHost returns configuration for host-side of the VETH pipe connecting
 // vswitch with the host stack.
 func (n *IPv4Net) interconnectVethHost() (key string, config *linux_interfaces.Interface) {
-	size, _ := n.ipam.HostInterconnectSubnetThisNode().Mask.Size()
+	interfaceCfg := n.ContivConf.GetInterfaceConfig()
+	size, _ := n.IPAM.HostInterconnectSubnetThisNode().Mask.Size()
 	veth := &linux_interfaces.Interface{
 		Name: hostInterconnectVETH1LogicalName,
 		Type: linux_interfaces.Interface_VETH,
 		Link: &linux_interfaces.Interface_Veth{
 			Veth: &linux_interfaces.VethLink{PeerIfName: hostInterconnectVETH2LogicalName},
 		},
-		Mtu:        n.config.MTUSize,
+		Mtu:        interfaceCfg.MTUSize,
 		Enabled:    true,
 		HostIfName: hostInterconnectVETH1HostName,
 	}
-	if n.InSTNMode() {
+	if n.ContivConf.InSTNMode() {
 		// TODO: this specific MAC address can be removed after moving to the IP punt redirect instead of the STN plugin
 		veth.PhysAddress = hostInterconnectMACinLinuxSTN
 
@@ -215,9 +217,9 @@ func (n *IPv4Net) interconnectVethHost() (key string, config *linux_interfaces.I
 			veth.IpAddresses = []string{combineAddrWithNet(n.nodeIP, n.nodeIPNet).String()}
 		}
 	} else {
-		veth.IpAddresses = []string{n.ipam.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)}
+		veth.IpAddresses = []string{n.IPAM.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)}
 	}
-	if n.config.TCPChecksumOffloadDisabled {
+	if interfaceCfg.TCPChecksumOffloadDisabled {
 		veth.GetVeth().RxChecksumOffloading = linux_interfaces.VethLink_CHKSM_OFFLOAD_DISABLED
 		veth.GetVeth().TxChecksumOffloading = linux_interfaces.VethLink_CHKSM_OFFLOAD_DISABLED
 	}
@@ -235,7 +237,7 @@ func (n *IPv4Net) routesToHost(nextHopIP net.IP) map[string]*l3.StaticRoute {
 			DstNetwork:        fmt.Sprintf("%s/32", ip.String()),
 			NextHopAddr:       nextHopIP.String(),
 			OutgoingInterface: n.hostInterconnectVPPIfName(),
-			VrfId:             n.GetMainVrfID(),
+			VrfId:             n.ContivConf.GetRoutingConfig().MainVRFID,
 		}
 		key := l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 		routes[key] = route
@@ -250,10 +252,10 @@ func (n *IPv4Net) routePODsFromHost(nextHopIP net.IP) (key string, config *linux
 	route := &linux_l3.StaticRoute{
 		OutgoingInterface: hostInterconnectVETH1LogicalName,
 		Scope:             linux_l3.StaticRoute_GLOBAL,
-		DstNetwork:        n.ipam.PodSubnetAllNodes().String(),
+		DstNetwork:        n.IPAM.PodSubnetAllNodes().String(),
 		GwAddr:            nextHopIP.String(),
 	}
-	if n.config.UseTAPInterfaces {
+	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
 	}
 	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
@@ -266,10 +268,10 @@ func (n *IPv4Net) routeServicesFromHost(nextHopIP net.IP) (key string, config *l
 	route := &linux_l3.StaticRoute{
 		OutgoingInterface: hostInterconnectVETH1LogicalName,
 		Scope:             linux_l3.StaticRoute_GLOBAL,
-		DstNetwork:        n.ipam.ServiceNetwork().String(),
+		DstNetwork:        n.IPAM.ServiceNetwork().String(),
 		GwAddr:            nextHopIP.String(),
 	}
-	if n.config.UseTAPInterfaces {
+	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
 	}
 	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
@@ -322,15 +324,15 @@ func (n *IPv4Net) proxyArpForSTNGateway() (key string, config *l3.ProxyARP) {
 func (n *IPv4Net) stnRoutesForVPP() map[string]*l3.StaticRoute {
 	routes := make(map[string]*l3.StaticRoute)
 
-	for _, stnRoute := range n.stnRoutes {
+	for _, stnRoute := range n.ContivConf.GetSTNConfig().STNRoutes {
 		if stnRoute.NextHopIp == "" {
 			continue // skip routes with no next hop IP (link-local)
 		}
 		route := &l3.StaticRoute{
 			DstNetwork:        stnRoute.DestinationSubnet,
 			NextHopAddr:       stnRoute.NextHopIp,
-			OutgoingInterface: n.mainPhysicalIf,
-			VrfId:             n.GetMainVrfID(),
+			OutgoingInterface: n.ContivConf.GetMainInterfaceName(),
+			VrfId:             n.ContivConf.GetRoutingConfig().MainVRFID,
 		}
 		if route.DstNetwork == "" {
 			route.DstNetwork = ipv4NetAny
@@ -347,7 +349,7 @@ func (n *IPv4Net) stnRoutesForVPP() map[string]*l3.StaticRoute {
 func (n *IPv4Net) stnRoutesForHost() map[string]*linux_l3.StaticRoute {
 	routes := make(map[string]*linux_l3.StaticRoute)
 
-	for _, stnRoute := range n.stnRoutes {
+	for _, stnRoute := range n.ContivConf.GetSTNConfig().STNRoutes {
 		if stnRoute.NextHopIp == "" {
 			continue // skip routes with no next hop IP (link-local)
 		}

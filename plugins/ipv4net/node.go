@@ -26,6 +26,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/nodesync"
 )
@@ -34,12 +35,6 @@ import (
 const (
 	// loopbackNICLogicalName is the logical name of the loopback interface configured instead of physical NICs.
 	loopbackNICLogicalName = "loopbackNIC"
-)
-
-/* VRFs */
-const (
-	defaultMainVrfID = 0
-	defaultPodVrfID  = 1
 )
 
 /* VXLANs */
@@ -70,7 +65,8 @@ func (n *IPv4Net) nodeConnectivityConfig(node *nodesync.Node) (config controller
 	config = make(controller.KeyValuePairs)
 
 	// configuration for VXLAN tunnel
-	if !n.config.UseL2Interconnect && len(n.nodeIP) > 0 {
+	l2Interconnect := n.ContivConf.GetRoutingConfig().UseL2Interconnect
+	if !l2Interconnect && len(n.nodeIP) > 0 {
 		// VXLAN interface
 		var nodeIP net.IP
 		if len(node.VppIPAddresses) > 0 {
@@ -87,7 +83,7 @@ func (n *IPv4Net) nodeConnectivityConfig(node *nodesync.Node) (config controller
 		config[key] = vxlanIf
 
 		// ARP entry for the IP address on the opposite side
-		vxlanIP, _, err := n.ipam.VxlanIPAddress(node.ID)
+		vxlanIP, _, err := n.IPAM.VxlanIPAddress(node.ID)
 		if err != nil {
 			n.Log.Error(err)
 			return config, err
@@ -122,7 +118,8 @@ func (n *IPv4Net) routesToNode(node *nodesync.Node) (config controller.KeyValueP
 	config = make(controller.KeyValuePairs)
 
 	var nextHop net.IP
-	if n.config.UseL2Interconnect {
+	l2Interconnect := n.ContivConf.GetRoutingConfig().UseL2Interconnect
+	if l2Interconnect {
 		// route traffic destined to the other node directly
 		if len(node.VppIPAddresses) > 0 {
 			nextHop = node.VppIPAddresses[0].Address
@@ -136,7 +133,7 @@ func (n *IPv4Net) routesToNode(node *nodesync.Node) (config controller.KeyValueP
 		}
 	} else {
 		// route traffic destined to the other node via VXLANs
-		vxlanNextHop, _, err := n.ipam.VxlanIPAddress(node.ID)
+		vxlanNextHop, _, err := n.IPAM.VxlanIPAddress(node.ID)
 		if err != nil {
 			n.Log.Error(err)
 			return config, err
@@ -167,7 +164,7 @@ func (n *IPv4Net) routesToNode(node *nodesync.Node) (config controller.KeyValueP
 		config[key] = mgmtRoute1
 
 		// inter-VRF route for the management IP address
-		if !n.InSTNMode() {
+		if !n.ContivConf.InSTNMode() {
 			key, mgmtRoute2 := n.routeToOtherNodeManagementIPViaPodVRF(mgmtIP)
 			config[key] = mgmtRoute2
 		}
@@ -188,6 +185,7 @@ func (n *IPv4Net) handleDHCPNotification(notif idxmap.NamedMappingGenericEvent) 
 
 	// check for validity of the DHCP event
 	if notif.Del {
+		lastDHCPLease = nil
 		n.Log.Info("Ignoring event of removed DHCP lease")
 		return
 	}
@@ -204,8 +202,9 @@ func (n *IPv4Net) handleDHCPNotification(notif idxmap.NamedMappingGenericEvent) 
 		n.Log.Warn("Received invalid DHCP notification")
 		return
 	}
-	if dhcpLease.InterfaceName != n.mainPhysicalIf {
-		n.Log.Warn("DHCP notification for a non-main interface")
+	if dhcpLease.InterfaceName != n.ContivConf.GetMainInterfaceName() {
+		n.Log.Debugf("DHCP notification for a non-main interface (%s)",
+			dhcpLease.InterfaceName)
 		return
 	}
 	if proto.Equal(dhcpLease, lastDHCPLease) {
@@ -257,10 +256,11 @@ func (n *IPv4Net) parseDHCPLease(lease *interfaces.DHCPLease) (hostAddr net.IP, 
 // enabledIPNeighborScan returns configuration for enabled IP neighbor scanning
 // (used to clean up old ARP entries).
 func (n *IPv4Net) enabledIPNeighborScan() (key string, config *l3.IPScanNeighbor) {
+	ipScanConfig := n.ContivConf.GetIPNeighborScanConfig()
 	config = &l3.IPScanNeighbor{
 		Mode:           l3.IPScanNeighbor_IPv4,
-		ScanInterval:   uint32(n.config.IPNeighborScanInterval),
-		StaleThreshold: uint32(n.config.IPNeighborStaleThreshold),
+		ScanInterval:   uint32(ipScanConfig.IPNeighborScanInterval),
+		StaleThreshold: uint32(ipScanConfig.IPNeighborStaleThreshold),
 	}
 	key = l3.IPScanNeighborKey
 	return key, config
@@ -271,12 +271,12 @@ func (n *IPv4Net) enabledIPNeighborScan() (key string, config *l3.IPScanNeighbor
 // physicalInterface returns configuration for physical interface - either the main interface
 // connecting node with the rest of the cluster or an extra physical interface requested
 // in the config file.
-func (n *IPv4Net) physicalInterface(name string, ips []*nodesync.IPWithNetwork) (key string, config *interfaces.Interface) {
+func (n *IPv4Net) physicalInterface(name string, ips contivconf.IPsWithNetworks) (key string, config *interfaces.Interface) {
 	iface := &interfaces.Interface{
 		Name:    name,
 		Type:    interfaces.Interface_DPDK,
 		Enabled: true,
-		Vrf:     n.GetMainVrfID(),
+		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
 	}
 	for _, ip := range ips {
 		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.Address, ip.Network)))
@@ -287,12 +287,12 @@ func (n *IPv4Net) physicalInterface(name string, ips []*nodesync.IPWithNetwork) 
 
 // loopbackInterface returns configuration for loopback created when no physical interfaces
 // are configured.
-func (n *IPv4Net) loopbackInterface(ips []*nodesync.IPWithNetwork) (key string, config *interfaces.Interface) {
+func (n *IPv4Net) loopbackInterface(ips contivconf.IPsWithNetworks) (key string, config *interfaces.Interface) {
 	iface := &interfaces.Interface{
 		Name:    loopbackNICLogicalName,
 		Type:    interfaces.Interface_SOFTWARE_LOOPBACK,
 		Enabled: true,
-		Vrf:     n.GetMainVrfID(),
+		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
 	}
 	for _, ip := range ips {
 		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.Address, ip.Network)))
@@ -307,7 +307,7 @@ func (n *IPv4Net) defaultRoute(gwIP net.IP, outIfName string) (key string, confi
 		DstNetwork:        ipv4NetAny,
 		NextHopAddr:       gwIP.String(),
 		OutgoingInterface: outIfName,
-		VrfId:             n.GetMainVrfID(),
+		VrfId:             n.ContivConf.GetRoutingConfig().MainVRFID,
 	}
 	key = l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	return key, route
@@ -318,13 +318,14 @@ func (n *IPv4Net) defaultRoute(gwIP net.IP, outIfName string) (key string, confi
 // routesPodToMainVRF returns non-drop routes from Pod VRF to Main VRF.
 func (n *IPv4Net) routesPodToMainVRF() map[string]*l3.StaticRoute {
 	routes := make(map[string]*l3.StaticRoute)
+	routingCfg := n.ContivConf.GetRoutingConfig()
 
 	// by default to go from Pod VRF via Main VRF
 	r1 := &l3.StaticRoute{
 		Type:       l3.StaticRoute_INTER_VRF,
 		DstNetwork: ipv4NetAny,
-		VrfId:      n.GetPodVrfID(),
-		ViaVrfId:   n.GetMainVrfID(),
+		VrfId:      routingCfg.PodVRFID,
+		ViaVrfId:   routingCfg.MainVRFID,
 	}
 	r1Key := l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 	routes[r1Key] = r1
@@ -332,9 +333,9 @@ func (n *IPv4Net) routesPodToMainVRF() map[string]*l3.StaticRoute {
 	// host network (all nodes) routed from Pod VRF via Main VRF
 	r2 := &l3.StaticRoute{
 		Type:       l3.StaticRoute_INTER_VRF,
-		DstNetwork: n.ipam.HostInterconnectSubnetThisNode().String(),
-		VrfId:      n.GetPodVrfID(),
-		ViaVrfId:   n.GetMainVrfID(),
+		DstNetwork: n.IPAM.HostInterconnectSubnetThisNode().String(),
+		VrfId:      routingCfg.PodVRFID,
+		ViaVrfId:   routingCfg.MainVRFID,
 	}
 	r2Key := l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
 	routes[r2Key] = r2
@@ -344,13 +345,14 @@ func (n *IPv4Net) routesPodToMainVRF() map[string]*l3.StaticRoute {
 // routesMainToPodVRF returns non-drop routes from Main VRF to Pod VRF.
 func (n *IPv4Net) routesMainToPodVRF() map[string]*l3.StaticRoute {
 	routes := make(map[string]*l3.StaticRoute)
+	routingCfg := n.ContivConf.GetRoutingConfig()
 
 	// pod subnet (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
 	r1 := &l3.StaticRoute{
 		Type:       l3.StaticRoute_INTER_VRF,
-		DstNetwork: n.ipam.PodSubnetAllNodes().String(),
-		VrfId:      n.GetMainVrfID(),
-		ViaVrfId:   n.GetPodVrfID(),
+		DstNetwork: n.IPAM.PodSubnetAllNodes().String(),
+		VrfId:      routingCfg.MainVRFID,
+		ViaVrfId:   routingCfg.PodVRFID,
 	}
 	r1Key := l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 	routes[r1Key] = r1
@@ -358,9 +360,9 @@ func (n *IPv4Net) routesMainToPodVRF() map[string]*l3.StaticRoute {
 	// host network (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
 	r2 := &l3.StaticRoute{
 		Type:       l3.StaticRoute_INTER_VRF,
-		DstNetwork: n.ipam.HostInterconnectSubnetAllNodes().String(),
-		VrfId:      n.GetMainVrfID(),
-		ViaVrfId:   n.GetPodVrfID(),
+		DstNetwork: n.IPAM.HostInterconnectSubnetAllNodes().String(),
+		VrfId:      routingCfg.MainVRFID,
+		ViaVrfId:   routingCfg.PodVRFID,
 	}
 	r2Key := l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
 	routes[r2Key] = r2
@@ -370,14 +372,15 @@ func (n *IPv4Net) routesMainToPodVRF() map[string]*l3.StaticRoute {
 // dropRoutesIntoPodVRF returns drop routes for Pod VRF.
 func (n *IPv4Net) dropRoutesIntoPodVRF() map[string]*l3.StaticRoute {
 	routes := make(map[string]*l3.StaticRoute)
+	routingCfg := n.ContivConf.GetRoutingConfig()
 
 	// drop packets destined to pods no longer deployed
-	r1 := n.dropRoute(n.GetPodVrfID(), n.ipam.PodSubnetAllNodes())
+	r1 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.PodSubnetAllNodes())
 	r1Key := l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 	routes[r1Key] = r1
 
 	// drop packets destined to nodes no longer deployed
-	r2 := n.dropRoute(n.GetPodVrfID(), n.ipam.HostInterconnectSubnetAllNodes())
+	r2 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.HostInterconnectSubnetAllNodes())
 	r2Key := l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
 	routes[r2Key] = r2
 
@@ -398,7 +401,7 @@ func (n *IPv4Net) dropRoute(vrfID uint32, dstAddr *net.IPNet) *l3.StaticRoute {
 // vxlanBVILoopback returns configuration of the loopback interfaces acting as BVI
 // for the bridge domain with VXLAN interfaces.
 func (n *IPv4Net) vxlanBVILoopback() (key string, config *interfaces.Interface, err error) {
-	vxlanIP, vxlanIPNet, err := n.ipam.VxlanIPAddress(n.NodeSync.GetNodeID())
+	vxlanIP, vxlanIPNet, err := n.IPAM.VxlanIPAddress(n.NodeSync.GetNodeID())
 	if err != nil {
 		return "", nil, err
 	}
@@ -408,7 +411,7 @@ func (n *IPv4Net) vxlanBVILoopback() (key string, config *interfaces.Interface, 
 		Enabled:     true,
 		IpAddresses: []string{ipNetToString(combineAddrWithNet(vxlanIP, vxlanIPNet))},
 		PhysAddress: hwAddrForNodeInterface(n.NodeSync.GetNodeID(), vxlanBVIHwAddrPrefix),
-		Vrf:         n.GetPodVrfID(),
+		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
 	}
 	key = interfaces.InterfaceKey(vxlan.Name)
 	return key, vxlan, nil
@@ -469,7 +472,7 @@ func (n *IPv4Net) vxlanIfToOtherNode(otherNodeID uint32, otherNodeIP net.IP) (ke
 			},
 		},
 		Enabled: true,
-		Vrf:     n.GetMainVrfID(),
+		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
 	}
 	key = interfaces.InterfaceKey(vxlan.Name)
 	return key, vxlan
@@ -505,7 +508,7 @@ func (n *IPv4Net) vxlanFibEntry(otherNodeID uint32) (key string, config *l2.FIBE
 
 // otherNodeIP calculates the (statically selected) IP address of the given other node
 func (n *IPv4Net) otherNodeIP(otherNodeID uint32) (net.IP, error) {
-	nodeIP, _, err := n.ipam.NodeIPAddress(otherNodeID)
+	nodeIP, _, err := n.IPAM.NodeIPAddress(otherNodeID)
 	if err != nil {
 		err := fmt.Errorf("Failed to get Node IP address for node ID %v, error: %v ",
 			otherNodeID, err)
@@ -518,7 +521,7 @@ func (n *IPv4Net) otherNodeIP(otherNodeID uint32) (net.IP, error) {
 // routeToOtherNodePods returns configuration for route applied to traffic destined
 // to pods of another node.
 func (n *IPv4Net) routeToOtherNodePods(otherNodeID uint32, nextHopIP net.IP) (key string, config *l3.StaticRoute, err error) {
-	podNetwork, err := n.ipam.PodSubnetOtherNode(otherNodeID)
+	podNetwork, err := n.IPAM.PodSubnetOtherNode(otherNodeID)
 	if err != nil {
 		return "", nil, fmt.Errorf("Failed to compute pod network for node ID %v, error: %v ", otherNodeID, err)
 	}
@@ -529,7 +532,7 @@ func (n *IPv4Net) routeToOtherNodePods(otherNodeID uint32, nextHopIP net.IP) (ke
 // routeToOtherNodeHostStack returns configuration for route applied to traffic destined
 // to the host stack of another node.
 func (n *IPv4Net) routeToOtherNodeHostStack(otherNodeID uint32, nextHopIP net.IP) (key string, config *l3.StaticRoute, err error) {
-	hostNetwork, err := n.ipam.HostInterconnectSubnetOtherNode(otherNodeID)
+	hostNetwork, err := n.IPAM.HostInterconnectSubnetOtherNode(otherNodeID)
 	if err != nil {
 		return "", nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", otherNodeID, err)
 	}
@@ -543,11 +546,11 @@ func (n *IPv4Net) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net
 		DstNetwork:  destNetwork.String(),
 		NextHopAddr: nextHopIP.String(),
 	}
-	if n.config.UseL2Interconnect {
-		route.VrfId = n.GetMainVrfID()
+	if n.ContivConf.GetRoutingConfig().UseL2Interconnect {
+		route.VrfId = n.ContivConf.GetRoutingConfig().MainVRFID
 	} else {
 		route.OutgoingInterface = vxlanBVIInterfaceName
-		route.VrfId = n.GetPodVrfID()
+		route.VrfId = n.ContivConf.GetRoutingConfig().PodVRFID
 	}
 	key = l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	return key, route
@@ -560,11 +563,11 @@ func (n *IPv4Net) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (
 		DstNetwork:  managementIP.String() + "/32",
 		NextHopAddr: nextHopIP.String(),
 	}
-	if n.config.UseL2Interconnect {
-		route.VrfId = n.GetMainVrfID()
+	if n.ContivConf.GetRoutingConfig().UseL2Interconnect {
+		route.VrfId = n.ContivConf.GetRoutingConfig().MainVRFID
 	} else {
 		route.OutgoingInterface = vxlanBVIInterfaceName
-		route.VrfId = n.GetPodVrfID()
+		route.VrfId = n.ContivConf.GetRoutingConfig().PodVRFID
 	}
 	key = l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	return key, route
@@ -577,8 +580,8 @@ func (n *IPv4Net) routeToOtherNodeManagementIPViaPodVRF(managementIP net.IP) (ke
 	route := &l3.StaticRoute{
 		Type:       l3.StaticRoute_INTER_VRF,
 		DstNetwork: managementIP.String() + "/32",
-		VrfId:      n.GetMainVrfID(),
-		ViaVrfId:   n.GetPodVrfID(),
+		VrfId:      n.ContivConf.GetRoutingConfig().MainVRFID,
+		ViaVrfId:   n.ContivConf.GetRoutingConfig().PodVRFID,
 	}
 	key = l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	return key, route

@@ -74,8 +74,9 @@ const (
 type MockACLEngine struct {
 	sync.Mutex
 
-	Log     logging.Logger
-	IPv4Net ipv4net.API /* for GetIfName(), GetMainPhysicalIfName(), GetVxlanBVIIfName() */
+	Log        logging.Logger
+	IPv4Net    ipv4net.API   /* for GetIfName(), GetVxlanBVIIfName() */
+	ContivConf ContivConfAPI /* for GetMainInterfaceName() */
 
 	pods      map[podmodel.ID]*PodConfig
 	aclConfig *ACLConfig
@@ -101,12 +102,13 @@ type InterfaceACLs struct {
 }
 
 // NewMockACLEngine is a constructor for MockACLEngine.
-func NewMockACLEngine(log logging.Logger, ipv4Net ipv4net.API) *MockACLEngine {
+func NewMockACLEngine(log logging.Logger, ipv4Net ipv4net.API, contivConf ContivConfAPI) *MockACLEngine {
 	return &MockACLEngine{
-		Log:       log,
-		IPv4Net:   ipv4Net,
-		pods:      make(map[podmodel.ID]*PodConfig),
-		aclConfig: NewACLConfig(),
+		Log:        log,
+		IPv4Net:    ipv4Net,
+		ContivConf: contivConf,
+		pods:       make(map[podmodel.ID]*PodConfig),
+		aclConfig:  NewACLConfig(),
 	}
 }
 
@@ -116,6 +118,15 @@ func NewACLConfig() *ACLConfig {
 		byName: make(map[string]*vpp_acl.Acl),
 		byIf:   make(map[string]*InterfaceACLs),
 	}
+}
+
+// ContivConfAPI interface lists methods from ContivConf plugin which are needed
+// by MockACLEngine.
+type ContivConfAPI interface {
+	// GetMainInterfaceName returns the logical name of the VPP physical interface
+	// to use for connecting the node with the cluster.
+	// If empty, a loopback interface should be configured instead.
+	GetMainInterfaceName() string
 }
 
 // ClearACLs clears the list of configured ACLs.
@@ -278,7 +289,7 @@ func (mae *MockACLEngine) ConnectionPodToPod(srcPod podmodel.ID, dstPod podmodel
 	if srcPodCfg.anotherNode {
 		srcIfName = mae.IPv4Net.GetVxlanBVIIfName()
 		if srcIfName == "" {
-			srcIfName = mae.IPv4Net.GetMainPhysicalIfName()
+			srcIfName = mae.ContivConf.GetMainInterfaceName()
 		}
 		if srcIfName == "" {
 			mae.Log.Error("Missing node output interface")
@@ -297,7 +308,7 @@ func (mae *MockACLEngine) ConnectionPodToPod(srcPod podmodel.ID, dstPod podmodel
 	if dstPodCfg.anotherNode {
 		dstIfName = mae.IPv4Net.GetVxlanBVIIfName()
 		if dstIfName == "" {
-			dstIfName = mae.IPv4Net.GetMainPhysicalIfName()
+			dstIfName = mae.ContivConf.GetMainInterfaceName()
 		}
 		if dstIfName == "" {
 			mae.Log.Error("Missing node output interface")
@@ -343,7 +354,7 @@ func (mae *MockACLEngine) ConnectionPodToInternet(srcPod podmodel.ID, dstIP stri
 	// Get destination interface.
 	dstIfName := mae.IPv4Net.GetVxlanBVIIfName()
 	if dstIfName == "" {
-		dstIfName = mae.IPv4Net.GetMainPhysicalIfName()
+		dstIfName = mae.ContivConf.GetMainInterfaceName()
 	}
 	if dstIfName == "" {
 		mae.Log.Error("Missing node output interface")
@@ -381,7 +392,7 @@ func (mae *MockACLEngine) ConnectionInternetToPod(srcIP string, dstPod podmodel.
 	// Get source interface.
 	srcIfName := mae.IPv4Net.GetVxlanBVIIfName()
 	if srcIfName == "" {
-		srcIfName = mae.IPv4Net.GetMainPhysicalIfName()
+		srcIfName = mae.ContivConf.GetMainInterfaceName()
 	}
 	if srcIfName == "" {
 		mae.Log.Error("Missing node output interface")

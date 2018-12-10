@@ -112,4 +112,19 @@
 //			- host.go: provides host-related helper functions and VPP-Agent NB API builders
 //			- pod.go: provides POD-related helper functions and VPP-Agent NB API builders
 //
+//
+// Additionally, the package provides REST endpoint for getting some of the IPAM-related
+// information for the node on the URL:
+// GET /contiv/v1/ipam.
+//
+// Example:
+//
+//      $ curl localhost:9999/contiv/v1/ipam
+//      {
+//        "nodeId": 1,
+//        "nodeName": "vagrant-arch.vagrantup.com",
+//        "nodeIP": "192.168.16.1",
+//        "podSubnetThisNode": "10.1.1.0/24",
+//        "vppHostNetwork": "172.30.1.0/24"
+//      }
 package ipv4net

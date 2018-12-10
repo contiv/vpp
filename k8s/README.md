@@ -35,10 +35,10 @@ Which can be deployed/undeployed using the above kubectl steps on your newly gen
 To use the development image for testing with specific version of VPP, see
 [DEVIMAGE.md](../docker/DEVIMAGE.md).
 
-**contiv.yaml**
+**contiv.conf**
 
   Configuration file for Contiv agent is deployed via the Config map `contiv-agent-cfg`
-  into the location `/etc/agent/contiv.yaml` of vSwitch. It includes several options
+  into the location `/etc/contiv/contiv.conf` of vSwitch. It includes several options
   allowing to customize the network connectivity between pods, such as the configuration
   of interfaces and allocation of IP addresses.
 

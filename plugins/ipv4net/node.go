@@ -427,7 +427,7 @@ func (n *IPv4Net) vxlanBridgeDomain() (key string, config *l2.BridgeDomain) {
 		UnknownUnicastFlood: false,
 		Interfaces: []*l2.BridgeDomain_Interface{
 			{
-				Name: vxlanBVIInterfaceName,
+				Name:                    vxlanBVIInterfaceName,
 				BridgedVirtualInterface: true,
 				SplitHorizonGroup:       vxlanSplitHorizonGroup,
 			},

@@ -30,6 +30,10 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 
 When everything is installed, navigate to `http://localhost:4300/` on Chrome with disabled web security - it should be automatically opened if installed.
 
+![contivpp-io-demo-setup-topology](img/contivpp-io-demo-setup.png)
+
+Here is a picture of the demo topology.
+
 ### Accessing APIs
 
 #### Set kubectl proxy

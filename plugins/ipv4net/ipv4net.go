@@ -257,5 +257,5 @@ func (n *IPv4Net) GetVxlanBVIIfName() string {
 		return ""
 	}
 
-	return vxlanBVIInterfaceName
+	return VxlanBVIInterfaceName
 }

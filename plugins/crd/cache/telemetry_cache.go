@@ -18,16 +18,21 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/logging"
+
+	vppifdescr "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
+
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/logging"
-	"io/ioutil"
-	"net/http"
-	"reflect"
-	"time"
 )
 
 const (
@@ -36,15 +41,16 @@ const (
 	numDTOs   = 8
 	agentPort = ":9999"
 
+	kvschedulerURL = "/scheduler/dump?descriptor=<descriptor>&state=internal" // TODO: configurable state
+
 	livenessURL       = "/liveness"
 	linuxInterfaceURL = "/linux/dump/v1/interfaces"
 	ipamURL           = "/contiv/v1/ipam"
 
-	nodeInterfaceURL = "/vpp/dump/v1/interfaces"
-	bridgeDomainURL  = "/vpp/dump/v1/bd"
-	l2FibsURL        = "/vpp/dump/v1/fib"
-	arpURL           = "/vpp/dump/v1/arps"
-	staticRouteURL   = "/vpp/dump/v1/routes"
+	bridgeDomainURL = "/vpp/dump/v1/bd"
+	l2FibsURL       = "/vpp/dump/v1/fib"
+	arpURL          = "/vpp/dump/v1/arps"
+	staticRouteURL  = "/vpp/dump/v1/routes"
 
 	clientTimeout = 10 // HTTP client timeout, in seconds
 )
@@ -81,7 +87,7 @@ type ContivTelemetryCache struct {
 	nnResponses  uint32
 }
 
-// Deps lists dependencies of PolicyCache.
+// Deps lists dependencies of ContivTelemetryCache.
 type Deps struct {
 	Log logging.Logger
 }
@@ -168,19 +174,14 @@ func (ctc *ContivTelemetryCache) ReinitializeCache() {
 func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 	for {
 		select {
-		case /*_, _ok := */ <-ctc.ticker.C:
-			// TODO: update CRD to reflect the refactored vpp-agent
-			ctc.Log.Info("SKIPPING timer-triggered data collection & validation")
-			return
-			/*
-				ctc.Log.Info("Timer-triggered data collection & validation, status:", ok)
-				if !ok {
-					return
-				}
-				ctc.Report.Clear()
-				ctc.processQueuedDataStoreUpdates()
-				ctc.startNodeInfoCollection()
-			*/
+		case _, ok := <-ctc.ticker.C:
+			ctc.Log.Info("Timer-triggered data collection & validation, status:", ok)
+			if !ok {
+				return
+			}
+			ctc.Report.Clear()
+			ctc.processQueuedDataStoreUpdates()
+			ctc.startNodeInfoCollection()
 
 		case data, ok := <-ctc.nodeResponseChannel:
 			if !ok {
@@ -215,6 +216,7 @@ func (ctc *ContivTelemetryCache) startNodeInfoCollection() {
 	ctc.ClearCache()
 	ctc.validationInProgress = true
 	for _, node := range nodelist {
+		ctc.corelateMgmtIP(node)
 		ctc.collectAgentInfo(node)
 	}
 }
@@ -243,6 +245,10 @@ func (ctc *ContivTelemetryCache) validateCluster() {
 	ctc.ControllerReport.GenerateCRDReport()
 }
 
+func (ctc *ContivTelemetryCache) kvSchedulerDumpURL(descriptor string) string {
+	return strings.Replace(kvschedulerURL, "<descriptor>", descriptor, 1)
+}
+
 // Collect real-time node state (mainly VPP, but some Linux too) from the
 // specified node's VPP Agent.
 func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
@@ -257,7 +263,8 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 	go ctc.getNodeInfo(client, node, livenessURL, &telemetrymodel.NodeLiveness{}, ctc.databaseVersion)
 
 	nodeInterfaces := make(telemetrymodel.NodeInterfaces, 0)
-	go ctc.getNodeInfo(client, node, nodeInterfaceURL, &nodeInterfaces, ctc.databaseVersion)
+	url := ctc.kvSchedulerDumpURL(vppifdescr.InterfaceDescriptorName)
+	go ctc.getNodeInfo(client, node, url, &nodeInterfaces, ctc.databaseVersion)
 
 	nodeBridgeDomains := make(telemetrymodel.NodeBridgeDomains, 0)
 	go ctc.getNodeInfo(client, node, bridgeDomainURL, &nodeBridgeDomains, ctc.databaseVersion)
@@ -284,24 +291,31 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 
 }
 
-/* Here are the several functions that run as goroutines to collect information
-about a specific node using an http client. First, an http request is made to the
-specific url and port of the desired information and the request received is read
-and unmarshalled into a struct to contain that information. Then, a data transfer
-object is created to hold the struct of information as well as the name and is sent
-over the plugins node database channel to node_db_processor.go where it will be read,
-processed, and added to the node database.
+/* getNodeInfo runs in a goroutine to collect information about a specific node
+using an http client. First, an http request is made to the specific url and port
+of the desired information and the request received is read and unmarshalled
+into a struct to contain that information. Then, a data transfer object is created
+to hold the struct of information as well as the name and is sent over the plugins
+node database channel to node_db_processor.go where it will be read, processed,
+and added to the node database.
 */
 func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetrymodel.Node, url string,
 	nodeInfo interface{}, version uint32) {
 
+	var	err error
+	defer func() {
+		fmt.Printf(">>>>>>> getNodeInfo unmarshaled (err=%v): %+v\n", err, nodeInfo)
+		ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nodeInfo, err, version}
+		if err != nil {
+			ctc.Report.AppendToNodeReport(node.Name, err.Error())
+		}
+	}()
+
 	res, err := client.Get(ctc.getAgentURL(node.ManIPAddr, url))
 	if err != nil {
-		ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nil, err, version}
 		return
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
-		err := fmt.Errorf("HTTP Get error: url %s, Status: %s", url, res.Status)
-		ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nil, err, version}
+		err = fmt.Errorf("HTTP Get error: url %s, Status: %s", url, res.Status)
 		return
 	}
 
@@ -310,16 +324,32 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 
 	err = json.Unmarshal(b, nodeInfo)
 	if err != nil {
-		errString := fmt.Sprintf("failed to unmarshal data for node %s, error %s", node.Name, err)
-		ctc.Report.AppendToNodeReport(node.Name, errString)
+		err = fmt.Errorf("failed to unmarshal data for node %s, error %s", node.Name, err)
+		return
 	}
-	ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nodeInfo, err, version}
+}
+
+// corelateMgmtIP correlates VPP Cache with K8s Cache to obtain and set/update the management
+// IP address of the given node.
+func (ctc *ContivTelemetryCache) corelateMgmtIP(node *telemetrymodel.Node) {
+	fmt.Printf(">>>>> corelateMgmtIP for node: %s\n", node.Name)
+
+	k8snode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
+	if err == nil {
+		for _, adr := range k8snode.Addresses {
+			if adr.Type == nodemodel.NodeAddress_NodeInternalIP {
+				node.ManIPAddr = adr.Address
+				break
+			}
+		}
+	}
 }
 
 // populateNodeMaps populates many of needed node maps for processing once
 // all of the information has been retrieved. It also checks to make sure
 // that there are no duplicate addresses within the map.
 func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
+	fmt.Printf(">>>>> Populating maps for node: %s\n", node.Name)
 	ctc.Report.SetPrefix("NODE-MAP")
 
 	k8snode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
@@ -335,8 +365,6 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 						k8snode.Name, adr.Address)
 					ctc.Report.AppendToNodeReport(node.Name, errString)
 				}
-			case nodemodel.NodeAddress_NodeInternalIP:
-				node.ManIPAddr = adr.Address
 			}
 		}
 	}
@@ -356,7 +384,9 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 
 // getAgentURL creates the URL for the data we're trying to retrieve
 func (ctc *ContivTelemetryCache) getAgentURL(ipAddr string, url string) string {
-	return "http://" + ipAddr + ctc.agentPort + url
+	fullurl := "http://" + ipAddr + ctc.agentPort + url
+	fmt.Printf(">>>>>>> getAgentURL: %s\n", fullurl)
+	return fullurl
 }
 
 // waitForValidationToFinish waits until the the next hod validation finishes

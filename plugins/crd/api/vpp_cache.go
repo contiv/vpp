@@ -38,7 +38,7 @@ type VppCache interface {
 	RetrieveAllNodes() []*telemetrymodel.Node
 
 	SetNodeLiveness(name string, nL *telemetrymodel.NodeLiveness) error
-	SetNodeInterfaces(name string, nInt map[int]telemetrymodel.NodeInterface) error
+	SetNodeInterfaces(name string, nInt telemetrymodel.NodeInterfaces) error
 	SetNodeBridgeDomain(name string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error
 	SetNodeL2Fibs(name string, nL2f map[string]telemetrymodel.NodeL2FibEntry) error
 	SetNodeTelemetry(name string, nTele map[string]telemetrymodel.NodeTelemetry) error

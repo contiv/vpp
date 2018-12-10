@@ -118,7 +118,7 @@ func (p *Plugin) Init() error {
 	}
 
 	// Time interval for periodic report collection
-	collectionInterval := 1 * time.Minute
+	collectionInterval := 10 * time.Second
 	configuredInterval, err := strconv.Atoi(os.Getenv("CONTIV_CRD_INTERVAL"))
 	if err == nil {
 		collectionInterval = time.Duration(configuredInterval) * time.Minute

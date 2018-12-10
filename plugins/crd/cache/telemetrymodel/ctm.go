@@ -15,7 +15,10 @@
 package telemetrymodel
 
 import (
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/gogo/protobuf/jsonpb"
+
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
 )
 
 // see doc.go for instructions on how to generate the deep copy routines when
@@ -23,6 +26,23 @@ import (
 
 //Reports is the per node array of report lines generated from validate()
 type Reports map[string][]string
+
+// DeepCopy returns a deep copy of Reports.
+func (r Reports) DeepCopy() (out Reports) {
+	out = make(Reports, len(r))
+	for key, val := range r {
+		var outVal []string
+		if val == nil {
+			out[key] = nil
+		} else {
+			in, out := &val, &outVal
+			*out = make([]string, len(*in))
+			copy(*out, *in)
+		}
+		out[key] = outVal
+	}
+	return out
+}
 
 //NodeInfo is struct to hold some basic information of a kubernetes node.
 type NodeInfo struct {
@@ -38,7 +58,7 @@ type NodeInfo struct {
 type Node struct {
 	*NodeInfo
 	NodeLiveness      *NodeLiveness
-	NodeInterfaces    map[int]NodeInterface
+	NodeInterfaces    map[uint32]NodeInterface
 	NodeBridgeDomains map[int]NodeBridgeDomain
 	NodeL2Fibs        map[string]NodeL2FibEntry
 	NodeTelemetry     map[string]NodeTelemetry
@@ -48,6 +68,27 @@ type Node struct {
 	LinuxInterfaces   []LinuxInterface
 	PodMap            map[string]*Pod
 }
+
+// NodeInterfaces defines a map of NodeInterface
+type NodeInterfaces []NodeInterface
+
+// NodeInterface holds unmarshalled Interface JSON data
+type NodeInterface struct {
+	Key      string
+	Value    vppInterface
+	Metadata ifaceidx.IfaceMetadata
+}
+
+type vppInterface struct {
+	*interfaces.Interface
+}
+
+func (v *vppInterface) UnmarshalJSON(data []byte) error {
+	v.Interface = &interfaces.Interface{}
+	return jsonpb.UnmarshalString(string(data), v.Interface)
+}
+
+////////////////////////////////
 
 //NodeLiveness holds the unmarshalled node liveness JSON data
 type NodeLiveness struct {
@@ -63,9 +104,6 @@ type NodeLiveness struct {
 // LinuxInterfaces defines an array of LinuxInterfaces
 type LinuxInterfaces []LinuxInterface
 
-// NodeInterfaces defines a map of NodeInterface
-type NodeInterfaces map[int]NodeInterface
-
 // NodeBridgeDomains defines a map of NodeBridgeDomain
 type NodeBridgeDomains map[int]NodeBridgeDomain
 
@@ -80,12 +118,6 @@ type NodeIPArpTable []NodeIPArpEntry
 
 // NodeStaticRoutes defines an array of NodeIPRoute object
 type NodeStaticRoutes []NodeIPRoute
-
-//NodeInterface holds unmarshalled Interface JSON data
-type NodeInterface struct {
-	If     Interface     `json:"interface"`
-	IfMeta InterfaceMeta `json:"interface_meta"`
-}
 
 // LinuxInterface contains data for linux interfaces on a node
 type LinuxInterface struct {
@@ -112,25 +144,6 @@ type LinuxIfMeta struct {
 	Type      string `json:"type"`
 }
 
-// Interface contains interface parameter data
-type Interface struct {
-	Name        string                   `json:"name"`
-	IfType      interfaces.InterfaceType `json:"type,omitempty"`
-	Enabled     bool                     `json:"enabled,omitempty"`
-	PhysAddress string                   `json:"phys_address,omitempty"`
-	Mtu         uint32                   `json:"mtu,omitempty"`
-	Vrf         uint32                   `json:"vrf,omitempty"`
-	IPAddresses []string                 `json:"ip_addresses,omitempty"`
-	Vxlan       Vxlan                    `json:"vxlan,omitempty"`
-	Tap         Tap                      `json:"tap,omitempty"`
-}
-
-// InterfaceMeta defines the interface VPP internal metadata
-type InterfaceMeta struct {
-	SwIfIndex       uint32 `json:"sw_if_index"`
-	Tag             string `json:"tag"`
-	VppInternalName string `json:"internal_name"`
-}
 
 // Vxlan contains vxlan parameter data
 type Vxlan struct {

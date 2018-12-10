@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/unrolled/render"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/ligato/cn-infra/rpc/rest"
 	. "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
@@ -301,6 +303,40 @@ func (scheduler *Scheduler) downstreamResyncPostHandler(formatter *render.Render
 	}
 }
 
+type kvPairForJSON struct {
+	Key      string
+	Value    protoMsgForJSON
+	Metadata Metadata
+	Origin   ValueOrigin
+}
+
+type protoMsgForJSON struct {
+	proto.Message
+}
+
+func (p *protoMsgForJSON) MarshalJSON() ([]byte, error) {
+	marshaller := &jsonpb.Marshaler{}
+	str, err := marshaller.MarshalToString(p.Message)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(str), nil
+}
+
+func kvPairsForJSON(pairs []KVWithMetadata) (out []kvPairForJSON) {
+	for _, kv := range pairs {
+		out = append(out, kvPairForJSON{
+			Key: kv.Key,
+			Value: protoMsgForJSON{
+				Message: kv.Value,
+			},
+			Metadata: kv.Metadata,
+			Origin:   kv.Origin,
+		})
+	}
+	return out
+}
+
 // dumpGetHandler is the GET handler for "dump" API.
 func (scheduler *Scheduler) dumpGetHandler(formatter *render.Render) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
@@ -342,7 +378,7 @@ func (scheduler *Scheduler) dumpGetHandler(formatter *render.Render) http.Handle
 
 		if state == NB {
 			// dump the requested state
-			var kvPairs []KVWithMetadata
+			var kvPairs []kvPairForJSON
 			nbNodes := graphR.GetNodes(nil,
 				graph.WithFlags(&DescriptorFlag{descriptor}, &OriginFlag{FromNB}),
 				graph.WithoutFlags(&DerivedFlag{}))
@@ -353,9 +389,9 @@ func (scheduler *Scheduler) dumpGetHandler(formatter *render.Render) http.Handle
 					// value requested to be deleted
 					continue
 				}
-				kvPairs = append(kvPairs, KVWithMetadata{
+				kvPairs = append(kvPairs, kvPairForJSON{
 					Key:    node.GetKey(),
-					Value:  lastChange.value,
+					Value:  protoMsgForJSON{Message: lastChange.value},
 					Origin: FromNB,
 				})
 			}
@@ -373,7 +409,7 @@ func (scheduler *Scheduler) dumpGetHandler(formatter *render.Render) http.Handle
 
 		if state == internalState {
 			// return the scheduler's view of SB for the given descriptor
-			formatter.JSON(w, http.StatusOK, inMemNodes)
+			formatter.JSON(w, http.StatusOK, kvPairsForJSON(inMemNodes))
 			return
 		}
 
@@ -396,7 +432,7 @@ func (scheduler *Scheduler) dumpGetHandler(formatter *render.Render) http.Handle
 			formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
 			return
 		}
-		formatter.JSON(w, http.StatusOK, dump)
+		formatter.JSON(w, http.StatusOK, kvPairsForJSON(dump))
 		return
 	}
 }

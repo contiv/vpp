@@ -27,11 +27,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 )
 
-const (
-	vmxnet3KernelDriver    = "vmxnet3"  // name of the kernel driver for vmxnet3 interfaces
-	vmxnet3InterfacePrefix = "vmxnet3-" // prefix matching all vmxnet3 interfaces on VPP
-)
-
 // getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
 // network stack.
 func (n *IPv4Net) getHostLinkIPs() (hostIPs []net.IP, err error) {
@@ -146,23 +141,4 @@ func ipv4ToUint32(ip net.IP) (uint32, error) {
 // uint32ToIpv4 is a simple utility function for conversion from uint32 to IPv4.
 func uint32ToIpv4(ip uint32) net.IP {
 	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip)).To4()
-}
-
-// appendIfMissing adds string into the slice if it is not already there.
-func appendIfMissing(slice []string, s string) []string {
-	for _, el := range slice {
-		if el == s {
-			return slice
-		}
-	}
-	return append(slice, s)
-}
-
-// vmxnet3IfNameFromPCI returns vmxnet3 interface name on VPP from provided PCI address
-func vmxnet3IfNameFromPCI(pciAddr string) string {
-	var a, b, c, d uint32
-
-	fmt.Sscanf(pciAddr, "%x:%x:%x.%x", &a, &b, &c, &d) // e.g. "0000:0b:00.0"
-
-	return fmt.Sprintf("%s%x/%x/%x/%x", vmxnet3InterfacePrefix, a, b, c, d) // e.g. "vmxnet3-0/b/0/0"
 }

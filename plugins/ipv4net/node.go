@@ -34,8 +34,9 @@ import (
 
 /* Main VPP interface */
 const (
-	// loopbackNICLogicalName is the logical name of the loopback interface configured instead of physical NICs.
-	loopbackNICLogicalName = "loopbackNIC"
+	loopbackNICLogicalName = "loopbackNIC" // logical name of the loopback interface configured instead of physical NICs
+
+	vmxnet3InterfacePrefix = "vmxnet3-" // prefix matching all vmxnet3 interfaces on VPP
 )
 
 /* VXLANs */

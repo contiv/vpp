@@ -615,6 +615,34 @@ func (c *ContivConf) GetSTNConfig() *STNConfig {
 	}
 }
 
+// UseVmxnet3 returns true if vmxnet3 driver should be used for access to physical
+// interfaces instead of DPDK.
+// Vmxnet3 configuration can be obtained using GetVmxnet3Config()
+func (c *ContivConf) UseVmxnet3() bool {
+	if c.mainInterface == "" {
+		return false
+	}
+	return strings.HasPrefix(c.mainInterface, vmxnet3InterfacePrefix)
+}
+
+// GetVmxnet3Config returns configuration related to vmxnet3 feature.
+// Use the method only if vmxnet3 is in use - i.e. when UseVmxnet3() returns true.
+func (c *ContivConf) GetVmxnet3Config() (*Vmxnet3Config, error) {
+	if !c.UseVmxnet3() {
+		return nil, fmt.Errorf("vmxnet3 not in use")
+	}
+
+	pci, err := vmxnet3PCIFromName(c.mainInterface)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Vmxnet3Config{
+		MainInterfaceName:       c.mainInterface,
+		MainInterfacePCIAddress: pci,
+	}, nil
+}
+
 // Close is NOOP.
 func (c *ContivConf) Close() error {
 	return nil
@@ -937,11 +965,26 @@ func nodeConfigFromProto(nodeConfigProto *nodeconfig.NodeConfig) (nodeConfig *No
 	return nodeConfig
 }
 
-// vmxnet3IfNameFromPCI returns vmxnet3 interface name on VPP from provided PCI address
+// vmxnet3IfNameFromPCI derives vmxnet3 interface name on VPP from provided PCI address
 func vmxnet3IfNameFromPCI(pciAddr string) string {
 	var a, b, c, d uint32
 
-	fmt.Sscanf(pciAddr, "%x:%x:%x.%x", &a, &b, &c, &d) // e.g. "0000:0b:00.0"
-
+	fmt.Sscanf(pciAddr, "%x:%x:%x.%x", &a, &b, &c, &d)                      // e.g. "0000:0b:00.0"
 	return fmt.Sprintf("%s%x/%x/%x/%x", vmxnet3InterfacePrefix, a, b, c, d) // e.g. "vmxnet3-0/b/0/0"
+}
+
+// vmxnet3PCIFromName derives PCI address string from provided vmxnet3 interface name
+func vmxnet3PCIFromName(ifName string) (string, error) {
+	var function, slot, bus, domain uint32
+	numLen, err := fmt.Sscanf(ifName, "vmxnet3-%x/%x/%x/%x", &domain, &bus, &slot, &function)
+	if err != nil {
+		err = fmt.Errorf("cannot parse PCI address from the vmxnet3 interface name %s: %v", ifName, err)
+		return "", err
+	}
+	if numLen != 4 {
+		err = fmt.Errorf("cannot parse PCI address from the interface name %s: expected 4 address elements, received %d",
+			ifName, numLen)
+		return "", err
+	}
+	return fmt.Sprintf("%04x:%02x:%02x.%0x", domain, bus, slot, function), nil
 }

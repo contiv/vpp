@@ -29,14 +29,11 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/nodesync"
-	"strings"
 )
 
 /* Main VPP interface */
 const (
 	loopbackNICLogicalName = "loopbackNIC" // logical name of the loopback interface configured instead of physical NICs
-
-	vmxnet3InterfacePrefix = "vmxnet3-" // prefix matching all vmxnet3 interfaces on VPP
 )
 
 /* VXLANs */
@@ -274,14 +271,19 @@ func (n *IPv4Net) enabledIPNeighborScan() (key string, config *l3.IPScanNeighbor
 // connecting node with the rest of the cluster or an extra physical interface requested
 // in the config file.
 func (n *IPv4Net) physicalInterface(name string, ips contivconf.IPsWithNetworks) (key string, config *interfaces.Interface) {
+	ifConfig := n.ContivConf.GetInterfaceConfig()
 	iface := &interfaces.Interface{
 		Name:    name,
 		Type:    interfaces.Interface_DPDK,
 		Enabled: true,
 		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
 	}
-	if strings.HasPrefix(name, vmxnet3InterfacePrefix) {
+	if n.ContivConf.UseVmxnet3() {
 		iface.Type = interfaces.Interface_VMXNET3_INTERFACE
+		if ifConfig.Vmxnet3RxRingSize != 0 && ifConfig.Vmxnet3TxRingSize != 0 {
+			iface.GetVmxNet3().RxqSize = uint32(ifConfig.Vmxnet3RxRingSize)
+			iface.GetVmxNet3().TxqSize = uint32(ifConfig.Vmxnet3TxRingSize)
+		}
 	}
 	for _, ip := range ips {
 		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.Address, ip.Network)))

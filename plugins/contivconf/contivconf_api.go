@@ -83,6 +83,15 @@ type API interface {
 	// GetSTNConfig returns configuration related to STN feature.
 	// Use the method only in the STN mode - i.e. when InSTNMode() returns true.
 	GetSTNConfig() *STNConfig
+
+	// UseVmxnet3 returns true if vmxnet3 driver should be used for access to physical
+	// interfaces instead of DPDK.
+	// Vmxnet3 configuration can be obtained using GetVmxnet3Config()
+	UseVmxnet3() bool
+
+	// GetVmxnet3Config returns configuration related to vmxnet3 feature.
+	// Use the method only if vmxnet3 is in use - i.e. when UseVmxnet3() returns true.
+	GetVmxnet3Config() (*Vmxnet3Config, error)
 }
 
 /******************************** Configuration ********************************/
@@ -149,6 +158,8 @@ type InterfaceConfig struct {
 	TAPInterfaceVersion        uint8  `json:"tapInterfaceVersion,omitempty"`
 	TAPv2RxRingSize            uint16 `json:"tapv2RxRingSize,omitempty"`
 	TAPv2TxRingSize            uint16 `json:"tapv2TxRingSize,omitempty"`
+	Vmxnet3RxRingSize          uint16 `json:"vmxnet3RxRingSize,omitempty"`
+	Vmxnet3TxRingSize          uint16 `json:"vmxnet3TxRingSize,omitempty"`
 	TCPChecksumOffloadDisabled bool   `json:"tcpChecksumOffloadDisabled,omitempty"`
 }
 
@@ -180,6 +191,12 @@ type STNConfig struct {
 	StealInterface string // can be empty if the interface is already stolen
 	STNRoutes      []*stn_grpc.STNReply_Route
 	STNSocketFile  string
+}
+
+// Vmxnet3Config groups config options related to Vmxnet3 feature.
+type Vmxnet3Config struct {
+	MainInterfaceName       string // main interface name as seen by VPP
+	MainInterfacePCIAddress string // PCI address of the main interface
 }
 
 // OtherInterfaceConfig represents configuration for a non-main VPP interface.

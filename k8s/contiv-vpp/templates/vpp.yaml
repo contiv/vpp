@@ -26,6 +26,12 @@ data:
     tapv2RxRingSize: {{ .Values.contiv.tapv2RxRingSize }}
     tapv2TxRingSize: {{ .Values.contiv.tapv2TxRingSize }}
     {{- end }}
+    {{- if ne (.Values.contiv.vmxnet3RxRingSize | int) 1024 }}
+    Vmxnet3RxRingSize: {{ .Values.contiv.vmxnet3RxRingSize }}
+    {{- end }}
+    {{- if ne (.Values.contiv.vmxnet3TxRingSize | int) 1024 }}
+    Vmxnet3TxRingSize: {{ .Values.contiv.vmxnet3TxRingSize }}
+    {{- end }}
     tcpChecksumOffloadDisabled: true
     {{- if .Values.contiv.stealInterface }}
     stealInterface: {{ .Values.contiv.stealInterface }}

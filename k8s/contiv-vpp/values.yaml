@@ -3,6 +3,8 @@ contiv:
   tapInterfaceVersion: 2
   tapv2RxRingSize: 256
   tapv2TxRingSize: 256
+  vmxnet3RxRingSize: 1024
+  vmxnet3TxRingSize: 1024
   stealFirstNIC: False
   natExternalTraffic: True
   mtuSize: 1450

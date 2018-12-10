@@ -16,11 +16,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -56,6 +54,8 @@ const (
 	contivAgentProcessName = "contiv-agent"
 
 	etcdConnectionRetries = 20 // number of retries to connect to ETCD
+
+	vmxnet3PreferredDriver = "vfio-pci" // driver required for vmxnet3 interfaces
 )
 
 var (
@@ -275,22 +275,6 @@ func prepareForLocalResync(nodeName string, boltDB contivconf.KVBrokerFactory, e
 	return err
 }
 
-// deriveVmxnet3PCI derives PCI address string from the vmxnet3 interface name
-func deriveVmxnet3PCI(ifName string) (string, error) {
-	var function, slot, bus, domain uint32
-	numLen, err := fmt.Sscanf(ifName, "vmxnet3-%x/%x/%x/%x", &domain, &bus, &slot, &function)
-	if err != nil {
-		err = fmt.Errorf("cannot parse PCI address from the vmxnet3 interface name %s: %v", ifName, err)
-		return "", err
-	}
-	if numLen != 4 {
-		err = fmt.Errorf("cannot parse PCI address from the interface name %s: expected 4 address elements, received %d",
-			ifName, numLen)
-		return "", err
-	}
-	return fmt.Sprintf("%04x:%02x:%02x.%0x", domain, bus, slot, function), nil
-}
-
 func main() {
 	logger.Debugf("Starting contiv-init process")
 
@@ -365,15 +349,14 @@ func main() {
 	}
 
 	// check whether vmxnet3 interface bind is required
-	if !contivConf.InSTNMode() && contivConf.GetMainInterfaceName() != "" &&
-		strings.HasPrefix(contivConf.GetMainInterfaceName(), "vmxnet3-") {
+	if !contivConf.InSTNMode() && contivConf.UseVmxnet3() {
 
-		pciAddr, err := deriveVmxnet3PCI(contivConf.GetMainInterfaceName())
+		vmxnet3Cfg, err := contivConf.GetVmxnet3Config()
 		if err != nil {
-			logger.Errorf("Error by deriving PCI address: %v", err)
+			logger.Errorf("Error by getting vmxnet3 config: %v", err)
 			os.Exit(-1)
 		}
-		err = pci.DriverBind(pciAddr, "vfio-pci")
+		err = pci.DriverBind(vmxnet3Cfg.MainInterfacePCIAddress, vmxnet3PreferredDriver)
 		if err != nil {
 			logger.Errorf("Error binding to vfio-pci: %v", err)
 			os.Exit(-1)

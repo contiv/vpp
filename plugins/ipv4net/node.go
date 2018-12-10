@@ -108,9 +108,9 @@ func (n *IPv4Net) nodeConnectivityConfig(node *nodesync.Node) (config controller
 	return config, nil
 }
 
-// nodeHasIPAddress returns true if the given node has at least one IP address assigned.
+// nodeHasIPAddress returns true if the given node has at least one VPP and one management IP address assigned.
 func nodeHasIPAddress(node *nodesync.Node) bool {
-	return node != nil && (len(node.VppIPAddresses) > 0 || len(node.MgmtIPAddresses) > 0)
+	return node != nil && (len(node.VppIPAddresses) > 0 && len(node.MgmtIPAddresses) > 0)
 }
 
 // routesToNode returns configuration of routes used for routing traffic destined to the given other node.

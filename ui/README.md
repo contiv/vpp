@@ -16,6 +16,8 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 
 - Vagrant
 - VirtualBox
+- Laptop w/ 16gb of memory
+- [Postman](https://www.getpostman.com/) to look over [APIs](https://github.com/ligato/vpp-agent/tree/master/plugins/rest)
 
 ### Running
 
@@ -75,3 +77,23 @@ When you finished the work with the application, run `./stop.sh` from `vpp/ui` f
 ### Wiping all data/settings
 
 Run `./clear-all.sh` from vpp/ui directory for clearing all data and settings (destroy each Vagrant instance). After this command you need to follow [running steps](#running) from the 3rd point and build application again.
+
+## Contivpp UI Screenshots using Demo app loaded up onto laptop
+
+![contivpp topology](img/contivpp-io-k8s-topology.png)
+
+View of 3 x node K8s cluster topology. Note the presence of contiv vSwitches in each node.
+
+![contiv vswitch](img/contivpp-io-contiv-vswitch.png)
+
+Assigned IP addresses and interfaces
+
+![vxlan over](img/contivpp-io-vxlan-overlay.png)
+
+Logical vxlan network overlay established by established by contivpp.io
+
+![Pods in the cluser belonging to a K8s service](img/contivpp-io-vxlan-overlay.png)
+
+Pods in the cluser belonging to a K8s service
+
+

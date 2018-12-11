@@ -88,6 +88,7 @@ type Node struct {
 
 /******************************** VPP interface ********************************/
 
+// NodeInterfaceMap is a map of VPP interfaces.
 type NodeInterfaceMap map[uint32]NodeInterface
 
 // GetByName retrieves interface by the logical name.

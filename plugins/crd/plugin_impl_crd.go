@@ -127,9 +127,9 @@ func (p *Plugin) Init() error {
 	if validateState != "internal" && validateState != "NB" && validateState != "SB" {
 		if validateState != "" {
 			p.Log.WithField("validateState", validateState).Warn("" +
-				"Unrecognized value set for CONTIV_CRD_VALIDATE_STATE, defaulting to \"internal\"")
+				"Unrecognized value set for CONTIV_CRD_VALIDATE_STATE, defaulting to \"SB\"")
 		}
-		validateState = "internal"
+		validateState = "SB"
 	}
 
 	p.telemetryController = &telemetry.Controller{

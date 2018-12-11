@@ -148,7 +148,7 @@ crd:
     pullPolicy: IfNotPresent
   updateStrategy: RollingUpdate
   validateInterval: 1 # in minutes, 0 to disable
-  validateState: internal # select one of the: "internal", "SB", "NB"
+  validateState: SB # select one of the: "internal", "SB", "NB"
   enableLivenessReadinessProbes: true
   readinessProbeInitialDelaySeconds: 10
   livenessProbeInitialDelaySeconds: 30

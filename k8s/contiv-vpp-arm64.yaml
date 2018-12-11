@@ -301,14 +301,6 @@ spec:
             name: cni-net-dir
           - mountPath: /var/run/contiv
             name: contiv-run
-      # This init container waits until etcd is started
-      - name: wait-foretcd
-        env:
-          - name: ETCDPORT
-            value: "32379"
-        image: arm64v8/busybox:latest
-        imagePullPolicy: IfNotPresent
-        command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
         image: contivvpp/vswitch-arm64:latest

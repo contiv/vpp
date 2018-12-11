@@ -516,20 +516,7 @@ spec:
             name: cni-net-dir
           - mountPath: /var/run/contiv
             name: contiv-run
-      {{- if .Values.contiv.crdNodeConfigurationDisabled }}
-      # This init container waits until etcd is started
-      - name: wait-foretcd
-        env:
-          - name: ETCDPORT
-            value: {{ .Values.etcd.service.nodePort | quote }}
-        {{- if .Values.Arm64Platform }}
-        image: {{ .Values.init_arm64.image.repository }}:{{ .Values.init.image.tag }}
-        {{- else }}
-        image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
-        {{- end }}
-        imagePullPolicy: IfNotPresent
-        command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
-      {{- else }}
+      {{- if eq .Values.contiv.crdNodeConfigurationDisabled false }}
       # This init container waits until crd node specific configuration has been applied
       - name: wait-forcrdconfig
         env:

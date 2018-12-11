@@ -27,7 +27,8 @@ const (
 	PluginURL = Prefix + "ipam"
 )
 
-type ipamData struct {
+// IPAMData defines attributes exposed by the IPAM REST handler.
+type IPAMData struct {
 	NodeID            uint32                        `json:"nodeId"`
 	NodeName          string                        `json:"nodeName"`
 	NodeIP            string                        `json:"nodeIP"`
@@ -56,7 +57,7 @@ func (n *IPv4Net) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
 			return
 		}
 
-		formatter.JSON(w, http.StatusOK, ipamData{
+		formatter.JSON(w, http.StatusOK, IPAMData{
 			NodeID:            n.NodeSync.GetNodeID(),
 			NodeName:          n.ServiceLabel.GetAgentLabel(),
 			NodeIP:            nodeIP.String(),

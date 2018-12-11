@@ -117,7 +117,7 @@ func (p *Plugin) Init() error {
 
 	// Time interval for periodic report collection
 	collectionInterval := 10 * time.Second
-	configuredInterval, err := strconv.Atoi(os.Getenv("CONTIV_CRD_INTERVAL"))
+	configuredInterval, err := strconv.Atoi(os.Getenv("CONTIV_CRD_VALIDATE_INTERVAL"))
 	if err == nil {
 		collectionInterval = time.Duration(configuredInterval) * time.Minute
 	}
@@ -125,8 +125,10 @@ func (p *Plugin) Init() error {
 	// Agent state to dump and validate
 	validateState := os.Getenv("CONTIV_CRD_VALIDATE_STATE")
 	if validateState != "internal" && validateState != "NB" && validateState != "SB" {
-		p.Log.WithField("validateState", validateState).Warn("" +
-			"Unrecognized value set for CONTIV_CRD_VALIDATE_STATE, defaulting to \"internal\"")
+		if validateState != "" {
+			p.Log.WithField("validateState", validateState).Warn("" +
+				"Unrecognized value set for CONTIV_CRD_VALIDATE_STATE, defaulting to \"internal\"")
+		}
 		validateState = "internal"
 	}
 

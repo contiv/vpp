@@ -21,12 +21,18 @@ import (
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
+
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/contiv/vpp/plugins/crd/validator/utils"
-	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"	
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
+)
+
+const (
+	// logical name of the bridge domain with VXLAN interfaces
+	vxlanDBName = "vxlanBD"
 )
 
 // Validator is the implementation of the ContivTelemetryProcessor interface.
@@ -75,14 +81,14 @@ func (v *Validator) ValidateArpTables() {
 		}
 
 		for _, arpTableEntry := range node.NodeIPArp {
-			if !arpTableEntry.Ae.Static {
+			if !arpTableEntry.Value.Static {
 				continue
 			}
 
-			arpIf, ok := node.NodeInterfaces[arpTableEntry.AeMeta.IfIndex]
+			arpIf, ok := node.NodeInterfaces.GetByName(arpTableEntry.Value.Interface)
 			if !ok {
-				errString := fmt.Sprintf("invalid ARP entry <'%s'-'%s'>: bad ifIndex %d",
-					arpTableEntry.Ae.PhysAddress, arpTableEntry.Ae.IPAddress, arpTableEntry.AeMeta.IfIndex)
+				errString := fmt.Sprintf("invalid ARP entry <'%s'-'%s'>: bad interface %s",
+					arpTableEntry.Value.PhysAddress, arpTableEntry.Value.IpAddress, arpTableEntry.Value.Interface)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				errCnt++
 				continue
@@ -94,19 +100,19 @@ func (v *Validator) ValidateArpTables() {
 			}
 
 			addressNotFound := false
-			macNode, err := v.VppCache.RetrieveNodeByLoopMacAddr(arpTableEntry.Ae.PhysAddress)
+			macNode, err := v.VppCache.RetrieveNodeByLoopMacAddr(arpTableEntry.Value.PhysAddress)
 			if err != nil {
 				errString := fmt.Sprintf("invalid ARP entry <'%s'-'%s'>: bad MAC Addess",
-					arpTableEntry.Ae.PhysAddress, arpTableEntry.Ae.IPAddress)
+					arpTableEntry.Value.PhysAddress, arpTableEntry.Value.IpAddress)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				addressNotFound = true
 				errCnt++
 			}
 
-			ipNode, err := v.VppCache.RetrieveNodeByLoopIPAddr(arpTableEntry.Ae.IPAddress + "/24")
+			ipNode, err := v.VppCache.RetrieveNodeByLoopIPAddr(arpTableEntry.Value.IpAddress + "/24")
 			if err != nil {
 				errString := fmt.Sprintf("invalid ARP entry <'%s'-'%s'>: bad IP Addess",
-					arpTableEntry.Ae.PhysAddress, arpTableEntry.Ae.IPAddress)
+					arpTableEntry.Value.PhysAddress, arpTableEntry.Value.IpAddress)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				addressNotFound = true
 				errCnt++
@@ -118,7 +124,7 @@ func (v *Validator) ValidateArpTables() {
 
 			if macNode.Name != ipNode.Name {
 				errString := fmt.Sprintf("invalid ARP entry <'%s'-'%s'>: MAC -> node %s, IP -> node %s",
-					arpTableEntry.Ae.PhysAddress, arpTableEntry.Ae.IPAddress, macNode.Name, ipNode.Name)
+					arpTableEntry.Value.PhysAddress, arpTableEntry.Value.IpAddress, macNode.Name, ipNode.Name)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				errCnt++
 			}
@@ -161,7 +167,7 @@ validateNodeBD:
 		var vxLanBD *telemetrymodel.NodeBridgeDomain
 
 		for _, bdomain := range node.NodeBridgeDomains {
-			if bdomain.Bd.Name == "vxlanBD" {
+			if bdomain.Value.Name == "vxlanBD" {
 				if vxLanBD != nil {
 					errString := fmt.Sprintf("multiple VXLAN BDs - skipped BD validation")
 					errCnt++
@@ -179,28 +185,22 @@ validateNodeBD:
 			continue
 		}
 
-		validInterfaces := 0
-		bdName2Id := make(map[string]uint32)
-		for id, name := range vxLanBD.BdMeta.BdID2Name {
-			bdName2Id[name] = id
-		}
-
 		// Validate interfaces listed in the BD
+		validInterfaces := 0
 		hasBviIfc := false
-		for _, bdIfc := range vxLanBD.Bd.Interfaces {
-			ifIndex := bdName2Id[bdIfc.Name]
-
+		for _, bdIfc := range vxLanBD.Value.Interfaces {
 			//check if one of the indices point to the loop interface
 			//if it does, increment a counter and set a boolean to true
-			nodeIfc, ok := node.NodeInterfaces[ifIndex]
+			nodeIfc, ok := node.NodeInterfaces.GetByName(bdIfc.Name)
 			if !ok {
 				errCnt++
-				errString := fmt.Sprintf("invalid interface in VXLAN BD; ifIndex %d, ifName %s", ifIndex, bdIfc.Name)
+				errString := fmt.Sprintf("invalid interface in VXLAN BD; ifName %s", bdIfc.Name)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				continue
 			}
+			ifIndex := nodeIfc.Metadata.SwIfIndex
 
-			if bdIfc.BVI {
+			if bdIfc.BridgedVirtualInterface {
 				// check for duplicate BVIs (there must be only one BVI per BD)
 				if hasBviIfc {
 					errCnt++
@@ -348,8 +348,8 @@ validateNodeBD:
 
 // ValidateL2FibEntries validates statically configured L2 FIB entries for
 // remote nodes. It checks that each remote node has a statically configured
-// entry n the L2 FIB and that the entry points to a valid interface on the
-// remote node. It also detect dangling L2FIB entries (i.e. entries that do
+// entry in the L2 FIB table and that the entry points to a valid interface on
+// the remote node. It also detect dangling L2FIB entries (i.e. entries that do
 // not point to active remote nodes).
 func (v *Validator) ValidateL2FibEntries() {
 	errCnt := 0
@@ -363,7 +363,7 @@ func (v *Validator) ValidateL2FibEntries() {
 		}
 
 		fibHasLoopIF := false
-		vxLanBD, err := getVxlanBD(node)
+		_, err := getVxlanBD(node)
 		if err != nil {
 			errCnt++
 			errString := fmt.Sprintf("%s - skipped L2Fib validation for node %s", err.Error(), node.Name)
@@ -379,30 +379,32 @@ func (v *Validator) ValidateL2FibEntries() {
 
 		// Used to mark all L2Fib entries for which there exists a node
 		fibNodeMap := make(map[string]bool)
-		for feKey, feVal := range node.NodeL2Fibs {
-			if int(feVal.FeMeta.BridgeDomainID) != vxLanBD {
+		for _, feVal := range node.NodeL2Fibs {
+			feKey := l2.FIBKey(feVal.Value.BridgeDomain, feVal.Value.PhysAddress)
+			if feVal.Value.BridgeDomain != vxlanDBName {
 				// Skip over entries in other BDs
 				continue
 			}
-			if !feVal.Fe.StaticConfig {
+			if !feVal.Value.StaticConfig {
 				// Skip over dynamic (not statically programmed) entries
 				continue
 			}
 			fibNodeMap[feKey] = true
 		}
 
-		for feKey, feVal := range node.NodeL2Fibs {
-			if int(feVal.FeMeta.BridgeDomainID) != vxLanBD {
+		for _, feVal := range node.NodeL2Fibs {
+			feKey := l2.FIBKey(feVal.Value.BridgeDomain, feVal.Value.PhysAddress)
+			if feVal.Value.BridgeDomain != vxlanDBName {
 				// Skip over entries in other BDs
 				continue
 			}
 
 			// Skip over dynamic (not statically programmed) entries
-			if !feVal.Fe.StaticConfig {
+			if !feVal.Value.StaticConfig {
 				continue
 			}
 
-			if feVal.Fe.BridgedVirtualInterface {
+			if feVal.Value.BridgedVirtualInterface {
 				// Validate local loop0 (BVI) L2FIB entry
 
 				// Lookup the local BVI (loopback) interface in the local node
@@ -414,22 +416,22 @@ func (v *Validator) ValidateL2FibEntries() {
 				} else {
 					// check if the L2Fib entry's MAC address is the same as
 					// in the BVI interface on the local node
-					if feVal.Fe.PhysAddress != loopIf.Value.PhysAddress {
+					if feVal.Value.PhysAddress != loopIf.Value.PhysAddress {
 						errCnt++
 						errString := fmt.Sprintf("invalid L2Fib BVI entry '%s'; bad MAC address - "+
-							"have '%s', expecting '%s'", feKey, feVal.Fe.PhysAddress, loopIf.Value.PhysAddress)
+							"have '%s', expecting '%s'", feKey, feVal.Value.PhysAddress, loopIf.Value.PhysAddress)
 						v.Report.AppendToNodeReport(node.Name, errString)
 					}
 				}
 
 				// Do a consistency check of internal databases and report
 				// an error if out of whack
-				if _, err := v.VppCache.RetrieveNodeByLoopMacAddr(feVal.Fe.PhysAddress); err == nil {
+				if _, err := v.VppCache.RetrieveNodeByLoopMacAddr(feVal.Value.PhysAddress); err == nil {
 					fibHasLoopIF = true
 				} else {
 					errCnt++
 					errString := fmt.Sprintf("L2Fib validator internal error: "+
-						"inconsistent MAC Address index, MAC %s", feVal.Fe.PhysAddress)
+						"inconsistent MAC Address index, MAC %s", feVal.Value.PhysAddress)
 					v.Report.AppendToNodeReport(node.Name, errString)
 				}
 
@@ -439,11 +441,11 @@ func (v *Validator) ValidateL2FibEntries() {
 				// Validate remote node (VXLAN) L2FIB entry
 
 				// Make sure the outgoing interface in the L2FIB entry exists
-				intf, ok := node.NodeInterfaces[feVal.FeMeta.OutgoingIfIndex]
+				intf, ok := node.NodeInterfaces.GetByName(feVal.Value.OutgoingInterface)
 				if !ok {
 					errCnt++
-					errString := fmt.Sprintf("invalid L2Fib entry '%s': outgoing interface %s / ifIndex %d "+
-						"not found ", feVal.Fe.PhysAddress, feVal.Fe.OutgoingIfName, feVal.FeMeta.OutgoingIfIndex)
+					errString := fmt.Sprintf("invalid L2Fib entry '%s': outgoing interface %s "+
+						"not found ", feVal.Value.PhysAddress, feVal.Value.OutgoingInterface)
 					v.Report.AppendToNodeReport(node.Name, errString)
 					continue
 				}
@@ -465,26 +467,26 @@ func (v *Validator) ValidateL2FibEntries() {
 					delete(nodeFibMap, macNode.Name)
 					errCnt++
 					errString := fmt.Sprintf("invalid L2Fib entry '%s': missing loop interface on remote node %s",
-						feVal.Fe.PhysAddress, macNode.Name)
+						feVal.Value.PhysAddress, macNode.Name)
 					v.Report.AppendToNodeReport(node.Name, errString)
 					continue
 				}
 
 				// Make sure that the L2Fib entry's MAC address is the same as
 				// in the BVI interface on the remote node
-				if remoteLoopIF.Value.PhysAddress != feVal.Fe.PhysAddress {
+				if remoteLoopIF.Value.PhysAddress != feVal.Value.PhysAddress {
 					errCnt++
 					errString := fmt.Sprintf("invalid L2Fib entry '%s': have MAC Address '%s', expecting %s",
-						feKey, feVal.Fe.PhysAddress, remoteLoopIF.Value.PhysAddress)
+						feKey, feVal.Value.PhysAddress, remoteLoopIF.Value.PhysAddress)
 					v.Report.AppendToNodeReport(node.Name, errString)
 				}
 
 				// Do a consistency check of internal databases and report
 				// an error if out of whack
-				if _, err := v.VppCache.RetrieveNodeByLoopMacAddr(feVal.Fe.PhysAddress); err != nil {
+				if _, err := v.VppCache.RetrieveNodeByLoopMacAddr(feVal.Value.PhysAddress); err != nil {
 					errCnt++
 					errString := fmt.Sprintf("L2Fib validator internal error: "+
-						"inconsistent MAC Address index, MAC %s", feVal.Fe.PhysAddress)
+						"inconsistent MAC Address index, MAC %s", feVal.Value.PhysAddress)
 					v.Report.AppendToNodeReport(node.Name, errString)
 				}
 
@@ -821,9 +823,9 @@ func printS(errCnt int) string {
 
 func getVxlanBD(node *telemetrymodel.Node) (int, error) {
 	for bdomainIdx, bdomain := range node.NodeBridgeDomains {
-		if bdomain.Bd.Name == "vxlanBD" {
+		if bdomain.Value.Name == vxlanDBName {
 			return bdomainIdx, nil
 		}
 	}
-	return 0, fmt.Errorf("vxlanBD not found")
+	return 0, fmt.Errorf("%s not found", vxlanDBName)
 }

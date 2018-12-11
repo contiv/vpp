@@ -28,11 +28,16 @@ import (
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 	"github.com/ligato/cn-infra/logging"
 
+	linuxifdescr "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/descriptor"
 	vppifdescr "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
+
+	vppl2descr "github.com/ligato/vpp-agent/plugins/vppv2/l2plugin/descriptor"
+	vppl3descr "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/descriptor"
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 )
 
@@ -45,13 +50,6 @@ const (
 	kvschedulerURL = "/scheduler/dump?descriptor=<descriptor>&state=<state>"
 	livenessURL    = "/liveness"
 	ipamURL        = "/contiv/v1/ipam"
-
-	linuxInterfaceURL = "/linux/dump/v1/interfaces"
-
-	bridgeDomainURL = "/vpp/dump/v1/bd"
-	l2FibsURL       = "/vpp/dump/v1/fib"
-	arpURL          = "/vpp/dump/v1/arps"
-	staticRouteURL  = "/vpp/dump/v1/routes"
 
 	clientTimeout = 10 // HTTP client timeout, in seconds
 )
@@ -250,7 +248,7 @@ func (ctc *ContivTelemetryCache) validateCluster() {
 
 func (ctc *ContivTelemetryCache) kvSchedulerDumpURL(descriptor string) string {
 	url := strings.Replace(kvschedulerURL, "<descriptor>", descriptor, 1)
-	strings.Replace(url, "<state>", ctc.validateState, 1)
+	url = strings.Replace(url, "<state>", ctc.validateState, 1)
 	return url
 }
 
@@ -272,27 +270,32 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 	go ctc.getNodeInfo(client, node, url, &nodeInterfaces, ctc.databaseVersion)
 
 	nodeBridgeDomains := make(telemetrymodel.NodeBridgeDomains, 0)
-	go ctc.getNodeInfo(client, node, bridgeDomainURL, &nodeBridgeDomains, ctc.databaseVersion)
+	url = ctc.kvSchedulerDumpURL(vppl2descr.BridgeDomainDescriptorName)
+	go ctc.getNodeInfo(client, node, url, &nodeBridgeDomains, ctc.databaseVersion)
 
 	nodel2fibs := make(telemetrymodel.NodeL2FibTable, 0)
-	go ctc.getNodeInfo(client, node, l2FibsURL, &nodel2fibs, ctc.databaseVersion)
+	url = ctc.kvSchedulerDumpURL(vppl2descr.FIBDescriptorName)
+	go ctc.getNodeInfo(client, node, url, &nodel2fibs, ctc.databaseVersion)
 
 	//TODO: Implement getTelemetry correctly.
 	//Does not parse information correctly
 	//nodetelemetry := make(map[string]NodeTelemetry)
 	//go ctc.getNodeInfo(client, node, telemetryURL, &nodetelemetry)
 
-	nodeiparpslice := make(telemetrymodel.NodeIPArpTable, 0)
-	go ctc.getNodeInfo(client, node, arpURL, &nodeiparpslice, ctc.databaseVersion)
+	nodeiparps := make(telemetrymodel.NodeIPArpTable, 0)
+	url = ctc.kvSchedulerDumpURL(vppl3descr.ArpDescriptorName)
+	go ctc.getNodeInfo(client, node, url, &nodeiparps, ctc.databaseVersion)
 
 	nodestaticroutes := make(telemetrymodel.NodeStaticRoutes, 0)
-	go ctc.getNodeInfo(client, node, staticRouteURL, &nodestaticroutes, ctc.databaseVersion)
+	url = ctc.kvSchedulerDumpURL(vppl3descr.StaticRouteDescriptorName)
+	go ctc.getNodeInfo(client, node, url, &nodestaticroutes, ctc.databaseVersion)
 
-	nodeipam := telemetrymodel.IPamEntry{}
+	nodeipam := ipv4net.IPAMData{}
 	go ctc.getNodeInfo(client, node, ipamURL, &nodeipam, ctc.databaseVersion)
 
 	linuxInterfaces := make(telemetrymodel.LinuxInterfaces, 0)
-	go ctc.getNodeInfo(client, node, linuxInterfaceURL, &linuxInterfaces, ctc.databaseVersion)
+	url = ctc.kvSchedulerDumpURL(linuxifdescr.InterfaceDescriptorName)
+	go ctc.getNodeInfo(client, node, url, &linuxInterfaces, ctc.databaseVersion)
 
 }
 
@@ -462,8 +465,8 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 		case *telemetrymodel.NodeStaticRoutes:
 			nSrDto := data.NodeInfo.(*telemetrymodel.NodeStaticRoutes)
 			err = ctc.VppCache.SetNodeStaticRoutes(data.NodeName, *nSrDto)
-		case *telemetrymodel.IPamEntry:
-			nipamDto := data.NodeInfo.(*telemetrymodel.IPamEntry)
+		case *ipv4net.IPAMData:
+			nipamDto := data.NodeInfo.(*ipv4net.IPAMData)
 			err = ctc.VppCache.SetNodeIPam(data.NodeName, *nipamDto)
 		case *telemetrymodel.LinuxInterfaces:
 			liDto := data.NodeInfo.(*telemetrymodel.LinuxInterfaces)

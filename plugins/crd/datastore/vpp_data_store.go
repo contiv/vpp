@@ -227,7 +227,7 @@ func (vds *VppDataStore) SetNodeInterfaces(nodeName string, nInt telemetrymodel.
 	if !ok {
 		return fmt.Errorf("failed to set NodeInterfaces for node %s", nodeName)
 	}
-	node.NodeInterfaces = make(map[uint32]telemetrymodel.NodeInterface)
+	node.NodeInterfaces = make(telemetrymodel.NodeInterfaceMap)
 	for _, iface := range nInt {
 		node.NodeInterfaces[iface.Metadata.SwIfIndex] = iface
 	}
@@ -248,7 +248,7 @@ func (vds *VppDataStore) SetLinuxInterfaces(nodeName string, nInt telemetrymodel
 }
 
 //SetNodeStaticRoutes is a simple function to set a nodes static routes given its name.
-func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs []telemetrymodel.NodeIPRoute) error {
+func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs telemetrymodel.NodeStaticRoutes) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -261,7 +261,7 @@ func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs []telemetrymo
 }
 
 // SetNodeBridgeDomain is a simple function to set a nodes bridge domain given its name.
-func (vds *VppDataStore) SetNodeBridgeDomain(nodeName string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error {
+func (vds *VppDataStore) SetNodeBridgeDomain(nodeName string, nBridge telemetrymodel.NodeBridgeDomains) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -274,7 +274,7 @@ func (vds *VppDataStore) SetNodeBridgeDomain(nodeName string, nBridge map[int]te
 }
 
 // SetNodeL2Fibs is a simple function to set a nodes l2 fibs given its name.
-func (vds *VppDataStore) SetNodeL2Fibs(nodeName string, nL2F map[string]telemetrymodel.NodeL2FibEntry) error {
+func (vds *VppDataStore) SetNodeL2Fibs(nodeName string, nL2F telemetrymodel.NodeL2FibTable) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -300,7 +300,7 @@ func (vds *VppDataStore) SetNodeTelemetry(nodeName string, nTele map[string]tele
 }
 
 // SetNodeIPARPs is a simple function to set a nodes ip arp table given its name.
-func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps []telemetrymodel.NodeIPArpEntry) error {
+func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps telemetrymodel.NodeIPArpTable) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -314,7 +314,7 @@ func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps []telemetrymodel.N
 }
 
 // SetNodeIPam is a simple function to set the node with the given node name's ipam
-func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam telemetrymodel.IPamEntry) error {
+func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam ipv4net.IPAMData) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 

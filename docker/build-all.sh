@@ -58,8 +58,8 @@ if [ ${SKIP_DOCKER_CACHE} = 1 ]; then
   export DOCKER_BUILD_ARGS="--no-cache=true --force-rm=true $DOCKER_BUILD_ARGS"
 fi
 
-# builds all Ubuntu -based images
-cd ubuntu-based
+# builds VPP & vswitch images
+cd vpp-vswitch
 ./build.sh
 
 # builds the new images (vpp-cni, vpp-ksr)

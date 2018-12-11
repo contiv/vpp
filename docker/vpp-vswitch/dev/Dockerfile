@@ -21,7 +21,7 @@ COPY / /root/go/src/github.com/contiv/vpp
 # install Go
 ENV GOLANG_VERSION 1.10.4
 RUN if [ -n "$VPP_INSTALL_PKG" ]; then \
- wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-arm64.tar.gz" \
+ wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz" \
  && tar -C /usr/local -xzf go.tgz \
  && rm go.tgz; \
  fi
@@ -37,13 +37,13 @@ RUN cd $GOPATH/src/github.com/contiv/vpp \
  && make install
 
 # add supervisord config file
-COPY docker/ubuntu-based/dev/supervisord.conf /etc/supervisord.conf
+COPY docker/vpp-vswitch/dev/supervisord.conf /etc/supervisord.conf
 
 # add debug govpp.conf with larger timeouts
-COPY docker/ubuntu-based/dev/govpp.conf /opt/vpp-agent/dev/govpp.conf
+COPY docker/vpp-vswitch/dev/govpp.conf /opt/vpp-agent/dev/govpp.conf
 
 # add vppctl script
-COPY docker/ubuntu-based/prod/vswitch/vppctl /usr/local/bin/vppctl
+COPY docker/vpp-vswitch/prod/vswitch/vppctl /usr/local/bin/vppctl
 
 # run supervisord as the default executable
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

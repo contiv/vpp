@@ -45,7 +45,7 @@ contiv-init:
 
 # Build contiv-netctl
 contiv-netctl:
-	@echo "# building contiv-init"
+	@echo "# building contiv-netctl"
 	cd cmd/contiv-netctl && go build -v -i -ldflags "${LDFLAGS}" -tags="${GO_BUILD_TAGS}"
 
 # Install commands

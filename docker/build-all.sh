@@ -25,6 +25,7 @@ source ../vpp.env
 export DOCKER_BUILD_ARGS=""
 export SKIP_DEBUG_BUILD=0
 export SKIP_DOCKER_CACHE=0
+export REBUILD_VPP=0
 
 # override defaults from arguments
 while [ "$1" != "" ]; do
@@ -46,6 +47,10 @@ while [ "$1" != "" ]; do
         -n | --no-cache )
             export SKIP_DOCKER_CACHE=1
             echo "Using SKIP_DOCKER_CACHE=1"
+            ;;
+        -r | --rebuild-vpp )
+            export REBUILD_VPP=1
+            echo "Using REBUILD_VPP=1"
             ;;
         * )
             echo "Invalid parameter: "$1

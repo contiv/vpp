@@ -33,8 +33,8 @@ ENV PATH $PATH:$GOROOT/bin:$GOPATH/bin
 
 # build
 RUN cd $GOPATH/src/github.com/contiv/vpp \
- && make \
- && make install
+ && make contiv-init \
+ && make contiv-agent
 
 # add supervisord config file
 COPY docker/vpp-vswitch/dev/supervisord.conf /etc/supervisord.conf

@@ -28,8 +28,8 @@ rm -rf binaries
 mkdir -p binaries
 
 # extract the binaries into the binaries/ folder
-docker cp ${CID}:/root/go/bin/contiv-init binaries/
-docker cp ${CID}:/root/go/bin/contiv-agent binaries/
+docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-init/contiv-init binaries/
+docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-agent/contiv-agent binaries/
 
 # extract VPP binaries
 docker exec ${CID} /bin/bash -c 'mkdir -p /root/vpp && cp /opt/vpp-agent/dev/vpp/build-root/*.deb /root/vpp/ && cd /root && tar -zcvf /root/vpp.tar.gz vpp/*'

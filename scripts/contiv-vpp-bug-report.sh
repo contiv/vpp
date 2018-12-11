@@ -247,7 +247,8 @@ K8S_COMMANDS["k8s-services.txt"]="get services -o wide --all-namespaces"
 K8S_COMMANDS["k8s-networkpolicy.txt"]="get networkpolicy -o wide --all-namespaces"
 K8S_COMMANDS["k8s-statefulsets.txt"]="get statefulsets -o wide --all-namespaces"
 K8S_COMMANDS["k8s-daemonsets.txt"]="get daemonsets -o wide --all-namespaces"
-K8S_COMMANDS["k8s-crd-report.yaml"]="get telemetryreports.telemetry.contiv.vpp -o yaml"
+K8S_COMMANDS["k8s-crd-telemetry-report.yaml"]="get telemetryreports.telemetry.contiv.vpp -o yaml"
+K8S_COMMANDS["k8s-crd-nodeconfig.yaml"]="get nodeconfigs.nodeconfig.contiv.vpp -o yaml"
 
 while getopts "af:hi:m:r:su:w" opt
 do

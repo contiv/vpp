@@ -53,7 +53,7 @@ const (
 	vppProcessName         = "vpp"
 	contivAgentProcessName = "contiv-agent"
 
-	etcdConnectionRetries = 20 // number of retries to connect to ETCD
+	etcdConnectionRetries = 2 // number of retries to connect to ETCD
 
 	vmxnet3PreferredDriver = "vfio-pci" // driver required for vmxnet3 interfaces
 )

@@ -32,7 +32,7 @@ data:
     {{- if ne (.Values.contiv.vmxnet3TxRingSize | int) 1024 }}
     vmxnet3TxRingSize: {{ .Values.contiv.vmxnet3TxRingSize }}
     {{- end }}
-    {{- if ne .Values.contiv.interfaceRxMode "polling" }}
+    {{- if ne .Values.contiv.interfaceRxMode "default" }}
     interfaceRxMode: {{ .Values.contiv.interfaceRxMode }}
     {{- end }}
     tcpChecksumOffloadDisabled: true

@@ -288,9 +288,9 @@ func (n *IPv4Net) physicalInterface(name string, ips contivconf.IPsWithNetworks)
 			iface.GetVmxNet3().TxqSize = uint32(ifConfig.Vmxnet3TxRingSize)
 		}
 	}
-	if n.ContivConf.GetInterfaceRxMode() != interfaces.Interface_RxModeSettings_POLLING {
+	if interfaceRxModeType(ifConfig.InterfaceRxMode) != interfaces.Interface_RxModeSettings_DEFAULT {
 		iface.RxModeSettings = &interfaces.Interface_RxModeSettings{
-			RxMode: n.ContivConf.GetInterfaceRxMode(),
+			RxMode: interfaceRxModeType(ifConfig.InterfaceRxMode),
 		}
 	}
 	key = interfaces.InterfaceKey(name)

@@ -5,7 +5,7 @@ contiv:
   tapv2TxRingSize: 256
   vmxnet3RxRingSize: 1024
   vmxnet3TxRingSize: 1024
-  interfaceRxMode: "polling"
+  interfaceRxMode: "default"
   stealFirstNIC: False
   natExternalTraffic: True
   mtuSize: 1450

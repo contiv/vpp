@@ -18,7 +18,6 @@ import (
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 )
 
 /********************************* Plugin API *********************************/
@@ -93,9 +92,6 @@ type API interface {
 	// GetVmxnet3Config returns configuration related to vmxnet3 feature.
 	// Use the method only if vmxnet3 is in use - i.e. when UseVmxnet3() returns true.
 	GetVmxnet3Config() (*Vmxnet3Config, error)
-
-	// GetInterfaceRxMode returns configured interface packet receive mode
-	GetInterfaceRxMode() interfaces.Interface_RxModeSettings_RxModeType
 }
 
 /******************************** Configuration ********************************/
@@ -164,7 +160,7 @@ type InterfaceConfig struct {
 	TAPv2TxRingSize            uint16 `json:"tapv2TxRingSize,omitempty"`
 	Vmxnet3RxRingSize          uint16 `json:"vmxnet3RxRingSize,omitempty"`
 	Vmxnet3TxRingSize          uint16 `json:"vmxnet3TxRingSize,omitempty"`
-	InterfaceRxMode            string `json:"interfaceRxMode,omitempty"` // "" = default (polling) / "polling" / "interrupt" / "adaptive"
+	InterfaceRxMode            string `json:"interfaceRxMode,omitempty"` // "" == "default" / "polling" / "interrupt" / "adaptive"
 	TCPChecksumOffloadDisabled bool   `json:"tcpChecksumOffloadDisabled,omitempty"`
 }
 

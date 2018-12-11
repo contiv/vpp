@@ -120,9 +120,9 @@ func (n *IPv4Net) interconnectTapVPP() (key string, config *interfaces.Interface
 		tap.GetTap().RxRingSize = uint32(interfaceCfg.TAPv2RxRingSize)
 		tap.GetTap().TxRingSize = uint32(interfaceCfg.TAPv2TxRingSize)
 	}
-	if n.ContivConf.GetInterfaceRxMode() != interfaces.Interface_RxModeSettings_POLLING {
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != interfaces.Interface_RxModeSettings_DEFAULT {
 		tap.RxModeSettings = &interfaces.Interface_RxModeSettings{
-			RxMode: n.ContivConf.GetInterfaceRxMode(),
+			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
 		}
 	}
 	key = interfaces.InterfaceKey(tap.Name)
@@ -162,6 +162,7 @@ func (n *IPv4Net) interconnectTapHost() (key string, config *linux_interfaces.In
 // interconnectAfpacket returns configuration for the AF-Packet interface attached
 // to interconnectVethVpp (see below)
 func (n *IPv4Net) interconnectAfpacket() (key string, config *interfaces.Interface) {
+	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	size, _ := n.IPAM.HostInterconnectSubnetThisNode().Mask.Size()
 	afpacket := &interfaces.Interface{
 		Name: hostInterconnectAFPacketLogicalName,
@@ -183,9 +184,9 @@ func (n *IPv4Net) interconnectAfpacket() (key string, config *interfaces.Interfa
 	} else {
 		afpacket.IpAddresses = []string{n.IPAM.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)}
 	}
-	if n.ContivConf.GetInterfaceRxMode() != interfaces.Interface_RxModeSettings_POLLING {
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != interfaces.Interface_RxModeSettings_DEFAULT {
 		afpacket.RxModeSettings = &interfaces.Interface_RxModeSettings{
-			RxMode: n.ContivConf.GetInterfaceRxMode(),
+			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
 		}
 	}
 	key = interfaces.InterfaceKey(afpacket.Name)

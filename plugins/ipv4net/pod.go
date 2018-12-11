@@ -138,6 +138,11 @@ func (n *IPv4Net) podVPPTap(pod *podmanager.LocalPod) (key string, config *inter
 		tap.GetTap().RxRingSize = uint32(interfaceCfg.TAPv2RxRingSize)
 		tap.GetTap().TxRingSize = uint32(interfaceCfg.TAPv2TxRingSize)
 	}
+	if n.ContivConf.GetInterfaceRxMode() != interfaces.Interface_RxModeSettings_POLLING {
+		tap.RxModeSettings = &interfaces.Interface_RxModeSettings{
+			RxMode: n.ContivConf.GetInterfaceRxMode(),
+		}
+	}
 	key = interfaces.InterfaceKey(tap.Name)
 	return key, tap
 }
@@ -250,6 +255,11 @@ func (n *IPv4Net) podAfPacket(pod *podmanager.LocalPod) (key string, config *int
 				HostIfName: n.podVeth2HostIfName(pod),
 			},
 		},
+	}
+	if n.ContivConf.GetInterfaceRxMode() != interfaces.Interface_RxModeSettings_POLLING {
+		afpacket.RxModeSettings = &interfaces.Interface_RxModeSettings{
+			RxMode: n.ContivConf.GetInterfaceRxMode(),
+		}
 	}
 	key = interfaces.InterfaceKey(afpacket.Name)
 	return key, afpacket

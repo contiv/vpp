@@ -643,6 +643,18 @@ func (c *ContivConf) GetVmxnet3Config() (*Vmxnet3Config, error) {
 	}, nil
 }
 
+// GetInterfaceRxMode returns configured interface packet receive mode
+func (c *ContivConf) GetInterfaceRxMode() interfaces.Interface_RxModeSettings_RxModeType {
+	switch c.config.InterfaceConfig.InterfaceRxMode {
+	case "interrupt":
+		return interfaces.Interface_RxModeSettings_INTERRUPT
+	case "adaptive":
+		return interfaces.Interface_RxModeSettings_ADAPTIVE
+	default:
+		return interfaces.Interface_RxModeSettings_POLLING
+	}
+}
+
 // Close is NOOP.
 func (c *ContivConf) Close() error {
 	return nil

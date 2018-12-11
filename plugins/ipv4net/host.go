@@ -114,12 +114,16 @@ func (n *IPv4Net) interconnectTapVPP() (key string, config *interfaces.Interface
 		}
 	} else {
 		tap.IpAddresses = []string{n.IPAM.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)}
-
 	}
 	if interfaceCfg.TAPInterfaceVersion == 2 {
 		tap.GetTap().Version = 2
 		tap.GetTap().RxRingSize = uint32(interfaceCfg.TAPv2RxRingSize)
 		tap.GetTap().TxRingSize = uint32(interfaceCfg.TAPv2TxRingSize)
+	}
+	if n.ContivConf.GetInterfaceRxMode() != interfaces.Interface_RxModeSettings_POLLING {
+		tap.RxModeSettings = &interfaces.Interface_RxModeSettings{
+			RxMode: n.ContivConf.GetInterfaceRxMode(),
+		}
 	}
 	key = interfaces.InterfaceKey(tap.Name)
 	return key, tap
@@ -170,8 +174,19 @@ func (n *IPv4Net) interconnectAfpacket() (key string, config *interfaces.Interfa
 		Mtu:         n.ContivConf.GetInterfaceConfig().MTUSize,
 		Enabled:     true,
 		Vrf:         n.ContivConf.GetRoutingConfig().MainVRFID,
-		IpAddresses: []string{n.IPAM.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)},
 		PhysAddress: hwAddrForNodeInterface(n.NodeSync.GetNodeID(), hostInterconnectHwAddrPrefix),
+	}
+	if n.ContivConf.InSTNMode() {
+		afpacket.Unnumbered = &interfaces.Interface_Unnumbered{
+			InterfaceWithIp: n.ContivConf.GetMainInterfaceName(),
+		}
+	} else {
+		afpacket.IpAddresses = []string{n.IPAM.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)}
+	}
+	if n.ContivConf.GetInterfaceRxMode() != interfaces.Interface_RxModeSettings_POLLING {
+		afpacket.RxModeSettings = &interfaces.Interface_RxModeSettings{
+			RxMode: n.ContivConf.GetInterfaceRxMode(),
+		}
 	}
 	key = interfaces.InterfaceKey(afpacket.Name)
 	return key, afpacket

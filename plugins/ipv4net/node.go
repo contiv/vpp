@@ -278,6 +278,9 @@ func (n *IPv4Net) physicalInterface(name string, ips contivconf.IPsWithNetworks)
 		Enabled: true,
 		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
 	}
+	for _, ip := range ips {
+		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.Address, ip.Network)))
+	}
 	if n.ContivConf.UseVmxnet3() {
 		iface.Type = interfaces.Interface_VMXNET3_INTERFACE
 		if ifConfig.Vmxnet3RxRingSize != 0 && ifConfig.Vmxnet3TxRingSize != 0 {
@@ -285,8 +288,10 @@ func (n *IPv4Net) physicalInterface(name string, ips contivconf.IPsWithNetworks)
 			iface.GetVmxNet3().TxqSize = uint32(ifConfig.Vmxnet3TxRingSize)
 		}
 	}
-	for _, ip := range ips {
-		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.Address, ip.Network)))
+	if n.ContivConf.GetInterfaceRxMode() != interfaces.Interface_RxModeSettings_POLLING {
+		iface.RxModeSettings = &interfaces.Interface_RxModeSettings{
+			RxMode: n.ContivConf.GetInterfaceRxMode(),
+		}
 	}
 	key = interfaces.InterfaceKey(name)
 	return key, iface

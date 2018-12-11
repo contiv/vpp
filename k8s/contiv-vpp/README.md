@@ -67,6 +67,7 @@ Parameter | Description | Default
 `contiv.tapv2TxRingSize`| TAPv2 interface transmit ring size | 256
 `contiv.vmxnet3RxRingSize`| Vmxnet3 interface receive ring size | 1024
 `contiv.vmxnet3TxRingSize`| Vmxnet3 interface transmit ring size | 1024
+`contiv.interfaceRxMode`| Interface packet receive mode: "" = polling / interrupt / adaptive  | `""`
 `contiv.stealInterface` | Enable Steal The NIC feature on the specified interface on each node | `""`
 `contiv.stealFirstNIC` | Enable Steal The NIC feature on the first interface on each node | `False`
 `contiv.natExternalTraffic`| NAT cluster-external traffic | `True`

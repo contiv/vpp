@@ -14,7 +14,11 @@
 
 package api
 
-import "github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+import (
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+)
 
 const (
 	// SubnetMask defines the default subnet mask for pod addressing - TODO: must be refactored to consider CIDR
@@ -37,7 +41,7 @@ type VppCache interface {
 
 	RetrieveAllNodes() []*telemetrymodel.Node
 
-	SetNodeLiveness(name string, nL *telemetrymodel.NodeLiveness) error
+	SetNodeLiveness(name string, nL *status.AgentStatus) error
 	SetNodeInterfaces(name string, nInt telemetrymodel.NodeInterfaces) error
 	SetNodeBridgeDomain(name string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error
 	SetNodeL2Fibs(name string, nL2f map[string]telemetrymodel.NodeL2FibEntry) error

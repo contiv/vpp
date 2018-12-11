@@ -1162,6 +1162,8 @@ spec:
           value: "/etc/http/http.client.conf"
         - name: CONTIV_CRD_INTERVAL
           value: {{ .Values.crd.pollingInterval | quote }}
+        - name: CONTIV_CRD_VALIDATE_STATE
+          value: {{ .Values.crd.validateState | quote }}
         volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd

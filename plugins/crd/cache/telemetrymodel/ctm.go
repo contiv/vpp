@@ -17,12 +17,11 @@ package telemetrymodel
 import (
 	"github.com/gogo/protobuf/jsonpb"
 
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
-)
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 
-// see doc.go for instructions on how to generate the deep copy routines when
-// the structs in this file change.
+	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+)
 
 //Reports is the per node array of report lines generated from validate()
 type Reports map[string][]string
@@ -57,7 +56,7 @@ type NodeInfo struct {
 //as well as the name and IP Addresses.
 type Node struct {
 	*NodeInfo
-	NodeLiveness      *NodeLiveness
+	NodeLiveness      *status.AgentStatus
 	NodeInterfaces    map[uint32]NodeInterface
 	NodeBridgeDomains map[int]NodeBridgeDomain
 	NodeL2Fibs        map[string]NodeL2FibEntry
@@ -69,37 +68,28 @@ type Node struct {
 	PodMap            map[string]*Pod
 }
 
-// NodeInterfaces defines a map of NodeInterface
+// NodeInterfaces is a list of node (VPP) interfaces.
 type NodeInterfaces []NodeInterface
 
-// NodeInterface holds unmarshalled Interface JSON data
+// NodeInterface holds un-marshalled VPP Interface JSON data.
 type NodeInterface struct {
 	Key      string
 	Value    vppInterface
 	Metadata ifaceidx.IfaceMetadata
 }
 
+// vppInterface extends VPP interface proto model with JSON un-marshaller from jsonpb.
 type vppInterface struct {
 	*interfaces.Interface
 }
 
+// UnmarshalJSON uses un-marshaller from jsonpb.
 func (v *vppInterface) UnmarshalJSON(data []byte) error {
 	v.Interface = &interfaces.Interface{}
 	return jsonpb.UnmarshalString(string(data), v.Interface)
 }
 
 ////////////////////////////////
-
-//NodeLiveness holds the unmarshalled node liveness JSON data
-type NodeLiveness struct {
-	BuildVersion string `json:"build_version"`
-	BuildDate    string `json:"build_date"`
-	State        uint32 `json:"state"`
-	StartTime    uint32 `json:"start_time"`
-	LastChange   uint32 `json:"last_change"`
-	LastUpdate   uint32 `json:"last_update"`
-	CommitHash   string `json:"commit_hash"`
-}
 
 // LinuxInterfaces defines an array of LinuxInterfaces
 type LinuxInterfaces []LinuxInterface
@@ -143,7 +133,6 @@ type LinuxIfMeta struct {
 	Mtu       uint32 `json:"mtu"`
 	Type      string `json:"type"`
 }
-
 
 // Vxlan contains vxlan parameter data
 type Vxlan struct {

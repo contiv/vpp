@@ -1,0 +1,1333 @@
+time="2018-10-05 16:35:04.70885" level=warning msg="No http handler provided, skipping registration of KVScheduler REST handlers" loc="kvscheduler/rest.go(112)" logger=kvscheduler
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 0
+      - type: NB transaction
+      - values:
+          - key: /prefixB/base-value2
+            value: { items:"item1" items:"item2"  }
+          - key: /prefixA/base-value1
+            value: { items:"item2"  }
+          - key: /prefixC/base-value3
+            value: { items:"item1" items:"item2"  }
+  * planned operations:
+      1. ADD:
+          - key: /prefixA/base-value1
+          - value: { items:"item2"  } 
+      2. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      3. ADD:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+      4. ADD [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      5. ADD [DERIVED IS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      6. ADD:
+          - key: /prefixC/base-value3
+          - value: { items:"item1" items:"item2"  } 
+      7. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      8. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item2
+          - value: { value:"item2"  } 
+
+Finalized transaction (seq-num=0):
+  * executed operations (2018-10-05 16:35:04.710034823 +0200 CEST m=+0.009817563 - 2018-10-05 16:35:04.711017872 +0200 CEST m=+0.010800622):
+      1. ADD:
+          - key: /prefixA/base-value1
+          - value: { items:"item2"  } 
+      2. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      3. ADD:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+      4. ADD [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      5. ADD [DERIVED IS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      6. ADD:
+          - key: /prefixC/base-value3
+          - value: { items:"item1" items:"item2"  } 
+      7. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      8. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item2
+          - value: { value:"item2"  } 
+
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 1
+      - type: NB transaction
+      - values:
+          - key: /prefixC/base-value3
+            value: { items:"item1"  }
+          - key: /prefixA/base-value1
+            value: { items:"item1"  }
+  * planned operations:
+      1. DELETE [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      2. DELETE [DERIVED]:
+          - key: /prefixC/base-value3/item2
+          - value: { value:"item2"  } 
+      3. DELETE [IS-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { items:"item1" items:"item2"  } 
+      4. ADD [WAS-PENDING]:
+          - key: /prefixC/base-value3
+          - prev-value: <NIL> 
+          - new-value: { items:"item1"  } 
+      5. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      6. DELETE [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      7. MODIFY:
+          - key: /prefixA/base-value1
+          - prev-value: { items:"item2"  } 
+          - new-value: { items:"item1"  } 
+      8. UPDATE [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      9. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      10. ADD [DERIVED WAS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+
+Finalized transaction (seq-num=1):
+  * executed operations (2018-10-05 16:35:04.71256808 +0200 CEST m=+0.012350823 - 2018-10-05 16:35:04.713418942 +0200 CEST m=+0.013201696):
+      1. DELETE [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      2. DELETE [DERIVED]:
+          - key: /prefixC/base-value3/item2
+          - value: { value:"item2"  } 
+      3. DELETE [IS-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { items:"item1" items:"item2"  } 
+      4. ADD [WAS-PENDING]:
+          - key: /prefixC/base-value3
+          - prev-value: <NIL> 
+          - new-value: { items:"item1"  } 
+      5. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      6. DELETE [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      7. MODIFY:
+          - key: /prefixA/base-value1
+          - prev-value: { items:"item2"  } 
+          - new-value: { items:"item1"  } 
+      8. UPDATE [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      9. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      10. ADD [DERIVED WAS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+
+time="2018-10-05 16:35:04.71457" level=warning msg="No http handler provided, skipping registration of KVScheduler REST handlers" loc="kvscheduler/rest.go(112)" logger=kvscheduler
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 0
+      - type: NB transaction
+      - values:
+          - key: /prefixA/base-value1
+            value: { items:"item2"  }
+          - key: /prefixC/base-value3
+            value: { items:"item1" items:"item2"  }
+          - key: /prefixB/base-value2
+            value: { items:"item1" items:"item2"  }
+  * planned operations:
+      1. ADD:
+          - key: /prefixA/base-value1
+          - value: { items:"item2"  } 
+      2. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      3. ADD:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+      4. ADD [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      5. ADD [DERIVED IS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      6. ADD:
+          - key: /prefixC/base-value3
+          - value: { items:"item1" items:"item2"  } 
+      7. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      8. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item2
+          - value: { value:"item2"  } 
+
+Finalized transaction (seq-num=0):
+  * executed operations (2018-10-05 16:35:04.715369671 +0200 CEST m=+0.015152410 - 2018-10-05 16:35:04.716049569 +0200 CEST m=+0.015832318):
+      1. ADD:
+          - key: /prefixA/base-value1
+          - value: { items:"item2"  } 
+      2. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      3. ADD:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+      4. ADD [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      5. ADD [DERIVED IS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      6. ADD:
+          - key: /prefixC/base-value3
+          - value: { items:"item1" items:"item2"  } 
+      7. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      8. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item2
+          - value: { value:"item2"  } 
+
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 1
+      - type: NB transaction
+      - values:
+          - key: /prefixC/base-value3
+            value: { items:"item1"  }
+          - key: /prefixA/base-value1
+            value: { items:"item1"  }
+  * planned operations:
+      1. DELETE [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      2. DELETE [DERIVED]:
+          - key: /prefixC/base-value3/item2
+          - value: { value:"item2"  } 
+      3. DELETE [IS-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { items:"item1" items:"item2"  } 
+      4. ADD [WAS-PENDING]:
+          - key: /prefixC/base-value3
+          - prev-value: <NIL> 
+          - new-value: { items:"item1"  } 
+      5. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      6. DELETE [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      7. MODIFY:
+          - key: /prefixA/base-value1
+          - prev-value: { items:"item2"  } 
+          - new-value: { items:"item1"  } 
+      8. UPDATE [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      9. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      10. ADD [DERIVED WAS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+
+Graph state after re-fresh:
+- key: /prefixA/base-value1
+  label: base-value1
+  value: {  }
+  flags: last-update:<TXN-1>, last-change:<TXN-1>, error:<failed to modify value>, origin:<from-NB>, descriptor:<descriptor1>
+  targets: <NONE>
+  sources: [depends-on]{/prefixB/base-value2/item1}
+  metadata-fields: map[]
+- key: /prefixB/base-value2
+  label: base-value2
+  value: { items:"item1" items:"item2"  }
+  flags: last-update:<TXN-0>, last-change:<TXN-0>, origin:<from-NB>, descriptor:<descriptor2>
+  targets: [derives]{/prefixB/base-value2/item2, /prefixB/base-value2/item1}
+  sources: <NONE>
+  metadata-fields: map[]
+- key: /prefixB/base-value2/item1
+  label: base-value2/item1
+  value: { value:"item1"  }
+  flags: last-update:<TXN-0>, derived, origin:<from-NB>, descriptor:<descriptor2>
+  targets: [depends-on]{/prefixA/base-value1}
+  sources: [derives]{/prefixB/base-value2}
+  metadata-fields: map[]
+- key: /prefixB/base-value2/item2
+  label: base-value2/item2
+  value: { value:"item2"  }
+  flags: last-update:<TXN-0>, derived, origin:<from-NB>, descriptor:<descriptor2>, pending
+  targets: [depends-on]{/prefixA/base-value1/item1 -> {}}
+  sources: [derives]{/prefixB/base-value2}
+  metadata-fields: map[]
+- key: /prefixC/base-value3
+  label: base-value3
+  value: { items:"item1"  }
+  flags: last-update:<TXN-1>, last-change:<TXN-1>, origin:<from-NB>, descriptor:<descriptor3>
+  targets: [derives]{/prefixC/base-value3/item1}
+  sources: <NONE>
+  metadata-fields: map[]
+- key: /prefixC/base-value3/item1
+  label: base-value3/item1
+  value: { value:"item1"  }
+  flags: last-update:<TXN-1>, derived, origin:<from-NB>, descriptor:<descriptor3>
+  targets: <NONE>
+  sources: [derives]{/prefixC/base-value3}
+  metadata-fields: map[]
+Finalized transaction (seq-num=1):
+  * executed operations (2018-10-05 16:35:04.716968241 +0200 CEST m=+0.016750982 - 2018-10-05 16:35:04.718442264 +0200 CEST m=+0.018225016):
+      1. DELETE [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      2. DELETE [DERIVED]:
+          - key: /prefixC/base-value3/item2
+          - value: { value:"item2"  } 
+      3. DELETE [IS-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { items:"item1" items:"item2"  } 
+      4. ADD [WAS-PENDING]:
+          - key: /prefixC/base-value3
+          - prev-value: <NIL> 
+          - new-value: { items:"item1"  } 
+      5. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      6. DELETE [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      7. MODIFY:
+          - key: /prefixA/base-value1
+          - prev-value: { items:"item2"  } 
+          - new-value: { items:"item1"  } 
+          - error: failed to modify value
+      8. MODIFY [REVERT]:
+          - key: /prefixA/base-value1
+          - prev-value: {  } 
+          - new-value: { items:"item2"  } 
+          - prev-error: failed to modify value
+      9. UPDATE [DERIVED REVERT]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      10. ADD [DERIVED REVERT]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      11. DELETE [DERIVED REVERT]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      12. DELETE [REVERT IS-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { items:"item1"  } 
+      13. ADD [REVERT WAS-PENDING]:
+          - key: /prefixC/base-value3
+          - prev-value: <NIL> 
+          - new-value: { items:"item1" items:"item2"  } 
+      14. ADD [DERIVED REVERT]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      15. ADD [DERIVED REVERT]:
+          - key: /prefixC/base-value3/item2
+          - value: { value:"item2"  } 
+
+time="2018-10-05 16:35:04.71994" level=warning msg="No http handler provided, skipping registration of KVScheduler REST handlers" loc="kvscheduler/rest.go(112)" logger=kvscheduler
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 0
+      - type: NB transaction
+      - values:
+          - key: /prefixA/base-value2
+            value: { value:"base-value2-data"  }
+          - key: /prefixA/base-value3
+            value: { value:"base-value3-data"  }
+          - key: /prefixA/base-value1
+            value: { value:"base-value1-data"  }
+  * planned operations:
+      1. ADD [IS-PENDING]:
+          - key: /prefixA/base-value1
+          - value: { value:"base-value1-data"  } 
+      2. ADD [IS-PENDING]:
+          - key: /prefixA/base-value2
+          - value: { value:"base-value2-data"  } 
+      3. ADD [IS-PENDING]:
+          - key: /prefixA/base-value3
+          - value: { value:"base-value3-data"  } 
+
+Finalized transaction (seq-num=0):
+  * executed operations (2018-10-05 16:35:04.720645531 +0200 CEST m=+0.020428266 - 2018-10-05 16:35:04.720889508 +0200 CEST m=+0.020672260):
+      1. ADD [IS-PENDING]:
+          - key: /prefixA/base-value1
+          - value: { value:"base-value1-data"  } 
+      2. ADD [IS-PENDING]:
+          - key: /prefixA/base-value2
+          - value: { value:"base-value2-data"  } 
+      3. ADD [IS-PENDING]:
+          - key: /prefixA/base-value3
+          - value: { value:"base-value3-data"  } 
+
+--- FAIL: TestDependencyCycles (0.00s)
+	assertion.go:75: 
+		Expected
+		    <string>: /prefixA/base-value2
+		to equal
+		    <string>: /prefixA/base-value3
+time="2018-10-05 16:35:04.72143" level=warning msg="No http handler provided, skipping registration of KVScheduler REST handlers" loc="kvscheduler/rest.go(112)" logger=kvscheduler
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 0
+      - type: NB transaction
+      - values:
+          - key: /prefixA/base-value1
+            value: { items:"item1"  }
+  * planned operations:
+      1. ADD:
+          - key: /prefixA/base-value1
+          - value: { items:"item1"  } 
+      2. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+
+Finalized transaction (seq-num=0):
+  * executed operations (2018-10-05 16:35:04.721702263 +0200 CEST m=+0.021484996 - 2018-10-05 16:35:04.721894895 +0200 CEST m=+0.021677647):
+      1. ADD:
+          - key: /prefixA/base-value1
+          - value: { items:"item1"  } 
+      2. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 1
+      - type: NB transaction
+      - values:
+          - key: /prefixA/base-value1
+            value: <NIL>
+  * planned operations:
+      1. DELETE [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      2. DELETE:
+          - key: /prefixA/base-value1
+          - value: { items:"item1"  } 
+
+Graph state after re-fresh:
+Finalized transaction (seq-num=1):
+  * executed operations (2018-10-05 16:35:04.722321973 +0200 CEST m=+0.022104704 - 2018-10-05 16:35:04.722595186 +0200 CEST m=+0.022377934):
+      1. DELETE [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+          - error: failed to delete value
+      2. DELETE:
+          - key: /prefixA/base-value1
+          - value: { items:"item1"  } 
+      3. ADD [REVERT]:
+          - key: /prefixA/base-value1
+          - value: { items:"item1"  } 
+      4. ADD [DERIVED REVERT]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+          - prev-error: failed to delete value
+
+time="2018-10-05 16:35:04.72296" level=warning msg="No http handler provided, skipping registration of KVScheduler REST handlers" loc="kvscheduler/rest.go(112)" logger=kvscheduler
+Graph state after re-fresh:
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 0
+      - type: NB transaction, Full-Resync
+      - values:
+          - key: /prefixB/base-value2
+            value: { items:"item1" items:"item2"  }
+  * planned operations:
+      1. ADD [IS-PENDING]:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+
+Finalized transaction (seq-num=0):
+  * executed operations (2018-10-05 16:35:04.723377969 +0200 CEST m=+0.023160704 - 2018-10-05 16:35:04.723480225 +0200 CEST m=+0.023262981):
+      1. ADD [IS-PENDING]:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 1
+      - type: SB notification
+      - values:
+          - key: /prefixA/base-value1
+            value: { items:"item1"  }
+  * planned operations:
+      1. ADD [NOTIFICATION]:
+          - key: /prefixA/base-value1
+          - value: { items:"item1"  } 
+      2. ADD [WAS-PENDING]:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+      3. ADD [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      4. ADD [DERIVED IS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      5. ADD [NOTIFICATION DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+
+Finalized transaction (seq-num=1):
+  * executed operations (2018-10-05 16:35:04.724359468 +0200 CEST m=+0.024142203 - 2018-10-05 16:35:04.724761594 +0200 CEST m=+0.024544345):
+      1. ADD [NOTIFICATION]:
+          - key: /prefixA/base-value1
+          - value: { items:"item1"  } 
+      2. ADD [WAS-PENDING]:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+      3. ADD [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      4. ADD [DERIVED IS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      5. ADD [NOTIFICATION DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 2
+      - type: SB notification
+      - values:
+          - key: /prefixA/base-value1
+            value: { items:"item1" items:"item2"  }
+  * planned operations:
+      1. MODIFY [NOTIFICATION]:
+          - key: /prefixA/base-value1
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item1" items:"item2"  } 
+      2. UPDATE:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+      3. ADD [NOTIFICATION DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      4. ADD [DERIVED WAS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+
+Finalized transaction (seq-num=2):
+  * executed operations (2018-10-05 16:35:04.735405496 +0200 CEST m=+0.035188238 - 2018-10-05 16:35:04.735955723 +0200 CEST m=+0.035738477):
+      1. MODIFY [NOTIFICATION]:
+          - key: /prefixA/base-value1
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item1" items:"item2"  } 
+      2. UPDATE:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+      3. ADD [NOTIFICATION DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      4. ADD [DERIVED WAS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 3
+      - type: SB notification
+      - values:
+          - key: /prefixA/base-value1
+            value: <NIL>
+  * planned operations:
+      1. DELETE [NOTIFICATION DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      2. DELETE [DERIVED IS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      3. DELETE [NOTIFICATION DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      4. DELETE [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      5. DELETE [DERIVED WAS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      6. DELETE [IS-PENDING]:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+      7. DELETE [NOTIFICATION]:
+          - key: /prefixA/base-value1
+          - value: { items:"item1" items:"item2"  } 
+
+Finalized transaction (seq-num=3):
+  * executed operations (2018-10-05 16:35:04.746251452 +0200 CEST m=+0.046034235 - 2018-10-05 16:35:04.74681451 +0200 CEST m=+0.046597275):
+      1. DELETE [NOTIFICATION DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      2. DELETE [DERIVED IS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      3. DELETE [NOTIFICATION DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      4. DELETE [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      5. DELETE [DERIVED WAS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      6. DELETE [IS-PENDING]:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+      7. DELETE [NOTIFICATION]:
+          - key: /prefixA/base-value1
+          - value: { items:"item1" items:"item2"  } 
+
+time="2018-10-05 16:35:04.75722" level=warning msg="No http handler provided, skipping registration of KVScheduler REST handlers" loc="kvscheduler/rest.go(112)" logger=kvscheduler
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 0
+      - type: NB transaction
+      - values:
+          - key: /prefixB/base-value2
+            value: { items:"item1" items:"item2"  }
+  * planned operations:
+      1. ADD [IS-PENDING]:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+
+Finalized transaction (seq-num=0):
+  * executed operations (2018-10-05 16:35:04.757810477 +0200 CEST m=+0.057593231 - 2018-10-05 16:35:04.75802576 +0200 CEST m=+0.057808512):
+      1. ADD [IS-PENDING]:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 1
+      - type: NB transaction
+      - values:
+          - key: /prefixC/base-value3
+            value: { value:"base-value3-data"  }
+  * planned operations:
+      1. ADD [IS-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { value:"base-value3-data"  } 
+
+Finalized transaction (seq-num=1):
+  * executed operations (2018-10-05 16:35:04.758345631 +0200 CEST m=+0.058138564 - 2018-10-05 16:35:04.758701944 +0200 CEST m=+0.058484700):
+      1. ADD [IS-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { value:"base-value3-data"  } 
+
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 2
+      - type: SB notification
+      - values:
+          - key: /prefixA/base-value1
+            value: { items:"item1" items:"item2"  }
+  * planned operations:
+      1. ADD [NOTIFICATION]:
+          - key: /prefixA/base-value1
+          - value: { items:"item1" items:"item2"  } 
+      2. ADD [WAS-PENDING]:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+      3. ADD [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      4. ADD [DERIVED IS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      5. ADD [WAS-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { value:"base-value3-data"  } 
+      6. ADD [NOTIFICATION DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      7. UPDATE:
+          - key: /prefixC/base-value3
+          - value: { value:"base-value3-data"  } 
+      8. ADD [NOTIFICATION DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      9. ADD [DERIVED WAS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      10. UPDATE:
+          - key: /prefixC/base-value3
+          - value: { value:"base-value3-data"  } 
+
+Finalized transaction (seq-num=2):
+  * executed operations (2018-10-05 16:35:04.759530878 +0200 CEST m=+0.059313619 - 2018-10-05 16:35:04.760404678 +0200 CEST m=+0.060187429):
+      1. ADD [NOTIFICATION]:
+          - key: /prefixA/base-value1
+          - value: { items:"item1" items:"item2"  } 
+      2. ADD [WAS-PENDING]:
+          - key: /prefixB/base-value2
+          - value: { items:"item1" items:"item2"  } 
+      3. ADD [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      4. ADD [DERIVED IS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+      5. ADD [STILL-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { value:"base-value3-data"  } 
+          - error: failed to add value
+      6. ADD [NOTIFICATION DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      7. ADD [NOTIFICATION DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      8. ADD [DERIVED STILL-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+          - error: failed to add derived value
+
+Graph state after re-fresh:
+- key: /prefixA/base-value1
+  label: base-value1
+  value: { items:"item1" items:"item2"  }
+  flags: last-update:<TXN-2>, last-change:<TXN-2>, origin:<from-SB>, descriptor:<descriptor1>
+  targets: [derives]{/prefixA/base-value1/item2, /prefixA/base-value1/item1}
+  sources: [depends-on]{/prefixB/base-value2, /prefixC/base-value3}
+  metadata-fields: map[]
+- key: /prefixA/base-value1/item1
+  label: base-value1/item1
+  value: { value:"item1"  }
+  flags: last-update:<TXN-2>, derived, origin:<from-SB>, descriptor:<descriptor1>
+  targets: <NONE>
+  sources: [depends-on]{/prefixC/base-value3}, [derives]{/prefixA/base-value1}
+  metadata-fields: map[]
+- key: /prefixA/base-value1/item2
+  label: base-value1/item2
+  value: { value:"item2"  }
+  flags: last-update:<TXN-2>, derived, origin:<from-SB>, descriptor:<descriptor1>
+  targets: <NONE>
+  sources: [derives]{/prefixA/base-value1}, [depends-on]{/prefixC/base-value3}
+  metadata-fields: map[]
+- key: /prefixB/base-value2
+  label: base-value2
+  value: { items:"item1"  }
+  flags: last-change:<TXN-0>, last-update:<TXN-2>, error:<failed to add derived value>, origin:<from-NB>, descriptor:<descriptor2>
+  targets: [depends-on]{/prefixA/base-value1}, [derives]{/prefixB/base-value2/item1}
+  sources: <NONE>
+  metadata-fields: map[]
+- key: /prefixB/base-value2/item1
+  label: base-value2/item1
+  value: { value:"item1"  }
+  flags: last-update:<TXN-2>, derived, origin:<from-NB>, descriptor:<descriptor2>
+  targets: <NONE>
+  sources: [derives]{/prefixB/base-value2}
+  metadata-fields: map[]
+- key: /prefixC/base-value3
+  label: base-value3
+  value: { value:"base-value3-data"  }
+  flags: last-change:<TXN-1>, origin:<from-NB>, last-update:<TXN-2>, descriptor:<descriptor3>, error:<failed to add value>, pending
+  targets: [depends-on]{/prefixA/ -> {/prefixA/base-value1, /prefixA/base-value1/item1, /prefixA/base-value1/item2}}
+  sources: <NONE>
+  metadata-fields: map[]
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 3
+      - type: RETRY
+      - values:
+          - key: /prefixB/base-value2
+            value: { items:"item1" items:"item2"  }
+  * planned operations:
+      1. MODIFY [RETRY]:
+          - key: /prefixB/base-value2
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item1" items:"item2"  } 
+      2. ADD [DERIVED RETRY]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+          - prev-error: failed to add derived value
+
+Finalized transaction (seq-num=3):
+  * executed operations (2018-10-05 16:35:07.762399784 +0200 CEST m=+3.062182520 - 2018-10-05 16:35:07.762735055 +0200 CEST m=+3.062517807):
+      1. MODIFY [RETRY]:
+          - key: /prefixB/base-value2
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item1" items:"item2"  } 
+      2. ADD [DERIVED RETRY]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+          - prev-error: failed to add derived value
+
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 4
+      - type: RETRY
+      - values:
+          - key: /prefixC/base-value3
+            value: { value:"base-value3-data"  }
+  * planned operations:
+      1. ADD [RETRY WAS-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { value:"base-value3-data"  } 
+          - prev-error: failed to add value
+
+Finalized transaction (seq-num=4):
+  * executed operations (2018-10-05 16:35:10.762272571 +0200 CEST m=+6.062055304 - 2018-10-05 16:35:10.762500692 +0200 CEST m=+6.062283425):
+      1. ADD [RETRY WAS-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { value:"base-value3-data"  } 
+          - prev-error: failed to add value
+
+time="2018-10-05 16:35:10.76725" level=warning msg="No http handler provided, skipping registration of KVScheduler REST handlers" loc="kvscheduler/rest.go(112)" logger=kvscheduler
+Graph state after re-fresh:
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 0
+      - type: NB transaction, Full-Resync
+      - values: NONE
+  * planned operations:
+      <NONE>
+
+Finalized transaction (seq-num=0):
+  * executed operations:
+      <NONE>
+
+time="2018-10-05 16:35:10.76773" level=warning msg="No http handler provided, skipping registration of KVScheduler REST handlers" loc="kvscheduler/rest.go(112)" logger=kvscheduler
+Graph state after re-fresh:
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 0
+      - type: NB transaction, Full-Resync
+      - values:
+          - key: /prefixA/base-value2
+            value: { items:"item1"  }
+          - key: /prefixA/base-value1
+            value: { items:"item1" items:"item2"  }
+  * planned operations:
+      1. ADD:
+          - key: /prefixA/base-value1
+          - value: { items:"item1" items:"item2"  } 
+      2. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      3. ADD [DERIVED IS-PENDING]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      4. ADD:
+          - key: /prefixA/base-value2
+          - value: { items:"item1"  } 
+      5. ADD [DERIVED]:
+          - key: /prefixA/base-value2/item1
+          - value: { value:"item1"  } 
+      6. ADD [DERIVED WAS-PENDING]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+
+Finalized transaction (seq-num=0):
+  * executed operations (2018-10-05 16:35:10.768321457 +0200 CEST m=+6.068104191 - 2018-10-05 16:35:10.769054974 +0200 CEST m=+6.068837731):
+      1. ADD:
+          - key: /prefixA/base-value1
+          - value: { items:"item1" items:"item2"  } 
+      2. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      3. ADD [DERIVED IS-PENDING]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      4. ADD:
+          - key: /prefixA/base-value2
+          - value: { items:"item1"  } 
+      5. ADD [DERIVED]:
+          - key: /prefixA/base-value2/item1
+          - value: { value:"item1"  } 
+      6. ADD [DERIVED WAS-PENDING]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+
+Graph state after re-fresh:
+- key: /prefixA/base-value1
+  label: base-value1
+  value: { items:"item1" items:"item2"  }
+  flags: last-update:<TXN-0>, last-change:<TXN-0>, origin:<from-NB>, descriptor:<descriptor1>
+  targets: [derives]{/prefixA/base-value1/item1, /prefixA/base-value1/item2}
+  sources: <NONE>
+  metadata-fields: map[]
+- key: /prefixA/base-value1/item1
+  label: base-value1/item1
+  value: { value:"item1"  }
+  flags: last-update:<TXN-0>, derived, origin:<from-NB>, descriptor:<descriptor1>
+  targets: <NONE>
+  sources: [derives]{/prefixA/base-value1}, [depends-on]{/prefixA/base-value2}
+  metadata-fields: map[]
+- key: /prefixA/base-value1/item2
+  label: base-value1/item2
+  value: { value:"item2"  }
+  flags: last-update:<TXN-0>, derived, origin:<from-NB>, descriptor:<descriptor1>
+  targets: [depends-on]{/prefixA/base-value2/item1}
+  sources: [derives]{/prefixA/base-value1}
+  metadata-fields: map[]
+- key: /prefixA/base-value2
+  label: base-value2
+  value: { items:"item1"  }
+  flags: last-update:<TXN-0>, last-change:<TXN-0>, origin:<from-NB>, descriptor:<descriptor1>
+  targets: [derives]{/prefixA/base-value2/item1}, [depends-on]{/prefixA/base-value1/item1}
+  sources: <NONE>
+  metadata-fields: map[]
+- key: /prefixA/base-value2/item1
+  label: base-value2/item1
+  value: { value:"item1"  }
+  flags: last-update:<TXN-0>, derived, origin:<from-NB>, descriptor:<descriptor1>
+  targets: <NONE>
+  sources: [depends-on]{/prefixA/base-value1/item2}, [derives]{/prefixA/base-value2}
+  metadata-fields: map[]
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 1
+      - type: NB transaction, Full-Resync
+      - values:
+          - key: /prefixA/base-value2
+            value: <NIL>
+          - key: /prefixA/base-value1
+            value: <NIL>
+  * planned operations:
+      1. DELETE [DERIVED IS-PENDING]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      2. DELETE [DERIVED]:
+          - key: /prefixA/base-value2/item1
+          - value: { value:"item1"  } 
+      3. DELETE:
+          - key: /prefixA/base-value2
+          - value: { items:"item1"  } 
+      4. DELETE [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      5. DELETE [DERIVED WAS-PENDING]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      6. DELETE:
+          - key: /prefixA/base-value1
+          - value: { items:"item1" items:"item2"  } 
+
+Finalized transaction (seq-num=1):
+  * executed operations (2018-10-05 16:35:10.771593869 +0200 CEST m=+6.071376633 - 2018-10-05 16:35:10.772056235 +0200 CEST m=+6.071838989):
+      1. DELETE [DERIVED IS-PENDING]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      2. DELETE [DERIVED]:
+          - key: /prefixA/base-value2/item1
+          - value: { value:"item1"  } 
+      3. DELETE:
+          - key: /prefixA/base-value2
+          - value: { items:"item1"  } 
+      4. DELETE [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      5. DELETE [DERIVED WAS-PENDING]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      6. DELETE:
+          - key: /prefixA/base-value1
+          - value: { items:"item1" items:"item2"  } 
+
+time="2018-10-05 16:35:10.77277" level=warning msg="No http handler provided, skipping registration of KVScheduler REST handlers" loc="kvscheduler/rest.go(112)" logger=kvscheduler
+Graph state after re-fresh:
+- key: /prefixA/base-value1
+  label: base-value1
+  value: { items:"item1"  }
+  flags: origin:<from-NB>, descriptor:<descriptor1>
+  targets: [derives]{/prefixA/base-value1/item1}
+  sources: [depends-on]{/prefixA/base-value2/item1}
+  metadata-fields: map[]
+- key: /prefixA/base-value1/item1
+  label: 
+  value: { value:"item1"  }
+  flags: derived, origin:<from-NB>, descriptor:<descriptor1>
+  targets: <NONE>
+  sources: [derives]{/prefixA/base-value1}
+  metadata-fields: map[]
+- key: /prefixA/base-value2
+  label: base-value2
+  value: { items:"item1"  }
+  flags: origin:<from-NB>, descriptor:<descriptor1>
+  targets: [derives]{/prefixA/base-value2/item1}
+  sources: <NONE>
+  metadata-fields: map[]
+- key: /prefixA/base-value2/item1
+  label: 
+  value: { value:"item1"  }
+  flags: derived, origin:<from-NB>, descriptor:<descriptor1>
+  targets: [depends-on]{/prefixA/base-value1}
+  sources: [derives]{/prefixA/base-value2}
+  metadata-fields: map[]
+- key: /prefixA/base-value3
+  label: base-value3
+  value: { items:"item1"  }
+  flags: origin:<from-NB>, descriptor:<descriptor1>
+  targets: [derives]{/prefixA/base-value3/item1}
+  sources: <NONE>
+  metadata-fields: map[]
+- key: /prefixA/base-value3/item1
+  label: 
+  value: { value:"item1"  }
+  flags: derived, origin:<from-NB>, descriptor:<descriptor1>
+  targets: <NONE>
+  sources: [derives]{/prefixA/base-value3}
+  metadata-fields: map[]
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 0
+      - type: NB transaction, Full-Resync
+      - values:
+          - key: /prefixA/base-value2
+            value: { items:"item1" items:"item2"  }
+          - key: /prefixA/base-value1
+            value: { items:"item2"  }
+          - key: /prefixA/base-value3
+            value: { items:"item1" items:"item2"  }
+  * planned operations:
+      1. DELETE [DERIVED]:
+          - key: /prefixA/base-value3/item1
+          - value: { value:"item1"  } 
+      2. DELETE [IS-PENDING]:
+          - key: /prefixA/base-value3
+          - value: { items:"item1"  } 
+      3. ADD [WAS-PENDING]:
+          - key: /prefixA/base-value3
+          - prev-value: <NIL> 
+          - new-value: { items:"item1" items:"item2"  } 
+      4. ADD [DERIVED]:
+          - key: /prefixA/base-value3/item1
+          - value: { value:"item1"  } 
+      5. ADD [DERIVED]:
+          - key: /prefixA/base-value3/item2
+          - value: { value:"item2"  } 
+      6. DELETE [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      7. MODIFY:
+          - key: /prefixA/base-value1
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item2"  } 
+      8. UPDATE [DERIVED]:
+          - key: /prefixA/base-value2/item1
+          - value: { value:"item1"  } 
+      9. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      10. MODIFY:
+          - key: /prefixA/base-value2
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item1" items:"item2"  } 
+      11. ADD [DERIVED IS-PENDING]:
+          - key: /prefixA/base-value2/item2
+          - value: { value:"item2"  } 
+
+Finalized transaction (seq-num=0):
+  * executed operations (2018-10-05 16:35:10.774018584 +0200 CEST m=+6.073801327 - 2018-10-05 16:35:10.774988987 +0200 CEST m=+6.074771738):
+      1. DELETE [DERIVED]:
+          - key: /prefixA/base-value3/item1
+          - value: { value:"item1"  } 
+      2. DELETE [IS-PENDING]:
+          - key: /prefixA/base-value3
+          - value: { items:"item1"  } 
+      3. ADD [WAS-PENDING]:
+          - key: /prefixA/base-value3
+          - prev-value: <NIL> 
+          - new-value: { items:"item1" items:"item2"  } 
+      4. ADD [DERIVED]:
+          - key: /prefixA/base-value3/item1
+          - value: { value:"item1"  } 
+      5. ADD [DERIVED]:
+          - key: /prefixA/base-value3/item2
+          - value: { value:"item2"  } 
+      6. DELETE [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      7. MODIFY:
+          - key: /prefixA/base-value1
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item2"  } 
+      8. UPDATE [DERIVED]:
+          - key: /prefixA/base-value2/item1
+          - value: { value:"item1"  } 
+      9. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      10. MODIFY:
+          - key: /prefixA/base-value2
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item1" items:"item2"  } 
+      11. ADD [DERIVED IS-PENDING]:
+          - key: /prefixA/base-value2/item2
+          - value: { value:"item2"  } 
+
+time="2018-10-05 16:35:10.77641" level=warning msg="No http handler provided, skipping registration of KVScheduler REST handlers" loc="kvscheduler/rest.go(112)" logger=kvscheduler
+Graph state after re-fresh:
+- key: /prefixA/base-value1
+  label: base-value1
+  value: { value:"base-value1"  }
+  flags: origin:<from-SB>, descriptor:<descriptor1>
+  targets: <NONE>
+  sources: <NONE>
+  metadata-fields: map[]
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 0
+      - type: NB transaction, Full-Resync
+      - values:
+          - key: /prefixA/base-value2
+            value: { items:"item1"  }
+  * planned operations:
+      1. ADD:
+          - key: /prefixA/base-value2
+          - value: { items:"item1"  } 
+      2. ADD [DERIVED]:
+          - key: /prefixA/base-value2/item1
+          - value: { value:"item1"  } 
+
+Finalized transaction (seq-num=0):
+  * executed operations (2018-10-05 16:35:10.776965605 +0200 CEST m=+6.076748344 - 2018-10-05 16:35:10.777180555 +0200 CEST m=+6.076963306):
+      1. ADD:
+          - key: /prefixA/base-value2
+          - value: { items:"item1"  } 
+      2. ADD [DERIVED]:
+          - key: /prefixA/base-value2/item1
+          - value: { value:"item1"  } 
+
+time="2018-10-05 16:35:10.77770" level=warning msg="No http handler provided, skipping registration of KVScheduler REST handlers" loc="kvscheduler/rest.go(112)" logger=kvscheduler
+Graph state after re-fresh:
+- key: /prefixA/base-value1
+  label: base-value1
+  value: { items:"item1"  }
+  flags: origin:<from-NB>, descriptor:<descriptor1>
+  targets: [derives]{/prefixA/base-value1/item1}
+  sources: [depends-on]{/prefixB/base-value2/item1}
+  metadata-fields: map[]
+- key: /prefixA/base-value1/item1
+  label: 
+  value: { value:"item1"  }
+  flags: derived, origin:<from-NB>, descriptor:<descriptor1>
+  targets: <NONE>
+  sources: [derives]{/prefixA/base-value1}
+  metadata-fields: map[]
+- key: /prefixB/base-value2
+  label: base-value2
+  value: { items:"item1"  }
+  flags: origin:<from-NB>, descriptor:<descriptor2>
+  targets: [derives]{/prefixB/base-value2/item1}
+  sources: <NONE>
+  metadata-fields: map[]
+- key: /prefixB/base-value2/item1
+  label: 
+  value: { value:"item1"  }
+  flags: derived, origin:<from-NB>, descriptor:<descriptor2>
+  targets: [depends-on]{/prefixA/base-value1}
+  sources: [derives]{/prefixB/base-value2}
+  metadata-fields: map[]
+- key: /prefixC/base-value3
+  label: base-value3
+  value: { items:"item1"  }
+  flags: origin:<from-NB>, descriptor:<descriptor3>
+  targets: [derives]{/prefixC/base-value3/item1}
+  sources: <NONE>
+  metadata-fields: map[]
+- key: /prefixC/base-value3/item1
+  label: 
+  value: { value:"item1"  }
+  flags: derived, origin:<from-NB>, descriptor:<descriptor3>
+  targets: <NONE>
+  sources: [derives]{/prefixC/base-value3}
+  metadata-fields: map[]
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 0
+      - type: NB transaction, Full-Resync
+      - values:
+          - key: /prefixB/base-value2
+            value: { items:"item1" items:"item2"  }
+          - key: /prefixA/base-value1
+            value: { items:"item2"  }
+          - key: /prefixC/base-value3
+            value: { items:"item1" items:"item2"  }
+  * planned operations:
+      1. DELETE [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      2. DELETE [IS-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { items:"item1"  } 
+      3. ADD [WAS-PENDING]:
+          - key: /prefixC/base-value3
+          - prev-value: <NIL> 
+          - new-value: { items:"item1" items:"item2"  } 
+      4. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      5. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item2
+          - value: { value:"item2"  } 
+      6. DELETE [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      7. MODIFY:
+          - key: /prefixA/base-value1
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item2"  } 
+      8. UPDATE [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      9. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      10. MODIFY:
+          - key: /prefixB/base-value2
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item1" items:"item2"  } 
+      11. ADD [DERIVED IS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+
+Finalized transaction (seq-num=0):
+  * executed operations (2018-10-05 16:35:10.781424277 +0200 CEST m=+6.081207055 - 2018-10-05 16:35:10.782385495 +0200 CEST m=+6.082168243):
+      1. DELETE [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      2. DELETE [IS-PENDING]:
+          - key: /prefixC/base-value3
+          - value: { items:"item1"  } 
+      3. ADD [WAS-PENDING]:
+          - key: /prefixC/base-value3
+          - prev-value: <NIL> 
+          - new-value: { items:"item1" items:"item2"  } 
+      4. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item1
+          - value: { value:"item1"  } 
+      5. ADD [DERIVED]:
+          - key: /prefixC/base-value3/item2
+          - value: { value:"item2"  } 
+      6. DELETE [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      7. MODIFY:
+          - key: /prefixA/base-value1
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item2"  } 
+      8. UPDATE [DERIVED]:
+          - key: /prefixB/base-value2/item1
+          - value: { value:"item1"  } 
+      9. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+      10. MODIFY:
+          - key: /prefixB/base-value2
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item1" items:"item2"  } 
+      11. ADD [DERIVED IS-PENDING]:
+          - key: /prefixB/base-value2/item2
+          - value: { value:"item2"  } 
+
+time="2018-10-05 16:35:10.78356" level=warning msg="No http handler provided, skipping registration of KVScheduler REST handlers" loc="kvscheduler/rest.go(112)" logger=kvscheduler
+Graph state after re-fresh:
+- key: /prefixA/base-value1
+  label: base-value1
+  value: {  }
+  flags: origin:<from-NB>, descriptor:<descriptor1>
+  targets: <NONE>
+  sources: <NONE>
+  metadata-fields: map[]
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 0
+      - type: NB transaction, Full-Resync
+      - values:
+          - key: /prefixA/base-value1
+            value: { items:"item1" items:"item2"  }
+  * planned operations:
+      1. MODIFY:
+          - key: /prefixA/base-value1
+          - prev-value: {  } 
+          - new-value: { items:"item1" items:"item2"  } 
+      2. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      3. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+
+Finalized transaction (seq-num=0):
+  * executed operations (2018-10-05 16:35:10.78405897 +0200 CEST m=+6.083841703 - 2018-10-05 16:35:10.784294287 +0200 CEST m=+6.084077036):
+      1. MODIFY:
+          - key: /prefixA/base-value1
+          - prev-value: {  } 
+          - new-value: { items:"item1" items:"item2"  } 
+      2. ADD [DERIVED]:
+          - key: /prefixA/base-value1/item1
+          - value: { value:"item1"  } 
+      3. ADD [DERIVED IS-PENDING]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+          - error: failed to add value
+
+Graph state after re-fresh:
+- key: /prefixA/base-value1
+  label: base-value1
+  value: { items:"item1"  }
+  flags: last-update:<TXN-0>, last-change:<TXN-0>, error:<failed to add value>, origin:<from-NB>, descriptor:<descriptor1>
+  targets: [derives]{/prefixA/base-value1/item1}
+  sources: <NONE>
+  metadata-fields: map[]
+- key: /prefixA/base-value1/item1
+  label: base-value1/item1
+  value: { value:"item1"  }
+  flags: last-update:<TXN-0>, derived, origin:<from-NB>, descriptor:<descriptor1>
+  targets: <NONE>
+  sources: [derives]{/prefixA/base-value1}
+  metadata-fields: map[]
+Processing new transaction:
+  * transaction arguments:
+      - seq-num: 1
+      - type: RETRY
+      - values:
+          - key: /prefixA/base-value1
+            value: { items:"item1" items:"item2"  }
+  * planned operations:
+      1. MODIFY [RETRY]:
+          - key: /prefixA/base-value1
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item1" items:"item2"  } 
+      2. ADD [DERIVED RETRY]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+          - prev-error: failed to add value
+
+Finalized transaction (seq-num=1):
+  * executed operations (2018-10-05 16:35:13.785534756 +0200 CEST m=+9.085317512 - 2018-10-05 16:35:13.785732804 +0200 CEST m=+9.085515555):
+      1. MODIFY [RETRY]:
+          - key: /prefixA/base-value1
+          - prev-value: { items:"item1"  } 
+          - new-value: { items:"item1" items:"item2"  } 
+      2. ADD [DERIVED RETRY]:
+          - key: /prefixA/base-value1/item2
+          - value: { value:"item2"  } 
+          - prev-error: failed to add value
+
+FAIL
+FAIL	github.com/ligato/vpp-agent/plugins/kvscheduler	9.098s

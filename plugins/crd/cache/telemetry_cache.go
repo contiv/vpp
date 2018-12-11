@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 	"github.com/ligato/cn-infra/logging"
 
 	vppifdescr "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
@@ -41,11 +42,11 @@ const (
 	numDTOs   = 8
 	agentPort = ":9999"
 
-	kvschedulerURL = "/scheduler/dump?descriptor=<descriptor>&state=internal" // TODO: configurable state
+	kvschedulerURL = "/scheduler/dump?descriptor=<descriptor>&state=<state>"
+	livenessURL    = "/liveness"
+	ipamURL        = "/contiv/v1/ipam"
 
-	livenessURL       = "/liveness"
 	linuxInterfaceURL = "/linux/dump/v1/interfaces"
-	ipamURL           = "/contiv/v1/ipam"
 
 	bridgeDomainURL = "/vpp/dump/v1/bd"
 	l2FibsURL       = "/vpp/dump/v1/fib"
@@ -77,6 +78,7 @@ type ContivTelemetryCache struct {
 	collectionInterval   time.Duration
 	httpClientTimeout    time.Duration
 	agentPort            string
+	validateState        string
 	validationInProgress bool
 	databaseVersion      uint32
 	dataChangeEvents     DcEventQueue
@@ -106,7 +108,7 @@ type NodeDTO struct {
 }
 
 // NewTelemetryCache returns a new instance of telemetry cache
-func NewTelemetryCache(p logging.PluginLogger, collectionInterval time.Duration, verbose bool) *ContivTelemetryCache {
+func NewTelemetryCache(p logging.PluginLogger, collectionInterval time.Duration, validateState string, verbose bool) *ContivTelemetryCache {
 	ticker := time.NewTicker(collectionInterval)
 	if collectionInterval <= 0 {
 		// If we have 0 collection interval, just stop ticker
@@ -125,6 +127,7 @@ func NewTelemetryCache(p logging.PluginLogger, collectionInterval time.Duration,
 
 		agentPort:            agentPort,
 		collectionInterval:   collectionInterval,
+		validateState:        validateState,
 		httpClientTimeout:    clientTimeout * time.Second,
 		validationInProgress: false,
 
@@ -246,7 +249,9 @@ func (ctc *ContivTelemetryCache) validateCluster() {
 }
 
 func (ctc *ContivTelemetryCache) kvSchedulerDumpURL(descriptor string) string {
-	return strings.Replace(kvschedulerURL, "<descriptor>", descriptor, 1)
+	url := strings.Replace(kvschedulerURL, "<descriptor>", descriptor, 1)
+	strings.Replace(url, "<state>", ctc.validateState, 1)
+	return url
 }
 
 // Collect real-time node state (mainly VPP, but some Linux too) from the
@@ -260,7 +265,7 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 	}
 	ctc.Report.SetPrefix("HTTP")
 
-	go ctc.getNodeInfo(client, node, livenessURL, &telemetrymodel.NodeLiveness{}, ctc.databaseVersion)
+	go ctc.getNodeInfo(client, node, livenessURL, &status.AgentStatus{}, ctc.databaseVersion)
 
 	nodeInterfaces := make(telemetrymodel.NodeInterfaces, 0)
 	url := ctc.kvSchedulerDumpURL(vppifdescr.InterfaceDescriptorName)
@@ -302,7 +307,7 @@ and added to the node database.
 func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetrymodel.Node, url string,
 	nodeInfo interface{}, version uint32) {
 
-	var	err error
+	var err error
 	defer func() {
 		fmt.Printf(">>>>>>> getNodeInfo unmarshaled (err=%v): %+v\n", err, nodeInfo)
 		ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nodeInfo, err, version}
@@ -436,8 +441,8 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 		}
 
 		switch data.NodeInfo.(type) {
-		case *telemetrymodel.NodeLiveness:
-			nl := data.NodeInfo.(*telemetrymodel.NodeLiveness)
+		case *status.AgentStatus:
+			nl := data.NodeInfo.(*status.AgentStatus)
 			err = ctc.VppCache.SetNodeLiveness(data.NodeName, nl)
 		case *telemetrymodel.NodeInterfaces:
 			niDto := data.NodeInfo.(*telemetrymodel.NodeInterfaces)

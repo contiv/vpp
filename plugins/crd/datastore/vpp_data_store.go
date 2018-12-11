@@ -23,6 +23,8 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ipv4net"
 )
@@ -204,7 +206,7 @@ func NewVppDataStore() (n *VppDataStore) {
 }
 
 // SetNodeLiveness is a simple function to set a nodes liveness given its name.
-func (vds *VppDataStore) SetNodeLiveness(nodeName string, nLive *telemetrymodel.NodeLiveness) error {
+func (vds *VppDataStore) SetNodeLiveness(nodeName string, nLive *status.AgentStatus) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 

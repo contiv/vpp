@@ -22,12 +22,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unrolled/render"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/unrolled/render"
 
 	"github.com/ligato/cn-infra/rpc/rest"
-	. "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	"github.com/ligato/vpp-agent/plugins/kvscheduler/internal/graph"
 )
 
@@ -49,6 +49,14 @@ const (
 	// seqNumArg is the name of the argument used to define the sequence number
 	// of the transaction to display (txnHistoryURL).
 	seqNumArg = "seq-num"
+
+	// formatArg is the name of the argument used to set the output format
+	// for the transaction history API.
+	formatArg = "format"
+
+	// recognized formats:
+	formatJSON = "json"
+	formatText = "text"
 
 	// keyTimelineURL is URL used to obtain timeline of value changes for a given key.
 	keyTimelineURL = urlPrefix + "key-timeline"
@@ -112,6 +120,51 @@ type errorString struct {
 	Error string
 }
 
+// kvWithMetaForJSON is an internal extension to KVWithMetadata, with proto Message
+// customized to implement MarshalJSON using jsonpb Marshaller.
+// The jsonpb package produces a different output than the standard "encoding/json"
+// package, which does not operate correctly on protocol buffers.
+// On the other hand, the marshaller from jsonpb cannot handle anything other
+// than proto messages.
+type kvWithMetaForJSON struct {
+	Key      string
+	Value    protoMsgForJSON
+	Metadata kvs.Metadata
+	Origin   kvs.ValueOrigin
+}
+
+// protoMsgForJSON customizes proto.Message to implement MarshalJSON using
+// the marshaller from jsonpb.
+type protoMsgForJSON struct {
+	proto.Message
+}
+
+// MarshalJSON marshalls proto message using the marshaller from jsonpb.
+func (p *protoMsgForJSON) MarshalJSON() ([]byte, error) {
+	marshaller := &jsonpb.Marshaler{}
+	str, err := marshaller.MarshalToString(p.Message)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(str), nil
+}
+
+// kvPairsForJSON converts a list of key-value pairs with metadata into an equivalent
+// list of kvWithMetaForJSON.
+func kvPairsForJSON(pairs []kvs.KVWithMetadata) (out []kvWithMetaForJSON) {
+	for _, kv := range pairs {
+		out = append(out, kvWithMetaForJSON{
+			Key: kv.Key,
+			Value: protoMsgForJSON{
+				Message: kv.Value,
+			},
+			Metadata: kv.Metadata,
+			Origin:   kv.Origin,
+		})
+	}
+	return out
+}
+
 // registerHandlers registers all supported REST APIs.
 func (scheduler *Scheduler) registerHandlers(http rest.HTTPHandlers) {
 	if http == nil {
@@ -133,12 +186,23 @@ func (scheduler *Scheduler) txnHistoryGetHandler(formatter *render.Render) http.
 		var seqNum int
 		args := req.URL.Query()
 
+		// parse optional *format* argument (default = JSON)
+		format := formatJSON
+		if formatStr, withFormat := args[formatArg]; withFormat && len(formatStr) == 1 {
+			format = formatStr[0]
+			if format != formatJSON && format != formatText {
+				err := errors.New("unrecognized output format")
+				formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+				return
+			}
+		}
+
 		// parse optional *seq-num* argument
 		if seqNumStr, withSeqNum := args[seqNumArg]; withSeqNum && len(seqNumStr) == 1 {
 			var err error
 			seqNum, err = strconv.Atoi(seqNumStr[0])
 			if err != nil {
-				formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+				scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()}))
 				return
 			}
 
@@ -146,11 +210,15 @@ func (scheduler *Scheduler) txnHistoryGetHandler(formatter *render.Render) http.
 			txn := scheduler.getRecordedTransaction(uint(seqNum))
 			if txn == nil {
 				err := errors.New("transaction with such sequence is not recorded")
-				formatter.JSON(w, http.StatusNotFound, errorString{err.Error()})
+				scheduler.logError(formatter.JSON(w, http.StatusNotFound, errorString{err.Error()}))
 				return
 			}
 
-			formatter.Text(w, http.StatusOK, txn.StringWithOpts(false, 0))
+			if format == formatJSON {
+				scheduler.logError(formatter.JSON(w, http.StatusOK, txn))
+			} else {
+				scheduler.logError(formatter.Text(w, http.StatusOK, txn.StringWithOpts(false, 0)))
+			}
 			return
 		}
 
@@ -159,7 +227,7 @@ func (scheduler *Scheduler) txnHistoryGetHandler(formatter *render.Render) http.
 			var err error
 			until, err = stringToTime(untilStr[0])
 			if err != nil {
-				formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+				scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()}))
 				return
 			}
 		}
@@ -169,13 +237,17 @@ func (scheduler *Scheduler) txnHistoryGetHandler(formatter *render.Render) http.
 			var err error
 			since, err = stringToTime(sinceStr[0])
 			if err != nil {
-				formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+				scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()}))
 				return
 			}
 		}
 
 		txnHistory := scheduler.getTransactionHistory(since, until)
-		formatter.Text(w, http.StatusOK, txnHistory.StringWithOpts(false, 0))
+		if format == formatJSON {
+			scheduler.logError(formatter.JSON(w, http.StatusOK, txnHistory))
+		} else {
+			scheduler.logError(formatter.Text(w, http.StatusOK, txnHistory.StringWithOpts(false, 0)))
+		}
 	}
 }
 
@@ -190,13 +262,12 @@ func (scheduler *Scheduler) keyTimelineGetHandler(formatter *render.Render) http
 			defer graphR.Release()
 
 			timeline := graphR.GetNodeTimeline(keys[0])
-			formatter.JSON(w, http.StatusOK, timeline)
+			scheduler.logError(formatter.JSON(w, http.StatusOK, timeline))
 			return
 		}
 
 		err := errors.New("missing key argument")
-		formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
-		return
+		scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()}))
 	}
 }
 
@@ -211,7 +282,7 @@ func (scheduler *Scheduler) graphSnapshotGetHandler(formatter *render.Render) ht
 			var err error
 			timeVal, err = stringToTime(timeStr[0])
 			if err != nil {
-				formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+				scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()}))
 				return
 			}
 		}
@@ -220,7 +291,7 @@ func (scheduler *Scheduler) graphSnapshotGetHandler(formatter *render.Render) ht
 		defer graphR.Release()
 
 		snapshot := graphR.GetSnapshot(timeVal)
-		formatter.JSON(w, http.StatusOK, snapshot)
+		scheduler.logError(formatter.JSON(w, http.StatusOK, snapshot))
 	}
 }
 
@@ -228,10 +299,9 @@ func (scheduler *Scheduler) graphSnapshotGetHandler(formatter *render.Render) ht
 func (scheduler *Scheduler) flagStatsGetHandler(formatter *render.Render) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		args := req.URL.Query()
-		var prefixes []string
 
 		// parse repeated *prefix* argument
-		prefixes, _ = args[prefixArg]
+		prefixes := args[prefixArg]
 
 		if flags, withFlag := args[flagArg]; withFlag && len(flags) == 1 {
 			graphR := scheduler.graph.Read()
@@ -248,13 +318,12 @@ func (scheduler *Scheduler) flagStatsGetHandler(formatter *render.Render) http.H
 				}
 				return false
 			})
-			formatter.JSON(w, http.StatusOK, stats)
+			scheduler.logError(formatter.JSON(w, http.StatusOK, stats))
 			return
 		}
 
 		err := errors.New("missing flag argument")
-		formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
-		return
+		scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()}))
 	}
 }
 
@@ -281,13 +350,13 @@ func (scheduler *Scheduler) downstreamResyncPostHandler(formatter *render.Render
 		}
 
 		ctx := context.Background()
-		ctx = WithResync(ctx, DownstreamResync, verbose)
+		ctx = kvs.WithResync(ctx, kvs.DownstreamResync, verbose)
 		if retry {
-			ctx = WithRetry(ctx, time.Second, true)
+			ctx = kvs.WithRetry(ctx, time.Second, true)
 		}
 		kvErrors, txnError := scheduler.StartNBTransaction().Commit(ctx)
 		if txnError != nil {
-			formatter.JSON(w, http.StatusInternalServerError, errorString{txnError.Error()})
+			scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{txnError.Error()}))
 			return
 		}
 		if len(kvErrors) > 0 {
@@ -295,46 +364,11 @@ func (scheduler *Scheduler) downstreamResyncPostHandler(formatter *render.Render
 			for _, keyWithError := range kvErrors {
 				kvErrorMap[keyWithError.Key] = errorString{keyWithError.Error.Error()}
 			}
-			formatter.JSON(w, http.StatusInternalServerError, kvErrorMap)
+			scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, kvErrorMap))
 			return
 		}
-		formatter.Text(w, http.StatusOK, "SB was successfully synchronized with KVScheduler\n")
-		return
+		scheduler.logError(formatter.Text(w, http.StatusOK, "SB was successfully synchronized with KVScheduler\n"))
 	}
-}
-
-type kvPairForJSON struct {
-	Key      string
-	Value    protoMsgForJSON
-	Metadata Metadata
-	Origin   ValueOrigin
-}
-
-type protoMsgForJSON struct {
-	proto.Message
-}
-
-func (p *protoMsgForJSON) MarshalJSON() ([]byte, error) {
-	marshaller := &jsonpb.Marshaler{}
-	str, err := marshaller.MarshalToString(p.Message)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(str), nil
-}
-
-func kvPairsForJSON(pairs []KVWithMetadata) (out []kvPairForJSON) {
-	for _, kv := range pairs {
-		out = append(out, kvPairForJSON{
-			Key: kv.Key,
-			Value: protoMsgForJSON{
-				Message: kv.Value,
-			},
-			Metadata: kv.Metadata,
-			Origin:   kv.Origin,
-		})
-	}
-	return out
 }
 
 // dumpGetHandler is the GET handler for "dump" API.
@@ -346,12 +380,12 @@ func (scheduler *Scheduler) dumpGetHandler(formatter *render.Render) http.Handle
 		descriptors, withDescriptor := args[descriptorArg]
 		if !withDescriptor {
 			err := errors.New("missing descriptor argument")
-			formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+			scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()}))
 			return
 		}
 		if len(descriptors) != 1 {
 			err := errors.New("descriptor argument listed more than once")
-			formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+			scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()}))
 			return
 		}
 		descriptor := descriptors[0]
@@ -362,7 +396,7 @@ func (scheduler *Scheduler) dumpGetHandler(formatter *render.Render) http.Handle
 			state = stateStr[0]
 			if state != SB && state != NB && state != internalState {
 				err := errors.New("unrecognized system state")
-				formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+				scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()}))
 				return
 			}
 		}
@@ -378,9 +412,9 @@ func (scheduler *Scheduler) dumpGetHandler(formatter *render.Render) http.Handle
 
 		if state == NB {
 			// dump the requested state
-			var kvPairs []kvPairForJSON
+			var kvPairs []kvWithMetaForJSON
 			nbNodes := graphR.GetNodes(nil,
-				graph.WithFlags(&DescriptorFlag{descriptor}, &OriginFlag{FromNB}),
+				graph.WithFlags(&DescriptorFlag{descriptor}, &OriginFlag{kvs.FromNB}),
 				graph.WithoutFlags(&DerivedFlag{}))
 
 			for _, node := range nbNodes {
@@ -389,13 +423,13 @@ func (scheduler *Scheduler) dumpGetHandler(formatter *render.Render) http.Handle
 					// value requested to be deleted
 					continue
 				}
-				kvPairs = append(kvPairs, kvPairForJSON{
+				kvPairs = append(kvPairs, kvWithMetaForJSON{
 					Key:    node.GetKey(),
 					Value:  protoMsgForJSON{Message: lastChange.value},
-					Origin: FromNB,
+					Origin: kvs.FromNB,
 				})
 			}
-			formatter.JSON(w, http.StatusOK, kvPairs)
+			scheduler.logError(formatter.JSON(w, http.StatusOK, kvPairs))
 			return
 		}
 
@@ -409,7 +443,7 @@ func (scheduler *Scheduler) dumpGetHandler(formatter *render.Render) http.Handle
 
 		if state == internalState {
 			// return the scheduler's view of SB for the given descriptor
-			formatter.JSON(w, http.StatusOK, kvPairsForJSON(inMemNodes))
+			scheduler.logError(formatter.JSON(w, http.StatusOK, kvPairsForJSON(inMemNodes)))
 			return
 		}
 
@@ -417,23 +451,31 @@ func (scheduler *Scheduler) dumpGetHandler(formatter *render.Render) http.Handle
 		kvDescriptor := scheduler.registry.GetDescriptor(descriptor)
 		if kvDescriptor == nil {
 			err := errors.New("descriptor is not registered")
-			formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+			scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()}))
 			return
 		}
 		if kvDescriptor.Dump == nil {
 			err := errors.New("descriptor does not support Dump operation")
-			formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+			scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()}))
 			return
 		}
 
 		// dump the state directly from SB via descriptor
 		dump, err := kvDescriptor.Dump(inMemNodes)
 		if err != nil {
-			formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+			scheduler.logError(formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()}))
 			return
 		}
-		formatter.JSON(w, http.StatusOK, kvPairsForJSON(dump))
+
+		scheduler.logError(formatter.JSON(w, http.StatusOK, kvPairsForJSON(dump)))
 		return
+	}
+}
+
+// logError logs non-nil errors from JSON formatter
+func (scheduler *Scheduler) logError(err error) {
+	if err != nil {
+		scheduler.Log.Error(err)
 	}
 }
 

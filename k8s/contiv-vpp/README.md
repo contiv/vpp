@@ -132,3 +132,5 @@ Parameter | Description | Default
 `bolt.persistentVolumeSize` | Size of Kubernetes persistent volume | `2Gi`
 `bolt.persistentVolumeStorageClass` | Kubernetes persistent volume storage class (use "-" for an empty storage class) | (no value)
 `bolt.dataDir` | Use hostPath of this directory to persist bolt data (ignored if usePersistentVolume is true) | `/var/bolt`
+`crd.pollingInterval` | Interval in minutes between Contiv configuration validations for TelemetryReport CRD | `1`
+`crd.validateState` | Which state of the Contiv configuration to validate for TelemetryReport CRD (options: "SB", "internal", "NB") | `internal`

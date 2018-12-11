@@ -36,6 +36,7 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"github.com/contiv/vpp/pkg/pci"
 	"github.com/contiv/vpp/plugins/contivconf"
 	"github.com/contiv/vpp/plugins/controller"
 	"github.com/contiv/vpp/plugins/nodesync"
@@ -53,6 +54,8 @@ const (
 	contivAgentProcessName = "contiv-agent"
 
 	etcdConnectionRetries = 2 // number of retries to connect to ETCD
+
+	vmxnet3PreferredDriver = "vfio-pci" // driver required for vmxnet3 interfaces
 )
 
 var (
@@ -343,6 +346,21 @@ func main() {
 		}
 	} else {
 		logger.Debug("STN not requested")
+	}
+
+	// check whether vmxnet3 interface bind is required
+	if !contivConf.InSTNMode() && contivConf.UseVmxnet3() {
+
+		vmxnet3Cfg, err := contivConf.GetVmxnet3Config()
+		if err != nil {
+			logger.Errorf("Error by getting vmxnet3 config: %v", err)
+			os.Exit(-1)
+		}
+		err = pci.DriverBind(vmxnet3Cfg.MainInterfacePCIAddress, vmxnet3PreferredDriver)
+		if err != nil {
+			logger.Errorf("Error binding to vfio-pci: %v", err)
+			os.Exit(-1)
+		}
 	}
 
 	// connect to supervisor API

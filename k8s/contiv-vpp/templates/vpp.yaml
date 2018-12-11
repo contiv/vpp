@@ -26,6 +26,12 @@ data:
     tapv2RxRingSize: {{ .Values.contiv.tapv2RxRingSize }}
     tapv2TxRingSize: {{ .Values.contiv.tapv2TxRingSize }}
     {{- end }}
+    {{- if ne (.Values.contiv.vmxnet3RxRingSize | int) 1024 }}
+    Vmxnet3RxRingSize: {{ .Values.contiv.vmxnet3RxRingSize }}
+    {{- end }}
+    {{- if ne (.Values.contiv.vmxnet3TxRingSize | int) 1024 }}
+    Vmxnet3TxRingSize: {{ .Values.contiv.vmxnet3TxRingSize }}
+    {{- end }}
     tcpChecksumOffloadDisabled: true
     {{- if .Values.contiv.stealInterface }}
     stealInterface: {{ .Values.contiv.stealInterface }}
@@ -711,6 +717,8 @@ spec:
               mountPath: /dev/shm
             - name: dev
               mountPath: /dev
+            - name: sys-bus-pci
+              mountPath: /sys/bus/pci
             - name: vpp-run
               mountPath: /run/vpp
             - name: contiv-run
@@ -812,6 +820,10 @@ spec:
         - name: shm
           hostPath:
             path: /dev/shm
+        # /sys/bus/pci is required for binding PCI devices to specific drivers
+        - name: sys-bus-pci
+          hostPath:
+            path: /sys/bus/pci
         # For CLI unix socket.
         - name: vpp-run
           hostPath:

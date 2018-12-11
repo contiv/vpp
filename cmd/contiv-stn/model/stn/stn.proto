@@ -61,4 +61,7 @@ message STNReply {
     }
     // List of routes related to the interface.
     repeated Route routes = 5;
+
+    // Kernel driver used by this interface before stealing.
+    string kernel_driver = 6;
 }

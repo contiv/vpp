@@ -87,6 +87,10 @@ const (
 
 	// UTs
 	defaultFirstHostInterfaceForUTs = "eth0"
+
+	// vmxnet3
+	vmxnet3KernelDriver    = "vmxnet3"  // name of the kernel driver for vmxnet3 interfaces
+	vmxnet3InterfacePrefix = "vmxnet3-" // prefix matching all vmxnet3 interfaces on VPP
 )
 
 // ContivConf plugins simplifies the Contiv configuration processing for other
@@ -115,10 +119,12 @@ type ContivConf struct {
 	dpdkIfaces []string
 
 	// STN run-time configuration
-	stnInterface   string
-	stnIPAddresses IPsWithNetworks
-	stnGW          net.IP
-	stnRoutes      []*stn_grpc.STNReply_Route
+	stnInterface    string
+	stnIPAddresses  IPsWithNetworks
+	stnGW           net.IP
+	stnRoutes       []*stn_grpc.STNReply_Route
+	stnKernelDriver string
+	stnPCIAddress   string
 
 	// node interface run-time configuration
 	useDHCP          bool
@@ -474,7 +480,7 @@ func (c *ContivConf) Resync(event controller.Event, kubeStateData controller.Kub
 			if nodeConfig != nil && nodeConfig.StealInterface != "" {
 				c.stnInterface = nodeConfig.StealInterface
 			}
-			c.stnIPAddresses, c.stnGW, c.stnRoutes, err = c.getSTNConfig(c.stnInterface)
+			err = c.loadSTNHostConfig(c.stnInterface)
 			if err != nil {
 				return controller.NewFatalError(err)
 			}
@@ -609,6 +615,34 @@ func (c *ContivConf) GetSTNConfig() *STNConfig {
 	}
 }
 
+// UseVmxnet3 returns true if vmxnet3 driver should be used for access to physical
+// interfaces instead of DPDK.
+// Vmxnet3 configuration can be obtained using GetVmxnet3Config()
+func (c *ContivConf) UseVmxnet3() bool {
+	if c.mainInterface == "" {
+		return false
+	}
+	return strings.HasPrefix(c.mainInterface, vmxnet3InterfacePrefix)
+}
+
+// GetVmxnet3Config returns configuration related to vmxnet3 feature.
+// Use the method only if vmxnet3 is in use - i.e. when UseVmxnet3() returns true.
+func (c *ContivConf) GetVmxnet3Config() (*Vmxnet3Config, error) {
+	if !c.UseVmxnet3() {
+		return nil, fmt.Errorf("vmxnet3 not in use")
+	}
+
+	pci, err := vmxnet3PCIFromName(c.mainInterface)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Vmxnet3Config{
+		MainInterfaceName:       c.mainInterface,
+		MainInterfacePCIAddress: pci,
+	}, nil
+}
+
 // Close is NOOP.
 func (c *ContivConf) Close() error {
 	return nil
@@ -632,6 +666,10 @@ func (c *ContivConf) reloadNodeInterfaces() error {
 	c.mainInterface = ""
 	if nodeConfig != nil {
 		c.mainInterface = nodeConfig.MainVPPInterface.InterfaceName
+	}
+	if c.mainInterface == "" && c.InSTNMode() && c.stnKernelDriver == vmxnet3KernelDriver {
+		c.mainInterface = vmxnet3IfNameFromPCI(c.stnPCIAddress)
+		c.Log.Debugf("vmxnet3 interface name derived from the PCI address: %s", c.mainInterface)
 	}
 	if c.mainInterface == "" {
 		// name not specified in the config, use heuristic - select first DPDK interface
@@ -819,9 +857,9 @@ func (c *ContivConf) dumpDPDKInterfaces() (ifaces []string, err error) {
 	return ifaces, nil
 }
 
-// getSTNConfig returns IP addresses and routes associated with the main
-// interface before it was stolen from the host stack.
-func (c *ContivConf) getSTNConfig(ifName string) (ipNets IPsWithNetworks, gw net.IP, routes []*stn_grpc.STNReply_Route, err error) {
+// loadSTNHostConfig loads IP addresses and routes associated with the main interface
+// before it was stolen from the host stack.
+func (c *ContivConf) loadSTNHostConfig(ifName string) error {
 	if ifName == "" {
 		c.Log.Debug("Getting STN info for the first stolen interface")
 	} else {
@@ -832,7 +870,7 @@ func (c *ContivConf) getSTNConfig(ifName string) (ipNets IPsWithNetworks, gw net
 	reply, err := c.requestSTNInfoClb(ifName)
 	if err != nil {
 		c.Log.Errorf("Error by executing STN GRPC: %v", err)
-		return
+		return err
 	}
 	c.Log.Debugf("STN GRPC reply: %v", reply)
 
@@ -842,35 +880,37 @@ func (c *ContivConf) getSTNConfig(ifName string) (ipNets IPsWithNetworks, gw net
 		ipNet.Address, ipNet.Network, err = net.ParseCIDR(address)
 		if err != nil {
 			c.Log.Errorf("Failed to parse IP address returned by STN GRPC: %v", err)
-			return
+			return err
 		}
-		ipNets = append(ipNets, ipNet)
+		c.stnIPAddresses = append(c.stnIPAddresses, ipNet)
 	}
 
 	// try to find the default gateway in the list of routes
 	for _, r := range reply.Routes {
 		if r.DestinationSubnet == "" || strings.HasPrefix(r.DestinationSubnet, "0.0.0.0") {
-			gw = net.ParseIP(r.NextHopIp)
+			c.stnGW = net.ParseIP(r.NextHopIp)
 			if err != nil {
 				err = fmt.Errorf("failed to parse GW address returned by STN GRPC (%s)", r.NextHopIp)
-				return
+				return err
 			}
 			break
 		}
 	}
-	if len(gw) == 0 && len(ipNets) > 0 {
+	if len(c.stnGW) == 0 && len(c.stnIPAddresses) > 0 {
 		// no default gateway in routes, calculate fake gateway address for route pointing to VPP
-		firstIP, lastIP := cidr.AddressRange(ipNets[0].Network)
-		if !cidr.Inc(firstIP).Equal(ipNets[0].Address) {
-			gw = cidr.Inc(firstIP)
+		firstIP, lastIP := cidr.AddressRange(c.stnIPAddresses[0].Network)
+		if !cidr.Inc(firstIP).Equal(c.stnIPAddresses[0].Address) {
+			c.stnGW = cidr.Inc(firstIP)
 		} else {
-			gw = cidr.Dec(lastIP)
+			c.stnGW = cidr.Dec(lastIP)
 		}
 	}
 
-	// return routes without any processing
-	routes = reply.Routes
-	return
+	c.stnRoutes = reply.Routes
+	c.stnPCIAddress = reply.PciAddress
+	c.stnKernelDriver = reply.KernelDriver
+
+	return nil
 }
 
 // requestSTNInfo sends request to the STN daemon to obtain information about a stolen interface.
@@ -923,4 +963,28 @@ func nodeConfigFromProto(nodeConfigProto *nodeconfig.NodeConfig) (nodeConfig *No
 			})
 	}
 	return nodeConfig
+}
+
+// vmxnet3IfNameFromPCI derives vmxnet3 interface name on VPP from provided PCI address
+func vmxnet3IfNameFromPCI(pciAddr string) string {
+	var a, b, c, d uint32
+
+	fmt.Sscanf(pciAddr, "%x:%x:%x.%x", &a, &b, &c, &d)                      // e.g. "0000:0b:00.0"
+	return fmt.Sprintf("%s%x/%x/%x/%x", vmxnet3InterfacePrefix, a, b, c, d) // e.g. "vmxnet3-0/b/0/0"
+}
+
+// vmxnet3PCIFromName derives PCI address string from provided vmxnet3 interface name
+func vmxnet3PCIFromName(ifName string) (string, error) {
+	var function, slot, bus, domain uint32
+	numLen, err := fmt.Sscanf(ifName, "vmxnet3-%x/%x/%x/%x", &domain, &bus, &slot, &function)
+	if err != nil {
+		err = fmt.Errorf("cannot parse PCI address from the vmxnet3 interface name %s: %v", ifName, err)
+		return "", err
+	}
+	if numLen != 4 {
+		err = fmt.Errorf("cannot parse PCI address from the interface name %s: expected 4 address elements, received %d",
+			ifName, numLen)
+		return "", err
+	}
+	return fmt.Sprintf("%04x:%02x:%02x.%0x", domain, bus, slot, function), nil
 }

@@ -6,9 +6,9 @@ cd /opt/vpp-agent/dev/
 
 # clone VPP
 if [ "${VPP_REPO_URL}" == "" ]; then
-    git clone https://github.com/FDio/vpp
+    git clone --progress https://github.com/FDio/vpp
 else
-    git clone "${VPP_REPO_URL}"
+    git clone --progress "${VPP_REPO_URL}"
 fi
 
 cd ${VPP_DIR}

@@ -1,3 +1,20 @@
+# Release v2.0.3 (10.12.2018)
+
+### VPP
+ - version **v18.10** (latest stable/1810)
+
+### Bug Fixes
+ - fix contiv-netctl when http uses self-signed certs
+
+### New Features & Enhancements
+ - added `cipherSuites` option for etcd into helm
+ - [native PCI driver support for VMware vmxnet3](docs/VMXNET3.md)
+
+### Known Issues
+- load-balancing between backends of a service is limited to the first 256 PODs
+(the others will not receive any traffic until some of the first 256 PODs disappear)
+
+
 # Release v2.0.2 (29.11.2018)
 
 ### VPP

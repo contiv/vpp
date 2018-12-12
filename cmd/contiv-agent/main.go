@@ -33,6 +33,7 @@ import (
 	"github.com/ligato/cn-infra/rpc/rest"
 
 	"github.com/ligato/vpp-agent/plugins/govppmux"
+	rest_plugin "github.com/ligato/vpp-agent/plugins/restv2"
 	"github.com/ligato/vpp-agent/plugins/kvscheduler"
 	linux_ifplugin "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin"
 	linux_l3plugin "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin"
@@ -81,6 +82,7 @@ type ContivAgent struct {
 
 	Telemetry *telemetry.Plugin
 	GRPC      *grpc.Plugin
+	REST      *rest_plugin.Plugin
 
 	Controller *controller.Controller
 	ContivConf *contivconf.ContivConf
@@ -207,6 +209,7 @@ func main() {
 		VPPSTNPlugin:  &vpp_stnplugin.DefaultPlugin,
 		Telemetry:     &telemetry.DefaultPlugin,
 		GRPC:          &grpc.DefaultPlugin,
+		REST:          &rest_plugin.DefaultPlugin,
 		Controller:    controller,
 		ContivConf:    contivConf,
 		NodeSync:      nodeSyncPlugin,

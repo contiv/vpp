@@ -17,12 +17,13 @@
 package cmdimpl
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/gogo/protobuf/jsonpb"
 
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/servicelabel"
@@ -64,7 +65,7 @@ func getClusterNodeInfo(db *etcd.BytesConnectionEtcd) clusterNodeInfo {
 			}
 			buf := kv.GetValue()
 			vn := &vppnode.VppNode{}
-			if err = json.Unmarshal(buf, vn); err != nil {
+			if err = jsonpb.UnmarshalString(string(buf), vn); err != nil {
 				fmt.Printf("failed to decode node info for node %s, error %s\n", kv.GetKey(), err)
 				continue
 			}
@@ -93,7 +94,7 @@ func getClusterNodeInfo(db *etcd.BytesConnectionEtcd) clusterNodeInfo {
 			}
 			buf := kv.GetValue()
 			ni := &node.Node{}
-			if err = json.Unmarshal(buf, ni); err != nil {
+			if err = jsonpb.UnmarshalString(string(buf), ni); err != nil {
 				fmt.Printf("failed to decode k8s data for node %s, error %s\n", kv.GetKey(), err)
 				continue
 			}
@@ -171,4 +172,12 @@ func getIPAddressAndMask(ip string) (uint32, uint32, error) {
 	mask := maskLength2Mask(maskLen)
 
 	return address, mask, nil
+}
+
+func vppDumpCommand(descriptor string) string {
+	url := getVppDumpCmd
+	if descriptor != "" {
+		url += "?state=SB&descriptor=" + descriptor
+	}
+	return url
 }

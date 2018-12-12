@@ -160,6 +160,7 @@ type InterfaceConfig struct {
 	TAPv2TxRingSize            uint16 `json:"tapv2TxRingSize,omitempty"`
 	Vmxnet3RxRingSize          uint16 `json:"vmxnet3RxRingSize,omitempty"`
 	Vmxnet3TxRingSize          uint16 `json:"vmxnet3TxRingSize,omitempty"`
+	InterfaceRxMode            string `json:"interfaceRxMode,omitempty"` // "" == "default" / "polling" / "interrupt" / "adaptive"
 	TCPChecksumOffloadDisabled bool   `json:"tcpChecksumOffloadDisabled,omitempty"`
 }
 

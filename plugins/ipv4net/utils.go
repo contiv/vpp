@@ -25,6 +25,7 @@ import (
 
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stats"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 )
 
 // getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
@@ -141,4 +142,18 @@ func ipv4ToUint32(ip net.IP) (uint32, error) {
 // uint32ToIpv4 is a simple utility function for conversion from uint32 to IPv4.
 func uint32ToIpv4(ip uint32) net.IP {
 	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip)).To4()
+}
+
+// interfaceRxModeType returns interface rx-mode type from provided string.
+func interfaceRxModeType(rxMode string) interfaces.Interface_RxModeSettings_RxModeType {
+	switch rxMode {
+	case "polling":
+		return interfaces.Interface_RxModeSettings_POLLING
+	case "interrupt":
+		return interfaces.Interface_RxModeSettings_INTERRUPT
+	case "adaptive":
+		return interfaces.Interface_RxModeSettings_ADAPTIVE
+	default:
+		return interfaces.Interface_RxModeSettings_DEFAULT
+	}
 }

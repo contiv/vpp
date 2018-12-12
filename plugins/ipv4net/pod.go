@@ -138,6 +138,11 @@ func (n *IPv4Net) podVPPTap(pod *podmanager.LocalPod) (key string, config *inter
 		tap.GetTap().RxRingSize = uint32(interfaceCfg.TAPv2RxRingSize)
 		tap.GetTap().TxRingSize = uint32(interfaceCfg.TAPv2TxRingSize)
 	}
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != interfaces.Interface_RxModeSettings_DEFAULT {
+		tap.RxModeSettings = &interfaces.Interface_RxModeSettings{
+			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+		}
+	}
 	key = interfaces.InterfaceKey(tap.Name)
 	return key, tap
 }
@@ -237,6 +242,7 @@ func (n *IPv4Net) podVeth2(pod *podmanager.LocalPod) (key string, config *linux_
 }
 
 func (n *IPv4Net) podAfPacket(pod *podmanager.LocalPod) (key string, config *interfaces.Interface) {
+	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	afpacket := &interfaces.Interface{
 		Name:        n.podAFPacketName(pod),
 		Type:        interfaces.Interface_AF_PACKET,
@@ -250,6 +256,11 @@ func (n *IPv4Net) podAfPacket(pod *podmanager.LocalPod) (key string, config *int
 				HostIfName: n.podVeth2HostIfName(pod),
 			},
 		},
+	}
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != interfaces.Interface_RxModeSettings_DEFAULT {
+		afpacket.RxModeSettings = &interfaces.Interface_RxModeSettings{
+			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+		}
 	}
 	key = interfaces.InterfaceKey(afpacket.Name)
 	return key, afpacket

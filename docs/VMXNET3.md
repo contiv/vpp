@@ -36,10 +36,18 @@ interface rx modes, it is a good idea to configure the `interrupt` or `adaptive`
 Example configuration:
 ```diff
 diff --git a/k8s/contiv-vpp.yaml b/k8s/contiv-vpp.yaml
-index 8d1d270a0..cf636bcae 100644
+index 8d1d270a0..4b249c349 100644
 --- a/k8s/contiv-vpp.yaml
 +++ b/k8s/contiv-vpp.yaml
-@@ -44,6 +44,12 @@ data:
+@@ -26,6 +26,7 @@ data:
+     tapInterfaceVersion: 2
+     tapv2RxRingSize: 256
+     tapv2TxRingSize: 256
++    interfaceRxMode: "adaptive"
+     tcpChecksumOffloadDisabled: true
+     natExternalTraffic: true
+     mtuSize: 1450
+@@ -44,6 +45,12 @@ data:
        vppHostSubnetCIDR: 172.30.0.0/16
        vppHostSubnetOneNodePrefixLen: 24
        vxlanCIDR: 192.168.30.0/24
@@ -66,12 +74,20 @@ will be automatically used.
 
 Example configuration:
 
-```
+```diff
 diff --git a/k8s/contiv-vpp.yaml b/k8s/contiv-vpp.yaml
-index 8d1d270a0..cf636bcae 100644
+index 8d1d270a0..4b249c349 100644
 --- a/k8s/contiv-vpp.yaml
 +++ b/k8s/contiv-vpp.yaml
-@@ -44,6 +44,12 @@ data:
+@@ -26,6 +26,7 @@ data:
+     tapInterfaceVersion: 2
+     tapv2RxRingSize: 256
+     tapv2TxRingSize: 256
++    interfaceRxMode: "adaptive"
+     tcpChecksumOffloadDisabled: true
+     natExternalTraffic: true
+     mtuSize: 1450
+@@ -44,6 +45,12 @@ data:
        vppHostSubnetCIDR: 172.30.0.0/16
        vppHostSubnetOneNodePrefixLen: 24
        vxlanCIDR: 192.168.30.0/24

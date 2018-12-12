@@ -16,7 +16,20 @@
 package l2
 
 import (
+	"os"
+	"strings"
+	"testing"
 	"fmt"
+
+	"github.com/onsi/gomega"
+
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/logging/logrus"
+
+	"github.com/ligato/vpp-agent/idxvpp2"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
+
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
@@ -24,14 +37,6 @@ import (
 	"github.com/contiv/vpp/plugins/crd/validator/utils"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
-	"github.com/onsi/gomega"
-	"os"
-	"regexp"
-	"strings"
-	"testing"
 )
 
 type l2ValidatorTestVars struct {
@@ -185,30 +190,30 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	gomega.Expect(len(bd)).To(gomega.Equal(1))
 
 	bogusBd := telemetrymodel.NodeBridgeDomain{
-		Bd: telemetrymodel.BridgeDomain{
-			Name: vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[1].Bd.Name,
-		},
-		BdMeta: telemetrymodel.BridgeDomainMeta{
-			BdID: 2,
-			BdID2Name: telemetrymodel.BdID2NameMapping{
-				2: vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[1].Bd.Name,
+		Value: telemetrymodel.VppBridgeDomain{
+			BridgeDomain: &l2.BridgeDomain{
+				Name: vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[0].Value.Name,
 			},
 		},
+		Metadata: idxvpp2.OnlyIndex{
+			Index: 2,
+		},
 	}
-	bd[2] = bogusBd
+	bd = append(bd, bogusBd)
+	vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains = bd
 
 	vtv.report.Clear()
 	vtv.l2Validator.ValidateBridgeDomains()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(1))
 
-	delete(bd, 2)
+	vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains = bd[:1]
 
 	// --------------------------------------------------------------------
 	// INJECT FAULT: No Bridge Domain present on node;
 	// NOTE: This TC MUST be executed after the previous one, it depends on
 	// the same setup
-	delete(bd, 1)
+	vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains = bd[:0]
 
 	vtv.report.Clear()
 	vtv.l2Validator.ValidateBridgeDomains()
@@ -220,8 +225,8 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	// INJECT FAULT: Set node/k8s-master interface/5 vxlan_vni to 11
 	k, ifp := vtv.findFirstVxlanInterface(nodeKey)
 	gomega.Expect(ifp).To(gomega.Not(gomega.BeNil()))
-	ifp.If.Vxlan.Vni = 11
-	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
+	ifp.Value.GetVxlan().Vni = 11
+	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[uint32(k)] = *ifp
 
 	vtv.report.Clear()
 	vtv.l2Validator.ValidateBridgeDomains()
@@ -229,17 +234,17 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(1))
 
 	// Restore data back to error free state
-	ifp.If.Vxlan.Vni = 10
-	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
+	ifp.Value.GetVxlan().Vni = 10
+	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[uint32(k)] = *ifp
 
 	// -----------------------------------------------------------------
 	// INJECT FAULT: Set bogus destination IP address on node/k8s-master
 	// first found vxlan_interface
 	k, ifp = vtv.findFirstVxlanInterface(nodeKey)
 	gomega.Expect(ifp).To(gomega.Not(gomega.BeNil()))
-	dstIPAddr := ifp.If.Vxlan.DstAddress
-	ifp.If.Vxlan.DstAddress = "1.2.3.4"
-	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
+	dstIPAddr := ifp.Value.GetVxlan().DstAddress
+	ifp.Value.GetVxlan().DstAddress = "1.2.3.4"
+	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[uint32(k)] = *ifp
 
 	vtv.report.Clear()
 	vtv.l2Validator.ValidateBridgeDomains()
@@ -251,49 +256,19 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	gomega.Expect(len(vtv.report.Data[node.Name])).To(gomega.Equal(1))
 
 	// Restore data back to error free state
-	ifp.If.Vxlan.DstAddress = dstIPAddr
-	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
-
-	// ----------------------------------------
-	// INJECT FAULT: Invalid BD interface index
-	nbd := vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains
-	gomega.Expect(len(nbd)).To(gomega.Equal(1))
-
-	for _, vxlanBd := range nbd {
-		// Create an invalid ifIndex for a BD interface (invalid key in the BdID2Name map)
-		keys := make([]uint32, 0)
-		for k := range vxlanBd.BdMeta.BdID2Name {
-			keys = append(keys, k)
-		}
-
-		bogusKey := keys[0] * 100
-		vxlanBd.BdMeta.BdID2Name[bogusKey] = vxlanBd.BdMeta.BdID2Name[keys[0]]
-		delete(vxlanBd.BdMeta.BdID2Name, keys[0])
-
-		// Perform test
-		vtv.report.Clear()
-		vtv.l2Validator.ValidateBridgeDomains()
-
-		gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-		gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(3))
-
-		// Restore data back to error free state
-		vxlanBd.BdMeta.BdID2Name[keys[0]] = vxlanBd.BdMeta.BdID2Name[bogusKey]
-		delete(vxlanBd.BdMeta.BdID2Name, bogusKey)
-
-		break
-	}
+	ifp.Value.GetVxlan().DstAddress = dstIPAddr
+	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[uint32(k)] = *ifp
 
 	// ----------------------------------------------------------------------
 	// INJECT FAULT: Duplicate BVI interface
-	nbd = vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains
+	nbd := vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains
 	for j, vxlanBd := range nbd {
 
 		// Make sure there are multiple BVI interfaces on the BD
 		var k int
-		for k = range vxlanBd.Bd.Interfaces {
-			if !vxlanBd.Bd.Interfaces[k].BVI {
-				vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[j].Bd.Interfaces[k].BVI = true
+		for k = range vxlanBd.Value.Interfaces {
+			if !vxlanBd.Value.Interfaces[k].BridgedVirtualInterface {
+				vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[j].Value.Interfaces[k].BridgedVirtualInterface = true
 				break
 			}
 		}
@@ -306,7 +281,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 		gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
 
 		// Restore data back to error free state
-		vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[j].Bd.Interfaces[k].BVI = false
+		vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[j].Value.Interfaces[k].BridgedVirtualInterface = false
 
 		break
 	}
@@ -315,8 +290,8 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	// INJECT FAULT: Invalid interface type in a non-BVI interface
 	k, ifp = vtv.findFirstVxlanInterface(nodeKey)
 	gomega.Expect(ifp).To(gomega.Not(gomega.BeNil()))
-	ifp.If.IfType = interfaces.InterfaceType_TAP_INTERFACE
-	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
+	ifp.Value.Type = interfaces.Interface_TAP
+	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[uint32(k)] = *ifp
 
 	// Perform test
 	vtv.report.Clear()
@@ -324,13 +299,13 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(3))
-	node, err = vtv.vppCache.RetrieveNodeByGigEIPAddr(ifp.If.Vxlan.DstAddress)
+	node, err = vtv.vppCache.RetrieveNodeByGigEIPAddr(ifp.Value.GetVxlan().DstAddress)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(len(vtv.report.Data[node.Name])).To(gomega.Equal(1))
 
 	// Restore data back to error free state
-	ifp.If.IfType = interfaces.InterfaceType_VXLAN_TUNNEL
-	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
+	ifp.Value.Type = interfaces.Interface_VXLAN_TUNNEL
+	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[uint32(k)] = *ifp
 
 	// ------------------------------------------------
 	// INJECT FAULT: Invalid node GigE IP Address index
@@ -392,46 +367,44 @@ func testValidateL2FibEntries(t *testing.T) {
 	// INJECT FAULT: Wrong number of L2Fib entries
 	node, err := vtv.l2Validator.VppCache.RetrieveNode(vtv.nodeKey)
 	gomega.Expect(err).To(gomega.BeNil())
-	bdID, err := getVxlanBD(node)
+	_, err = getVxlanBD(node)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	bogusFibKey1 := "90:87:65:43:21"
-	node.NodeL2Fibs[bogusFibKey1] = telemetrymodel.NodeL2FibEntry{
-		Fe: telemetrymodel.L2FibEntry{
-			BridgeDomainName:        "vxlanBD",
-			OutgoingIfName:          "vxlan10",
-			PhysAddress:             bogusFibKey1,
-			StaticConfig:            true,
-			BridgedVirtualInterface: false,
+	node.NodeL2Fibs = append(node.NodeL2Fibs, telemetrymodel.NodeL2FibEntry{
+		Value: telemetrymodel.VppL2FIB{
+			FIBEntry: &l2.FIBEntry{
+				BridgeDomain:            "vxlanBD",
+				OutgoingInterface:       "vxlan10",
+				PhysAddress:             "90:87:65:43:21",
+				StaticConfig:            true,
+				BridgedVirtualInterface: false,
+			},
 		},
-		FeMeta: telemetrymodel.L2FibEntryMeta{
-			BridgeDomainID:  uint32(bdID),
-			OutgoingIfIndex: 100,
-		},
-	}
+	})
 
 	// Inject L2FIB entry for another BD  into L2FIB
-	bogusFibKey2 := "90:87:65:43:22"
-	node.NodeL2Fibs[bogusFibKey2] = telemetrymodel.NodeL2FibEntry{
-		Fe: telemetrymodel.L2FibEntry{
-			BridgeDomainName: "anotherBd",
+	node.NodeL2Fibs = append(node.NodeL2Fibs, telemetrymodel.NodeL2FibEntry{
+		Value: telemetrymodel.VppL2FIB{
+			FIBEntry: &l2.FIBEntry{
+				BridgeDomain:            "anotherBd",
+				PhysAddress:             "90:87:65:43:22",
+				StaticConfig:            true,
+				BridgedVirtualInterface: false,
+			},
 		},
-		FeMeta: telemetrymodel.L2FibEntryMeta{
-			BridgeDomainID: uint32(bdID) + 1,
-		},
-	}
+	})
 
 	// Inject non-static L2FIB entry into L2FIB
-	bogusFibKey3 := "90:87:65:43:23"
-	node.NodeL2Fibs[bogusFibKey3] = telemetrymodel.NodeL2FibEntry{
-		Fe: telemetrymodel.L2FibEntry{
-			BridgeDomainName: "vxlanBD",
-			StaticConfig:     false,
+	node.NodeL2Fibs = append(node.NodeL2Fibs, telemetrymodel.NodeL2FibEntry{
+		Value: telemetrymodel.VppL2FIB{
+			FIBEntry: &l2.FIBEntry{
+				BridgeDomain:            "vxlanBD",
+				PhysAddress:             "90:87:65:43:23",
+				StaticConfig:            false,
+				BridgedVirtualInterface: false,
+			},
 		},
-		FeMeta: telemetrymodel.L2FibEntryMeta{
-			BridgeDomainID: 1,
-		},
-	}
+	})
 
 	// Perform test
 	vtv.report.Clear()
@@ -440,17 +413,15 @@ func testValidateL2FibEntries(t *testing.T) {
 	checkDataReport(1, 2, 0)
 
 	// Restore data back to error free state
-	delete(node.NodeL2Fibs, bogusFibKey1)
-	delete(node.NodeL2Fibs, bogusFibKey2)
-	delete(node.NodeL2Fibs, bogusFibKey3)
+	node.NodeL2Fibs = node.NodeL2Fibs[:len(node.NodeL2Fibs)-3]
 
 	// --------------------------------------------------
 	// INJECT FAULT: Missing loop interface on local node
 	node, err = vtv.l2Validator.VppCache.RetrieveNode(vtv.nodeKey)
 	gomega.Expect(err).To(gomega.BeNil())
 	for k, ifc := range node.NodeInterfaces {
-		if ifc.IfMeta.VppInternalName == "loop0" {
-			ifc.IfMeta.VppInternalName = "bogusName"
+		if ifc.Value.Name == "vxlanBVI" {
+			ifc.Value.Name = "bogusName"
 			node.NodeInterfaces[k] = ifc
 			break
 		}
@@ -464,8 +435,8 @@ func testValidateL2FibEntries(t *testing.T) {
 
 	// Restore data back to error free state
 	for k, ifc := range node.NodeInterfaces {
-		if ifc.IfMeta.VppInternalName == "bogusName" {
-			ifc.IfMeta.VppInternalName = "loop0"
+		if ifc.Value.Name == "bogusName" {
+			ifc.Value.Name = "vxlanBVI"
 			node.NodeInterfaces[k] = ifc
 			break
 		}
@@ -477,9 +448,9 @@ func testValidateL2FibEntries(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	loopIf, err := datastore.GetNodeLoopIFInfo(node)
 	gomega.Expect(err).To(gomega.BeNil())
-	prevMacAddr := loopIf.If.PhysAddress
-	loopIf.If.PhysAddress = "90:87:65:43:22"
-	node.NodeInterfaces[int(loopIf.IfMeta.SwIfIndex)] = *loopIf
+	prevMacAddr := loopIf.Value.PhysAddress
+	loopIf.Value.PhysAddress = "90:87:65:43:22"
+	node.NodeInterfaces[loopIf.Metadata.SwIfIndex] = *loopIf
 
 	// Perform test
 	vtv.report.Clear()
@@ -488,19 +459,19 @@ func testValidateL2FibEntries(t *testing.T) {
 	checkDataReport(1, 1, 1)
 
 	// Restore data back to error free state
-	loopIf.If.PhysAddress = prevMacAddr
-	node.NodeInterfaces[int(loopIf.IfMeta.SwIfIndex)] = *loopIf
+	loopIf.Value.PhysAddress = prevMacAddr
+	node.NodeInterfaces[loopIf.Metadata.SwIfIndex] = *loopIf
 
 	// ----------------------------------------------------
 	// INJECT FAULT: Missing L2Fib entry for the local node
 	node, err = vtv.l2Validator.VppCache.RetrieveNode(vtv.nodeKey)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	var key string
+	var key int
 	var fibEntry telemetrymodel.NodeL2FibEntry
 	for key, fibEntry = range node.NodeL2Fibs {
-		if fibEntry.Fe.BridgedVirtualInterface {
-			delete(node.NodeL2Fibs, key)
+		if fibEntry.Value.BridgedVirtualInterface {
+			node.NodeL2Fibs = append(node.NodeL2Fibs[:key], node.NodeL2Fibs[key+1:]...)
 			break
 		}
 	}
@@ -512,7 +483,7 @@ func testValidateL2FibEntries(t *testing.T) {
 	checkDataReport(1, 2, 0)
 
 	// Restore data back to error free state
-	node.NodeL2Fibs[key] = fibEntry
+	node.NodeL2Fibs = append(node.NodeL2Fibs, fibEntry)
 
 	// -------------------------------------------------------
 	// INJECT FAULT: Invalid entry in the Loop MAC Address map
@@ -530,8 +501,10 @@ func testValidateL2FibEntries(t *testing.T) {
 	// ---------------------------------------------------
 	// INJECT FAULT: Missing L2Fib entry for a remote node
 	for k, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeL2Fibs {
-		if !v.Fe.BridgedVirtualInterface {
-			delete(vtv.vppCache.NodeMap[vtv.nodeKey].NodeL2Fibs, k)
+		if !v.Value.BridgedVirtualInterface {
+			injected := vtv.vppCache.NodeMap[vtv.nodeKey].NodeL2Fibs
+			injected = append(injected[:k], node.NodeL2Fibs[k+1:]...)
+			vtv.vppCache.NodeMap[vtv.nodeKey].NodeL2Fibs = injected
 			break
 		}
 	}
@@ -548,8 +521,8 @@ func testValidateL2FibEntries(t *testing.T) {
 	// --------------------------------------------------------------------
 	// INJECT FAULT: Invalid VXLAN Destination IP address for a remote node
 	for k, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
-		if v.If.IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
-			v.If.Vxlan.DstAddress = "1.2.3.4"
+		if v.Value.Type == interfaces.Interface_VXLAN_TUNNEL {
+			v.Value.GetVxlan().DstAddress = "1.2.3.4"
 			vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[k] = v
 			break
 		}
@@ -567,8 +540,8 @@ func testValidateL2FibEntries(t *testing.T) {
 	// -------------------------------------
 	// INJECT FAULT: Vxlan BD does not exist
 	for k, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeBridgeDomains {
-		if v.Bd.Name == "vxlanBD" {
-			v.Bd.Name = "anotherBdName"
+		if v.Value.Name == "vxlanBD" {
+			v.Value.Name = "anotherBdName"
 			vtv.vppCache.NodeMap[vtv.nodeKey].NodeBridgeDomains[k] = v
 			break
 		}
@@ -590,9 +563,10 @@ func testValidateArpEntries(t *testing.T) {
 	resetToInitialErrorFreeState()
 
 	// ----------------------------------------------
-	// INJECT FAULT: Invalid IfIndex in the ARP entry
+	// INJECT FAULT: Invalid interface name in the ARP entry
 	for i, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp {
-		v.AeMeta.IfIndex = v.AeMeta.IfIndex + 100
+		oldInterface := v.Value.Interface
+		v.Value.Interface = "invalid"
 		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i] = v
 
 		// Perform test
@@ -602,15 +576,15 @@ func testValidateArpEntries(t *testing.T) {
 		checkDataReport(1, 2, 0)
 
 		// Restore data back to error free state
-		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i].AeMeta.IfIndex = v.AeMeta.IfIndex - 100
+		v.Value.Interface = oldInterface
 		break
 	}
 
 	// --------------------------------------------------
 	// INJECT FAULT: Invalid MAC Address in the ARP entry
 	for i, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp {
-		oldPhyAddress := v.Ae.PhysAddress
-		v.Ae.PhysAddress = "ff:ee:dd:cc:bb:aa"
+		oldPhyAddress := v.Value.PhysAddress
+		v.Value.PhysAddress = "ff:ee:dd:cc:bb:aa"
 		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i] = v
 
 		// Perform test
@@ -620,15 +594,15 @@ func testValidateArpEntries(t *testing.T) {
 		checkDataReport(1, 2, 0)
 
 		// Restore data back to error free state
-		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i].Ae.PhysAddress = oldPhyAddress
+		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i].Value.PhysAddress = oldPhyAddress
 		break
 	}
 
 	// -------------------------------------------------
 	// INJECT FAULT: Invalid IP Address in the ARP entry
 	for i, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp {
-		oldIPAddress := v.Ae.IPAddress
-		v.Ae.IPAddress = "1.2.3.4"
+		oldIPAddress := v.Value.IpAddress
+		v.Value.IpAddress = "1.2.3.4"
 		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i] = v
 
 		// Perform test
@@ -638,15 +612,15 @@ func testValidateArpEntries(t *testing.T) {
 		checkDataReport(1, 2, 0)
 
 		// Restore data back to error free state
-		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i].Ae.IPAddress = oldIPAddress
+		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i].Value.IpAddress = oldIPAddress
 		break
 	}
 
 	// ----------------------------------------------------------------
 	// INJECT FAULT: Inconsistent MAC and IP addresses in the ARP entry
 	for i, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp {
-		oldIPAddress := v.Ae.IPAddress
-		v.Ae.IPAddress = vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i+1].Ae.IPAddress
+		oldIPAddress := v.Value.IpAddress
+		v.Value.IpAddress = vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i+1].Value.IpAddress
 		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i] = v
 
 		// Perform test
@@ -656,7 +630,7 @@ func testValidateArpEntries(t *testing.T) {
 		checkDataReport(1, 2, 0)
 
 		// Restore data back to error free state
-		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i].Ae.PhysAddress = oldIPAddress
+		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i].Value.PhysAddress = oldIPAddress
 		break
 	}
 }
@@ -771,27 +745,6 @@ func testValidatePodInfo(t *testing.T) {
 	// Restore data back to error free state
 	resetToInitialErrorFreeState()
 
-	// -------------------------------------------------
-	// INJECT FAULT: Invalid data on pod's tap interface
-	for k, ifc := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
-		matched, err := regexp.Match("tap[1-9]", []byte(ifc.IfMeta.VppInternalName))
-		gomega.Expect(err).To(gomega.BeNil())
-		if matched {
-			ifc.IfMeta.VppInternalName = "anotherIfcName"
-			vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[k] = ifc
-
-			// Perform test
-			vtv.report.Clear()
-			vtv.l2Validator.ValidatePodInfo()
-
-			checkDataReport(1, 1, 0)
-
-			// Restore data back to error free state
-			resetToInitialErrorFreeState()
-			break
-		}
-	}
-
 	// ----------------------------------------------
 	// INJECT FAULT: Missing pod-facing tap interface
 	podIfIPAdr, podIfIPMask, err :=
@@ -800,7 +753,7 @@ func testValidatePodInfo(t *testing.T) {
 
 ifcLoop:
 	for ifIdx, ifc := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
-		for _, ip := range ifc.If.IPAddresses {
+		for _, ip := range ifc.Value.IpAddresses {
 			ipAddr, _, err := utils.Ipv4CidrToAddressAndMask(ip)
 			gomega.Expect(err).To(gomega.BeNil())
 
@@ -828,12 +781,12 @@ ifcLoop:
 
 ifcLoop1:
 	for ifIdx, ifc := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
-		for _, ip := range ifc.If.IPAddresses {
+		for _, ip := range ifc.Value.IpAddresses {
 			ipAddr, _, err := utils.Ipv4CidrToAddressAndMask(ip)
 			gomega.Expect(err).To(gomega.BeNil())
 
 			if (podIfIPAdr &^ podIfIPMask) == (ipAddr &^ podIfIPMask) {
-				ifc.If.IPAddresses = []string{"1.2.3.4"}
+				ifc.Value.IpAddresses = []string{"1.2.3.4"}
 				vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[ifIdx] = ifc
 				break ifcLoop1
 			}
@@ -868,8 +821,8 @@ ifcLoop1:
 
 func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {
 	for k, ifc := range v.vppCache.NodeMap[nodeKey].NodeInterfaces {
-		if ifc.If.IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
-			return k, &ifc
+		if ifc.Value.Type == interfaces.Interface_VXLAN_TUNNEL {
+			return int(k), &ifc
 		}
 	}
 	return -1, nil
@@ -900,6 +853,16 @@ func resetToInitialErrorFreeState() {
 	}
 
 	for _, node := range vtv.vppCache.RetrieveAllNodes() {
+		k8snode, err := vtv.k8sCache.RetrieveK8sNode(node.Name)
+		if err == nil {
+			for _, adr := range k8snode.Addresses {
+				if adr.Type == nodemodel.NodeAddress_NodeInternalIP {
+					node.ManIPAddr = adr.Address
+					break
+				}
+			}
+		}
+
 		errReport := vtv.l2Validator.VppCache.SetSecondaryNodeIndices(node)
 		for _, r := range errReport {
 			vtv.l2Validator.Report.AppendToNodeReport(node.Name, r)

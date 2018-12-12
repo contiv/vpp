@@ -107,17 +107,17 @@ type NodeInterfaces []NodeInterface
 // NodeInterface holds un-marshalled VPP Interface data.
 type NodeInterface struct {
 	Key      string
-	Value    vppInterface
+	Value    VppInterface
 	Metadata ifaceidx.IfaceMetadata
 }
 
-// vppInterface extends VPP interface proto model with JSON un-marshaller from jsonpb.
-type vppInterface struct {
+// VppInterface extends VPP interface proto model with JSON un-marshaller from jsonpb.
+type VppInterface struct {
 	*interfaces.Interface
 }
 
 // UnmarshalJSON uses un-marshaller from jsonpb.
-func (v *vppInterface) UnmarshalJSON(data []byte) error {
+func (v *VppInterface) UnmarshalJSON(data []byte) error {
 	v.Interface = &interfaces.Interface{}
 	return jsonpb.UnmarshalString(string(data), v.Interface)
 }
@@ -130,17 +130,17 @@ type LinuxInterfaces []LinuxInterface
 // LinuxInterface holds un-marshalled Linux Interface data.
 type LinuxInterface struct {
 	Key      string
-	Value    linuxInterface
+	Value    LinuxInterfaceVal
 	Metadata linux_ifaceidx.LinuxIfMetadata
 }
 
-// linuxInterface extends Linux interface proto model with JSON un-marshaller from jsonpb.
-type linuxInterface struct {
+// LinuxInterfaceVal extends Linux interface proto model with JSON un-marshaller from jsonpb.
+type LinuxInterfaceVal struct {
 	*linux_interfaces.Interface
 }
 
 // UnmarshalJSON uses un-marshaller from jsonpb.
-func (v *linuxInterface) UnmarshalJSON(data []byte) error {
+func (v *LinuxInterfaceVal) UnmarshalJSON(data []byte) error {
 	v.Interface = &linux_interfaces.Interface{}
 	return jsonpb.UnmarshalString(string(data), v.Interface)
 }
@@ -153,17 +153,17 @@ type NodeBridgeDomains []NodeBridgeDomain
 // NodeBridgeDomain holds un-marshalled VPP bridge domain data.
 type NodeBridgeDomain struct {
 	Key      string
-	Value    vppBridgeDomain
+	Value    VppBridgeDomain
 	Metadata idxvpp2.OnlyIndex
 }
 
-// vppBridgeDomain extends VPP BD proto model with JSON un-marshaller from jsonpb.
-type vppBridgeDomain struct {
+// VppBridgeDomain extends VPP BD proto model with JSON un-marshaller from jsonpb.
+type VppBridgeDomain struct {
 	*l2.BridgeDomain
 }
 
 // UnmarshalJSON uses un-marshaller from jsonpb.
-func (v *vppBridgeDomain) UnmarshalJSON(data []byte) error {
+func (v *VppBridgeDomain) UnmarshalJSON(data []byte) error {
 	v.BridgeDomain = &l2.BridgeDomain{}
 	return jsonpb.UnmarshalString(string(data), v.BridgeDomain)
 }
@@ -176,16 +176,16 @@ type NodeL2FibTable []NodeL2FibEntry
 // NodeL2FibEntry holds un-marshalled VPP L2 FIB entry data.
 type NodeL2FibEntry struct {
 	Key   string
-	Value vppL2FIB
+	Value VppL2FIB
 }
 
-// vppL2FIB extends VPP L2 FIB entry proto model with JSON un-marshaller from jsonpb.
-type vppL2FIB struct {
+// VppL2FIB extends VPP L2 FIB entry proto model with JSON un-marshaller from jsonpb.
+type VppL2FIB struct {
 	*l2.FIBEntry
 }
 
 // UnmarshalJSON uses un-marshaller from jsonpb.
-func (v *vppL2FIB) UnmarshalJSON(data []byte) error {
+func (v *VppL2FIB) UnmarshalJSON(data []byte) error {
 	v.FIBEntry = &l2.FIBEntry{}
 	return jsonpb.UnmarshalString(string(data), v.FIBEntry)
 }
@@ -198,16 +198,16 @@ type NodeIPArpTable []NodeIPArpEntry
 // NodeIPArpEntry holds un-marshalled VPP ARP entry data.
 type NodeIPArpEntry struct {
 	Key   string
-	Value vppARP
+	Value VppARP
 }
 
-// vppARP extends VPP ARP entry proto model with JSON un-marshaller from jsonpb.
-type vppARP struct {
+// VppARP extends VPP ARP entry proto model with JSON un-marshaller from jsonpb.
+type VppARP struct {
 	*l3.ARPEntry
 }
 
 // UnmarshalJSON uses un-marshaller from jsonpb.
-func (v *vppARP) UnmarshalJSON(data []byte) error {
+func (v *VppARP) UnmarshalJSON(data []byte) error {
 	v.ARPEntry = &l3.ARPEntry{}
 	return jsonpb.UnmarshalString(string(data), v.ARPEntry)
 }
@@ -220,16 +220,16 @@ type NodeStaticRoutes []NodeIPRoute
 // NodeIPRoute holds un-marshalled VPP L3 route data.
 type NodeIPRoute struct {
 	Key   string
-	Value vppL3Route
+	Value VppL3Route
 }
 
-// vppL3Route extends VPP L3 route proto model with JSON un-marshaller from jsonpb.
-type vppL3Route struct {
+// VppL3Route extends VPP L3 route proto model with JSON un-marshaller from jsonpb.
+type VppL3Route struct {
 	*l3.StaticRoute
 }
 
 // UnmarshalJSON uses un-marshaller from jsonpb.
-func (v *vppL3Route) UnmarshalJSON(data []byte) error {
+func (v *VppL3Route) UnmarshalJSON(data []byte) error {
 	v.StaticRoute = &l3.StaticRoute{}
 	return jsonpb.UnmarshalString(string(data), v.StaticRoute)
 }

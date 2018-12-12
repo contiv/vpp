@@ -29,11 +29,11 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/remote"
-	"github.com/contiv/vpp/plugins/ipv4net"
 )
 
 type nodeData struct {

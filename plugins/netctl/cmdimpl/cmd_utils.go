@@ -175,7 +175,7 @@ func getIPAddressAndMask(ip string) (uint32, uint32, error) {
 }
 
 func vppDumpCommand(descriptor string) string {
-	url := getVppDumpCmd
+	url := kvschedulerDumpCmd
 	if descriptor != "" {
 		url += "?state=SB&descriptor=" + descriptor
 	}

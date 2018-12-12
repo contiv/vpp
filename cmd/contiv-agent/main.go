@@ -33,11 +33,11 @@ import (
 	"github.com/ligato/cn-infra/rpc/rest"
 
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	rest_plugin "github.com/ligato/vpp-agent/plugins/restv2"
 	"github.com/ligato/vpp-agent/plugins/kvscheduler"
 	linux_ifplugin "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin"
 	linux_l3plugin "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin"
 	linux_nsplugin "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin"
+	rest_plugin "github.com/ligato/vpp-agent/plugins/restv2"
 	"github.com/ligato/vpp-agent/plugins/telemetry"
 	vpp_aclplugin "github.com/ligato/vpp-agent/plugins/vppv2/aclplugin"
 	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"

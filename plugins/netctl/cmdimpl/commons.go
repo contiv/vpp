@@ -15,7 +15,7 @@
 package cmdimpl
 
 const (
-	getVppDumpCmd       = "scheduler/dump"
-	getIpamDataCmd      = "contiv/v1/ipam"
-	timeLayout          = "Mon Jan _2 15:04:05 2006"
+	kvschedulerDumpCmd = "scheduler/dump"
+	getIpamDataCmd     = "contiv/v1/ipam"
+	timeLayout         = "Mon Jan _2 15:04:05 2006"
 )

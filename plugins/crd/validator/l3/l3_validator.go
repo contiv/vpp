@@ -901,7 +901,7 @@ func printValidationMap(routeMap RouteMap, vrfMap VrfMap) {
 			}
 
 			rte := vrfMap[key][rteID]
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%d\t%d\n", tag, rteID,
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%d\n", tag, rteID,
 				rte.Value.NextHopAddr, rte.Value.OutgoingInterface, rte.Value.ViaVrfId, rte.Value.Type)
 		}
 		w.Flush()

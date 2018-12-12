@@ -64,10 +64,10 @@ function validate_docker_tag() {
   fi
 }
 
-if [ -z "$(validate_docker_tag contivvpp/dev-vswitch-${BUILDARCH} ${TAG}-${VPP})" ]; then
+if [ "${REBUILD_VPP}" -eq 1 ] || [ -z "$(validate_docker_tag contivvpp/dev-vswitch-${BUILDARCH} ${TAG}-${VPP})" ]; then
   # execute the build
   # use no cache and force rm because docker cannot handle dynamic FROM and so trying to use cache is useless
-  docker build --no-cache=true --force-rm=true -f docker/ubuntu-based/dev/${DOCKERFILE} -t contivvpp/dev-vswitch-${BUILDARCH}:${TAG}-${VPP} \
+  docker build --no-cache=true --force-rm=true -f docker/vpp-vswitch/dev/${DOCKERFILE} -t contivvpp/dev-vswitch-${BUILDARCH}:${TAG}-${VPP} \
   --build-arg VPP_IMAGE=${VPP_IMAGE}-${BUILDARCH}:${VPP_COMMIT_VERSION} \
     ${VPP_BUILD_ARGS} \
     ${DOCKER_BUILD_ARGS} .

@@ -25,6 +25,7 @@ source ../vpp.env
 export DOCKER_BUILD_ARGS=""
 export SKIP_DEBUG_BUILD=0
 export SKIP_DOCKER_CACHE=0
+export REBUILD_VPP=0
 
 # override defaults from arguments
 while [ "$1" != "" ]; do
@@ -47,6 +48,10 @@ while [ "$1" != "" ]; do
             export SKIP_DOCKER_CACHE=1
             echo "Using SKIP_DOCKER_CACHE=1"
             ;;
+        -r | --rebuild-vpp )
+            export REBUILD_VPP=1
+            echo "Using REBUILD_VPP=1"
+            ;;
         * )
             echo "Invalid parameter: "$1
             exit 1
@@ -58,8 +63,8 @@ if [ ${SKIP_DOCKER_CACHE} = 1 ]; then
   export DOCKER_BUILD_ARGS="--no-cache=true --force-rm=true $DOCKER_BUILD_ARGS"
 fi
 
-# builds all Ubuntu -based images
-cd ubuntu-based
+# builds VPP & vswitch images
+cd vpp-vswitch
 ./build.sh
 
 # builds the new images (vpp-cni, vpp-ksr)

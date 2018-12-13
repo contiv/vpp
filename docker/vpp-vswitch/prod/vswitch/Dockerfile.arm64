@@ -1,14 +1,15 @@
-FROM arm64v8/ubuntu:16.04
+FROM arm64v8/ubuntu:18.04
 
 RUN apt-get update \
  && apt-get install -y \
-        # general tools
-        iproute2 iputils-ping inetutils-traceroute \
+        # vpp-agent & vpp process manger
+        python supervisor \
         # vpp requirements
-        openssl python libapr1 libnuma1 libmbedcrypto0 libmbedtls10 libmbedx509-0 \
-        supervisor \
+        openssl libapr1 libnuma1 libmbedcrypto1 libmbedtls10 libmbedx509-0 \
         # required for disabling TCP checksum offload in containers
         ethtool \
+        # network tools
+        iproute2 iputils-ping inetutils-traceroute \
         # ability to run vpptrace.sh
         netcat-openbsd \
  && rm -rf /var/lib/apt/lists/*

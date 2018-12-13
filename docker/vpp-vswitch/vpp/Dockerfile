@@ -1,21 +1,22 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-    sudo wget git gdb nano python \
-    iproute2 iputils-ping inetutils-traceroute libapr1 supervisor \
-    telnet netcat software-properties-common \
-    make autoconf automake libtool curl unzip \
-    ethtool\
+    # general tools
+    sudo wget git ca-certificates \
+    # build tools
+    make \
+    # vpp-agent & vpp process manger
+    python supervisor \
+    # required for disabling TCP checksum offload in containers
+    ethtool \
+    # network tools
+    iproute2 iputils-ping inetutils-traceroute \
+    # ability to run vpptrace.sh
+    netcat-openbsd \
  && apt-get remove -y --purge gcc \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /opt/vpp-agent/dev/vpp /opt/vpp-agent/plugin
-
-# install Go
-ENV GOLANG_VERSION 1.10.4
-RUN wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz" \
- && tar -C /usr/local -xzf go.tgz \
- && rm go.tgz
 
 # input arguments
 ARG VPP_REPO_URL

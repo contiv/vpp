@@ -144,6 +144,7 @@ func main() {
 	}))
 
 	ipv4NetPlugin := ipv4net.NewPlugin(ipv4net.UseDeps(func(deps *ipv4net.Deps) {
+		deps.GoVPP = &govppmux.DefaultPlugin
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.ContivConf = contivConf
 		deps.IPAM = ipamPlugin

@@ -5,5 +5,5 @@
 </div>
 
 <div class="wrap" *ngIf="pod">
-  <app-form [data]="formData" [title]="pod.name"></app-form>
+  <app-form [data]="formData" [title]="pod.name" [buttons]="['Show Containers']" (btnclick)="showContainers()"></app-form>
 </div>

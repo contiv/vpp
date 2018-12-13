@@ -1,12 +1,15 @@
-import { Component, OnInit, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, OnInit, Input, OnChanges, SimpleChanges, Output, EventEmitter } from '@angular/core';
 import { DataService } from '../../services/data.service';
 import { ContivNodeDataModel } from '../../models/contiv-node-data-model';
 import { VppInterfaceModel } from '../../models/vpp/vpp-interface-model';
 import { Subscription } from 'rxjs';
 import { VppBdModel } from '../../models/vpp/vpp-bd-model';
+import { TopologyHighlightService } from '../../../d3-topology/topology-viz/topology-highlight.service';
+import { Router, ActivatedRoute } from '@angular/router';
 
 interface BdRow {
   node: string;
+  bviName: string;
   bviIp: string;
   vrf: number;
   vni: number;
@@ -27,6 +30,8 @@ interface VxlanRow {
   name: string;
   srcIP: string;
   dstIP: string;
+  srcBvi: string;
+  dstBvi: string;
 }
 
 @Component({
@@ -37,8 +42,10 @@ interface VxlanRow {
 export class BridgeDomainControlComponent implements OnInit, OnChanges {
 
   @Input() tableType: string;
+  @Output() detailShowed: EventEmitter<{
+    nodeId: string, dstId?: string, type: 'vppPod' | 'bvi' | 'vxtunnel'
+  }> = new EventEmitter<{nodeId: string, dstId?: string, type: 'vppPod' | 'bvi' | 'vxtunnel'}>();
 
-  public bdSelect;
   public domains: ContivNodeDataModel[];
   public summaryObj: BdRow[];
   public podsObj: PodRow[];
@@ -53,7 +60,10 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
   private subscriptions: Subscription[];
 
   constructor(
+    private router: Router,
+    private route: ActivatedRoute,
     private dataService: DataService,
+    private topologyHighlightService: TopologyHighlightService
   ) { }
 
   ngOnInit() {
@@ -76,6 +86,7 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
             const vxlans = d.getVxlans();
             const row: BdRow = {
               node: d.node.name,
+              bviName: d.vswitch.name + '-bvi',
               bviIp: bvi.IPS,
               vrf: bvi.vrf,
               vni: vxlans[0].vni,
@@ -103,12 +114,20 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
 
           this.domains.forEach(d => {
             d.getVxlans().forEach(vx => {
+              const srcNode = this.dataService.contivData.getNodeByIpamIp(vx.srcIP);
+              const dstNode = this.dataService.contivData.getNodeByIpamIp(vx.dstIP);
+
+              const srcDomain = this.dataService.contivData.getDomainByNodeId(srcNode.name);
+              const dstDomain = this.dataService.contivData.getDomainByNodeId(dstNode.name);
+
               const row: VxlanRow = {
                 srcIP: vx.srcIP,
-                srcNode: this.dataService.contivData.getNodeByIpamIp(vx.srcIP).name,
+                srcNode: srcNode.name,
                 dstIP: vx.dstIP,
-                dstNode: this.dataService.contivData.getNodeByIpamIp(vx.dstIP).name,
-                name: vx.name
+                dstNode: dstNode.name,
+                name: vx.name,
+                srcBvi: srcDomain.vswitch.name + '-bvi',
+                dstBvi: dstDomain.vswitch.name + '-bvi'
               };
 
               this.tunnelsObj.push(row);
@@ -121,6 +140,26 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
         }
       })
     );
+  }
+
+  public showDetail(nodeId: string, type: 'vppPod' | 'bvi' | 'vxtunnel', dstId?: string) {
+    this.detailShowed.emit({nodeId: nodeId, dstId: dstId, type: type});
+  }
+
+  public highlightNode(nodeId: string) {
+    this.topologyHighlightService.highlightNode(nodeId);
+  }
+
+  public highlightBvi(bviId: string) {
+    this.topologyHighlightService.highlightBVI(bviId);
+  }
+
+  public clearHighlight() {
+    this.topologyHighlightService.clearSelections();
+  }
+
+  public highlightTunnel(srcId: string, dstId: string) {
+    this.topologyHighlightService.highlightLinkBetweenNodes(srcId, dstId);
   }
 
   ngOnChanges(changes: SimpleChanges) {

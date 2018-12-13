@@ -37,6 +37,7 @@ export class BridgeDomainComponent implements OnInit, OnDestroy {
 
   constructor(
     private router: Router,
+    private route: ActivatedRoute,
     private bdService: BridgeDomainService,
     private dataService: DataService,
     private topologyService: TopologyService,
@@ -166,6 +167,27 @@ export class BridgeDomainComponent implements OnInit, OnDestroy {
         this.tableType = '';
         setTimeout(() => this.tableType = 'tunnels', 300);
       }
+    }
+  }
+
+  public showDetail(data: {nodeId: string, type: 'vppPod' | 'bvi' | 'vxtunnel', dstId: string}) {
+    this.resetTables();
+    this.isSidepanelOpen = true;
+
+    switch (data.type) {
+      case 'vppPod':
+        setTimeout(() => this.topologyHighlightService.highlightNode(data.nodeId), 400);
+        this.router.navigate([data.type, data.nodeId], {relativeTo: this.route});
+        break;
+      case 'bvi':
+        setTimeout(() => this.topologyHighlightService.highlightBVI(data.nodeId), 400);
+        setTimeout(() => this.topologyHighlightService.highlightTunnelFromToNode(data.nodeId), 400);
+        this.router.navigate([data.type, data.nodeId], {relativeTo: this.route});
+        break;
+      case 'vxtunnel':
+        setTimeout(() => this.topologyHighlightService.highlightLinkBetweenNodes(data.nodeId, data.dstId), 400);
+        this.router.navigate([data.type, data.nodeId, data.dstId], {relativeTo: this.route});
+        break;
     }
   }
 

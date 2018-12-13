@@ -18,6 +18,14 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /opt/vpp-agent/dev/vpp /opt/vpp-agent/plugin
 
+# install Go
+ENV GOLANG_VERSION 1.10.5
+RUN if [ -n "$VPP_INSTALL_PKG" ]; then \
+ wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz" \
+ && tar -C /usr/local -xzf go.tgz \
+ && rm go.tgz; \
+ fi
+
 # input arguments
 ARG VPP_REPO_URL
 ARG VPP_BRANCH_NAME

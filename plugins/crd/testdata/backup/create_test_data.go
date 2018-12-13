@@ -18,17 +18,11 @@ package testdata
 import (
 	"encoding/json"
 	"fmt"
-
-	"github.com/gogo/protobuf/jsonpb"
-
-	"github.com/ligato/cn-infra/health/statuscheck/model/status"
-
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	vppnodemodel "github.com/contiv/vpp/plugins/nodesync/vppnode"
-	"github.com/contiv/vpp/plugins/ipv4net"
 )
 
 // createNodeTestData creates a test vector that roughly corresponds to a 3-node
@@ -40,12 +34,12 @@ func CreateNodeTestData(vppCache api.VppCache) error {
 
 	for node, data := range rawData {
 		vn := &vppnodemodel.VppNode{}
-		if err := jsonpb.UnmarshalString(data["vppnode"], vn); err != nil {
+		if err := json.Unmarshal([]byte(data["vppnode"]), vn); err != nil {
 			return fmt.Errorf("failed to unmarshall vpp node")
 		}
 
-		nl := &status.AgentStatus{}
-		if err := jsonpb.UnmarshalString(data["liveness"], nl); err != nil {
+		nl := &telemetrymodel.NodeLiveness{}
+		if err := json.Unmarshal([]byte(data["liveness"]), nl); err != nil {
 			return fmt.Errorf("failed to unmarshall node liveness, err %s", err)
 		}
 
@@ -74,7 +68,7 @@ func CreateNodeTestData(vppCache api.VppCache) error {
 			return fmt.Errorf("failed to unmarshall node interfaces, err %s", err)
 		}
 
-		nipe := ipv4net.IPAMData{}
+		nipe := telemetrymodel.IPamEntry{}
 		if err := json.Unmarshal([]byte(data["ipam"]), &nipe); err != nil {
 			return fmt.Errorf("failed to unmarshall node ipam, err %s", err)
 		}
@@ -125,7 +119,7 @@ func CreateK8sPodTestData(k8sCache api.K8sCache) error {
 			Container: []*podmodel.Pod_Container{},
 		}
 
-		if err := jsonpb.UnmarshalString(rp, pod); err != nil {
+		if err := json.Unmarshal([]byte(rp), pod); err != nil {
 			return fmt.Errorf("failed to unmarshall pod data, err %s", err)
 		}
 
@@ -144,7 +138,7 @@ func CreateK8sNodeTestData(k8sCache api.K8sCache, vppCache api.VppCache) error {
 			NodeInfo:  &nodemodel.NodeSystemInfo{},
 		}
 
-		if err := jsonpb.UnmarshalString(rp, node); err != nil {
+		if err := json.Unmarshal([]byte(rp), node); err != nil {
 			return fmt.Errorf("failed to unmarshall pod data, err %s", err)
 		}
 

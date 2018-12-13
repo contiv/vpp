@@ -88,7 +88,7 @@ VT_NODE_RAW_DATA+=$'
 //
 // Image versions:'
 
-VPP_DUMP_PFX=":9999/vpp/dump/v1/"
+VPP_DUMP_PFX=":9999/scheduler/dump?state=SB&descriptor="
 for nn in "${NODES[@]}"
 do
     IP_ADDR=${NODE_IP_ADDRESSES[$nn]}
@@ -108,7 +108,6 @@ func getRawNodeTestData() rawNodeTestData {
 \treturn rawNodeTestData{
 '
 
-VPP_DUMP_PFX=":9999/vpp/dump/v1/"
 for nn in "${NODES[@]}"
 do
     IP_ADDR=${NODE_IP_ADDRESSES[$nn]}
@@ -120,11 +119,11 @@ do
     # Get data from the node
     LIVENESS=$( curl -s "$IP_ADDR":9999/liveness | python -mjson.tool | sed -e 's|    |\t|g' | sed -e 's/\(^[\t}].*$\)/\t\t\t\1/' )
     IPAM=$( curl -s "$IP_ADDR":9999/contiv/v1/ipam | python -mjson.tool | sed -e 's|    |\t|g' | sed -e 's/\(^[\t}].*$\)/\t\t\t\1/' )
-    INTERFACES=$( get_data "$IP_ADDR" "interfaces" )
-    BD=$( get_data "$IP_ADDR" "bd" )
-    L2FIB=$( get_data "$IP_ADDR" "fib" )
-    ARPS=$( get_data "$IP_ADDR" "arps" )
-    ROUTES=$( get_data "$IP_ADDR" "routes" )
+    INTERFACES=$( get_data "$IP_ADDR" "vpp-interface" )
+    BD=$( get_data "$IP_ADDR" "vpp-bridge-domain" )
+    L2FIB=$( get_data "$IP_ADDR" "vpp-l2-fib" )
+    ARPS=$( get_data "$IP_ADDR" "vpp-arp" )
+    ROUTES=$( get_data "$IP_ADDR" "vpp-static-route" )
 
     # Create the data structure for the node
     VT_NODE_RAW_DATA+=$( printf "\t\t\t\"vppnode\": \`%s\`,\n" "$VPPNODE" )

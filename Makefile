@@ -26,7 +26,7 @@ contiv-ksr:
 # Build contiv-crd
 contiv-crd:
 	@echo "# building contiv-crd"
-	cd cmd/contiv-crd && go build -v -i -ldflags "${LDFLAGS}" -tags="${GO_BUILD_TAGS}"
+	cd cmd/contiv-crd && go build -v -i -ldflags "${LDFLAGS}"
 
 # Build contiv-cni
 contiv-cni:

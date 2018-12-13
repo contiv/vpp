@@ -54,6 +54,10 @@ export class VppPodDetailComponent implements OnInit, OnDestroy {
     );
   }
 
+  public showContainers() {
+
+  }
+
   private setFormData() {
     this.formData = [
       {

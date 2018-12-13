@@ -100,7 +100,7 @@ export class TopologyHighlightService {
       .data(links, function (l: EdgeDataModel) {
         return l.id;
       })
-      .filter(l => l.from === from && l.to === to)
+      .filter(l => l.from === from && l.to === to || l.from === to && l.to === from)
       .classed('selected-link', true);
   }
 

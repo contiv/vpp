@@ -47,6 +47,10 @@ export class PodDetailComponent implements OnInit, OnDestroy {
     );
   }
 
+  public showContainers() {
+
+  }
+
   private setFormData() {
     this.formData = [
       {

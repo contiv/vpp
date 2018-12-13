@@ -39,7 +39,7 @@
   </app-topology-viz>
 
   <div class="table-wrap" [ngClass]="{'opened': tableType !== ''}">
-    <app-bridge-domain-control [tableType]="tableType"></app-bridge-domain-control>
+    <app-bridge-domain-control [tableType]="tableType" (detailShowed)="showDetail($event)"></app-bridge-domain-control>
   </div>
 
   <div id="bridge-domain-sp" class="sidepanel" [ngClass]="{'opened': isSidepanelOpen}">

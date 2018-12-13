@@ -16,10 +16,10 @@
 package l2
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
-	"fmt"
 
 	"github.com/onsi/gomega"
 

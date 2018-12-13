@@ -230,12 +230,12 @@ func TestVppDataStore_SetNodeLiveness(t *testing.T) {
 	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 
 	nlive := status.AgentStatus{
-		BuildVersion:"54321",
-		BuildDate:"12345",
-		State:0,
-		StartTime:0,
-		LastChange:0,
-		LastUpdate:0,
+		BuildVersion: "54321",
+		BuildDate:    "12345",
+		State:        0,
+		StartTime:    0,
+		LastChange:   0,
+		LastUpdate:   0,
 	}
 	err := db.SetNodeLiveness("NENODE", &nlive)
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
@@ -473,7 +473,7 @@ func TestGetNodeLoopIFInfo(t *testing.T) {
 			},
 		},
 		Metadata: ifaceidx.IfaceMetadata{
-			SwIfIndex:       10,
+			SwIfIndex: 10,
 		},
 	}
 	interfaces := make(telemetrymodel.NodeInterfaces, 1)

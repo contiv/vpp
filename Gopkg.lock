@@ -729,7 +729,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:7ef6b132dbff9d72733f72e56096321dc1ecb4cc8615017bbe8c1acfdc380e7b"
+  digest = "1:cec097819a5b28ebe1044b45a30f1ad83f070962eead7b6b2feccbd931d61eb3"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv2/linux",
@@ -779,7 +779,6 @@
     "plugins/vpp/binapi/vpe",
     "plugins/vpp/binapi/vxlan",
     "plugins/vpp/model/bfd",
-    "plugins/vpp/model/interfaces",
     "plugins/vpp/model/ipsec",
     "plugins/vpp/model/l4",
     "plugins/vpp/model/stn",
@@ -1706,7 +1705,6 @@
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/stats",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/model/bfd",
-    "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces",
     "github.com/ligato/vpp-agent/plugins/vpp/model/ipsec",
     "github.com/ligato/vpp-agent/plugins/vpp/model/l4",
     "github.com/ligato/vpp-agent/plugins/vpp/model/stn",

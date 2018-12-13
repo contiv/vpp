@@ -25,10 +25,10 @@ import (
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	vppnodemodel "github.com/contiv/vpp/plugins/nodesync/vppnode"
-	"github.com/contiv/vpp/plugins/ipv4net"
 )
 
 // createNodeTestData creates a test vector that roughly corresponds to a 3-node

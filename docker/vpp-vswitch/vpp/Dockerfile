@@ -20,8 +20,7 @@ RUN apt-get update \
 
 # install Go
 ENV GOLANG_VERSION 1.10.5
-RUN if [ -n "$VPP_INSTALL_PKG" ]; then \
- wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz" \
+RUN wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz" \
  && tar -C /usr/local -xzf go.tgz \
  && rm go.tgz; \
  fi

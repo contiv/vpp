@@ -718,7 +718,7 @@ spec:
         - name: HTTP_CLIENT_CONFIG
           value: "/etc/http/http.client.conf"
         - name: CONTIV_CRD_VALIDATE_INTERVAL
-          value: "1"
+          value: "5"
         - name: CONTIV_CRD_VALIDATE_STATE
           value: "SB"
         volumeMounts:

@@ -47,9 +47,9 @@ const (
 	numDTOs   = 8
 	agentPort = ":9999"
 
-	kvschedulerURL = "/scheduler/dump?descriptor=<descriptor>&state=<state>"
-	livenessURL    = "/liveness"
-	ipamURL        = "/contiv/v1/ipam"
+	kvschedulerDumpURL = "/scheduler/dump?descriptor=<descriptor>&state=<state>"
+	livenessURL        = "/liveness"
+	ipamURL            = "/contiv/v1/ipam"
 
 	clientTimeout = 10 // HTTP client timeout, in seconds
 )
@@ -247,7 +247,7 @@ func (ctc *ContivTelemetryCache) validateCluster() {
 }
 
 func (ctc *ContivTelemetryCache) kvSchedulerDumpURL(descriptor string) string {
-	url := strings.Replace(kvschedulerURL, "<descriptor>", descriptor, 1)
+	url := strings.Replace(kvschedulerDumpURL, "<descriptor>", descriptor, 1)
 	url = strings.Replace(url, "<state>", ctc.validateState, 1)
 	return url
 }

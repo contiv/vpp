@@ -262,7 +262,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	checkDataReport(0, 2, 0)
 	gomega.Expect(numErrs).To(gomega.Equal(2))
 
-	// Restore data back to error free state   FIXME
+	// Restore data back to error free state
 	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
 

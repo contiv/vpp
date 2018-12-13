@@ -18,7 +18,6 @@ import (
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-
 	"github.com/contiv/vpp/plugins/ipv4net"
 )
 

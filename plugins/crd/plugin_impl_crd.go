@@ -116,7 +116,7 @@ func (p *Plugin) Init() error {
 	}
 
 	// Time interval for periodic report collection
-	collectionInterval := 10 * time.Second
+	collectionInterval := 1 * time.Minute
 	configuredInterval, err := strconv.Atoi(os.Getenv("CONTIV_CRD_VALIDATE_INTERVAL"))
 	if err == nil {
 		collectionInterval = time.Duration(configuredInterval) * time.Minute
@@ -126,7 +126,7 @@ func (p *Plugin) Init() error {
 	validateState := os.Getenv("CONTIV_CRD_VALIDATE_STATE")
 	if validateState != "internal" && validateState != "NB" && validateState != "SB" {
 		if validateState != "" {
-			p.Log.WithField("validateState", validateState).Warn("" +
+			p.Log.WithField("validateState", validateState).Warn(
 				"Unrecognized value set for CONTIV_CRD_VALIDATE_STATE, defaulting to \"SB\"")
 		}
 		validateState = "SB"

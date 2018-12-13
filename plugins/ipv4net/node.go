@@ -47,8 +47,8 @@ const (
 	// meshed among servers.
 	vxlanSplitHorizonGroup = 1
 
-	// name of the VXLAN BVI interface.
-	vxlanBVIInterfaceName = "vxlanBVI" // name of the VXLAN BVI interface.
+	// VxlanBVIInterfaceName is the name of the VXLAN BVI interface.
+	VxlanBVIInterfaceName = "vxlanBVI"
 
 	// name of the VXLAN bridge domain
 	vxlanBDName = "vxlanBD"
@@ -418,7 +418,7 @@ func (n *IPv4Net) vxlanBVILoopback() (key string, config *interfaces.Interface, 
 		return "", nil, err
 	}
 	vxlan := &interfaces.Interface{
-		Name:        vxlanBVIInterfaceName,
+		Name:        VxlanBVIInterfaceName,
 		Type:        interfaces.Interface_SOFTWARE_LOOPBACK,
 		Enabled:     true,
 		IpAddresses: []string{ipNetToString(combineAddrWithNet(vxlanIP, vxlanIPNet))},
@@ -439,7 +439,7 @@ func (n *IPv4Net) vxlanBridgeDomain() (key string, config *l2.BridgeDomain) {
 		UnknownUnicastFlood: false,
 		Interfaces: []*l2.BridgeDomain_Interface{
 			{
-				Name:                    vxlanBVIInterfaceName,
+				Name:                    VxlanBVIInterfaceName,
 				BridgedVirtualInterface: true,
 				SplitHorizonGroup:       vxlanSplitHorizonGroup,
 			},
@@ -494,7 +494,7 @@ func (n *IPv4Net) vxlanIfToOtherNode(otherNodeID uint32, otherNodeIP net.IP) (ke
 // of the VXLAN BVI interface of another node.
 func (n *IPv4Net) vxlanArpEntry(otherNodeID uint32, vxlanIP net.IP) (key string, config *l3.ARPEntry) {
 	arp := &l3.ARPEntry{
-		Interface:   vxlanBVIInterfaceName,
+		Interface:   VxlanBVIInterfaceName,
 		IpAddress:   vxlanIP.String(),
 		PhysAddress: hwAddrForNodeInterface(otherNodeID, vxlanBVIHwAddrPrefix),
 		Static:      true,
@@ -561,7 +561,7 @@ func (n *IPv4Net) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net
 	if n.ContivConf.GetRoutingConfig().UseL2Interconnect {
 		route.VrfId = n.ContivConf.GetRoutingConfig().MainVRFID
 	} else {
-		route.OutgoingInterface = vxlanBVIInterfaceName
+		route.OutgoingInterface = VxlanBVIInterfaceName
 		route.VrfId = n.ContivConf.GetRoutingConfig().PodVRFID
 	}
 	key = l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
@@ -578,7 +578,7 @@ func (n *IPv4Net) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (
 	if n.ContivConf.GetRoutingConfig().UseL2Interconnect {
 		route.VrfId = n.ContivConf.GetRoutingConfig().MainVRFID
 	} else {
-		route.OutgoingInterface = vxlanBVIInterfaceName
+		route.OutgoingInterface = VxlanBVIInterfaceName
 		route.VrfId = n.ContivConf.GetRoutingConfig().PodVRFID
 	}
 	key = l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)

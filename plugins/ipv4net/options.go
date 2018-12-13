@@ -18,7 +18,6 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
 // DefaultPlugin is a default instance of IPv4Net.
@@ -30,7 +29,6 @@ func NewPlugin(opts ...Option) *IPv4Net {
 
 	p.PluginName = "ipv4net"
 	p.ServiceLabel = &servicelabel.DefaultPlugin
-	p.GoVPP = &govppmux.DefaultPlugin
 	p.HTTPHandlers = &rest.DefaultPlugin
 
 	for _, o := range opts {

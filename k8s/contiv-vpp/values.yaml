@@ -150,7 +150,8 @@ crd:
     #tag:
     pullPolicy: IfNotPresent
   updateStrategy: RollingUpdate
-  pollingInterval: 1 # in minutes, 0 to disable
+  validateInterval: 5 # in minutes, 0 to disable
+  validateState: SB # select one of the: "internal", "SB", "NB"
   enableLivenessReadinessProbes: true
   readinessProbeInitialDelaySeconds: 10
   livenessProbeInitialDelaySeconds: 30

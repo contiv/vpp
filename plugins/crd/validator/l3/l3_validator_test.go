@@ -26,12 +26,12 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/contiv/vpp/plugins/crd/testdata"
 	"github.com/contiv/vpp/plugins/crd/validator/l2"
 	"github.com/contiv/vpp/plugins/crd/validator/utils"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -136,7 +136,7 @@ func testErrorFreeEndToEnd(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l3Validator.Validate()
 
-	checkDataReport(1, 4, 4)
+	checkDataReport(1, 2, 2)
 }
 
 func testMissingIPAM(t *testing.T) {
@@ -151,7 +151,7 @@ func testMissingIPAM(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l3Validator.Validate()
 
-	checkDataReport(1, 1, 7)
+	checkDataReport(1, 1, 5)
 
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
@@ -175,7 +175,7 @@ func testMissingInterfaces(t *testing.T) {
 
 	// NOTE: Expect one error per node in L3 validation until we can validate
 	// static routes configured through Linux
-	checkDataReport(1, 1, 7)
+	checkDataReport(1, 1, 5)
 }
 
 func testMissingStaticRoutes(t *testing.T) {
@@ -192,7 +192,7 @@ func testMissingStaticRoutes(t *testing.T) {
 
 	// NOTE: Expect one error per node in L3 validation until we can validate
 	// static routes configured through Linux
-	checkDataReport(1, 1, 4)
+	checkDataReport(1, 1, 2)
 }
 
 func testValidateRoutesToLocalPods(t *testing.T) {
@@ -243,6 +243,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
 			if rte.Value.DstNetwork == pod.IPAddress+"/32" {
+				rte = rte.DeepCopy()
 				rte.Value.NextHopAddr = "1.2.3.4"
 				rte.Value.OutgoingInterface = "someInterfaceName"
 				vrfMap[1][rte.Value.DstNetwork] = rte
@@ -258,11 +259,12 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 3, 0)
-	gomega.Expect(numErrs).To(gomega.Equal(3))
+	checkDataReport(0, 2, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(2))
 
-	// Restore data back to error free state
+	// Restore data back to error free state   FIXME
 	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
+	gomega.Expect(err).To(gomega.BeNil())
 
 	// ----------------------------------------------------------------
 	// INJECT FAULT: Route to vpp-side pod-facing tap interface missing
@@ -322,6 +324,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 
 			rteIfIPPrefix := rteIfIPAddr &^ podIfIPMask
 			if rteIfIPPrefix == podIfIPPrefix {
+				rte = rte.DeepCopy()
 				rte.Value.NextHopAddr = "1.2.3.4"
 				rte.Value.OutgoingInterface = "someInterfaceName"
 				rte.Value.Type = rte.Value.Type + 1
@@ -338,8 +341,8 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 5, 0)
-	gomega.Expect(numErrs).To(gomega.Equal(5))
+	checkDataReport(0, 4, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(4))
 
 	// Restore data back to error free state
 	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
@@ -381,12 +384,11 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	gigeRoute.Value.DstNetwork = "1.2.3.4"
 
 	oldOutIface := gigeRoute.Value.OutgoingInterface
+	intf, ok := vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces.GetByName(oldOutIface)
+	gomega.Expect(ok).To(gomega.BeTrue())
 	gigeRoute.Value.OutgoingInterface = "SomeInterfaceName"
 
 	vrfMap[0][vtv.vppCache.NodeMap[vtv.nodeKey].IPAddr] = gigeRoute
-
-	intf, ok := vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces.GetByName(gigeRoute.Value.OutgoingInterface)
-	gomega.Expect(ok).To(gomega.BeTrue())
 
 	oldSwIdx := intf.Metadata.SwIfIndex
 	intf.Metadata.SwIfIndex++
@@ -396,8 +398,8 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf0GigERoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 5, 0)
-	gomega.Expect(numErrs).To(gomega.Equal(5))
+	checkDataReport(0, 1, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
 
 	// Restore data back to error free state
 	gigeRoute.Value.DstNetwork = oldNextHop
@@ -568,7 +570,7 @@ func resetToInitialErrorFreeState() {
 				}
 			}
 		}
-		
+
 		errReport := vtv.l3Validator.VppCache.SetSecondaryNodeIndices(node)
 		for _, r := range errReport {
 			vtv.l3Validator.Report.AppendToNodeReport(node.Name, r)

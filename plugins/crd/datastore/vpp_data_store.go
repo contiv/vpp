@@ -158,8 +158,6 @@ func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAddr string) error {
 //ClearCache with clear all vpp cache data except for the base NodeMap that contains
 // the discovered nodes..
 func (vds *VppDataStore) ClearCache() {
-	fmt.Println(">>>>> Clear VPP Cache")
-
 	// Clear collected data for each node
 	for _, node := range vds.NodeMap {
 		node.NodeInterfaces = nil
@@ -331,7 +329,6 @@ func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam ipv4net.IPAMData) er
 // once all of the information has been retrieved. It also checks to make
 // sure that there are no duplicate addresses within the map.
 func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []string {
-	fmt.Printf(">>>>> SetSecondaryNodeIndices for node: %s (mgmtIP: %s)\n", node.Name, node.ManIPAddr)
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -383,8 +380,6 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 // RetrieveNodeByHostIPAddr returns a reference to node dat for the specified
 // management (host) IP address.
 func (vds *VppDataStore) RetrieveNodeByHostIPAddr(ipAddr string) (*telemetrymodel.Node, error) {
-	fmt.Printf("RetrieveNodeByHostIPAddr ip=%s, HostIPMap=%v\n", ipAddr, vds.HostIPMap)
-
 	if node, ok := vds.HostIPMap[ipAddr]; ok {
 		return node, nil
 	}

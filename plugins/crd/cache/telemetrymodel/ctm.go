@@ -29,6 +29,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
 
 	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/gogo/protobuf/proto"
 )
 
 /*********************************** Reports **********************************/
@@ -221,6 +222,17 @@ type NodeStaticRoutes []NodeIPRoute
 type NodeIPRoute struct {
 	Key   string
 	Value VppL3Route
+}
+
+// DeepCopy returns a full clone of NodeIPRoute.
+func (r NodeIPRoute) DeepCopy() (out NodeIPRoute) {
+	out = NodeIPRoute{
+		Key: r.Key,
+		Value: VppL3Route{
+			StaticRoute: proto.Clone(r.Value.StaticRoute).(*l3.StaticRoute),
+		},
+	}
+	return
 }
 
 // VppL3Route extends VPP L3 route proto model with JSON un-marshaller from jsonpb.

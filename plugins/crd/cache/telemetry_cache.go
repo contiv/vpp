@@ -312,7 +312,6 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 
 	var err error
 	defer func() {
-		fmt.Printf(">>>>>>> getNodeInfo unmarshaled (err=%v): %+v\n", err, nodeInfo)
 		ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nodeInfo, err, version}
 		if err != nil {
 			ctc.Report.AppendToNodeReport(node.Name, err.Error())
@@ -340,8 +339,6 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 // corelateMgmtIP correlates VPP Cache with K8s Cache to obtain and set/update the management
 // IP address of the given node.
 func (ctc *ContivTelemetryCache) corelateMgmtIP(node *telemetrymodel.Node) {
-	fmt.Printf(">>>>> corelateMgmtIP for node: %s\n", node.Name)
-
 	k8snode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
 	if err == nil {
 		for _, adr := range k8snode.Addresses {
@@ -357,7 +354,6 @@ func (ctc *ContivTelemetryCache) corelateMgmtIP(node *telemetrymodel.Node) {
 // all of the information has been retrieved. It also checks to make sure
 // that there are no duplicate addresses within the map.
 func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
-	fmt.Printf(">>>>> Populating maps for node: %s\n", node.Name)
 	ctc.Report.SetPrefix("NODE-MAP")
 
 	k8snode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
@@ -392,9 +388,7 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 
 // getAgentURL creates the URL for the data we're trying to retrieve
 func (ctc *ContivTelemetryCache) getAgentURL(ipAddr string, url string) string {
-	fullurl := "http://" + ipAddr + ctc.agentPort + url
-	fmt.Printf(">>>>>>> getAgentURL: %s\n", fullurl)
-	return fullurl
+	return "http://" + ipAddr + ctc.agentPort + url
 }
 
 // waitForValidationToFinish waits until the the next hod validation finishes

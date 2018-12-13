@@ -45,7 +45,7 @@ func CreateNodeTestData(vppCache api.VppCache) error {
 		}
 
 		nl := &status.AgentStatus{}
-		if err := jsonpb.UnmarshalString(data["liveness"], nl); err != nil {
+		if err := json.Unmarshal([]byte(data["liveness"]), nl); err != nil {
 			return fmt.Errorf("failed to unmarshall node liveness, err %s", err)
 		}
 
@@ -83,7 +83,7 @@ func CreateNodeTestData(vppCache api.VppCache) error {
 			return fmt.Errorf("invalid data - TODO more precise error")
 		}
 
-		if err := vppCache.CreateNode(vn.Id, vn.Name, vn.IpAddress); err != nil {
+		if err := vppCache.CreateNode(vn.Id, vn.Name, vn.IpAddresses[0]); err != nil {
 			return fmt.Errorf("failed to create test data for node %s, err: %s", vn.Name, err)
 		}
 

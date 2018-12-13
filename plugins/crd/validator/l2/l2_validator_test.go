@@ -503,7 +503,7 @@ func testValidateL2FibEntries(t *testing.T) {
 	for k, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeL2Fibs {
 		if !v.Value.BridgedVirtualInterface {
 			injected := vtv.vppCache.NodeMap[vtv.nodeKey].NodeL2Fibs
-			injected = append(injected[:k], node.NodeL2Fibs[k+1:]...)
+			injected = append(injected[:k], injected[k+1:]...)
 			vtv.vppCache.NodeMap[vtv.nodeKey].NodeL2Fibs = injected
 			break
 		}
@@ -879,6 +879,7 @@ func resetToInitialErrorFreeState() {
 }
 
 func checkDataReport(globalCnt int, nodeKeyCnt int, defaultCnt int) {
+	vtv.report.Print()
 	for k := range vtv.report.Data {
 		switch k {
 		case api.GlobalMsg:

@@ -589,6 +589,7 @@ func resetToInitialErrorFreeState() {
 }
 
 func checkDataReport(globalCnt int, nodeKeyCnt int, defaultCnt int) {
+	vtv.report.Print()
 	for k := range vtv.report.Data {
 		switch k {
 		case api.GlobalMsg:

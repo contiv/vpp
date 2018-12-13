@@ -22,8 +22,7 @@ RUN apt-get update \
 ENV GOLANG_VERSION 1.10.5
 RUN wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-arm64.tar.gz" \
  && tar -C /usr/local -xzf go.tgz \
- && rm go.tgz; \
- fi
+ && rm go.tgz
 
 # input arguments
 ARG VPP_REPO_URL

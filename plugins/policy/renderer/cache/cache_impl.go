@@ -412,11 +412,6 @@ func (rct *RendererCacheTxn) refreshTables() {
 		podCfg := rct.GetPodConfig(podID)
 		newTable := rct.buildLocalTable(podID, podCfg)
 
-		rct.cache.Log.WithFields(logging.Fields{
-			"podID":    podID,
-			"newTable": newTable.GetID(),
-		}).Debug("Refreshing pod's local table")
-
 		// Add pod's original table into the transaction if is not already there.
 		origTable := rct.cache.localTables.LookupByPod(podID)
 		if origTable != nil && rct.localTables.LookupByID(origTable.GetID()) == nil {

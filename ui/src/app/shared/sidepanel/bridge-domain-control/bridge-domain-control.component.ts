@@ -5,7 +5,6 @@ import { VppInterfaceModel } from '../../models/vpp/vpp-interface-model';
 import { Subscription } from 'rxjs';
 import { VppBdModel } from '../../models/vpp/vpp-bd-model';
 import { TopologyHighlightService } from '../../../d3-topology/topology-viz/topology-highlight.service';
-import { Router, ActivatedRoute } from '@angular/router';
 
 interface BdRow {
   node: string;
@@ -57,11 +56,10 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
   public isPods: boolean;
   public isTunnels: boolean;
 
+  private disabledClear: boolean;
   private subscriptions: Subscription[];
 
   constructor(
-    private router: Router,
-    private route: ActivatedRoute,
     private dataService: DataService,
     private topologyHighlightService: TopologyHighlightService
   ) { }
@@ -75,6 +73,8 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
     this.isSummary = false;
     this.isPods = false;
     this.isTunnels = false;
+
+    this.disabledClear = false;
 
     this.subscriptions.push(
       this.dataService.isContivDataLoaded.subscribe(isLoaded => {
@@ -143,6 +143,7 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
   }
 
   public showDetail(nodeId: string, type: 'vppPod' | 'bvi' | 'vxtunnel', dstId?: string) {
+    this.disabledClear = true;
     this.detailShowed.emit({nodeId: nodeId, dstId: dstId, type: type});
   }
 
@@ -155,7 +156,9 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
   }
 
   public clearHighlight() {
-    this.topologyHighlightService.clearSelections();
+    if (!this.disabledClear) {
+      this.topologyHighlightService.clearSelections();
+    }
   }
 
   public highlightTunnel(srcId: string, dstId: string) {
@@ -164,6 +167,8 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
 
   ngOnChanges(changes: SimpleChanges) {
     if (!changes.tableType.firstChange) {
+      setTimeout(() => this.disabledClear = false, 400);
+
       switch (this.tableType) {
         case 'summary':
           this.isSummary = true;

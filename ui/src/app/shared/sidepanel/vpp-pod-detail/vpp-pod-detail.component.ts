@@ -7,6 +7,7 @@ import { ActivatedRoute } from '@angular/router';
 import { DataService } from '../../services/data.service';
 import { TopologyHighlightService } from '../../../d3-topology/topology-viz/topology-highlight.service';
 import { SidepanelService } from '../sidepanel.service';
+import { ModalService } from '../../services/modal.service';
 
 @Component({
   selector: 'app-vpp-pod-detail',
@@ -26,7 +27,8 @@ export class VppPodDetailComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private dataService: DataService,
     private topologyHighlightService: TopologyHighlightService,
-    private sidepanelService: SidepanelService
+    private sidepanelService: SidepanelService,
+    private modalService: ModalService
   ) { }
 
   ngOnInit() {
@@ -55,7 +57,7 @@ export class VppPodDetailComponent implements OnInit, OnDestroy {
   }
 
   public showContainers() {
-
+    this.modalService.showContainers(this.pod);
   }
 
   private setFormData() {

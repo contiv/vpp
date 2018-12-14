@@ -1,3 +1,5 @@
+import { K8sContainer } from './k8s-container';
+
 export class K8sPodModel {
 
   public name: string;
@@ -9,12 +11,23 @@ export class K8sPodModel {
   public tapInterface?: string;
   public tapInternalInterface?: string;
 
+  public containers: K8sContainer[];
+
   constructor(data: any) {
-    this.name = data.metadata.name;
-    this.namespace = data.metadata.namespace;
-    this.podIp = data.status.podIP;
-    this.hostIp = data.status.hostIP;
-    this.node = data.spec.nodeName;
+    if (data.metadata) {
+      this.name = data.metadata.name;
+      this.namespace = data.metadata.namespace;
+    }
+
+    if (data.status) {
+      this.podIp = data.status.podIP;
+      this.hostIp = data.status.hostIP;
+    }
+
+    if (data.spec) {
+      this.node = data.spec.nodeName;
+      this.containers = data.spec.containers.map(c => new K8sContainer(c));
+    }
   }
 
   public isVswitch(): boolean {

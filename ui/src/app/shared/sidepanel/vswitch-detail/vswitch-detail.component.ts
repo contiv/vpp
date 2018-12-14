@@ -54,7 +54,23 @@ export class VswitchDetailComponent implements OnInit, OnDestroy {
     );
   }
 
-  public showInterfaces() {
+  public showBtnClick(i: number) {
+    switch (i) {
+      case 0:
+        this.showInterfaces();
+        break;
+      case 1:
+        this.showContainers();
+        break;
+    }
+
+  }
+
+  private showContainers() {
+    this.modalService.showContainers(this.pod);
+  }
+
+  private showInterfaces() {
     const data: VswitchInterfaceList = {
       title: this.domain.vswitch.name,
       interfaces: this.domain.interfaces

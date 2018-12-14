@@ -65,7 +65,6 @@ export class PodNetworkComponent implements OnInit, OnDestroy {
     this.layerTitle = 'Contiv Pods';
     this.layerType = 'vpp-1';
     this.topologyHighlightService.setLayer(this.layerType, this.topoData.type);
-    this.sidepanelService.openSidepanel();
   }
 
   public setAppPodsLayer() {
@@ -73,15 +72,6 @@ export class PodNetworkComponent implements OnInit, OnDestroy {
     this.layerTitle = 'Application Pods';
     this.layerType = 'vpp-2';
     this.topologyHighlightService.setLayer(this.layerType, this.topoData.type);
-    this.sidepanelService.openSidepanel();
-  }
-
-  public setVxlanLayer() {
-    this.activeLayers = [false, false, true];
-    this.layerTitle = 'VXLAN Tunnels';
-    this.layerType = 'vpp-3';
-    this.topologyHighlightService.setLayer(this.layerType, this.topoData.type);
-    this.sidepanelService.closeSidepanel();
   }
 
   public toggleSidepanel(state: boolean) {

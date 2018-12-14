@@ -173,8 +173,8 @@ func (ev *DBResync) Done(error) {
 type KubeStateChange struct {
 	Key       string
 	Resource  string
-	PrevValue proto.Message
-	NewValue  proto.Message
+	PrevValue proto.Message // nil if newly added
+	NewValue  proto.Message // nil if deleted
 }
 
 // GetName returns name of the KubeStateChange event.
@@ -232,7 +232,7 @@ func protoToString(msg proto.Message) string {
 type ExternalConfigChange struct {
 	Key      string
 	Revision datasync.WithRevision
-	Value    datasync.LazyValue
+	Value    datasync.LazyValue // nil if deleted
 }
 
 // GetName returns name of the ExternalConfigChange event.

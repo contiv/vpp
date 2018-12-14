@@ -35,6 +35,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/ligato/cn-infra/logging"
 )
 
 const (
@@ -131,8 +132,14 @@ func (n *IPv4Net) Init() error {
 	n.internalState = &internalState{}
 	n.externalState = &externalState{}
 
-	// create GoVPP channel
+	// silence the microservice descriptor - debug logs are not very usefull
 	var err error
+	err = logging.DefaultRegistry.SetLevel("linux-nsplugin.ms-descriptor", "info")
+	if err != nil {
+		return err
+	}
+
+	// create GoVPP channel
 	n.govppCh, err = n.GoVPP.NewAPIChannel()
 	if err != nil {
 		return err

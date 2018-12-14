@@ -674,7 +674,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 			wasErr = err
 			if !withRevert {
 				if c.onlyExtConfigFailed(err.(*api.TransactionError), txn.values) {
-					c.Log.Debug("Only external configuration caused the transaction to fail - "+
+					c.Log.Debug("Only external configuration caused the transaction to fail - " +
 						"not scheduling Healing resync")
 				} else {
 					needsHealing = true

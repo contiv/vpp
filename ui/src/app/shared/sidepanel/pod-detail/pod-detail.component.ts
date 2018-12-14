@@ -6,6 +6,7 @@ import { DataService } from '../../services/data.service';
 import { K8sPodModel } from '../../models/k8s/k8s-pod-model';
 import { ContivNodeDataModel } from '../../models/contiv-node-data-model';
 import { TopologyHighlightService } from '../../../d3-topology/topology-viz/topology-highlight.service';
+import { ModalService } from '../../services/modal.service';
 
 @Component({
   selector: 'app-pod-detail',
@@ -23,7 +24,8 @@ export class PodDetailComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private dataService: DataService,
-    private topologyHighlightService: TopologyHighlightService
+    private topologyHighlightService: TopologyHighlightService,
+    private modalService: ModalService
   ) { }
 
   ngOnInit() {
@@ -48,7 +50,7 @@ export class PodDetailComponent implements OnInit, OnDestroy {
   }
 
   public showContainers() {
-
+    this.modalService.showContainers(this.pod);
   }
 
   private setFormData() {

@@ -3,6 +3,7 @@ import { Subject } from 'rxjs';
 import { IpCidrMap } from '../interfaces/ip-cidr-map';
 import { VswitchInterfaceList } from '../interfaces/vswitch-interface-list';
 import { ContivNodeDataModel } from '../models/contiv-node-data-model';
+import { K8sPodModel } from '../models/k8s/k8s-pod-model';
 
 @Injectable({
   providedIn: 'root'
@@ -14,6 +15,7 @@ export class ModalService {
   public vswitchInterfacesModalSubject: Subject<VswitchInterfaceList> = new Subject<VswitchInterfaceList>();
   public nodeDetailSubject: Subject<ContivNodeDataModel> = new Subject<ContivNodeDataModel>();
   public outputSubject: Subject<{api: string, response: string}> = new Subject<{api: string, response: string}>();
+  public podDataSubject: Subject<K8sPodModel> = new Subject<K8sPodModel>();
 
   constructor() { }
 
@@ -35,6 +37,10 @@ export class ModalService {
 
   public showApiOutput(api: string, response: string) {
     this.outputSubject.next({api: api, response: response});
+  }
+
+  public showContainers(data: K8sPodModel) {
+    this.podDataSubject.next(data);
   }
 
 }

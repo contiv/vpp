@@ -48,6 +48,7 @@ import { NodeDetailModalComponent } from './shared/modals/node-detail-modal/node
 import { BridgeDomainControlComponent } from './shared/sidepanel/bridge-domain-control/bridge-domain-control.component';
 import { CodeModalComponent } from './shared/modals/code-modal/code-modal.component';
 import { BridgeDomainService } from './bridge-domain/bridge-domain.service';
+import { ContainersModalComponent } from './shared/modals/containers-modal/containers-modal.component';
 
 @NgModule({
   declarations: [
@@ -78,7 +79,8 @@ import { BridgeDomainService } from './bridge-domain/bridge-domain.service';
     VswitchDiagramControlComponent,
     NodeDetailModalComponent,
     BridgeDomainControlComponent,
-    CodeModalComponent
+    CodeModalComponent,
+    ContainersModalComponent
   ],
   imports: [
     BrowserModule,

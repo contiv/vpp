@@ -176,16 +176,16 @@ export class BridgeDomainComponent implements OnInit, OnDestroy {
 
     switch (data.type) {
       case 'vppPod':
-        setTimeout(() => this.topologyHighlightService.highlightNode(data.nodeId), 400);
+        this.topologyHighlightService.highlightNode(data.nodeId);
         this.router.navigate([data.type, data.nodeId], {relativeTo: this.route});
         break;
       case 'bvi':
-        setTimeout(() => this.topologyHighlightService.highlightBVI(data.nodeId), 400);
-        setTimeout(() => this.topologyHighlightService.highlightTunnelFromToNode(data.nodeId), 400);
+        this.topologyHighlightService.highlightBVI(data.nodeId);
+        this.topologyHighlightService.highlightTunnelFromToNode(data.nodeId);
         this.router.navigate([data.type, data.nodeId], {relativeTo: this.route});
         break;
       case 'vxtunnel':
-        setTimeout(() => this.topologyHighlightService.highlightLinkBetweenNodes(data.nodeId, data.dstId), 400);
+        this.topologyHighlightService.highlightLinkBetweenNodes(data.nodeId, data.dstId);
         this.router.navigate([data.type, data.nodeId, data.dstId], {relativeTo: this.route});
         break;
     }

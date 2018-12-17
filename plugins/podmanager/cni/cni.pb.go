@@ -220,7 +220,7 @@ type CNIReply_Interface struct {
 	Mac string `protobuf:"bytes,2,opt,name=mac,proto3" json:"mac,omitempty"`
 	// Details about the sandbox (if any) the interface is in. Can be a netns path, empty/omitted for host interfaces.
 	Sandbox string `protobuf:"bytes,3,opt,name=sandbox,proto3" json:"sandbox,omitempty"`
-	// List of IP addressess applied on the interface.
+	// List of IP addresses applied on the interface.
 	IpAddresses          []*CNIReply_Interface_IP `protobuf:"bytes,4,rep,name=ip_addresses,json=ipAddresses" json:"ip_addresses,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
 	XXX_unrecognized     []byte                   `json:"-"`
@@ -337,7 +337,7 @@ func (m *CNIReply_Interface_IP) GetGateway() string {
 	return ""
 }
 
-// Route detials, as described in https://github.com/containernetworking/cni/blob/master/SPEC.md#routes
+// Route details, as described in https://github.com/containernetworking/cni/blob/master/SPEC.md#routes
 type CNIReply_Route struct {
 	// Destination subnet specified in CIDR notation.
 	Dst string `protobuf:"bytes,1,opt,name=dst,proto3" json:"dst,omitempty"`

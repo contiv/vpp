@@ -74,7 +74,7 @@ func (m *STNRequest) GetDhcpEnabled() bool {
 	return false
 }
 
-// The reply to the STNRequest. Contians the original config of the stolen interface.
+// The reply to the STNRequest. Contains the original config of the stolen interface.
 type STNReply struct {
 	// Result code. 0 = success, non-zero = error.
 	Result uint32 `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"`

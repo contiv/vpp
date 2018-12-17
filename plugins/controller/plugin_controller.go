@@ -220,7 +220,7 @@ var (
 	// ErrEventQueueFull is returned when queue for events is full.
 	ErrEventQueueFull = errors.New("queue with events is full")
 	// ErrEventLoopIsAborting returned to an event producer via method Event.Done()
-	// when event loop is aborting after a fatal error has occured.
+	// when event loop is aborting after a fatal error has occurred.
 	ErrEventLoopIsAborting = errors.New("event loop is aborting after a fatal error")
 )
 

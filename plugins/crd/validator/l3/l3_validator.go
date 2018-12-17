@@ -714,7 +714,7 @@ func (v *Validator) validateGigEDefaultRteNextHop(rteID string, vrfID uint32, vr
 }
 
 // validateRoutesToLinuxInterfaces validates routes to interfaces/subnets
-// attached to teh host stack
+// attached to the host stack
 func (v *Validator) validateRoutesToLinuxInterfaces(node *telemetrymodel.Node, vrfMap VrfMap, rtMap RouteMap) int {
 	numErrs := 0
 

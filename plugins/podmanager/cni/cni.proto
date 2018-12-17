@@ -84,13 +84,13 @@ message CNIReply {
       // The default gateway for this subnet, if one exists.
       string gateway = 3;
     }
-    // List of IP addressess applied on the interface.
+    // List of IP addresses applied on the interface.
     repeated IP ip_addresses = 4;
   }
   // List of interfaces connected to the container.
   repeated Interface interfaces = 4;
 
-  // Route detials, as described in https://github.com/containernetworking/cni/blob/master/SPEC.md#routes
+  // Route details, as described in https://github.com/containernetworking/cni/blob/master/SPEC.md#routes
   message Route {
     // Destination subnet specified in CIDR notation.
     string dst = 1;

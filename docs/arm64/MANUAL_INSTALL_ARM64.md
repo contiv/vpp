@@ -3,7 +3,7 @@ The following supplemental instructions apply when using Contiv-VPP for Arm64. M
 steps for Arm64 are the same as that described in [MANUAL_INSTALL][1], so you should firstly
 read [it][1] before you start the installation on Arm64 platform.
 
-This document gives out the extra description for Arm64 platfrom to manually install
+This document gives out the extra description for Arm64 platform to manually install
 Kubernetes with Contiv-VPP networking on one or more bare metal or VM hosts.
 
 
@@ -57,7 +57,7 @@ that indicated in [MANUAL_INSTALL][1]:
 
 ## Installation on Cavium Thunderx Arm Server
 In general, you can just install Contiv-VPP the same as that described in [MANUAL_INSTALL][1]
-if your network environment, such as NICs used for VPP/DPDK, uses the PCI addresses decribed
+if your network environment, such as NICs used for VPP/DPDK, uses the PCI addresses described
 in the [Determining Network Adapter PCI addresses][8].
 
 * For Cavium ThunderX servers, there are some additional considerations when using the

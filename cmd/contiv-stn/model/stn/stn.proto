@@ -37,7 +37,7 @@ message STNRequest {
     bool dhcp_enabled = 2;
 }
 
-// The reply to the STNRequest. Contians the original config of the stolen interface.
+// The reply to the STNRequest. Contains the original config of the stolen interface.
 message STNReply {
     // Result code. 0 = success, non-zero = error.
     uint32 result = 1;

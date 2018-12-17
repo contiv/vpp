@@ -26,7 +26,7 @@ would not grab it:
 ```
 sudo ip link set enP2p1s0f2 down
 ```
-If you want to make this interface inactive pernament accross reboots you need to make change
+If you want to make this interface inactive permanent across reboots you need to make change
 in the file `/etc/network/interfaces`:
 ```
 #https://help.packet.net/technical/networking/layer-2-configurations

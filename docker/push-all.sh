@@ -96,7 +96,7 @@ echo "exported VPP=$VPP"
 # tag and push each image
 for IMAGE in "${IMAGES_VPP[@]}"
 do
-	if [ "${DEV_UPLOAD}" != "true" ] && [ "$IMAGE" == dev* ]; then
+	if [ "${DEV_UPLOAD}" != "true" ] && [ "$IMAGE" == contivvpp/dev* ]; then
 		continue
 	fi
 

@@ -15,261 +15,241 @@
 package telemetrymodel
 
 import (
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/gogo/protobuf/jsonpb"
+
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+
+	"github.com/ligato/vpp-agent/idxvpp2"
+	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+
+	linux_ifaceidx "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/ifaceidx"
+	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
+
+	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/gogo/protobuf/proto"
 )
 
-// see doc.go for instructions on how to generate the deep copy routines when
-// the structs in this file change.
+/*********************************** Reports **********************************/
 
-//Reports is the per node array of report lines generated from validate()
+// Reports is the per node array of report lines generated from validate()
 type Reports map[string][]string
 
-//NodeInfo is struct to hold some basic information of a kubernetes node.
+// DeepCopy returns a deep copy of Reports.
+func (r Reports) DeepCopy() (out Reports) {
+	out = make(Reports, len(r))
+	for key, val := range r {
+		var outVal []string
+		if val == nil {
+			out[key] = nil
+		} else {
+			in, out := &val, &outVal
+			*out = make([]string, len(*in))
+			copy(*out, *in)
+		}
+		out[key] = outVal
+	}
+	return out
+}
+
+/************************************ Node *************************************/
+
+// NodeInfo is struct to hold some basic information of a kubernetes node.
 type NodeInfo struct {
 	ID        uint32
 	IPAddr    string
-	ManIPAddr string // correlated with Kubernetes node model in ContivTelemetryCache.populateNodeMaps()
+	ManIPAddr string // correlated with Kubernetes node model in ContivTelemetryCache.corelateMgmtIP()
 	Name      string
 }
 
-//Node is a struct to hold all relevant information of a kubernetes node.
-//It is populated with various information such as the interfaces and L2Fibs
-//as well as the name and IP Addresses.
+// Node is a struct to hold all relevant information of a kubernetes node.
+// It is populated with various information such as the interfaces and L2Fibs
+// as well as the name and IP Addresses.
 type Node struct {
 	*NodeInfo
-	NodeLiveness      *NodeLiveness
-	NodeInterfaces    map[int]NodeInterface
-	NodeBridgeDomains map[int]NodeBridgeDomain
-	NodeL2Fibs        map[string]NodeL2FibEntry
-	NodeTelemetry     map[string]NodeTelemetry
-	NodeIPArp         []NodeIPArpEntry
-	NodeStaticRoutes  []NodeIPRoute
-	NodeIPam          *IPamEntry
-	LinuxInterfaces   []LinuxInterface
-	PodMap            map[string]*Pod
+
+	// node status
+	NodeLiveness  *status.AgentStatus
+	NodeTelemetry map[string]NodeTelemetry
+
+	// node configuration
+	NodeInterfaces    NodeInterfaceMap
+	NodeBridgeDomains NodeBridgeDomains
+	NodeL2Fibs        NodeL2FibTable
+	NodeIPArp         NodeIPArpTable
+	NodeStaticRoutes  NodeStaticRoutes
+	NodeIPam          *ipv4net.IPAMData
+	LinuxInterfaces   LinuxInterfaces
+
+	// pods
+	PodMap map[string]*Pod
 }
 
-//NodeLiveness holds the unmarshalled node liveness JSON data
-type NodeLiveness struct {
-	BuildVersion string `json:"build_version"`
-	BuildDate    string `json:"build_date"`
-	State        uint32 `json:"state"`
-	StartTime    uint32 `json:"start_time"`
-	LastChange   uint32 `json:"last_change"`
-	LastUpdate   uint32 `json:"last_update"`
-	CommitHash   string `json:"commit_hash"`
+/******************************** VPP interface ********************************/
+
+// NodeInterfaceMap is a map of VPP interfaces.
+type NodeInterfaceMap map[uint32]NodeInterface
+
+// GetByName retrieves interface by the logical name.
+func (m NodeInterfaceMap) GetByName(name string) (iface NodeInterface, exists bool) {
+	for _, iface = range m {
+		if iface.Value.Name == name {
+			return iface, true
+		}
+	}
+	return iface, false
 }
 
-// LinuxInterfaces defines an array of LinuxInterfaces
+// NodeInterfaces is a list of node (VPP) interfaces.
+type NodeInterfaces []NodeInterface
+
+// NodeInterface holds un-marshalled VPP Interface data.
+type NodeInterface struct {
+	Key      string
+	Value    VppInterface
+	Metadata ifaceidx.IfaceMetadata
+}
+
+// VppInterface extends VPP interface proto model with JSON un-marshaller from jsonpb.
+type VppInterface struct {
+	*interfaces.Interface
+}
+
+// UnmarshalJSON uses un-marshaller from jsonpb.
+func (v *VppInterface) UnmarshalJSON(data []byte) error {
+	v.Interface = &interfaces.Interface{}
+	return jsonpb.UnmarshalString(string(data), v.Interface)
+}
+
+/******************************* Linux interface *******************************/
+
+// LinuxInterfaces is a list of host (Linux) interfaces.
 type LinuxInterfaces []LinuxInterface
 
-// NodeInterfaces defines a map of NodeInterface
-type NodeInterfaces map[int]NodeInterface
+// LinuxInterface holds un-marshalled Linux Interface data.
+type LinuxInterface struct {
+	Key      string
+	Value    LinuxInterfaceVal
+	Metadata linux_ifaceidx.LinuxIfMetadata
+}
 
-// NodeBridgeDomains defines a map of NodeBridgeDomain
-type NodeBridgeDomains map[int]NodeBridgeDomain
+// LinuxInterfaceVal extends Linux interface proto model with JSON un-marshaller from jsonpb.
+type LinuxInterfaceVal struct {
+	*linux_interfaces.Interface
+}
 
-// NodeL2FibTable defines a map of NodeL2FibEntry
-type NodeL2FibTable map[string]NodeL2FibEntry
+// UnmarshalJSON uses un-marshaller from jsonpb.
+func (v *LinuxInterfaceVal) UnmarshalJSON(data []byte) error {
+	v.Interface = &linux_interfaces.Interface{}
+	return jsonpb.UnmarshalString(string(data), v.Interface)
+}
+
+/******************************** Bridge domain ********************************/
+
+// NodeBridgeDomains is a list of VPP bridge domains.
+type NodeBridgeDomains []NodeBridgeDomain
+
+// NodeBridgeDomain holds un-marshalled VPP bridge domain data.
+type NodeBridgeDomain struct {
+	Key      string
+	Value    VppBridgeDomain
+	Metadata idxvpp2.OnlyIndex
+}
+
+// VppBridgeDomain extends VPP BD proto model with JSON un-marshaller from jsonpb.
+type VppBridgeDomain struct {
+	*l2.BridgeDomain
+}
+
+// UnmarshalJSON uses un-marshaller from jsonpb.
+func (v *VppBridgeDomain) UnmarshalJSON(data []byte) error {
+	v.BridgeDomain = &l2.BridgeDomain{}
+	return jsonpb.UnmarshalString(string(data), v.BridgeDomain)
+}
+
+/*********************************** L2 FIB ***********************************/
+
+// NodeL2FibTable is a list of VPP L2 FIB entries.
+type NodeL2FibTable []NodeL2FibEntry
+
+// NodeL2FibEntry holds un-marshalled VPP L2 FIB entry data.
+type NodeL2FibEntry struct {
+	Key   string
+	Value VppL2FIB
+}
+
+// VppL2FIB extends VPP L2 FIB entry proto model with JSON un-marshaller from jsonpb.
+type VppL2FIB struct {
+	*l2.FIBEntry
+}
+
+// UnmarshalJSON uses un-marshaller from jsonpb.
+func (v *VppL2FIB) UnmarshalJSON(data []byte) error {
+	v.FIBEntry = &l2.FIBEntry{}
+	return jsonpb.UnmarshalString(string(data), v.FIBEntry)
+}
+
+/*********************************** IP ARP ***********************************/
+
+// NodeIPArpTable is a list of VPP ARP entries.
+type NodeIPArpTable []NodeIPArpEntry
+
+// NodeIPArpEntry holds un-marshalled VPP ARP entry data.
+type NodeIPArpEntry struct {
+	Key   string
+	Value VppARP
+}
+
+// VppARP extends VPP ARP entry proto model with JSON un-marshaller from jsonpb.
+type VppARP struct {
+	*l3.ARPEntry
+}
+
+// UnmarshalJSON uses un-marshaller from jsonpb.
+func (v *VppARP) UnmarshalJSON(data []byte) error {
+	v.ARPEntry = &l3.ARPEntry{}
+	return jsonpb.UnmarshalString(string(data), v.ARPEntry)
+}
+
+/********************************* L3 Routes **********************************/
+
+// NodeStaticRoutes is a list of VPP L3 routes.
+type NodeStaticRoutes []NodeIPRoute
+
+// NodeIPRoute holds un-marshalled VPP L3 route data.
+type NodeIPRoute struct {
+	Key   string
+	Value VppL3Route
+}
+
+// DeepCopy returns a full clone of NodeIPRoute.
+func (r NodeIPRoute) DeepCopy() (out NodeIPRoute) {
+	out = NodeIPRoute{
+		Key: r.Key,
+		Value: VppL3Route{
+			StaticRoute: proto.Clone(r.Value.StaticRoute).(*l3.StaticRoute),
+		},
+	}
+	return
+}
+
+// VppL3Route extends VPP L3 route proto model with JSON un-marshaller from jsonpb.
+type VppL3Route struct {
+	*l3.StaticRoute
+}
+
+// UnmarshalJSON uses un-marshaller from jsonpb.
+func (v *VppL3Route) UnmarshalJSON(data []byte) error {
+	v.StaticRoute = &l3.StaticRoute{}
+	return jsonpb.UnmarshalString(string(data), v.StaticRoute)
+}
+
+/********************************** Telemetry **********************************/
 
 // NodeTelemetries defines a map of NodeTelemetry
 type NodeTelemetries map[string]NodeTelemetry
-
-// NodeIPArpTable defines an array of NodeIPArpEntries
-type NodeIPArpTable []NodeIPArpEntry
-
-// NodeStaticRoutes defines an array of NodeIPRoute object
-type NodeStaticRoutes []NodeIPRoute
-
-//NodeInterface holds unmarshalled Interface JSON data
-type NodeInterface struct {
-	If     Interface     `json:"interface"`
-	IfMeta InterfaceMeta `json:"interface_meta"`
-}
-
-// LinuxInterface contains data for linux interfaces on a node
-type LinuxInterface struct {
-	If     LinuxIf     `json:"linux_interface"`
-	IfMeta LinuxIfMeta `json:"linux_interface_meta"`
-}
-
-// LinuxIf defines the data structure for Linux interface data
-type LinuxIf struct {
-	Name        string   `json:"name"`
-	IPAddresses []string `json:"ip_addresses"`
-	HostIfName  string   `json:"host_if_name"`
-}
-
-// LinuxIfMeta defines the data structure for Linux interface metadata
-type LinuxIfMeta struct {
-	Index     uint32 `json:"index"`
-	Name      string `json:"name"`
-	Alias     string `json:"alias"`
-	OperState string `json:"oper_state"`
-	Flags     string `json:"flags"`
-	MacAddr   string `json:"mac_addr"`
-	Mtu       uint32 `json:"mtu"`
-	Type      string `json:"type"`
-}
-
-// Interface contains interface parameter data
-type Interface struct {
-	Name        string                   `json:"name"`
-	IfType      interfaces.InterfaceType `json:"type,omitempty"`
-	Enabled     bool                     `json:"enabled,omitempty"`
-	PhysAddress string                   `json:"phys_address,omitempty"`
-	Mtu         uint32                   `json:"mtu,omitempty"`
-	Vrf         uint32                   `json:"vrf,omitempty"`
-	IPAddresses []string                 `json:"ip_addresses,omitempty"`
-	Vxlan       Vxlan                    `json:"vxlan,omitempty"`
-	Tap         Tap                      `json:"tap,omitempty"`
-}
-
-// InterfaceMeta defines the interface VPP internal metadata
-type InterfaceMeta struct {
-	SwIfIndex       uint32 `json:"sw_if_index"`
-	Tag             string `json:"tag"`
-	VppInternalName string `json:"internal_name"`
-}
-
-// Vxlan contains vxlan parameter data
-type Vxlan struct {
-	SrcAddress string `json:"src_address"`
-	DstAddress string `json:"dst_address"`
-	Vni        uint32 `json:"vni"`
-}
-
-// Tap contains tap parameter data
-type Tap struct {
-	Version    uint32 `json:"version"`
-	HostIfName string `json:"host_if_name"`
-}
-
-// NodeBridgeDomain holds the unmarshalled bridge domain data.
-type NodeBridgeDomain struct {
-	Bd     BridgeDomain     `json:"bridge_domain"`
-	BdMeta BridgeDomainMeta `json:"bridge_domain_meta"`
-}
-
-// BridgeDomain defines the Bridge Domain main data set
-type BridgeDomain struct {
-	Interfaces []BdInterface `json:"interfaces"`
-	Name       string        `json:"name"`
-	Forward    bool          `json:"forward"`
-}
-
-// BridgeDomainMeta defines the Bridge Domain VPP internal metadata
-type BridgeDomainMeta struct {
-	BdID      uint32           `json:"bridge_domain_id"`
-	BdID2Name BdID2NameMapping `json:"bridge_domain_id_to_name"`
-}
-
-// BdInterface defines the BD Interface data
-type BdInterface struct {
-	Name            string `json:"name"`
-	BVI             bool   `json:"bridged_virtual_interface,omitempty"`
-	SplitHorizonGrp uint32 `json:"split_horizon_group"`
-}
-
-// BdID2NameMapping defines the mapping of BD ifIndices to interface Names
-type BdID2NameMapping map[uint32]string
-
-//NodeL2FibEntry holds unmarshalled L2Fib JSON data
-type NodeL2FibEntry struct {
-	Fe     L2FibEntry     `json:"fib"`
-	FeMeta L2FibEntryMeta `json:"fib_meta"`
-}
-
-//IPamEntry holds unmarchalled ipam JSON data
-type IPamEntry struct {
-	NodeID            uint32 `json:"nodeId"`
-	NodeName          string `json:"nodeName"`
-	NodeIP            string `json:"nodeIP"`
-	PodSubnetThisNode string `json:"podNetwork"`
-	VppHostNetwork    string `json:"vppHostNetwork"`
-	Config            config `json:"config"`
-}
-
-type config struct {
-	PodVPPSubnetCIDR              string `json:"podVPPSubnetCIDR"`
-	PodSubnetCIDR                 string `json:"podSubnetCIDR"`
-	PodSubnetOneNodePrefixLen     uint32 `json:"podSubnetOneNodePrefixLen"`
-	VppHostSubnetCIDR             string `json:"vppHostSubnetCIDR"`
-	VppHostSubnetOneNodePrefixLen uint32 `json:"vppHostSubnetOneNodePrefixLen"`
-	NodeInterconnectCIDR          string `json:"nodeInterconnectCIDR"`
-	NodeInterconnectDHCP          bool   `json:"nodeInterconnectDHCP"`
-	VxlanCIDR                     string `json:"vxlanCIDR"`
-	ServiceCIDR                   string `json:"serviceCIDR"`
-	ContivCIDR                    string `json:"contivCIDR"`
-}
-
-// L2FibEntry defines the L2 FIB entry data set
-type L2FibEntry struct {
-	BridgeDomainName        string `json:"bridge_domain"`
-	OutgoingIfName          string `json:"outgoing_interface"`
-	PhysAddress             string `json:"phys_address"`
-	StaticConfig            bool   `json:"static_config,omitempty"`
-	BridgedVirtualInterface bool   `json:"bridged_virtual_interface,omitempty"`
-}
-
-// L2FibEntryMeta defines the L2FIB entry VPP internal metadata
-type L2FibEntryMeta struct {
-	BridgeDomainID  uint32 `json:"bridge_domain_id"`
-	OutgoingIfIndex uint32 `json:"outgoing_interface_sw_if_idx"`
-}
-
-//NodeIPArpEntry holds unmarshalled IP ARP data
-type NodeIPArpEntry struct {
-	Ae     IPArpEntry     `json:"Arp"`
-	AeMeta IPArpEntryMeta `json:"Meta"`
-}
-
-// IPArpEntry defines the IP ARP Entry entry data set
-type IPArpEntry struct {
-	Interface   string `json:"interface"`
-	IPAddress   string `json:"ip_address"`
-	PhysAddress string `json:"phys_address"`
-	Static      bool   `json:"static,omitempty"`
-}
-
-// IPArpEntryMeta defines the IP ARP Entry VPP internal metadata
-type IPArpEntryMeta struct {
-	IfIndex uint32 `json:"SwIfIndex"`
-}
-
-// NodeIPRoute holds the unmarshalled node static route JSON data.
-type NodeIPRoute struct {
-	Ipr     IPRoute     `json:"Route"`
-	IprMeta IPRouteMeta `json:"Meta"`
-}
-
-// IPRoute defines the IP Route entry data set
-type IPRoute struct {
-	Type        uint32 `json:"type"`
-	VrfID       uint32 `json:"vrf_id"`
-	DstAddr     string `json:"dst_ip_addr"`
-	NextHopAddr string `json:"next_hop_addr"`
-	OutIface    string `json:"outgoing_interface"`
-	Weight      uint32 `json:"weight"`
-	ViaVRFID    uint32 `json:"via_vrf_id"`
-}
-
-// IPRouteMeta defines the IP Route VPP internal metadata
-type IPRouteMeta struct {
-	TableName         string `json:"TableName"`
-	OutgoingIfIdx     uint32 `json:"OutgoingIfIdx"`
-	Afi               uint32 `json:"Afi"`
-	IsLocal           bool   `json:"IsLocal,omitempty"`
-	IsUDPEncap        bool   `json:"IsUDPEncap,omitempty"`
-	IsUnreach         bool   `json:"IsUnreach,omitempty"`
-	IsProhibit        bool   `json:"IsProhibit,omitempty"`
-	IsResolveHost     bool   `json:"IsResolveHost,omitempty"`
-	IsResolveAttached bool   `json:"IsResolveAttached,omitempty"`
-	IsDvr             bool   `json:"IsDvr,omitempty"`
-	IsSourceLookup    bool   `json:"IsSourceLookup,omitempty"`
-	NextHopID         uint32 `json:"NextHopID"`
-	RpfID             uint32 `json:"RpfID"`
-}
 
 //NodeTelemetry holds the unmarshalled node telemetry JSON data
 type NodeTelemetry struct {
@@ -290,7 +270,9 @@ type OutputEntry struct {
 	reason   string
 }
 
-//Pod contains pod parameter data
+/************************************* Pod ************************************/
+
+// Pod contains pod parameter data
 type Pod struct {
 	// Name of the pod unique within the namespace.
 	// Cannot be updated.
@@ -325,7 +307,7 @@ type Pod struct {
 	VppSwIfIdx uint32 `json:"vpp_sw_if_idx,omitempty"`
 }
 
-//PodLabel contains key/value pair info
+// PodLabel contains key/value pair info
 type PodLabel struct {
 	Key   string `json:"key,omitempty"`
 	Value string `json:"value,omitempty"`

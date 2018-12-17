@@ -17,13 +17,18 @@ package cmdimpl
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/contiv/vpp/plugins/netctl/remote"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"os"
 	"sort"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/ligato/cn-infra/db/keyval/etcd"
+
+	vppifdescr "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
+
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/netctl/remote"
 )
 
 // PrintAllIpams prints IPAM information for all nodes
@@ -57,7 +62,7 @@ func nodeIpamCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, w *tab
 		return
 	}
 
-	ipam := telemetrymodel.IPamEntry{}
+	ipam := ipv4net.IPAMData{}
 	err = json.Unmarshal(b, &ipam)
 	if err != nil {
 		fmt.Println(err)
@@ -65,12 +70,13 @@ func nodeIpamCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, w *tab
 	}
 
 	bviIP := "Not Available"
-	if b, err = getNodeInfo(client, ip, getInterfaceDataCmd); err == nil {
-		intfs := make(telemetrymodel.NodeInterfaces)
+	ifaceDumpCmd := vppDumpCommand(vppifdescr.InterfaceDescriptorName)
+	if b, err = getNodeInfo(client, ip, ifaceDumpCmd); err == nil {
+		intfs := make(telemetrymodel.NodeInterfaces, 0)
 		if err := json.Unmarshal(b, &intfs); err == nil {
 			for _, ifc := range intfs {
-				if ifc.IfMeta.Tag == "vxlanBVI" {
-					bviIP = strings.Split(ifc.If.IPAddresses[0], "/")[0]
+				if ifc.Value.Name == ipv4net.VxlanBVIInterfaceName {
+					bviIP = strings.Split(ifc.Value.IpAddresses[0], "/")[0]
 				}
 			}
 		}
@@ -89,6 +95,6 @@ func nodeIpamCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, w *tab
 
 func getTabWriterAndPrintHeader() *tabwriter.Writer {
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
-	fmt.Fprintf(w, "ID\tNODE-NAME\tVPP-IP\tBVI-IP\tPOD-NET-CIDR\tVPP-2-HOST-CIDR\tPOD-IFIP-CIDR\tPOD-SUBNET-CIDR\n")
+	fmt.Fprintf(w, "ID\tNODE-NAME\tVPP-IP\tBVI-IP\tPOD-CIDR\tVPP-2-HOST-CIDR\tPOD-VPP-CIDR\tPOD-CLUSTER-CIDR\n")
 	return w
 }

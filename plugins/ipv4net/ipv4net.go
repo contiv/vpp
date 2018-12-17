@@ -19,7 +19,7 @@ import (
 	"net"
 	"sync"
 
-	"git.fd.io/govpp.git/api"
+	govpp "git.fd.io/govpp.git/api"
 
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/infra"
@@ -27,7 +27,6 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
-	"github.com/ligato/vpp-agent/plugins/govppmux"
 	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
 
 	"github.com/contiv/vpp/plugins/contivconf"
@@ -36,6 +35,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/ligato/cn-infra/logging"
 )
 
 const (
@@ -67,7 +67,7 @@ type externalState struct {
 	test bool
 
 	// GoVPP channel for direct binary API calls (not needed for UTs)
-	govppCh api.Channel
+	govppCh govpp.Channel
 
 	// VPP DHCP index map
 	dhcpIndex idxmap.NamedMapping
@@ -105,8 +105,19 @@ type Deps struct {
 	NodeSync     nodesync.API
 	PodManager   podmanager.API
 	VPPIfPlugin  vpp_ifplugin.API
-	GoVPP        govppmux.API
+	GoVPP        GoVPP
 	HTTPHandlers rest.HTTPHandlers
+}
+
+// GoVPP is the interface of govppmux plugin replicated here to avoid direct
+// dependency on vppapiclient.h for other plugins that import ipv4net just to
+// read some constants etc.
+type GoVPP interface {
+	// NewAPIChannel returns a new API channel for communication with VPP via govpp.
+	NewAPIChannel() (govpp.Channel, error)
+
+	// NewAPIChannelBuffered returns a new API channel for communication with VPP via govpp.
+	NewAPIChannelBuffered(reqChanBufSize, replyChanBufSize int) (govpp.Channel, error)
 }
 
 // HostLinkIPsDumpClb is callback for dumping all IP addresses assigned to interfaces
@@ -121,8 +132,14 @@ func (n *IPv4Net) Init() error {
 	n.internalState = &internalState{}
 	n.externalState = &externalState{}
 
-	// create GoVPP channel
+	// silence the microservice descriptor - debug logs are not very usefull
 	var err error
+	err = logging.DefaultRegistry.SetLevel("linux-nsplugin.ms-descriptor", "info")
+	if err != nil {
+		return err
+	}
+
+	// create GoVPP channel
 	n.govppCh, err = n.GoVPP.NewAPIChannel()
 	if err != nil {
 		return err
@@ -257,5 +274,5 @@ func (n *IPv4Net) GetVxlanBVIIfName() string {
 		return ""
 	}
 
-	return vxlanBVIInterfaceName
+	return VxlanBVIInterfaceName
 }

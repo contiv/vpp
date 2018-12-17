@@ -16,11 +16,18 @@
 package cmdimpl
 
 import (
+	"encoding/json"
 	"fmt"
+
 	"github.com/contiv/vpp/plugins/netctl/remote"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"strings"
 )
+
+// dumpIndex defines index page for kvscheduler Dump REST API to be un-marshalled
+// from JSON data.
+type dumpIndex struct {
+	Descriptors []string
+}
 
 // DumpCmd executes the specified vpp dump operation on the specified node.
 // if not operation is specified, it finds the available operations on the
@@ -28,10 +35,19 @@ import (
 func DumpCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, nodeName string, dumpType string) {
 
 	if nodeName == "" || dumpType == "" {
-		helpText := client.Crawl("", "", "/"+getVppDumpCmd)
+		b, err := getNodeInfo(client, "", vppDumpCommand(""))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		index := dumpIndex{}
+		err = json.Unmarshal(b, &index)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 		fmt.Printf("Command usage: netctl vppdump %s <cmd>:\n", nodeName)
-		for num, txt := range helpText {
-			txt = strings.TrimPrefix(txt, "/"+getVppDumpCmd)
+		for num, txt := range index.Descriptors {
 			fmt.Printf("cmd %+v: %s\n", num, txt)
 		}
 		return
@@ -44,7 +60,7 @@ func DumpCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, nodeName s
 		return
 	}
 
-	cmd := fmt.Sprintf("%s/%s", getVppDumpCmd, dumpType)
+	cmd := vppDumpCommand(dumpType)
 	b, err := getNodeInfo(client, ipAdr, cmd)
 	if err != nil {
 		fmt.Println(err)

@@ -729,7 +729,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:87588f69cc0897bb7e480657ef70b258d613ef4a9b74279611cf1bc12dc76e05"
+  digest = "1:cec097819a5b28ebe1044b45a30f1ad83f070962eead7b6b2feccbd931d61eb3"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv2/linux",
@@ -758,6 +758,8 @@
     "plugins/linuxv2/nsplugin",
     "plugins/linuxv2/nsplugin/descriptor",
     "plugins/linuxv2/nsplugin/linuxcalls",
+    "plugins/restv2",
+    "plugins/restv2/resturl",
     "plugins/telemetry",
     "plugins/vpp/binapi/acl",
     "plugins/vpp/binapi/af_packet",
@@ -777,7 +779,6 @@
     "plugins/vpp/binapi/vpe",
     "plugins/vpp/binapi/vxlan",
     "plugins/vpp/model/bfd",
-    "plugins/vpp/model/interfaces",
     "plugins/vpp/model/ipsec",
     "plugins/vpp/model/l4",
     "plugins/vpp/model/stn",
@@ -815,7 +816,7 @@
     "plugins/vppv2/stnplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "b1e3649b7744f29da1b66d4120699926df8bcbff"
+  revision = "59feaed0157222a4237500b6cd7727a44a63a92e"
 
 [[projects]]
   branch = "master"
@@ -1653,6 +1654,7 @@
     "github.com/fsouza/go-dockerclient",
     "github.com/ghodss/yaml",
     "github.com/go-errors/errors",
+    "github.com/gogo/protobuf/jsonpb",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/protoc-gen-gogo",
     "github.com/gogo/protobuf/sortkeys",
@@ -1684,31 +1686,37 @@
     "github.com/ligato/cn-infra/utils/safeclose",
     "github.com/ligato/vpp-agent/clientv2/linux",
     "github.com/ligato/vpp-agent/clientv2/vpp",
+    "github.com/ligato/vpp-agent/idxvpp2",
     "github.com/ligato/vpp-agent/plugins/govppmux",
     "github.com/ligato/vpp-agent/plugins/kvscheduler",
     "github.com/ligato/vpp-agent/plugins/kvscheduler/api",
     "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin",
+    "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/descriptor",
+    "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/ifaceidx",
     "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin",
     "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces",
     "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3",
     "github.com/ligato/vpp-agent/plugins/linuxv2/model/namespace",
     "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin",
+    "github.com/ligato/vpp-agent/plugins/restv2",
     "github.com/ligato/vpp-agent/plugins/telemetry",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/session",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/stats",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/model/bfd",
-    "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces",
     "github.com/ligato/vpp-agent/plugins/vpp/model/ipsec",
     "github.com/ligato/vpp-agent/plugins/vpp/model/l4",
     "github.com/ligato/vpp-agent/plugins/vpp/model/stn",
     "github.com/ligato/vpp-agent/plugins/vppv2/aclplugin",
     "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin",
+    "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor",
     "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx",
     "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls",
     "github.com/ligato/vpp-agent/plugins/vppv2/l2plugin",
+    "github.com/ligato/vpp-agent/plugins/vppv2/l2plugin/descriptor",
     "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin",
+    "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/descriptor",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/acl",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/l2",

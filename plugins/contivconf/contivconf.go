@@ -32,7 +32,6 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	"github.com/ligato/vpp-agent/plugins/govppmux"
 	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
@@ -146,7 +145,7 @@ type Deps struct {
 
 	// GoVPP is not needed for contiv-init but as a plugin it has to be here
 	// to be initialized first
-	GoVPP govppmux.API
+	GoVPP GoVPP
 
 	// The ContivConf plugin can be run either from contiv-init or contiv-agent:
 	//  - for contiv-init the plugin requires KV broker factory to reload
@@ -178,6 +177,17 @@ type UnitTestDeps struct {
 	DumpDPDKInterfacesClb        DumpDPDKInterfacesClb
 	RequestSTNInfoClb            RequestSTNInfoClb
 	GetFirstHostInterfaceNameClb GetFirstHostInterfaceNameClb
+}
+
+// GoVPP is the interface of govppmux plugin replicated here to avoid direct
+// dependency on vppapiclient.h for other plugins that import contivconf just to
+// read some constants etc.
+type GoVPP interface {
+	// NewAPIChannel returns a new API channel for communication with VPP via govpp.
+	NewAPIChannel() (govpp.Channel, error)
+
+	// NewAPIChannelBuffered returns a new API channel for communication with VPP via govpp.
+	NewAPIChannelBuffered(reqChanBufSize, replyChanBufSize int) (govpp.Channel, error)
 }
 
 // DumpDPDKInterfacesClb is callback for dumping DPDK interfaces configured on VPP.

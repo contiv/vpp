@@ -673,7 +673,12 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		if err != nil {
 			wasErr = err
 			if !withRevert {
-				needsHealing = true
+				if c.onlyExtConfigFailed(err.(*api.TransactionError), txn.values) {
+					c.Log.Debug("Only external configuration caused the transaction to fail - " +
+						"not scheduling Healing resync")
+				} else {
+					needsHealing = true
+				}
 			}
 		}
 
@@ -681,7 +686,11 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		if isUpdate {
 			if err == nil || !withRevert {
 				for key, value := range txn.values {
-					c.internalConfig[key] = value
+					if value == nil {
+						delete(c.internalConfig, key)
+					} else {
+						c.internalConfig[key] = value
+					}
 				}
 			}
 		} else if event.Method() != api.DownstreamResync {
@@ -744,6 +753,23 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 	return wasErr
 }
 
+// onlyExtConfigFailed returns true if external input caused the transaction
+// to fail and not the internal configuration.
+func (c *Controller) onlyExtConfigFailed(txnErr *api.TransactionError, txnInternalValues api.KeyValuePairs) bool {
+	if txnErr.GetTxnError() != nil {
+		return false
+	}
+	for _, kv := range txnErr.GetKVErrors() {
+		if _, inTxnInternalVals := txnInternalValues[kv.Key]; inTxnInternalVals {
+			return false
+		}
+		if _, inInternalCfg := c.internalConfig[kv.Key]; inInternalCfg {
+			return false
+		}
+	}
+	return true
+}
+
 // Close stops event loop and database watching.
 func (c *Controller) Close() error {
 	// send shutdown event first
@@ -799,6 +825,13 @@ func (c *Controller) mergeLazyValIntoProto(key string, value datasync.LazyValue,
 			c.Log.Warnf("Failed to merge external with internal configuration for key: %s (%v)", key, err)
 		}
 	}()
+
+	if msg == nil {
+		return value
+	}
+	if value == nil {
+		return &lazyValue{value: msg}
+	}
 
 	merge := proto.Clone(msg)
 	output := &lazyValue{value: merge}

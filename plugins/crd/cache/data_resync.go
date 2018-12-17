@@ -104,12 +104,12 @@ func (ctc *ContivTelemetryCache) parseAndCacheVppNodeData(key string, evData dat
 		return fmt.Errorf("invalid key '%s' or node id '%d'", key, vppNodeValue.Id)
 	}
 
-	if vppNodeValue.Id == 0 || vppNodeValue.Name == "" || vppNodeValue.IpAddress == "" {
+	if vppNodeValue.Id == 0 || vppNodeValue.Name == "" || len(vppNodeValue.IpAddresses) == 0 {
 		return fmt.Errorf("invalid nodeInfo data: '%+v'", vppNodeValue)
 	}
 
 	err = ctc.VppCache.CreateNode(vppNodeValue.Id, vppNodeValue.Name,
-		vppNodeValue.IpAddress)
+		vppNodeValue.IpAddresses[0])
 	if err != nil {
 		return fmt.Errorf("failed to add vpp node, error: '%s'", err)
 	}

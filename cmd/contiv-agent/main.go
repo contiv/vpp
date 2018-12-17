@@ -37,6 +37,7 @@ import (
 	linux_ifplugin "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin"
 	linux_l3plugin "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin"
 	linux_nsplugin "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin"
+	rest_plugin "github.com/ligato/vpp-agent/plugins/restv2"
 	"github.com/ligato/vpp-agent/plugins/telemetry"
 	vpp_aclplugin "github.com/ligato/vpp-agent/plugins/vppv2/aclplugin"
 	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
@@ -81,6 +82,7 @@ type ContivAgent struct {
 
 	Telemetry *telemetry.Plugin
 	GRPC      *grpc.Plugin
+	REST      *rest_plugin.Plugin
 
 	Controller *controller.Controller
 	ContivConf *contivconf.ContivConf
@@ -142,6 +144,7 @@ func main() {
 	}))
 
 	ipv4NetPlugin := ipv4net.NewPlugin(ipv4net.UseDeps(func(deps *ipv4net.Deps) {
+		deps.GoVPP = &govppmux.DefaultPlugin
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.ContivConf = contivConf
 		deps.IPAM = ipamPlugin
@@ -207,6 +210,7 @@ func main() {
 		VPPSTNPlugin:  &vpp_stnplugin.DefaultPlugin,
 		Telemetry:     &telemetry.DefaultPlugin,
 		GRPC:          &grpc.DefaultPlugin,
+		REST:          &rest_plugin.DefaultPlugin,
 		Controller:    controller,
 		ContivConf:    contivConf,
 		NodeSync:      nodeSyncPlugin,

@@ -488,11 +488,14 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 		}
 	} else {
 		key = strings.TrimPrefix(key, w.agentPrefix)
-		event = &api.ExternalConfigChange{
+		extChangeEv := &api.ExternalConfigChange{
 			Key:      key,
 			Revision: change,
-			Value:    change,
 		}
+		if change.GetChangeType() != datasync.Delete {
+			extChangeEv.Value = change
+		}
+		event = extChangeEv
 	}
 	err := w.eventLoop.PushEvent(event)
 	if err != nil {

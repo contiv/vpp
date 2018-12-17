@@ -1,3 +1,5 @@
+---
+
 # This installs the contiv-ksr (Kubernetes State Reflector) on the master node in a Kubernetes cluster.
 apiVersion: extensions/v1beta1
 kind: DaemonSet
@@ -17,48 +19,48 @@ spec:
     spec:
       # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
       tolerations:
-      - key: node-role.kubernetes.io/master
-        effect: NoSchedule
-      - key: CriticalAddonsOnly
-        operator: Exists
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
       # Only run this pod on the master.
       nodeSelector:
         node-role.kubernetes.io/master: ""
       hostNetwork: true
 
       containers:
-      - name: contiv-sfc-controller
-        image: ligato/prod_sfc_controller
-        imagePullPolicy: IfNotPresent
-        env:
-        - name: HTTP_CONFIG
-          value: "/etc/http/http.conf"
-        volumeMounts:
-        - name: sfc-cfg
-          mountPath: /opt/sfc-controller/dev
-        - name: sfc-http-cfg
-          mountPath: /etc/http
-        readinessProbe:
-          httpGet:
-            path: /readiness
-            port: 9192
-          periodSeconds: 1
-          initialDelaySeconds: 10
-        livenessProbe:
-          httpGet:
-            path: /liveness
-            port: 9192
-          periodSeconds: 1
-          initialDelaySeconds: 30
+        - name: contiv-sfc-controller
+          image: ligato/prod_sfc_controller
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: HTTP_CONFIG
+              value: "/etc/http/http.conf"
+          volumeMounts:
+            - name: sfc-cfg
+              mountPath: /opt/sfc-controller/dev
+            - name: sfc-http-cfg
+              mountPath: /etc/http
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9192
+            periodSeconds: 1
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /liveness
+              port: 9192
+            periodSeconds: 1
+            initialDelaySeconds: 30
 
       volumes:
-      # Used to connect to contiv-etcd.
-      - name: sfc-cfg
-        configMap:
-          name: contiv-sfc-config
-      - name: sfc-http-cfg
-        configMap:
-          name: contiv-sfc-http-cfg
+        # Used to connect to contiv-etcd.
+        - name: sfc-cfg
+          configMap:
+            name: contiv-sfc-config
+        - name: sfc-http-cfg
+          configMap:
+            name: contiv-sfc-http-cfg
 
 ---
 

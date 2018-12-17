@@ -117,6 +117,7 @@ test-race:
 
 # Get coverage report tools
 get-covtools:
+	go get -v github.com/mattn/goveralls
 	go install -v ./vendor/github.com/wadey/gocovmerge
 
 # Run coverage report
@@ -190,12 +191,29 @@ generate: get-generators
 get-linters:
 	@echo " => installing linters"
 	go get -v golang.org/x/lint/golint
+	pip install --user yamllint
+	curl https://raw.githubusercontent.com/helm/helm/master/scripts/get | bash
 
 # Run code analysis
 lint:
 	@echo "# running code analysis"
 	./scripts/golint.sh
 	./scripts/govet.sh
+
+# Run YAML lint tool
+lint-yaml:
+	@echo "# running YAML lint"
+	yamllint --strict --config-file=.yamllint.yml .
+
+# Run HELM lint tool
+lint-helm:
+	@echo "# running HELM lint"
+	helm lint k8s/contiv-vpp/
+
+# Check if manifest YAMLs need to be re-generated
+check-manifests:
+	@echo "Checking manifest YAMLs"
+	./scripts/check_manifests.sh
 
 # Run metalinter tool
 metalinter:
@@ -265,17 +283,15 @@ generate-manifest-arm64:
 helm-package:
 	helm package k8s/contiv-vpp/
 
-helm-yaml:
-	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp > k8s/contiv-vpp.yaml
+helm-yaml: generate-manifest
 
-helm-yaml-arm64:
-	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp -f k8s/contiv-vpp/values-arm64.yaml,k8s/contiv-vpp/values.yaml > k8s/contiv-vpp-arm64.yaml
+helm-yaml-arm64: generate-manifest-arm64
 
 .PHONY: build all \
 	install clean test test-race \
 	get-covtools test-cover test-cover-html test-cover-xml \
 	get-generators generate \
-	get-linters lint metalinter format check-format \
+	get-linters lint metalinter lint-yaml lint-helm format check-format \
 	get-linkcheck check-links \
 	get-dep dep-install \
 	docker-images docker-dev vagrant-images\

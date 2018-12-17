@@ -1,25 +1,26 @@
+---
 contiv:
-  useTAPInterfaces: True
+  useTAPInterfaces: true
   tapInterfaceVersion: 2
   tapv2RxRingSize: 256
   tapv2TxRingSize: 256
   vmxnet3RxRingSize: 1024
   vmxnet3TxRingSize: 1024
   interfaceRxMode: "default"
-  stealFirstNIC: False
-  natExternalTraffic: True
+  stealFirstNIC: false
+  natExternalTraffic: true
   mtuSize: 1450
-  cleanupIdleNATSessions: True
+  cleanupIdleNATSessions: true
   tcpNATSessionTimeout: 180
   otherNATSessionTimeout: 5
-  scanIPNeighbors: True
+  scanIPNeighbors: true
   ipNeighborScanInterval: 1
   ipNeighborStaleThreshold: 4
   serviceLocalEndpointWeight: 1
-  disableNATVirtualReassembly: False
-  enablePacketTrace: False
-  routeServiceCIDRToVPP: False
-  crdNodeConfigurationDisabled: True
+  disableNATVirtualReassembly: false
+  enablePacketTrace: false
+  routeServiceCIDRToVPP: false
+  crdNodeConfigurationDisabled: true
   ipamConfig:
     podSubnetCIDR: 10.1.0.0/16
     podSubnetOneNodePrefixLen: 24
@@ -29,30 +30,30 @@ contiv:
     nodeInterconnectCIDR: 192.168.16.0/24
     vxlanCIDR: 192.168.30.0/24
     nodeInterconnectDHCP: false
-    #serviceCIDR: "10.96.0.0/12"
-  # example of node configuration for VPP interfaces
-  # nodeConfig:
-  # - name: "vm1"
-  #   mainInterface:
-  #     interfaceName: "GigabitEthernet0/4/0"
-  #     ip: 192.168.16.101/24
-  #   gateway: 192.168.1.1
-  #   otherInterfaces:
-  #     - interfaceName: "GigabitEthernet0/5/0"
-  #       ip: "1.2.3.4/24"
-  #     - interfaceName: "GigabitEthernet0/6/0"
-  #       ip: "2.3.4.5/24"
-  # - name: "vm2"
-  #   useDHCPOnMainInt: False
-  #   mainInterface:
-  #     interfaceName: "GigabitEthernet0/9/0"
-  #     useDHCP: True
-  #   gateway: 192.168.1.1
-  #   otherInterfaces:
-  #     - interfaceName: "GigabitEthernet0/7/0"
-  #       ip: "3.4.5.6/24"
-  #     - interfaceName: "GigabitEthernet0/7/0"
-  #       ip: "5.6.7.8/24"
+    # serviceCIDR: "10.96.0.0/12"
+    # example of node configuration for VPP interfaces
+    # nodeConfig:
+    # - name: "vm1"
+    #   mainInterface:
+    #     interfaceName: "GigabitEthernet0/4/0"
+    #     ip: 192.168.16.101/24
+    #   gateway: 192.168.1.1
+    #   otherInterfaces:
+    #     - interfaceName: "GigabitEthernet0/5/0"
+    #       ip: "1.2.3.4/24"
+    #     - interfaceName: "GigabitEthernet0/6/0"
+    #       ip: "2.3.4.5/24"
+    # - name: "vm2"
+    #   useDHCPOnMainInt: False
+    #   mainInterface:
+    #     interfaceName: "GigabitEthernet0/9/0"
+    #     useDHCP: True
+    #   gateway: 192.168.1.1
+    #   otherInterfaces:
+    #     - interfaceName: "GigabitEthernet0/7/0"
+    #       ip: "3.4.5.6/24"
+    #     - interfaceName: "GigabitEthernet0/7/0"
+    #       ip: "5.6.7.8/24"
 logs:
   defaultLevel: debug
 
@@ -69,7 +70,7 @@ etcd:
     tag: v3.3.10
     pullPolicy: IfNotPresent
   service:
-    #NodePort where contiv-etcd can be reached on any node.
+    # nodePort where contiv-etcd can be reached on any node.
     nodePort: 32379
   enableLivenessProbe: true
   livenessProbeInitialDelaySeconds: 20
@@ -102,8 +103,7 @@ etcd:
 vswitch:
   image:
     repository: contivvpp/vswitch
-    # tag defaults to chart version
-    #tag:
+    tag: latest
     pullPolicy: IfNotPresent
   enableLivenessReadinessProbes: true
   readinessProbeInitialDelaySeconds: 15
@@ -123,15 +123,13 @@ vswitch:
 cni:
   image:
     repository: contivvpp/cni
-    # tag defaults to chart version
-    #tag:
+    tag: latest
     pullPolicy: IfNotPresent
 
 ksr:
   image:
     repository: contivvpp/ksr
-    # tag defaults to chart version
-    #tag:
+    tag: latest
     pullPolicy: IfNotPresent
   updateStrategy: RollingUpdate
   enableLivenessReadinessProbes: true
@@ -146,12 +144,11 @@ ksr:
 crd:
   image:
     repository: contivvpp/crd
-    # tag defaults to chart version
-    #tag:
+    tag: latest
     pullPolicy: IfNotPresent
   updateStrategy: RollingUpdate
-  validateInterval: 5 # in minutes, 0 to disable
-  validateState: SB # select one of the: "internal", "SB", "NB"
+  validateInterval: 5  # in minutes, 0 to disable
+  validateState: SB  # select one of the: "internal", "SB", "NB"
   enableLivenessReadinessProbes: true
   readinessProbeInitialDelaySeconds: 10
   livenessProbeInitialDelaySeconds: 30
@@ -191,7 +188,7 @@ telemetry:
 init:
   image:
     repository: busybox
-    tag: latest
+    tag: 1.29.3
 
 bolt:
   debug: false

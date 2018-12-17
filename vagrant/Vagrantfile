@@ -473,7 +473,7 @@ EOL
 
 applyVPPnetwork() {
   if [ "#{image_tag}" != "latest" ]; then
-    sed -i -e "s/latest/#{image_tag}/" #{contiv_dir}/k8s/contiv-vpp/Chart.yaml
+    sed -i -e "s/latest/#{image_tag}/" #{contiv_dir}/k8s/contiv-vpp/values.yaml
   fi
 
   if [ "#{crd_disabled}" = "false" ]; then

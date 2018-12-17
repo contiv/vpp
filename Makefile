@@ -117,6 +117,7 @@ test-race:
 
 # Get coverage report tools
 get-covtools:
+	go get -v github.com/mattn/goveralls
 	go install -v ./vendor/github.com/wadey/gocovmerge
 
 # Run coverage report
@@ -190,12 +191,24 @@ generate: get-generators
 get-linters:
 	@echo " => installing linters"
 	go get -v golang.org/x/lint/golint
+	pip install --user yamllint
+	curl https://raw.githubusercontent.com/helm/helm/master/scripts/get | bash
 
 # Run code analysis
 lint:
 	@echo "# running code analysis"
 	./scripts/golint.sh
 	./scripts/govet.sh
+
+# Run YAMl lint tool
+lint-yaml:
+	@echo "# running YAML lint"
+	yamllint --strict --config-file=.yamllint.yml .
+
+# Run YAMl lint tool
+lint-helm:
+	@echo "# running HELM lint"
+	helm lint k8s/contiv-vpp/
 
 # Run metalinter tool
 metalinter:
@@ -275,7 +288,7 @@ helm-yaml-arm64:
 	install clean test test-race \
 	get-covtools test-cover test-cover-html test-cover-xml \
 	get-generators generate \
-	get-linters lint metalinter format check-format \
+	get-linters lint metalinter lint-yaml lint-helm format check-format \
 	get-linkcheck check-links \
 	get-dep dep-install \
 	docker-images docker-dev vagrant-images\

@@ -1,4 +1,5 @@
-Arm64Platform: True
+---
+Arm64Platform: true
 
 # ETCD server to be used by Contiv
 etcd_arm64:
@@ -10,19 +11,19 @@ vswitch_arm64:
   image:
     repository: contivvpp/vswitch-arm64
     # tag defaults to chart version
-    #tag:
+    # tag:
 
 cni_arm64:
   image:
     repository: contivvpp/cni-arm64
     # tag defaults to chart version
-    #tag:
+    # tag:
 
 ksr_arm64:
   image:
     repository: contivvpp/ksr-arm64
     # tag defaults to chart version
-    #tag:
+    # tag:
 
 init_arm64:
   image:
@@ -33,4 +34,4 @@ crd_arm64:
   image:
     repository: contivvpp/crd-arm64
     # tag defaults to chart version
-    #tag:
+    # tag:

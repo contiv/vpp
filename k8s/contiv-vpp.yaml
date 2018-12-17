@@ -137,13 +137,13 @@ spec:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       tolerations:
-      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
-      - key: ''
-        operator: Exists
-        effect: ''
-      # This likely isn't needed due to the above wildcard, but keep it in for now.
-      - key: CriticalAddonsOnly
-        operator: Exists
+        # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+        - key: ''
+          operator: Exists
+          effect: ''
+        # This likely isn't needed due to the above wildcard, but keep it in for now.
+        - key: CriticalAddonsOnly
+          operator: Exists
       # Only run this pod on the master.
       nodeSelector:
         node-role.kubernetes.io/master: ""
@@ -172,9 +172,9 @@ spec:
           livenessProbe:
             exec:
               command:
-              - /bin/sh
-              - -c
-              - etcdctl get --endpoints=127.0.0.1:32379 /
+                - /bin/sh
+                - -c
+                - etcdctl get --endpoints=127.0.0.1:32379 /
             periodSeconds: 3
             initialDelaySeconds: 20
           resources:
@@ -183,7 +183,7 @@ spec:
       volumes:
         - name: var-etcd
           hostPath:
-             path: /var/etcd
+            path: /var/etcd
 
 ---
 
@@ -198,8 +198,8 @@ spec:
   selector:
     k8s-app: contiv-etcd
   ports:
-  - port: 12379
-    nodePort: 32379
+    - port: 12379
+      nodePort: 32379
 
 ---
 apiVersion: v1
@@ -272,83 +272,83 @@ spec:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       tolerations:
-      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
-      - key: ''
-        operator: Exists
-        effect: ''
-      # This likely isn't needed due to the above wildcard, but keep it in for now.
-      - key: CriticalAddonsOnly
-        operator: Exists
+        # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+        - key: ''
+          operator: Exists
+          effect: ''
+        # This likely isn't needed due to the above wildcard, but keep it in for now.
+        - key: CriticalAddonsOnly
+          operator: Exists
       hostNetwork: true
       hostPID: true
 
       # Init containers are executed before regular containers, must finish successfully before regular ones are started.
       initContainers:
-      # This container installs the Contiv CNI binaries
-      # and CNI network config file on each node.
-      - name: contiv-cni
-        image: contivvpp/cni:latest
-        imagePullPolicy: IfNotPresent
-        env:
-          - name: SLEEP
-            value: "false"
-        volumeMounts:
-          - mountPath: /opt/cni/bin
-            name: cni-bin-dir
-          - mountPath: /etc/cni/net.d
-            name: cni-net-dir
-          - mountPath: /var/run/contiv
-            name: contiv-run
-      # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
-      - name: vpp-init
-        image: contivvpp/vswitch:latest
-        imagePullPolicy: IfNotPresent
-        command:
-        - /bin/sh
-        args:
-        - -c
-        - |
-          set -eu
-          chmod 700 /run/vpp
-          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api
-          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then
-              cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp/
-          fi
-          if [ ! -d /var/run/contiv ]; then
-              mkdir /var/run/contiv
-          fi
-          chmod 700 /var/run/contiv
-          rm -f /var/run/contiv/cni.sock
-          if ip link show vpp1 >/dev/null 2>&1; then
-               ip link del vpp1
-          fi
-          cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
-          sysctl -w debug.exception-trace=1
-          sysctl -w kernel.core_pattern="/var/contiv/dumps/%e-%t"
-          ulimit -c unlimited
-          echo 2 > /proc/sys/fs/suid_dumpable
-        resources: {}
-        securityContext:
-          privileged: true
-        volumeMounts:
-          - name: usr-local-bin
-            mountPath: /host/usr/local/bin
-          - name: vpp-cfg
-            mountPath: /host/etc/vpp
-          - name: shm
-            mountPath: /dev/shm
-          - name: vpp-run
-            mountPath: /run/vpp
-          - name: contiv-run
-            mountPath: /var/run/contiv
-          - name: core-dumps
-            mountPath: /var/contiv/dumps
+        # This container installs the Contiv CNI binaries and CNI network config file on each node.
+        - name: contiv-cni
+          image: contivvpp/cni:2.1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SLEEP
+              value: "false"
+          volumeMounts:
+            - mountPath: /opt/cni/bin
+              name: cni-bin-dir
+            - mountPath: /etc/cni/net.d
+              name: cni-net-dir
+            - mountPath: /var/run/contiv
+              name: contiv-run
+
+        # This init container extracts/copies default VPP config to the host and initializes VPP core dumps.
+        - name: vpp-init
+          image: contivvpp/vswitch:2.1.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - |
+              set -eu
+              chmod 700 /run/vpp
+              rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api
+              if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then
+                  cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp/
+              fi
+              if [ ! -d /var/run/contiv ]; then
+                  mkdir /var/run/contiv
+              fi
+              chmod 700 /var/run/contiv
+              rm -f /var/run/contiv/cni.sock
+              if ip link show vpp1 >/dev/null 2>&1; then
+                   ip link del vpp1
+              fi
+              cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
+              sysctl -w debug.exception-trace=1
+              sysctl -w kernel.core_pattern="/var/contiv/dumps/%e-%t"
+              ulimit -c unlimited
+              echo 2 > /proc/sys/fs/suid_dumpable
+          resources: {}
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: usr-local-bin
+              mountPath: /host/usr/local/bin
+            - name: vpp-cfg
+              mountPath: /host/etc/vpp
+            - name: shm
+              mountPath: /dev/shm
+            - name: vpp-run
+              mountPath: /run/vpp
+            - name: contiv-run
+              mountPath: /var/run/contiv
+            - name: core-dumps
+              mountPath: /var/contiv/dumps
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
-          image: contivvpp/vswitch:latest
+          image: contivvpp/vswitch:2.1.0
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
@@ -516,13 +516,13 @@ spec:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       tolerations:
-      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
-      - key: ''
-        operator: Exists
-        effect: ''
-      # This likely isn't needed due to the above wildcard, but keep it in for now.
-      - key: CriticalAddonsOnly
-        operator: Exists
+        # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+        - key: ''
+          operator: Exists
+          effect: ''
+        # This likely isn't needed due to the above wildcard, but keep it in for now.
+        - key: CriticalAddonsOnly
+          operator: Exists
       # Only run this pod on the master.
       nodeSelector:
         node-role.kubernetes.io/master: ""
@@ -534,15 +534,15 @@ spec:
         # This init container waits until etcd is started
         - name: wait-foretcd
           env:
-          - name: ETCDPORT
-            value: "32379"
+            - name: ETCDPORT
+              value: "32379"
           image: busybox:latest
           imagePullPolicy: IfNotPresent
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:
         - name: contiv-ksr
-          image: contivvpp/ksr:latest
+          image: contivvpp/ksr:2.1.0
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCD_CONFIG
@@ -592,8 +592,8 @@ metadata:
   namespace: kube-system
 rules:
   - apiGroups:
-    - ""
-    - extensions
+      - ""
+      - extensions
     resources:
       - pods
       - namespaces
@@ -626,9 +626,9 @@ roleRef:
   kind: ClusterRole
   name: contiv-ksr
 subjects:
-- kind: ServiceAccount
-  name: contiv-ksr
-  namespace: kube-system
+  - kind: ServiceAccount
+    name: contiv-ksr
+    namespace: kube-system
 
 ---
 
@@ -652,13 +652,13 @@ spec:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       tolerations:
-      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
-      - key: ''
-        operator: Exists
-        effect: ''
-      # This likely isn't needed due to the above wildcard, but keep it in for now.
-      - key: CriticalAddonsOnly
-        operator: Exists
+        # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+        - key: ''
+          operator: Exists
+          effect: ''
+        # This likely isn't needed due to the above wildcard, but keep it in for now.
+        - key: CriticalAddonsOnly
+          operator: Exists
       # Only run this pod on the master.
       nodeSelector:
         node-role.kubernetes.io/master: ""
@@ -667,76 +667,76 @@ spec:
       serviceAccountName: contiv-crd
 
       initContainers:
-      # This init container waits until etcd is started
-      - name: wait-foretcd
-        env:
-        - name: ETCDPORT
-          value: "32379"
-        image: busybox:latest
-        imagePullPolicy: IfNotPresent
-        command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+        # This init container waits until etcd is started
+        - name: wait-foretcd
+          env:
+            - name: ETCDPORT
+              value: "32379"
+          image: busybox:latest
+          imagePullPolicy: IfNotPresent
+          command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
-      # This init container copies contiv-netctl tool to the host.
-      - name: netctl-init
-        image: contivvpp/crd:latest
-        imagePullPolicy: IfNotPresent
-        command:
-        - /bin/sh
-        args:
-        - -c
-        - |
-          echo '#!/bin/sh
-          kubectl get pods -n kube-system | \
-            grep contiv-crd | \
-            cut -d " " -f 1 | \
-            xargs -I{} kubectl exec -n kube-system {} \
-            /contiv-netctl "$@"' \
-          > /host/usr/local/bin/contiv-netctl || true
-
-          chmod +x /host/usr/local/bin/contiv-netctl || true
-        volumeMounts:
-          - name: usr-local-bin
-            mountPath: /host/usr/local/bin
+        # This init container copies contiv-netctl tool to the host.
+        - name: netctl-init
+          image: contivvpp/crd:2.1.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - |
+              echo '#!/bin/sh
+              kubectl get pods -n kube-system | \
+                grep contiv-crd | \
+                cut -d " " -f 1 | \
+                xargs -I{} kubectl exec -n kube-system {} \
+                /contiv-netctl "$@"' \
+              > /host/usr/local/bin/contiv-netctl || true
+              chmod +x /host/usr/local/bin/contiv-netctl || true
+          volumeMounts:
+            - name: usr-local-bin
+              mountPath: /host/usr/local/bin
 
       containers:
-      - name: contiv-crd
-        image: contivvpp/crd:latest
-        imagePullPolicy: IfNotPresent
-        env:
-        - name: ETCD_CONFIG
-          value: "/etc/etcd/etcd.conf"
-        - name: HTTP_CONFIG
-          value: "/etc/http/http.conf"
-        - name: HTTP_CLIENT_CONFIG
-          value: "/etc/http/http.client.conf"
-        - name: CONTIV_CRD_VALIDATE_INTERVAL
-          value: "5"
-        - name: CONTIV_CRD_VALIDATE_STATE
-          value: "SB"
-        volumeMounts:
-        - name: etcd-cfg
-          mountPath: /etc/etcd
-        - name: http-cfg
-          mountPath: /etc/http
-        readinessProbe:
-          httpGet:
-            path: /readiness
-            port: 9090
-          periodSeconds: 3
-          timeoutSeconds: 2
-          failureThreshold: 3
-          initialDelaySeconds: 10
-        livenessProbe:
-          httpGet:
-            path: /liveness
-            port: 9090
-          periodSeconds: 3
-          timeoutSeconds: 2
-          failureThreshold: 3
-          initialDelaySeconds: 30
-        resources:
-          requests:
-            cpu: 100m
+        - name: contiv-crd
+          image: contivvpp/crd:2.1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ETCD_CONFIG
+              value: "/etc/etcd/etcd.conf"
+            - name: HTTP_CONFIG
+              value: "/etc/http/http.conf"
+            - name: HTTP_CLIENT_CONFIG
+              value: "/etc/http/http.client.conf"
+            - name: CONTIV_CRD_VALIDATE_INTERVAL
+              value: "5"
+            - name: CONTIV_CRD_VALIDATE_STATE
+              value: "SB"
+          volumeMounts:
+            - name: etcd-cfg
+              mountPath: /etc/etcd
+            - name: http-cfg
+              mountPath: /etc/http
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9090
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 3
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /liveness
+              port: 9090
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 3
+            initialDelaySeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
@@ -757,16 +757,16 @@ metadata:
   name: contiv-crd
   namespace: kube-system
 rules:
-- apiGroups:
-  - apiextensions.k8s.io
-  - nodeconfig.contiv.vpp
-  - telemetry.contiv.vpp
-  resources:
-  - customresourcedefinitions
-  - telemetryreports
-  - nodeconfigs
-  verbs:
-  - "*"
+  - apiGroups:
+      - apiextensions.k8s.io
+      - nodeconfig.contiv.vpp
+      - telemetry.contiv.vpp
+    resources:
+      - customresourcedefinitions
+      - telemetryreports
+      - nodeconfigs
+    verbs:
+      - "*"
 
 ---
 
@@ -789,9 +789,9 @@ roleRef:
   kind: ClusterRole
   name: contiv-crd
 subjects:
-- kind: ServiceAccount
-  name: contiv-crd
-  namespace: kube-system
+  - kind: ServiceAccount
+    name: contiv-crd
+    namespace: kube-system
 
 ---
 
@@ -806,4 +806,3 @@ data:
   http.client.conf: |
     port: 9999
     use-https: false
-

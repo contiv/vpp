@@ -288,7 +288,7 @@ spec:
       initContainers:
         # This container installs the Contiv CNI binaries and CNI network config file on each node.
         - name: contiv-cni
-          image: contivvpp/cni-arm64:2.1.0
+          image: contivvpp/cni-arm64:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: SLEEP
@@ -303,7 +303,7 @@ spec:
 
         # This init container extracts/copies default VPP config to the host and initializes VPP core dumps.
         - name: vpp-init
-          image: contivvpp/vswitch-arm64:2.1.0
+          image: contivvpp/vswitch-arm64:latest
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -350,7 +350,7 @@ spec:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
-          image: contivvpp/vswitch-arm64:2.1.0
+          image: contivvpp/vswitch-arm64:latest
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
@@ -538,13 +538,13 @@ spec:
           env:
             - name: ETCDPORT
               value: "32379"
-          image: arm64v8/busybox:latest
+          image: arm64v8/busybox:1.29.3
           imagePullPolicy: IfNotPresent
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:
         - name: contiv-ksr
-          image: contivvpp/ksr-arm64:2.1.0
+          image: contivvpp/ksr-arm64:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCD_CONFIG
@@ -674,13 +674,13 @@ spec:
           env:
             - name: ETCDPORT
               value: "32379"
-          image: arm64v8/busybox:latest
+          image: arm64v8/busybox:1.29.3
           imagePullPolicy: IfNotPresent
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
         # This init container copies contiv-netctl tool to the host.
         - name: netctl-init
-          image: contivvpp/crd-arm64:2.1.0
+          image: contivvpp/crd-arm64:latest
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -701,7 +701,7 @@ spec:
 
       containers:
         - name: contiv-crd
-          image: contivvpp/crd-arm64:2.1.0
+          image: contivvpp/crd-arm64:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCD_CONFIG

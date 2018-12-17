@@ -283,11 +283,9 @@ generate-manifest-arm64:
 helm-package:
 	helm package k8s/contiv-vpp/
 
-helm-yaml:
-	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp > k8s/contiv-vpp.yaml
+helm-yaml: generate-manifest
 
-helm-yaml-arm64:
-	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp -f k8s/contiv-vpp/values-arm64.yaml,k8s/contiv-vpp/values.yaml > k8s/contiv-vpp-arm64.yaml
+helm-yaml-arm64: generate-manifest-arm64
 
 .PHONY: build all \
 	install clean test test-race \

@@ -103,8 +103,7 @@ etcd:
 vswitch:
   image:
     repository: contivvpp/vswitch
-    # tag defaults to chart version
-    # tag:
+    tag: latest
     pullPolicy: IfNotPresent
   enableLivenessReadinessProbes: true
   readinessProbeInitialDelaySeconds: 15
@@ -124,15 +123,13 @@ vswitch:
 cni:
   image:
     repository: contivvpp/cni
-    # tag defaults to chart version
-    # tag:
+    tag: latest
     pullPolicy: IfNotPresent
 
 ksr:
   image:
     repository: contivvpp/ksr
-    # tag defaults to chart version
-    # tag:
+    tag: latest
     pullPolicy: IfNotPresent
   updateStrategy: RollingUpdate
   enableLivenessReadinessProbes: true
@@ -147,8 +144,7 @@ ksr:
 crd:
   image:
     repository: contivvpp/crd
-    # tag defaults to chart version
-    # tag:
+    tag: latest
     pullPolicy: IfNotPresent
   updateStrategy: RollingUpdate
   validateInterval: 5  # in minutes, 0 to disable
@@ -192,7 +188,7 @@ telemetry:
 init:
   image:
     repository: busybox
-    tag: latest
+    tag: 1.29.3
 
 bolt:
   debug: false

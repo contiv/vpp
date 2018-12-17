@@ -1118,9 +1118,9 @@ spec:
         # This init container copies contiv-netctl tool to the host.
         - name: netctl-init
           {{- if .Values.Arm64Platform }}
-          image: {{ .Values.crd_arm64.image.repository }}:{{ default .Chart.Version .Values.crd.image.tag }}
+          image: {{ .Values.crd_arm64.image.repository }}:{{ .Values.crd.image.tag }}
           {{- else }}
-          image: {{ .Values.crd.image.repository }}:{{ default .Chart.Version .Values.crd.image.tag }}
+          image: {{ .Values.crd.image.repository }}:{{ .Values.crd.image.tag }}
           {{- end }}
           imagePullPolicy: {{ .Values.crd.image.pullPolicy }}
           command:
@@ -1143,9 +1143,9 @@ spec:
       containers:
         - name: contiv-crd
           {{- if .Values.Arm64Platform }}
-          image: {{ .Values.crd_arm64.image.repository }}:{{ default .Chart.Version .Values.crd.image.tag }}
+          image: {{ .Values.crd_arm64.image.repository }}:{{ .Values.crd.image.tag }}
           {{- else }}
-          image: {{ .Values.crd.image.repository }}:{{ default .Chart.Version .Values.crd.image.tag }}
+          image: {{ .Values.crd.image.repository }}:{{ .Values.crd.image.tag }}
           {{- end }}
           imagePullPolicy: {{ .Values.crd.image.pullPolicy }}
           env:

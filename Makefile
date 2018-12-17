@@ -200,15 +200,20 @@ lint:
 	./scripts/golint.sh
 	./scripts/govet.sh
 
-# Run YAMl lint tool
+# Run YAML lint tool
 lint-yaml:
 	@echo "# running YAML lint"
 	yamllint --strict --config-file=.yamllint.yml .
 
-# Run YAMl lint tool
+# Run HELM lint tool
 lint-helm:
 	@echo "# running HELM lint"
 	helm lint k8s/contiv-vpp/
+
+# Check if manifest YAMLs need to be re-generated
+check-manifests:
+	@echo "Checking manifest YAMLs"
+	./scripts/check_manifests.sh
 
 # Run metalinter tool
 metalinter:

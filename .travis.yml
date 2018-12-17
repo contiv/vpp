@@ -28,6 +28,7 @@ script:
   - make lint
   - make lint-yaml
   - make lint-helm
+  - make check-manifests
   - make
   - make test-cover
   - make check-links || true

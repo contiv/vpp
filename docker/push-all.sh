@@ -75,7 +75,7 @@ while [ "$1" != "" ]; do
 done
 
 BRANCH_TAG="${BRANCH_NAME}"
-BRANCH_ADV_TAG="${BRANCH_TAG}"
+BRANCH_ADV_TAG="${BRANCH_TAG}-"
 if [ "${BRANCH_NAME}" == "master" ]; then
   BRANCH_TAG="latest"
   BRANCH_ADV_TAG=""

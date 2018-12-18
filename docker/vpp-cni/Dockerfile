@@ -1,4 +1,4 @@
-FROM golang:1.10.5-alpine3.8 as builder
+FROM golang:1.10.7-alpine3.8 as builder
 
 # we need the loopback binary from CNI
 # this binary can be obtained from the cni tarball

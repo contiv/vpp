@@ -17,6 +17,7 @@ import { VppTopoBvi } from '../d3-topology/topology/topology-data/models/nodes/v
 import { TopologyType } from '../shared/interfaces/topology-type';
 import { ContivNodeDataModel } from '../shared/models/contiv-node-data-model';
 import { BridgeDomainService } from './bridge-domain.service';
+import { LayoutService } from '../shared/services/layout.service';
 
 @Component({
   selector: 'app-bridge-domain',
@@ -42,7 +43,8 @@ export class BridgeDomainComponent implements OnInit, OnDestroy {
     private dataService: DataService,
     private topologyService: TopologyService,
     private sidepanelService: SidepanelService,
-    private topologyHighlightService: TopologyHighlightService
+    private topologyHighlightService: TopologyHighlightService,
+    private layoutService: LayoutService
   ) { }
 
   ngOnInit() {
@@ -117,6 +119,10 @@ export class BridgeDomainComponent implements OnInit, OnDestroy {
 
   public onRender() {
     this.topologyHighlightService.setLayer('vpp-3', this.topoData.type);
+  }
+
+  public onPositionChange(topologyData: TopologyDataModel) {
+    this.layoutService.saveNodesPositions('bd-topo', topologyData);
   }
 
   public showSummary() {

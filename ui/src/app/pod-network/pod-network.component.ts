@@ -19,6 +19,7 @@ import { VppTopoVswitch } from '../d3-topology/topology/topology-data/models/nod
 import { VppTopoBvi } from '../d3-topology/topology/topology-data/models/nodes/vpp-topo-bvi';
 import { TopologyType } from '../shared/interfaces/topology-type';
 import { K8sNamespaceModel } from '../shared/models/k8s/k8s-namespace-model';
+import { LayoutService } from '../shared/services/layout.service';
 
 @Component({
   selector: 'app-pod-network',
@@ -43,7 +44,8 @@ export class PodNetworkComponent implements OnInit, OnDestroy {
     private dataService: DataService,
     private topologyService: TopologyService,
     private sidepanelService: SidepanelService,
-    private topologyHighlightService: TopologyHighlightService
+    private topologyHighlightService: TopologyHighlightService,
+    private layoutService: LayoutService
   ) { }
 
   ngOnInit() {
@@ -119,6 +121,10 @@ export class PodNetworkComponent implements OnInit, OnDestroy {
 
   public onRender() {
     this.topologyHighlightService.setLayer(this.layerType, this.topoData.type);
+  }
+
+  public onPositionChange(topologyData: TopologyDataModel) {
+    this.layoutService.saveNodesPositions('vpp-topo', topologyData);
   }
 
   public highlightNamespace(namespace: string, i: number) {

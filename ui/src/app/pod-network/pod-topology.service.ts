@@ -4,7 +4,6 @@ import { K8sPodModel } from '../shared/models/k8s/k8s-pod-model';
 import { NodeData } from '../d3-topology/topology/topology-data/interfaces/node-data';
 import { EdgeData } from '../d3-topology/topology/topology-data/interfaces/edge-data';
 import { ContivDataModel } from '../shared/models/contiv-data-model';
-import { VppInterfaceModel } from '../shared/models/vpp/vpp-interface-model';
 import { LayoutService } from '../shared/services/layout.service';
 import { TopologyType } from '../shared/interfaces/topology-type';
 import { TopoColors } from '../shared/constants/topo-colors';
@@ -34,9 +33,8 @@ export class PodTopologyService {
       const pods = d.pods.map(p => this.createTopologyPod(p));
       const vswitch = this.createTopologyVswitch(d.vswitch);
       const vppPods = d.vppPods.map(p => this.createTopologyVppPod(p, vswitch));
-      const bvi = this.createTopologyBVI(d.getBVI(), vswitch);
 
-      nodesTopoData = nodesTopoData.concat([node], pods, [vswitch], vppPods, [bvi]);
+      nodesTopoData = nodesTopoData.concat([node], pods, [vswitch], vppPods);
     });
 
     return nodesTopoData;
@@ -47,13 +45,13 @@ export class PodTopologyService {
     const podsLinks = this.layoutService.connectPodsToHost(data);
     const vswitchLinks = this.layoutService.connectVswitchesToHost(data);
     const vppLinks = this.layoutService.connectVppPodsToVswitch(data);
-    const vxTunnels = this.layoutService.connectBVIs(data);
 
-    return [].concat(nodesLinks, podsLinks, vswitchLinks, vppLinks, vxTunnels);
+    return [].concat(nodesLinks, podsLinks, vswitchLinks, vppLinks);
   }
 
   private createTopologyNode(node: K8sNodeModel): NodeData {
-    const position = this.layoutService.getNodePosition(node);
+    const savedPosition = this.layoutService.getSavedPosition(node.name, 'vpp');
+    const position = savedPosition ? savedPosition : this.layoutService.getNodePosition(node);
     return {
       id: node.name,
       label: node.name,
@@ -66,7 +64,8 @@ export class PodTopologyService {
   }
 
   private createTopologyVswitch(vswitch: K8sPodModel): NodeData {
-    const position = this.layoutService.getVswitchPosition(vswitch);
+    const savedPosition = this.layoutService.getSavedPosition(vswitch.name, 'vpp');
+    const position = savedPosition ? savedPosition : this.layoutService.getVswitchPosition(vswitch);
     const node: NodeData = {
       id: vswitch.name,
       label: vswitch.name,
@@ -81,20 +80,9 @@ export class PodTopologyService {
     return node;
   }
 
-  private createTopologyBVI(bvi: VppInterfaceModel, vswitch: NodeData): NodeData {
-    const position = this.layoutService.getBVIPosition(vswitch);
-    return {
-      id: vswitch.label + '-bvi',
-      x: position.x,
-      y: position.y,
-      stroke: TopoColors.BVI_STROKE,
-      nodeType: 'bvi',
-      IP: bvi.IPS
-    };
-  }
-
   private createTopologyPod(pod: K8sPodModel): NodeData {
-    const position = this.layoutService.getPodPosition(pod);
+    const savedPosition = this.layoutService.getSavedPosition(pod.name, 'vpp');
+    const position = savedPosition ? savedPosition : this.layoutService.getPodPosition(pod);
     const node: NodeData = {
       id: pod.name,
       label: pod.name,
@@ -109,7 +97,8 @@ export class PodTopologyService {
   }
 
   private createTopologyVppPod(pod: K8sPodModel, vswitch: NodeData): NodeData {
-    const position = this.layoutService.getPodPosition(pod);
+    const savedPosition = this.layoutService.getSavedPosition(pod.name, 'vpp');
+    const position = savedPosition ? savedPosition : this.layoutService.getPodPosition(pod);
     const node: NodeData = {
       id: pod.name,
       label: pod.name,

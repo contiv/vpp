@@ -22,7 +22,6 @@ import { VswitchDiagramService } from './vswitch-diagram/vswitch-diagram.service
 import { AppComponent } from './app.component';
 import { KubernetesComponent } from './kubernetes/kubernetes.component';
 import { PodNetworkComponent } from './pod-network/pod-network.component';
-import { ManagerComponent } from './manager/manager.component';
 import { VppComponent } from './vpp/vpp.component';
 import { TerminalComponent } from './terminal/terminal.component';
 import { SidepanelComponent } from './shared/sidepanel/sidepanel.component';
@@ -49,13 +48,13 @@ import { BridgeDomainControlComponent } from './shared/sidepanel/bridge-domain-c
 import { CodeModalComponent } from './shared/modals/code-modal/code-modal.component';
 import { BridgeDomainService } from './bridge-domain/bridge-domain.service';
 import { ContainersModalComponent } from './shared/modals/containers-modal/containers-modal.component';
+import { ServicesTopologyService } from './shared/sidepanel/services/services-topology.service';
 
 @NgModule({
   declarations: [
     AppComponent,
     KubernetesComponent,
     PodNetworkComponent,
-    ManagerComponent,
     VppComponent,
     TerminalComponent,
     PodsComponent,
@@ -102,7 +101,8 @@ import { ContainersModalComponent } from './shared/modals/containers-modal/conta
     LayoutService,
     ModalService,
     VswitchDiagramService,
-    BridgeDomainService
+    BridgeDomainService,
+    ServicesTopologyService
   ],
   bootstrap: [AppComponent]
 })

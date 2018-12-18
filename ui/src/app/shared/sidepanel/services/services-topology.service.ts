@@ -1,17 +1,17 @@
 import { Injectable } from '@angular/core';
-import { K8sNodeModel } from '../shared/models/k8s/k8s-node-model';
-import { K8sPodModel } from '../shared/models/k8s/k8s-pod-model';
-import { NodeData } from '../d3-topology/topology/topology-data/interfaces/node-data';
-import { EdgeData } from '../d3-topology/topology/topology-data/interfaces/edge-data';
-import { ContivDataModel } from '../shared/models/contiv-data-model';
-import { LayoutService } from '../shared/services/layout.service';
-import { TopologyType } from '../shared/interfaces/topology-type';
-import { TopoColors } from '../shared/constants/topo-colors';
+import { ContivDataModel } from '../../models/contiv-data-model';
+import { NodeData } from '../../../d3-topology/topology/topology-data/interfaces/node-data';
+import { EdgeData } from '../../../d3-topology/topology/topology-data/interfaces/edge-data';
+import { TopologyType } from '../../interfaces/topology-type';
+import { K8sNodeModel } from '../../models/k8s/k8s-node-model';
+import { TopoColors } from '../../constants/topo-colors';
+import { K8sPodModel } from '../../models/k8s/k8s-pod-model';
+import { LayoutService } from '../../services/layout.service';
 
 @Injectable({
   providedIn: 'root'
 })
-export class K8sTopologyService {
+export class ServicesTopologyService {
 
   constructor(
     private layoutService: LayoutService
@@ -22,7 +22,7 @@ export class K8sTopologyService {
     const nodesTopoData = this.createNodes(data);
     const linksTopoData = this.createLinks(data);
 
-    return {nodes: nodesTopoData, links: linksTopoData, type: 'k8s'};
+    return {nodes: nodesTopoData, links: linksTopoData, type: 'svc'};
   }
 
   private createNodes(data: ContivDataModel): NodeData[] {
@@ -50,7 +50,7 @@ export class K8sTopologyService {
   }
 
   private createTopologyNode(node: K8sNodeModel): NodeData {
-    const savedPosition = this.layoutService.getSavedPosition(node.name, 'k8s');
+    const savedPosition = this.layoutService.getSavedPosition(node.name, 'svc');
     const position = savedPosition ? savedPosition : this.layoutService.getNodePosition(node);
     return {
       id: node.name,
@@ -64,7 +64,7 @@ export class K8sTopologyService {
   }
 
   private createTopologyVswitch(vswitch: K8sPodModel): NodeData {
-    const savedPosition = this.layoutService.getSavedPosition(vswitch.name, 'k8s');
+    const savedPosition = this.layoutService.getSavedPosition(vswitch.name, 'svc');
     const position = savedPosition ? savedPosition : this.layoutService.getVswitchPosition(vswitch);
     const node: NodeData = {
       id: vswitch.name,
@@ -81,7 +81,7 @@ export class K8sTopologyService {
   }
 
   private createTopologyPod(pod: K8sPodModel): NodeData {
-    const savedPosition = this.layoutService.getSavedPosition(pod.name, 'k8s');
+    const savedPosition = this.layoutService.getSavedPosition(pod.name, 'svc');
     const position = savedPosition ? savedPosition : this.layoutService.getPodPosition(pod);
     const node: NodeData = {
       id: pod.name,
@@ -97,7 +97,7 @@ export class K8sTopologyService {
   }
 
   private createTopologyVppPod(pod: K8sPodModel, vswitch: NodeData): NodeData {
-    const savedPosition = this.layoutService.getSavedPosition(pod.name, 'k8s');
+    const savedPosition = this.layoutService.getSavedPosition(pod.name, 'svc');
     const position = savedPosition ? savedPosition : this.layoutService.getPodPosition(pod);
     const node: NodeData = {
       id: pod.name,

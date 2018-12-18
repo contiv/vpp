@@ -6,7 +6,6 @@ import { AppConfig } from 'src/app/app-config';
 import { DataService } from '../../services/data.service';
 import { K8sEndpointModel } from '../../models/k8s/k8s-endpoint-model';
 import { TopologyHighlightService } from '../../../d3-topology/topology-viz/topology-highlight.service';
-import { K8sTopologyService } from '../../../kubernetes/k8s-topology.service';
 import { TopologyService } from '../../../d3-topology/topology/topology.service';
 import { TopologyDataModel } from '../../../d3-topology/topology/topology-data/models/topology-data-model';
 import { NodeClickEvent } from '../../../d3-topology/topology/interfaces/events/node-click-event';
@@ -17,6 +16,8 @@ import { SvgTransform } from '../../../d3-topology/topology/interfaces/svg-trans
 import { ModalService } from '../../services/modal.service';
 import { VppService } from '../../services/vpp.service';
 import { K8sNodeModel } from '../../models/k8s/k8s-node-model';
+import { ServicesTopologyService } from './services-topology.service';
+import { LayoutService } from '../../services/layout.service';
 
 @Component({
   selector: 'app-services',
@@ -42,10 +43,11 @@ export class ServicesComponent implements OnInit, OnDestroy {
     private k8sService: KubernetesService,
     private dataService: DataService,
     private topologyHighlightService: TopologyHighlightService,
-    private k8sTopologyService: K8sTopologyService,
+    private servicesTopologyService: ServicesTopologyService,
     private topologyService: TopologyService,
     private modalService: ModalService,
-    private vppService: VppService
+    private vppService: VppService,
+    private layoutService: LayoutService
   ) { }
 
   ngOnInit() {
@@ -99,7 +101,7 @@ export class ServicesComponent implements OnInit, OnDestroy {
 
     this.subscriptions.push(this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
       if (dataLoaded) {
-        this.topoData = this.k8sTopologyService.getTopologyData(this.dataService.contivData);
+        this.topoData = this.servicesTopologyService.getTopologyData(this.dataService.contivData);
 
         const topo: TopologyDataModel = new TopologyDataModel();
         topo.setData(this.topoData.nodes, this.topoData.links);
@@ -121,6 +123,10 @@ export class ServicesComponent implements OnInit, OnDestroy {
         s.addresses.forEach(a => this.topologyHighlightService.highlightNode(a.podName));
       }
     });
+  }
+
+  public onPositionChange(topologyData: TopologyDataModel) {
+    this.layoutService.saveNodesPositions('svc-topo', topologyData);
   }
 
   public highlightEndpoint(podId: string) {

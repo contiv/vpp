@@ -194,7 +194,8 @@
                     [svgTransform]="svgTransform"
                     (nodeClicked)="onNodeClicked($event)"
                     (svgClicked)="onSvgClicked($event)"
-                    (topologyRendered)="onRender($event)">
+                    (topologyRendered)="onRender($event)"
+                    (positionsChanged)="onPositionChange($event)">
   </app-topology-viz>
 
   <div class="s-btn-group" [ngClass]="{'hidden': !shownTopology}">

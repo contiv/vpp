@@ -36,6 +36,7 @@
                     (svgClicked)="onSvgClicked($event)"
                     (transform)="onTransform($event)"
                     (topologyRendered)="onRender($event)"
+                    (positionsChanged)="onPositionChange($event)"
                     [ngClass]="{'dragging': isDragging}">
   </app-topology-viz>
 

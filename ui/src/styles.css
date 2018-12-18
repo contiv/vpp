@@ -14,7 +14,7 @@ body {
   outline: 0 !important;
 }
 
-clr-dropdown:focus, .btn:focus {
+clr-dropdown:focus, .btn:focus, clr-icon:focus {
   outline: 0;
 }
 
@@ -116,4 +116,9 @@ a, button {
 
 .dropdown-header {
   padding: 7px 0.5rem !important;
+}
+
+.hidden {
+  opacity: 0;
+  pointer-events: none;
 }

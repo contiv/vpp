@@ -15,6 +15,7 @@ import { SvgTransform } from '../d3-topology/topology/interfaces/svg-transform';
 import { TopologyDataModel } from '../d3-topology/topology/topology-data/models/topology-data-model';
 import { TopologyType } from '../shared/interfaces/topology-type';
 import { K8sNamespaceModel } from '../shared/models/k8s/k8s-namespace-model';
+import { LayoutService } from '../shared/services/layout.service';
 
 @Component({
   selector: 'app-kubernetes',
@@ -39,7 +40,8 @@ export class KubernetesComponent implements OnInit, OnDestroy {
     private topologyService: TopologyService,
     private sidepanelService: SidepanelService,
     private topologyHighlightService: TopologyHighlightService,
-    private modalService: ModalService
+    private modalService: ModalService,
+    private layoutService: LayoutService
   ) { }
 
   ngOnInit() {
@@ -108,6 +110,10 @@ export class KubernetesComponent implements OnInit, OnDestroy {
 
   public onRender() {
     this.topologyHighlightService.setLayer(this.layerType, this.topoData.type);
+  }
+
+  public onPositionChange(topologyData: TopologyDataModel) {
+    this.layoutService.saveNodesPositions('k8s-topo', topologyData);
   }
 
   public highlightNamespace(namespace: string, i: number) {

@@ -1,5 +1,7 @@
 # Contiv VPP UI
 
+Project page: https://contivpp.io/
+
 This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 7.0.2.
 
 ## Start App
@@ -8,9 +10,9 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 
 - Google Chrome - running with [disabled web security](https://stackoverflow.com/questions/3102819/disable-same-origin-policy-in-chrome) (Important for accessing the APIs).
     ##### -Command in OSX:
-    Open -n -a Google\ Chrome --args --disable-web-security --user-data-dir=/tmp/chrome
+    Open -n -a "Google Chrome" --args --disable-web-security --user-data-dir=/tmp/chrome http://localhost:4300
     ##### -Command in Windows:
-    In the "Run" app, enter: chrome.exe --user-data-dir="C://Chrome dev session" --disable-web-security
+    In the "Run" app, enter: chrome.exe --user-data-dir="C://Chrome dev session" --disable-web-security http://localhost:4300
     ##### -Command in Linux:
     google-chrome --user-data-dir="/var/tmp/Chrome" --disable-web-security "http://localhost:4300"
 

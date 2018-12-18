@@ -19,7 +19,7 @@ RUN if [ -n "$VPP_INSTALL_PKG" ]; then \
 COPY / /root/go/src/github.com/contiv/vpp
 
 # install Go
-ENV GOLANG_VERSION 1.10.4
+ENV GOLANG_VERSION 1.10.7
 RUN if [ -n "$VPP_INSTALL_PKG" ]; then \
  wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-arm64.tar.gz" \
  && tar -C /usr/local -xzf go.tgz \

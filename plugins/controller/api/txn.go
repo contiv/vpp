@@ -25,7 +25,7 @@ type Transaction interface {
 	UpdateOperations
 
 	// Commit applies the requested transaction changes.
-	Commit(ctx context.Context) error
+	Commit(ctx context.Context) (seqNum int, err error)
 }
 
 // ResyncOperations lists operations needed to build transaction for Resync-type events.

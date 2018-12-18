@@ -121,7 +121,7 @@ func (h *ExampleEventHandler) HandlesEvent(event api.Event) bool {
 // re-synchronization.
 // For startup resync, resyncCount is 1. Higher counter values identify
 // run-time resync.
-func (h *ExampleEventHandler) Resync(event api.Event, txn api.ResyncOperations, kubeStateData api.KubeStateData, resyncCount int) error {
+func (h *ExampleEventHandler) Resync(event api.Event, kubeStateData api.KubeStateData, resyncCount int, txn api.ResyncOperations) error {
 	fmt.Printf("Handler '%s' received Resync no. %d for event '%s'\n", h.String(), resyncCount, event.GetName())
 	return nil
 }

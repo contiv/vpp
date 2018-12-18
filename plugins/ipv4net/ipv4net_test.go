@@ -446,7 +446,8 @@ func commitTransaction(txn controller.Transaction, isResync bool) error {
 	if isResync {
 		ctx = scheduler.WithResync(ctx, scheduler.FullResync, true)
 	}
-	return txn.Commit(ctx)
+	_, err := txn.Commit(ctx)
+	return err
 }
 
 // requestSTNInfo is a factory for contivconf.RequestSTNInfoClb

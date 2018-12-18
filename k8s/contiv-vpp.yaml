@@ -48,6 +48,8 @@ data:
     delayLocalResync: 5000000000
     enablePeriodicHealing: false
     periodicHealingInterval: 30000000000
+    recordEventHistory: true
+    eventHistoryAgeLimit: 1440
   service.conf: |
     cleanupIdleNATSessions: true
     tcpNATSessionTimeout: 180

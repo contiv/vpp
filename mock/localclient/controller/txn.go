@@ -14,6 +14,7 @@ import (
 
 // MockControllerTxn is a mock implementation of the Transaction interface from Controller.
 type MockControllerTxn struct {
+	seqNum     int
 	Values     controller.KeyValuePairs
 	commitFunc CommitFunc
 }
@@ -23,15 +24,16 @@ type MockControllerTxn struct {
 type CommitFunc = func(values map[string]proto.Message) error
 
 // NewMockControllerTxn is a constructor for mock Controller Txn.
-func NewMockControllerTxn(commitFunc CommitFunc) *MockControllerTxn {
+func NewMockControllerTxn(seqNum int, commitFunc CommitFunc) *MockControllerTxn {
 	return &MockControllerTxn{
+		seqNum:     seqNum,
 		Values:     make(controller.KeyValuePairs),
 		commitFunc: commitFunc,
 	}
 }
 
 // Commit applies the requested transaction changes.
-func (m *MockControllerTxn) Commit(ctx context.Context) error {
+func (m *MockControllerTxn) Commit(ctx context.Context) (seqNum int, err error) {
 	resyncType, _ := scheduler_api.IsResync(ctx)
 	isResync := resyncType != scheduler_api.NotResync
 	description, withDescription := scheduler_api.IsWithDescription(ctx)
@@ -60,7 +62,7 @@ func (m *MockControllerTxn) Commit(ctx context.Context) error {
 		fmt.Printf("      value: %s\n", valueStr)
 	}
 
-	return m.commitFunc(m.Values)
+	return m.seqNum, m.commitFunc(m.Values)
 }
 
 // Put add request to the transaction to add or modify a value.

@@ -15,7 +15,10 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/unrolled/render"
 )
@@ -26,6 +29,20 @@ const (
 
 	// eventHistoryURL is URL used to obtain the event history.
 	eventHistoryURL = urlPrefix + "event-history"
+
+	// event-history arguments (by precedence):
+	//   * seq-num
+	//   * since - until (Unix timestamps)
+	//   * from - to (sequence numbers)
+	//   * first (max. number of oldest records to return)
+	//   * last (max. number of latest records to return)
+	seqNumArg = "seq-num"
+	sinceArg  = "since"
+	untilArg  = "until"
+	fromArg   = "from"
+	toArg     = "to"
+	firstArg  = "first"
+	lastArg   = "last"
 
 	// resyncURL is URL used to trigger DB resync.
 	resyncURL = urlPrefix + "resync"
@@ -52,6 +69,97 @@ func (c *Controller) eventHistoryGetHandler(formatter *render.Render) http.Handl
 	return func(w http.ResponseWriter, req *http.Request) {
 		c.historyLock.Lock()
 		defer c.historyLock.Unlock()
+
+		timeParams := make(map[string]time.Time)
+		intParams := make(map[string]int)
+		args := req.URL.Query()
+
+		// parse optional integer parameters
+		for _, intParam := range []string{seqNumArg, fromArg, toArg, firstArg, lastArg} {
+			if param, withParam := args[intParam]; withParam && len(param) == 1 {
+				value, err := strconv.Atoi(param[0])
+				if err != nil {
+					formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+					return
+				}
+				intParams[intParam] = value
+			}
+		}
+
+		// parse optional time parameters
+		for _, timeParam := range []string{sinceArg, untilArg} {
+			if param, withParam := args[timeParam]; withParam && len(param) == 1 {
+				value, err := stringToTime(param[0])
+				if err != nil {
+					formatter.JSON(w, http.StatusInternalServerError, errorString{err.Error()})
+					return
+				}
+				timeParams[timeParam] = value
+			}
+		}
+
+		// handle seq-num argument
+		if seqNum, hasSeqNum := intParams[seqNumArg]; hasSeqNum {
+			var evRecord *EventRecord
+			for _, event := range c.eventHistory {
+				if event.SeqNum == uint64(seqNum) {
+					evRecord = event
+					break
+				}
+			}
+			if evRecord == nil {
+				err := errors.New("event with such sequence number is not recorded")
+				formatter.JSON(w, http.StatusNotFound, errorString{err.Error()})
+				return
+			}
+			formatter.JSON(w, http.StatusOK, evRecord)
+			return
+		}
+
+		// handle *since-until* arguments
+		since, hasSince := timeParams[sinceArg]
+		until, hasUntil := timeParams[untilArg]
+		if hasSince || hasUntil {
+			evHistory := c.getEventHistory(since, until)
+			formatter.JSON(w, http.StatusOK, evHistory)
+			return
+		}
+
+		// handle *from-to* arguments
+		from, hasFrom := intParams[fromArg]
+		to, hasTo := intParams[toArg]
+		if hasFrom && hasTo {
+			var evHistory []*EventRecord
+			for _, event := range c.eventHistory {
+				if event.SeqNum >= uint64(from) && event.SeqNum <= uint64(to) {
+					evHistory = append(evHistory, event)
+				}
+			}
+			formatter.JSON(w, http.StatusOK, evHistory)
+			return
+		}
+
+		// handle *first* argument
+		if first, hasFirst := intParams[firstArg]; hasFirst {
+			historyLen := len(c.eventHistory)
+			if historyLen < first {
+				first = historyLen
+			}
+			formatter.JSON(w, http.StatusOK, c.eventHistory[:first])
+			return
+		}
+
+		// handle *last* argument
+		if last, hasLast := intParams[lastArg]; hasLast {
+			historyLen := len(c.eventHistory)
+			if historyLen < last {
+				last = historyLen
+			}
+			formatter.JSON(w, http.StatusOK, c.eventHistory[historyLen-last:])
+			return
+		}
+
+		// full history
 		formatter.JSON(w, http.StatusOK, c.eventHistory)
 	}
 }
@@ -66,4 +174,13 @@ func (c *Controller) resyncReqHandler(formatter *render.Render) http.HandlerFunc
 		}
 		formatter.JSON(w, http.StatusOK, "Resync request was successfully dispatched.")
 	}
+}
+
+// stringToTime converts Unix timestamp from string to time.Time.
+func stringToTime(s string) (time.Time, error) {
+	sec, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Unix(sec, 0), nil
 }

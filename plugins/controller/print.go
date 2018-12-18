@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/contiv/vpp/plugins/controller/api"
 )
@@ -77,8 +78,10 @@ func (c *Controller) printFinalizedEvent(eventRec *EventRecord) {
 		evDesc, eventSeqNumToStr(eventRec.SeqNum)))
 
 	if len(handledBy) > 0 {
-		buf.WriteString(fmt.Sprintf("*   HANDLED BY: %-112s *\n",
-			strings.Join(handledBy, ", ")))
+		duration := fmt.Sprintf("took %v",
+			eventRec.ProcessingEnd.Sub(eventRec.ProcessingStart).Round(time.Millisecond))
+		buf.WriteString(fmt.Sprintf("*   HANDLED BY: %-91s %20s *\n",
+			strings.Join(handledBy, ", "), duration))
 	}
 
 	if hasErrors {

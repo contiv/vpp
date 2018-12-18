@@ -14,13 +14,6 @@
 
 package api
 
-import (
-	"fmt"
-	"strings"
-
-	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
-)
-
 /********************************* Fatal Error ********************************/
 
 // FatalError tells Controller to abort the event loop and stop the agent
@@ -66,53 +59,4 @@ func (e *AbortEventError) Error() string {
 // GetOriginalError returns the underlying error.
 func (e *AbortEventError) GetOriginalError() error {
 	return e.origErr
-}
-
-/****************************** Transaction Error *****************************/
-
-// TransactionError implements Error interface, wrapping all errors returned
-// from KVScheduler.Commit().
-type TransactionError struct {
-	txnError error
-	kvErrors []scheduler_api.KeyWithError
-}
-
-// NewTransactionError is a constructor for transaction error.
-func NewTransactionError(txnError error, kvErrors []scheduler_api.KeyWithError) *TransactionError {
-	return &TransactionError{txnError: txnError, kvErrors: kvErrors}
-}
-
-// Error returns a string representation of all errors returned by KVScheduler.Commit().
-func (e *TransactionError) Error() string {
-	if e == nil {
-		return ""
-	}
-	if e.txnError != nil {
-		return e.txnError.Error()
-	}
-	if len(e.kvErrors) > 0 {
-		var kvErrMsgs []string
-		for _, kvError := range e.kvErrors {
-			kvErrMsgs = append(kvErrMsgs,
-				fmt.Sprintf("%s (%v): %v", kvError.Key, kvError.TxnOperation, kvError.Error))
-			return fmt.Sprintf("failed key-value pairs: [%s]", strings.Join(kvErrMsgs, ", "))
-		}
-	}
-	return ""
-}
-
-// GetKVErrors returns errors for key-value pairs that failed to get applied.
-func (e *TransactionError) GetKVErrors() (kvErrors []scheduler_api.KeyWithError) {
-	if e == nil {
-		return kvErrors
-	}
-	return e.kvErrors
-}
-
-// GetTxnError returns error associated with transaction processing.
-func (e *TransactionError) GetTxnError() error {
-	if e == nil {
-		return nil
-	}
-	return e.txnError
 }

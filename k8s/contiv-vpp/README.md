@@ -94,6 +94,8 @@ Parameter | Description | Default
 `controller.delayLocalResync` | how long to wait for etcd connection before using bolt DB as a fallback for startup resync | `5000000000`
 `controller.enablePeriodicHealing` | enable periodic resync | `False`
 `controller.periodicHealingInterval` | periodic resync time interval in nanoseconds | `30000000000`
+`controller.recordEventHistory` | enable recording of processed events | `True`
+`controller.eventHistoryAgeLimit` | event records older than the given age limit (in minutes) are periodically trimmed from the history | `1440`
 `cni.image.repository` | cni container image repository | `contivvpp/cni`
 `cni.image.tag`| cni container image tag | `latest`
 `cni.image.pullPolicy` | cni container image pull policy | `IfNotPresent`

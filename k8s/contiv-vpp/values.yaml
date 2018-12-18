@@ -61,6 +61,8 @@ controller:
   delayLocalResync: 5000000000
   enablePeriodicHealing: false
   periodicHealingInterval: 30000000000
+  recordEventHistory: true
+  eventHistoryAgeLimit: 1440
 
 
 # ETCD server to be used by Contiv

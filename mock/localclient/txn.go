@@ -21,6 +21,8 @@ import (
 type TxnTracker struct {
 	// lock allows to use the same mock localclient from multiple go routines.
 	lock sync.Mutex
+	// next transaction sequence number
+	txnSeqNum int
 	// LatestRevisions maintains the map of keys & values with revision.
 	LatestRevisions *syncbase.PrevRevisions
 	// CommittedTxns is a list finalized transaction in the order as they were
@@ -135,7 +137,7 @@ func (t *TxnTracker) NewControllerTxn(isResync bool) *mockcontroller.MockControl
 		dsl := mocklinux.NewMockDataChangeDSL(nil)
 		txn.LinuxDataChangeTxn = dsl
 	}
-	controllerTxn := mockcontroller.NewMockControllerTxn(
+	controllerTxn := mockcontroller.NewMockControllerTxn(t.txnSeqNum,
 		func(values map[string]proto.Message) error {
 			// convert Controller txn into localclient txn
 			if isResync {
@@ -145,6 +147,7 @@ func (t *TxnTracker) NewControllerTxn(isResync bool) *mockcontroller.MockControl
 			txn.LinuxDataChangeTxn.Values = values
 			return t.commit(txn, t.applyDataChangeTxnOps, values)
 		})
+	t.txnSeqNum++
 	t.PendingTxns[txn] = struct{}{}
 	return controllerTxn
 }

@@ -102,6 +102,8 @@ data:
     delayLocalResync: {{ .Values.controller.delayLocalResync | int64 }}
     enablePeriodicHealing: {{ .Values.controller.enablePeriodicHealing }}
     periodicHealingInterval: {{ .Values.controller.periodicHealingInterval | int64 }}
+    recordEventHistory: {{ .Values.controller.recordEventHistory }}
+    eventHistoryAgeLimit: {{ .Values.controller.eventHistoryAgeLimit }}
   service.conf: |
     {{- if .Values.contiv.cleanupIdleNATSessions }}
     cleanupIdleNATSessions: true

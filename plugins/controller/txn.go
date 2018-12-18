@@ -52,7 +52,7 @@ func newTransaction(kvScheduler scheduler_api.KVScheduler) *kvSchedulerTxn {
 }
 
 // Commit applies the requested transaction changes.
-func (txn *kvSchedulerTxn) Commit(ctx context.Context) error {
+func (txn *kvSchedulerTxn) Commit(ctx context.Context) (seqNum int, err error) {
 	schedTxn := txn.kvScheduler.StartNBTransaction()
 	for key, value := range txn.values {
 		if value != nil {
@@ -66,11 +66,7 @@ func (txn *kvSchedulerTxn) Commit(ctx context.Context) error {
 	for key, lazyVal := range txn.merged {
 		schedTxn.SetValue(key, lazyVal)
 	}
-	kvErrors, txnError := schedTxn.Commit(ctx)
-	if txnError != nil || len(kvErrors) > 0 {
-		return api.NewTransactionError(txnError, kvErrors)
-	}
-	return nil
+	return schedTxn.Commit(ctx)
 }
 
 // Put add request to the transaction to add or modify a value.

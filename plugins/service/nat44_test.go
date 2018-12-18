@@ -119,7 +119,7 @@ func commitTxn() error {
 	if isResync {
 		ctx = scheduler.WithResync(ctx, scheduler.FullResync, true)
 	}
-	err := vppTxn.Commit(ctx)
+	_, err := vppTxn.Commit(ctx)
 	vppTxn = nil
 	changes = ""
 	return err

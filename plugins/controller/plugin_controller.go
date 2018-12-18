@@ -42,6 +42,9 @@ const (
 	// how many events can be buffered at most
 	eventQueueSize = 1000
 
+	// how often the event history gets trimmed to remove records too old to keep
+	eventHistoryTrimmingPeriod = 1 * time.Minute
+
 	// by default, dbwatcher waits 5 seconds for connection to remoteDB
 	// to be established before falling back to local DB resync
 	// (but only if local DB is not empty)
@@ -71,6 +74,12 @@ const (
 
 	// by default, healing resync will start 5 seconds after a failed event processing
 	defaultDelayAfterErrorHealing = 5 * time.Second
+
+	// by default, a history of processed events is recorded
+	defaultRecordEventHistory = true
+
+	// by default, only events processed in the last 24 hours are kept recorded
+	defaultEventHistoryAgeLimit = 24 * 60 // in minutes
 )
 
 // Controller implements single event loop for Contiv.
@@ -130,12 +139,13 @@ type Controller struct {
 	externalConfig api.ExternalConfig
 	internalConfig api.KeyValuePairs
 
-	evLoopGID          string // ID of the go routine running the event loop
-	revEventHandlers   []api.EventHandler
-	delayedEvents      []*QueuedEvent // events delayed until after the first resync
-	eventQueue         chan *QueuedEvent
-	followUpEventQueue chan *QueuedEvent // events sent from within the event loop
-	startupResyncCheck chan struct{}
+	evLoopGID            string // ID of the go routine running the event loop
+	revEventHandlers     []api.EventHandler
+	delayedEvents        []*QueuedEvent // events delayed until after the first resync
+	eventQueue           chan *QueuedEvent
+	followUpEventQueue   chan *QueuedEvent // events sent from within the event loop
+	startupResyncCheck   chan struct{}
+	eventHistoryTrimming chan struct{}
 
 	healingScheduled bool
 	resyncCount      int
@@ -183,19 +193,26 @@ type Config struct {
 
 	// remote DB status
 	RemoteDBProbingInterval time.Duration `json:"remoteDBProbingInterval"`
+
+	// event history
+	RecordEventHistory   bool   `json:"recordEventHistory"`
+	EventHistoryAgeLimit uint32 `json:"eventHistoryAgeLimit"`
 }
 
 // EventRecord is a record of a processed event, added into the history of events,
 // available via REST interface.
 type EventRecord struct {
-	SeqNum      uint64
-	IsFollowUp  bool
-	FollowUpTo  uint64
-	Name        string
-	Description string
-	Method      api.EventMethodType
-	Handlers    []*EventHandlingRecord
-	TxnError    error
+	SeqNum          uint64
+	ProcessingStart time.Time
+	ProcessingEnd   time.Time
+	IsFollowUp      bool
+	FollowUpTo      uint64
+	Name            string
+	Description     string
+	Method          api.EventMethodType
+	Handlers        []*EventHandlingRecord
+	TxnError        error
+	Txn             *scheduler.RecordedTxn
 }
 
 // EventHandlingRecord is a record of an event being handled by a given handler.
@@ -231,6 +248,7 @@ func (c *Controller) Init() error {
 	c.eventQueue = make(chan *QueuedEvent, eventQueueSize)
 	c.followUpEventQueue = make(chan *QueuedEvent, eventQueueSize)
 	c.startupResyncCheck = make(chan struct{}, 1)
+	c.eventHistoryTrimming = make(chan struct{}, 1)
 	c.internalConfig = make(api.KeyValuePairs)
 	for i := len(c.EventHandlers) - 1; i >= 0; i-- {
 		c.revEventHandlers = append(c.revEventHandlers, c.EventHandlers[i])
@@ -247,6 +265,8 @@ func (c *Controller) Init() error {
 		EnablePeriodicHealing:   defaultEnablePeriodicHealing,
 		PeriodicHealingInterval: defaultPeriodicHealingInterval,
 		DelayAfterErrorHealing:  defaultDelayAfterErrorHealing,
+		RecordEventHistory:      defaultRecordEventHistory,
+		EventHistoryAgeLimit:    defaultEventHistoryAgeLimit,
 	}
 
 	// load configuration
@@ -270,6 +290,13 @@ func (c *Controller) Init() error {
 	// resync when timeout expires
 	c.wg.Add(1)
 	go c.signalStartupResyncCheck()
+
+	// start go routine that will be sending signals to remove event records
+	// too old to keep
+	if c.config.RecordEventHistory {
+		c.wg.Add(1)
+		go c.signalEventHistoryTrimming()
+	}
 
 	// register REST API handlers
 	c.registerHandlers()
@@ -337,6 +364,21 @@ func (c *Controller) signalStartupResyncCheck() {
 	}
 }
 
+// signalEventHistoryTrimming periodically sends signal to remove event records
+// too old to keep.
+func (c *Controller) signalEventHistoryTrimming() {
+	defer c.wg.Done()
+
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-time.After(eventHistoryTrimmingPeriod):
+			c.eventHistoryTrimming <- struct{}{}
+		}
+	}
+}
+
 // periodicHealing triggers periodic resync from a separate go routine.
 func (c *Controller) periodicHealing() {
 	defer c.wg.Done()
@@ -392,6 +434,20 @@ func (c *Controller) eventLoop() {
 					de.event.Done(ErrEventLoopIsAborting)
 				}
 			}
+
+		case <-c.eventHistoryTrimming:
+			c.historyLock.Lock()
+			now := time.Now()
+			ageLimit := time.Duration(c.config.EventHistoryAgeLimit) * time.Minute
+			var i int
+			for i = 0; i < len(c.eventHistory); i++ {
+				elapsed := now.Sub(c.eventHistory[i].ProcessingEnd)
+				if elapsed <= ageLimit {
+					break
+				}
+			}
+			c.eventHistory = c.eventHistory[i:]
+			c.historyLock.Unlock()
 		}
 	}
 }
@@ -530,12 +586,13 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 
 	// 5. prepare record of the event for the history
 	evRecord := &EventRecord{
-		SeqNum:      c.evSeqNum,
-		IsFollowUp:  qe.isFollowUp,
-		FollowUpTo:  qe.followUpToEvent,
-		Name:        event.GetName(),
-		Description: event.String(),
-		Method:      event.Method(),
+		SeqNum:          c.evSeqNum,
+		ProcessingStart: time.Now(),
+		IsFollowUp:      qe.isFollowUp,
+		FollowUpTo:      qe.followUpToEvent,
+		Name:            event.GetName(),
+		Description:     event.String(),
+		Method:          event.Method(),
 	}
 	c.evSeqNum++
 
@@ -667,19 +724,26 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		}
 
 		// commit transaction to vpp-agent
-		err := txn.Commit(ctx)
+		txnSeqNum, err := txn.Commit(ctx)
 		c.Log.Debugf("Transaction commit result: err=%v", err)
+
+		// handle transaction error
 		evRecord.TxnError = err
 		if err != nil {
 			wasErr = err
 			if !withRevert {
-				if c.onlyExtConfigFailed(err.(*api.TransactionError), txn.values) {
+				if c.onlyExtConfigFailed(err.(*scheduler.TransactionError), txn.values) {
 					c.Log.Debug("Only external configuration caused the transaction to fail - " +
 						"not scheduling Healing resync")
 				} else {
 					needsHealing = true
 				}
 			}
+		}
+
+		// append transaction to the event record
+		if txnSeqNum != -1 {
+			evRecord.Txn = c.Scheduler.GetRecordedTransaction(uint(txnSeqNum))
 		}
 
 		// update Controller's view of internal configuration
@@ -729,10 +793,13 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 	}
 
 	// 11. finalize event processing
+	evRecord.ProcessingEnd = time.Now()
 	c.printFinalizedEvent(evRecord)
-	c.historyLock.Lock()
-	c.eventHistory = append(c.eventHistory, evRecord)
-	c.historyLock.Unlock()
+	if c.config.RecordEventHistory {
+		c.historyLock.Lock()
+		c.eventHistory = append(c.eventHistory, evRecord)
+		c.historyLock.Unlock()
+	}
 	event.Done(wasErr)
 
 	// 12. if Healing/AfterError resync has failed -> report error to status check
@@ -755,8 +822,8 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 
 // onlyExtConfigFailed returns true if external input caused the transaction
 // to fail and not the internal configuration.
-func (c *Controller) onlyExtConfigFailed(txnErr *api.TransactionError, txnInternalValues api.KeyValuePairs) bool {
-	if txnErr.GetTxnError() != nil {
+func (c *Controller) onlyExtConfigFailed(txnErr *scheduler.TransactionError, txnInternalValues api.KeyValuePairs) bool {
+	if txnErr.GetTxnInitError() != nil {
 		return false
 	}
 	for _, kv := range txnErr.GetKVErrors() {
@@ -768,6 +835,37 @@ func (c *Controller) onlyExtConfigFailed(txnErr *api.TransactionError, txnIntern
 		}
 	}
 	return true
+}
+
+// getEventHistory returns history of events run within the specified
+// time window, or the full recorded history if the timestamps are zero values.
+// The method assumes that historyLock is being held.
+func (c *Controller) getEventHistory(since, until time.Time) (history []*EventRecord) {
+	if !since.IsZero() && !until.IsZero() && until.Before(since) {
+		// invalid time window
+		return
+	}
+
+	lastBefore := -1
+	firstAfter := len(c.eventHistory)
+
+	if !since.IsZero() {
+		for ; lastBefore+1 < len(c.eventHistory); lastBefore++ {
+			if !c.eventHistory[lastBefore+1].ProcessingEnd.Before(since) {
+				break
+			}
+		}
+	}
+
+	if !until.IsZero() {
+		for ; firstAfter > 0; firstAfter-- {
+			if !c.eventHistory[firstAfter-1].ProcessingStart.After(until) {
+				break
+			}
+		}
+	}
+
+	return c.eventHistory[lastBefore+1 : firstAfter]
 }
 
 // Close stops event loop and database watching.

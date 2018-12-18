@@ -15,6 +15,7 @@ import { VppTopoBvi } from '../topology/topology-data/models/nodes/vpp-topo-bvi'
 
 import * as d3 from 'd3';
 import { K8sTopoNode } from '../topology/topology-data/models/nodes/k8s-topo-node';
+import { TopologyDataModel } from '../topology/topology-data/models/topology-data-model';
 
 @Component({
   selector: 'app-topology-viz',
@@ -36,6 +37,7 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
   @Output() svgClicked = new EventEmitter<boolean>();
   @Output() transform = new EventEmitter<SvgTransform>();
   @Output() topologyRendered = new EventEmitter<boolean>();
+  @Output() positionsChanged = new EventEmitter<TopologyDataModel>();
 
   private svg: d3.Selection<SVGSVGElement, {}, null, undefined>;
   private dropNode: NodeDataModel;
@@ -246,6 +248,9 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
         return 'bvi' + d.id;
       });
 
+    bviData.attr('id', d => 'bvi' + d.id)
+      .attr('transform', (d) => 'translate(' + d.x + ',' + d.y + ')');
+
     const bviEnterG = bviData.enter().append<SVGGElement>('g')
       .attr('id', d => 'bvi' + d.id)
       .classed('bvi', true)
@@ -379,6 +384,8 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
 
       d3.select(this).classed('node-dragging', false);
       d3.selectAll('.link-dragging').classed('link-dragging', false);
+
+      self.positionsChanged.emit(self.topologyService.getTopologyData());
     };
   }
 

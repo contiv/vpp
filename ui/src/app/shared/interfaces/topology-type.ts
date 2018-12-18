@@ -1,1 +1,1 @@
-export type TopologyType = 'k8s' | 'vpp' | 'vswitch' | 'bd';
+export type TopologyType = 'k8s' | 'vpp' | 'vswitch' | 'bd' | 'svc';

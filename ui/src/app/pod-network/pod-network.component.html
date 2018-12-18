@@ -32,6 +32,7 @@
                     (svgClicked)="onSvgClicked($event)"
                     (transform)="onTransform($event)"
                     (topologyRendered)="onRender($event)"
+                    (positionsChanged)="onPositionChange($event)"
                     [ngClass]="{'dragging': isDragging}">
   </app-topology-viz>
   <div id="pod-network" class="sidepanel" [ngClass]="{'opened': isSidepanelOpen}">

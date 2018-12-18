@@ -5,7 +5,6 @@ import { PodNetworkComponent } from './pod-network/pod-network.component';
 import { NodesComponent } from './shared/sidepanel/nodes/nodes.component';
 import { PodsComponent } from './shared/sidepanel/pods/pods.component';
 import { NodeDetailComponent } from './shared/sidepanel/node-detail/node-detail.component';
-import { PoliciesComponent } from './shared/sidepanel/policies/policies.component';
 import { ServicesComponent } from './shared/sidepanel/services/services.component';
 import { PodDetailComponent } from './shared/sidepanel/pod-detail/pod-detail.component';
 import { BviDetailComponent } from './shared/sidepanel/bvi-detail/bvi-detail.component';

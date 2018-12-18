@@ -6,6 +6,8 @@ import { EdgeData } from '../../d3-topology/topology/topology-data/interfaces/ed
 import { ContivDataModel } from '../models/contiv-data-model';
 import { CoreService } from './core.service';
 import { TopoColors } from '../constants/topo-colors';
+import { TopologyDataModel } from '../../d3-topology/topology/topology-data/models/topology-data-model';
+import { Subject } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -13,6 +15,7 @@ import { TopoColors } from '../constants/topo-colors';
 export class LayoutService {
 
   public podCount = {};
+  public layoutChangeSubject: Subject<boolean> = new Subject<boolean>();
 
   constructor(
     private coreService: CoreService
@@ -97,6 +100,18 @@ export class LayoutService {
       case 'k8s-worker2':
         return {x: 12 * offsetX, y: 6.5 * offsetY};
     }
+  }
+
+  public getSavedPosition(id: string, type: string): {x: number, y: number} {
+    const data: {id: string, x: number, y: number}[] = JSON.parse(sessionStorage.getItem(type + '-topo'));
+
+    if (!data) {
+      return null;
+    }
+
+    const node = data.find(n => n.id === id);
+
+    return node ? {x: node.x, y: node.y} : null;
   }
 
   public connectNodes(data: ContivDataModel): EdgeData[] {
@@ -203,4 +218,22 @@ export class LayoutService {
 
     return vxlans.concat(pods);
   }
+
+  public saveNodesPositions(topologyType: string, topology: TopologyDataModel) {
+    const positions = topology.nodes.map(node => {
+      return {
+        id: node.id,
+        x: node.x,
+        y: node.y
+      };
+    });
+
+    sessionStorage.setItem(topologyType, JSON.stringify(positions));
+  }
+
+  public clearNodesPositions() {
+    sessionStorage.clear();
+    this.layoutChangeSubject.next(true);
+  }
+
 }

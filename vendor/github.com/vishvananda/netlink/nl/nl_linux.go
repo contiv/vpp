@@ -614,7 +614,7 @@ func (s *NetlinkSocket) Send(request *NetlinkRequest) error {
 	return nil
 }
 
-func (s *NetlinkSocket) Receive() ([]syscall.NetlinkMessage, error) {
+func (s *NetlinkSocket) Receive2() ([]syscall.NetlinkMessage, error) {
 	fd := int(atomic.LoadInt32(&s.fd))
 	if fd < 0 {
 		return nil, fmt.Errorf("Receive called on a closed socket")
@@ -629,6 +629,25 @@ func (s *NetlinkSocket) Receive() ([]syscall.NetlinkMessage, error) {
 	}
 	rb = rb[:nr]
 	return syscall.ParseNetlinkMessage(rb)
+}
+
+func (s *NetlinkSocket) Receive() ([]syscall.NetlinkMessage, error) {
+	fd := int(atomic.LoadInt32(&s.fd))
+	if fd < 0 {
+		return nil, fmt.Errorf("Receive called on a closed socket")
+	}
+	var rb [RECEIVE_BUFFER_SIZE]byte
+	nr, _, err := unix.Recvfrom(fd, rb[:], 0)
+	if err != nil {
+		return nil, err
+	}
+	//fmt.Printf("NetlinkSocket: Received %d bytes.\n", nr)
+	if nr < unix.NLMSG_HDRLEN {
+		return nil, fmt.Errorf("Got short response from netlink")
+	}
+	rb2 := make([]byte, nr)
+	copy(rb2, rb[:nr])
+	return syscall.ParseNetlinkMessage(rb2)
 }
 
 // SetSendTimeout allows to set a send timeout on the socket

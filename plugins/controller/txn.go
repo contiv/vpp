@@ -52,7 +52,7 @@ func newTransaction(kvScheduler scheduler_api.KVScheduler) *kvSchedulerTxn {
 }
 
 // Commit applies the requested transaction changes.
-func (txn *kvSchedulerTxn) Commit(ctx context.Context) (seqNum int, err error) {
+func (txn *kvSchedulerTxn) Commit(ctx context.Context) (seqNum uint64, err error) {
 	schedTxn := txn.kvScheduler.StartNBTransaction()
 	for key, value := range txn.values {
 		if value != nil {

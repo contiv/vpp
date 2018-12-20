@@ -22,7 +22,7 @@ type TxnTracker struct {
 	// lock allows to use the same mock localclient from multiple go routines.
 	lock sync.Mutex
 	// next transaction sequence number
-	txnSeqNum int
+	txnSeqNum uint64
 	// LatestRevisions maintains the map of keys & values with revision.
 	LatestRevisions *syncbase.PrevRevisions
 	// CommittedTxns is a list finalized transaction in the order as they were

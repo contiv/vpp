@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/ligato/vpp-agent/plugins/kvscheduler/internal/utils"
 )
 
@@ -28,8 +30,14 @@ import (
 type TxnType int
 
 const (
+	// SBNotification is notification from southbound.
 	SBNotification TxnType = iota
+
+	// NBTransaction is transaction from northbound.
 	NBTransaction
+
+	// RetryFailedOps is a transaction re-trying failed operations from previous
+	// northbound transaction.
 	RetryFailedOps
 )
 
@@ -55,7 +63,7 @@ type RecordedTxn struct {
 	Stop  time.Time
 
 	// arguments
-	SeqNum      uint
+	SeqNum      uint64
 	TxnType     TxnType
 	ResyncType  ResyncType
 	Description string
@@ -75,8 +83,8 @@ type RecordedTxnOp struct {
 	Derived   bool
 
 	// changes
-	PrevValue  string
-	NewValue   string
+	PrevValue  proto.Message
+	NewValue   proto.Message
 	PrevOrigin ValueOrigin
 	NewOrigin  ValueOrigin
 	WasPending bool
@@ -92,7 +100,7 @@ type RecordedTxnOp struct {
 // RecordedKVPair is used to record key-value pair.
 type RecordedKVPair struct {
 	Key    string
-	Value  string
+	Value  proto.Message
 	Origin ValueOrigin
 }
 
@@ -154,7 +162,7 @@ func (txn *RecordedTxn) StringWithOpts(resultOnly bool, indent int) string {
 				continue
 			}
 			str += indent3 + fmt.Sprintf("- key: %s\n", kv.Key)
-			str += indent3 + fmt.Sprintf("  value: %s\n", kv.Value)
+			str += indent3 + fmt.Sprintf("  value: %s\n", utils.ProtoToString(kv.Value))
 		}
 
 		// pre-processing errors
@@ -237,16 +245,16 @@ func (op *RecordedTxnOp) StringWithOpts(index int, indent int) string {
 	}
 
 	str += indent2 + fmt.Sprintf("- key: %s\n", op.Key)
-	showPrevForAdd := op.WasPending && op.PrevValue != op.NewValue
+	showPrevForAdd := op.WasPending && !proto.Equal(op.PrevValue, op.NewValue)
 	if op.Operation == Modify || (op.Operation == Add && showPrevForAdd) {
-		str += indent2 + fmt.Sprintf("- prev-value: %s \n", op.PrevValue)
-		str += indent2 + fmt.Sprintf("- new-value: %s \n", op.NewValue)
+		str += indent2 + fmt.Sprintf("- prev-value: %s \n", utils.ProtoToString(op.PrevValue))
+		str += indent2 + fmt.Sprintf("- new-value: %s \n", utils.ProtoToString(op.NewValue))
 	}
 	if op.Operation == Delete || op.Operation == Update {
-		str += indent2 + fmt.Sprintf("- value: %s \n", op.PrevValue)
+		str += indent2 + fmt.Sprintf("- value: %s \n", utils.ProtoToString(op.PrevValue))
 	}
 	if op.Operation == Add && !showPrevForAdd {
-		str += indent2 + fmt.Sprintf("- value: %s \n", op.NewValue)
+		str += indent2 + fmt.Sprintf("- value: %s \n", utils.ProtoToString(op.NewValue))
 	}
 	if op.PrevOrigin != op.NewOrigin {
 		str += indent2 + fmt.Sprintf("- prev-origin: %s\n", op.PrevOrigin.String())

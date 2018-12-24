@@ -69,6 +69,11 @@ do
             export K8S_DEPLOYMENT_SCENARIO="stn"
             break
             ;;
+        "With Calico")
+            echo "You chose deployment with Calico"
+            export K8S_DEPLOYMENT_SCENARIO="calico"
+            break
+            ;;
         "Quit")
             echo "Exiting..."
             exit 0

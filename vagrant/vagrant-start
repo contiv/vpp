@@ -55,7 +55,7 @@ echo
 
 echo 'Please choose deployment scenario: '
 PS3='--> '
-options=("Without StealTheNIC" "With StealTheNIC" "Quit")
+options=("Without StealTheNIC" "With StealTheNIC" "With Calico" "Quit")
 select opt in "${options[@]}"
 do
     case $opt in

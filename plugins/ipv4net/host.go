@@ -335,6 +335,22 @@ func (n *IPv4Net) proxyArpForSTNGateway() (key string, config *l3.ProxyARP) {
 	return key, proxyarp
 }
 
+// stnGwIPForHost returns gateway IP address used in the host stack for routes pointing towards VPP
+// (in the STN scenario).
+func (n *IPv4Net) stnGwIPForHost() net.IP {
+	nh := n.ContivConf.GetStaticDefaultGW()
+	if nh == nil || nh.IsUnspecified() {
+		// no default gateway, calculate fake gateway address for routes pointing to VPP
+		firstIP, lastIP := cidr.AddressRange(n.nodeIPNet)
+		if !cidr.Inc(firstIP).Equal(n.nodeIP) {
+			nh = cidr.Inc(firstIP)
+		} else {
+			nh = cidr.Dec(lastIP)
+		}
+	}
+	return nh
+}
+
 // stnRoutesForVPP returns VPP routes mirroring Host routes that were associated
 // with the stolen interface.
 func (n *IPv4Net) stnRoutesForVPP() map[string]*l3.StaticRoute {

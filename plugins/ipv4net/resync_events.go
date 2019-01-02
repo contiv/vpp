@@ -282,7 +282,7 @@ func (n *IPv4Net) configureVswitchHostConnectivity(txn controller.ResyncOperatio
 	if !n.ContivConf.InSTNMode() {
 		key, routeToPods = n.routePODsFromHost(n.IPAM.HostInterconnectIPInVPP())
 	} else {
-		key, routeToPods = n.routePODsFromHost(n.ContivConf.GetStaticDefaultGW())
+		key, routeToPods = n.routePODsFromHost(n.stnGwIPForHost())
 	}
 	txn.Put(key, routeToPods)
 
@@ -292,7 +292,7 @@ func (n *IPv4Net) configureVswitchHostConnectivity(txn controller.ResyncOperatio
 		if !n.ContivConf.InSTNMode() {
 			key, routeToServices = n.routeServicesFromHost(n.IPAM.HostInterconnectIPInVPP())
 		} else {
-			key, routeToServices = n.routeServicesFromHost(n.ContivConf.GetStaticDefaultGW())
+			key, routeToServices = n.routeServicesFromHost(n.stnGwIPForHost())
 		}
 		txn.Put(key, routeToServices)
 	}

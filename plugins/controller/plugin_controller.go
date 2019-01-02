@@ -446,7 +446,9 @@ func (c *Controller) eventLoop() {
 					break
 				}
 			}
-			c.eventHistory = c.eventHistory[i:]
+			if i > 0 {
+				c.eventHistory = c.eventHistory[i:]
+			}
 			c.historyLock.Unlock()
 		}
 	}
@@ -742,8 +744,8 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		}
 
 		// append transaction to the event record
-		if txnSeqNum != -1 {
-			evRecord.Txn = c.Scheduler.GetRecordedTransaction(uint(txnSeqNum))
+		if txnSeqNum != ^uint64(0) {
+			evRecord.Txn = c.Scheduler.GetRecordedTransaction(txnSeqNum)
 		}
 
 		// update Controller's view of internal configuration

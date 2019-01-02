@@ -99,6 +99,9 @@ data:
     dump-go-routines-count: 5
   linux-l3plugin.conf: |
     dump-go-routines-count: 5
+  kvscheduler.conf: |
+    record-transaction-history: true
+    transaction-history-age-limit: 1440
 
 ---
 
@@ -404,6 +407,8 @@ spec:
               value: "/etc/vpp-agent/linux-ifplugin.conf"
             - name: LINUX_L3PLUGIN_CONFIG
               value: "/etc/vpp-agent/linux-l3plugin.conf"
+            - name: KVSCHEDULER_CONFIG
+              value: "/etc/vpp-agent/kvscheduler.conf"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt

@@ -28,6 +28,9 @@ ADD binaries/vpp.tar.gz .
 RUN dpkg -i vpp/vpp-lib_*.deb vpp/vpp_*.deb vpp/vpp-plugins_*.deb && \
     rm -rf vpp
 
+# add debug scripts
+ADD binaries/vpptrace.sh .
+
 # add defualt VPP startup config as contiv-vswitch.conf
 COPY vswitch/vpp.conf /etc/vpp/contiv-vswitch.conf
 COPY vswitch/govpp.conf /etc/govpp/govpp.conf

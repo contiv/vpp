@@ -37,3 +37,6 @@ docker cp ${CID}:/root/vpp.tar.gz binaries/
 
 # delete the "extract" container
 docker rm -f ${CID}
+
+# copy debug scripts to binaries
+cp ././../../../scripts/vpptrace.sh binaries

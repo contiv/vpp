@@ -374,8 +374,8 @@ func (art *RendererTxn) renderInterfaces(pods cache.PodSet, ingress bool) *vpp_a
 				// pod has been deleted in the meantime but notification from K8s
 				// has not arrived yet
 				art.renderer.Log.WithField("pod", podID).Debug(
-				"Unable to get the interface assigned to the Pod "+
-				"(expecting notification about its deletion)")
+					"Unable to get the interface assigned to the Pod " +
+						"(expecting notification about its deletion)")
 				continue
 			}
 		}

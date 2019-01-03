@@ -445,6 +445,7 @@ func (c *Controller) eventLoop() {
 				if elapsed <= ageLimit {
 					break
 				}
+				c.eventHistory[i] = nil
 			}
 			if i > 0 {
 				c.eventHistory = c.eventHistory[i:]

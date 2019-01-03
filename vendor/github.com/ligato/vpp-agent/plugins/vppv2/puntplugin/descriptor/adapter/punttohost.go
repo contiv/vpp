@@ -5,49 +5,49 @@ package adapter
 import (
 	"github.com/gogo/protobuf/proto"
 	. "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/stn"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
 )
 
 ////////// type-safe key-value pair with metadata //////////
 
-type STNKVWithMetadata struct {
+type PuntToHostKVWithMetadata struct {
 	Key      string
-	Value    *stn.Rule
+	Value    *punt.ToHost
 	Metadata interface{}
 	Origin   ValueOrigin
 }
 
 ////////// type-safe Descriptor structure //////////
 
-type STNDescriptor struct {
+type PuntToHostDescriptor struct {
 	Name               string
 	KeySelector        KeySelector
 	ValueTypeName      string
 	KeyLabel           func(key string) string
-	ValueComparator    func(key string, oldValue, newValue *stn.Rule) bool
+	ValueComparator    func(key string, oldValue, newValue *punt.ToHost) bool
 	NBKeyPrefix        string
 	WithMetadata       bool
 	MetadataMapFactory MetadataMapFactory
-	Add                func(key string, value *stn.Rule) (metadata interface{}, err error)
-	Delete             func(key string, value *stn.Rule, metadata interface{}) error
-	Modify             func(key string, oldValue, newValue *stn.Rule, oldMetadata interface{}) (newMetadata interface{}, err error)
-	ModifyWithRecreate func(key string, oldValue, newValue *stn.Rule, metadata interface{}) bool
-	Update             func(key string, value *stn.Rule, metadata interface{}) error
+	Add                func(key string, value *punt.ToHost) (metadata interface{}, err error)
+	Delete             func(key string, value *punt.ToHost, metadata interface{}) error
+	Modify             func(key string, oldValue, newValue *punt.ToHost, oldMetadata interface{}) (newMetadata interface{}, err error)
+	ModifyWithRecreate func(key string, oldValue, newValue *punt.ToHost, metadata interface{}) bool
+	Update             func(key string, value *punt.ToHost, metadata interface{}) error
 	IsRetriableFailure func(err error) bool
-	Dependencies       func(key string, value *stn.Rule) []Dependency
-	DerivedValues      func(key string, value *stn.Rule) []KeyValuePair
-	Dump               func(correlate []STNKVWithMetadata) ([]STNKVWithMetadata, error)
+	Dependencies       func(key string, value *punt.ToHost) []Dependency
+	DerivedValues      func(key string, value *punt.ToHost) []KeyValuePair
+	Dump               func(correlate []PuntToHostKVWithMetadata) ([]PuntToHostKVWithMetadata, error)
 	DumpDependencies   []string /* descriptor name */
 }
 
 ////////// Descriptor adapter //////////
 
-type STNDescriptorAdapter struct {
-	descriptor *STNDescriptor
+type PuntToHostDescriptorAdapter struct {
+	descriptor *PuntToHostDescriptor
 }
 
-func NewSTNDescriptor(typedDescriptor *STNDescriptor) *KVDescriptor {
-	adapter := &STNDescriptorAdapter{descriptor: typedDescriptor}
+func NewPuntToHostDescriptor(typedDescriptor *PuntToHostDescriptor) *KVDescriptor {
+	adapter := &PuntToHostDescriptorAdapter{descriptor: typedDescriptor}
 	descriptor := &KVDescriptor{
 		Name:               typedDescriptor.Name,
 		KeySelector:        typedDescriptor.KeySelector,
@@ -89,108 +89,108 @@ func NewSTNDescriptor(typedDescriptor *STNDescriptor) *KVDescriptor {
 	return descriptor
 }
 
-func (da *STNDescriptorAdapter) ValueComparator(key string, oldValue, newValue proto.Message) bool {
-	typedOldValue, err1 := castSTNValue(key, oldValue)
-	typedNewValue, err2 := castSTNValue(key, newValue)
+func (da *PuntToHostDescriptorAdapter) ValueComparator(key string, oldValue, newValue proto.Message) bool {
+	typedOldValue, err1 := castPuntToHostValue(key, oldValue)
+	typedNewValue, err2 := castPuntToHostValue(key, newValue)
 	if err1 != nil || err2 != nil {
 		return false
 	}
 	return da.descriptor.ValueComparator(key, typedOldValue, typedNewValue)
 }
 
-func (da *STNDescriptorAdapter) Add(key string, value proto.Message) (metadata Metadata, err error) {
-	typedValue, err := castSTNValue(key, value)
+func (da *PuntToHostDescriptorAdapter) Add(key string, value proto.Message) (metadata Metadata, err error) {
+	typedValue, err := castPuntToHostValue(key, value)
 	if err != nil {
 		return nil, err
 	}
 	return da.descriptor.Add(key, typedValue)
 }
 
-func (da *STNDescriptorAdapter) Modify(key string, oldValue, newValue proto.Message, oldMetadata Metadata) (newMetadata Metadata, err error) {
-	oldTypedValue, err := castSTNValue(key, oldValue)
+func (da *PuntToHostDescriptorAdapter) Modify(key string, oldValue, newValue proto.Message, oldMetadata Metadata) (newMetadata Metadata, err error) {
+	oldTypedValue, err := castPuntToHostValue(key, oldValue)
 	if err != nil {
 		return nil, err
 	}
-	newTypedValue, err := castSTNValue(key, newValue)
+	newTypedValue, err := castPuntToHostValue(key, newValue)
 	if err != nil {
 		return nil, err
 	}
-	typedOldMetadata, err := castSTNMetadata(key, oldMetadata)
+	typedOldMetadata, err := castPuntToHostMetadata(key, oldMetadata)
 	if err != nil {
 		return nil, err
 	}
 	return da.descriptor.Modify(key, oldTypedValue, newTypedValue, typedOldMetadata)
 }
 
-func (da *STNDescriptorAdapter) Delete(key string, value proto.Message, metadata Metadata) error {
-	typedValue, err := castSTNValue(key, value)
+func (da *PuntToHostDescriptorAdapter) Delete(key string, value proto.Message, metadata Metadata) error {
+	typedValue, err := castPuntToHostValue(key, value)
 	if err != nil {
 		return err
 	}
-	typedMetadata, err := castSTNMetadata(key, metadata)
+	typedMetadata, err := castPuntToHostMetadata(key, metadata)
 	if err != nil {
 		return err
 	}
 	return da.descriptor.Delete(key, typedValue, typedMetadata)
 }
 
-func (da *STNDescriptorAdapter) ModifyWithRecreate(key string, oldValue, newValue proto.Message, metadata Metadata) bool {
-	oldTypedValue, err := castSTNValue(key, oldValue)
+func (da *PuntToHostDescriptorAdapter) ModifyWithRecreate(key string, oldValue, newValue proto.Message, metadata Metadata) bool {
+	oldTypedValue, err := castPuntToHostValue(key, oldValue)
 	if err != nil {
 		return true
 	}
-	newTypedValue, err := castSTNValue(key, newValue)
+	newTypedValue, err := castPuntToHostValue(key, newValue)
 	if err != nil {
 		return true
 	}
-	typedMetadata, err := castSTNMetadata(key, metadata)
+	typedMetadata, err := castPuntToHostMetadata(key, metadata)
 	if err != nil {
 		return true
 	}
 	return da.descriptor.ModifyWithRecreate(key, oldTypedValue, newTypedValue, typedMetadata)
 }
 
-func (da *STNDescriptorAdapter) Update(key string, value proto.Message, metadata Metadata) error {
-	typedValue, err := castSTNValue(key, value)
+func (da *PuntToHostDescriptorAdapter) Update(key string, value proto.Message, metadata Metadata) error {
+	typedValue, err := castPuntToHostValue(key, value)
 	if err != nil {
 		return err
 	}
-	typedMetadata, err := castSTNMetadata(key, metadata)
+	typedMetadata, err := castPuntToHostMetadata(key, metadata)
 	if err != nil {
 		return err
 	}
 	return da.descriptor.Update(key, typedValue, typedMetadata)
 }
 
-func (da *STNDescriptorAdapter) Dependencies(key string, value proto.Message) []Dependency {
-	typedValue, err := castSTNValue(key, value)
+func (da *PuntToHostDescriptorAdapter) Dependencies(key string, value proto.Message) []Dependency {
+	typedValue, err := castPuntToHostValue(key, value)
 	if err != nil {
 		return nil
 	}
 	return da.descriptor.Dependencies(key, typedValue)
 }
 
-func (da *STNDescriptorAdapter) DerivedValues(key string, value proto.Message) []KeyValuePair {
-	typedValue, err := castSTNValue(key, value)
+func (da *PuntToHostDescriptorAdapter) DerivedValues(key string, value proto.Message) []KeyValuePair {
+	typedValue, err := castPuntToHostValue(key, value)
 	if err != nil {
 		return nil
 	}
 	return da.descriptor.DerivedValues(key, typedValue)
 }
 
-func (da *STNDescriptorAdapter) Dump(correlate []KVWithMetadata) ([]KVWithMetadata, error) {
-	var correlateWithType []STNKVWithMetadata
+func (da *PuntToHostDescriptorAdapter) Dump(correlate []KVWithMetadata) ([]KVWithMetadata, error) {
+	var correlateWithType []PuntToHostKVWithMetadata
 	for _, kvpair := range correlate {
-		typedValue, err := castSTNValue(kvpair.Key, kvpair.Value)
+		typedValue, err := castPuntToHostValue(kvpair.Key, kvpair.Value)
 		if err != nil {
 			continue
 		}
-		typedMetadata, err := castSTNMetadata(kvpair.Key, kvpair.Metadata)
+		typedMetadata, err := castPuntToHostMetadata(kvpair.Key, kvpair.Metadata)
 		if err != nil {
 			continue
 		}
 		correlateWithType = append(correlateWithType,
-			STNKVWithMetadata{
+			PuntToHostKVWithMetadata{
 				Key:      kvpair.Key,
 				Value:    typedValue,
 				Metadata: typedMetadata,
@@ -217,15 +217,15 @@ func (da *STNDescriptorAdapter) Dump(correlate []KVWithMetadata) ([]KVWithMetada
 
 ////////// Helper methods //////////
 
-func castSTNValue(key string, value proto.Message) (*stn.Rule, error) {
-	typedValue, ok := value.(*stn.Rule)
+func castPuntToHostValue(key string, value proto.Message) (*punt.ToHost, error) {
+	typedValue, ok := value.(*punt.ToHost)
 	if !ok {
 		return nil, ErrInvalidValueType(key, value)
 	}
 	return typedValue, nil
 }
 
-func castSTNMetadata(key string, metadata Metadata) (interface{}, error) {
+func castPuntToHostMetadata(key string, metadata Metadata) (interface{}, error) {
 	if metadata == nil {
 		return nil, nil
 	}

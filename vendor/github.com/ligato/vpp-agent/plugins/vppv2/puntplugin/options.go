@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package stnplugin
+package puntplugin
 
 import (
 	"github.com/ligato/cn-infra/logging"
@@ -21,14 +21,14 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
 )
 
-// DefaultPlugin is a default instance of STN plugin.
+// DefaultPlugin is a default instance of punt plugin.
 var DefaultPlugin = *NewPlugin()
 
 // NewPlugin creates a new Plugin with the provided Options.
-func NewPlugin(opts ...Option) *STNPlugin {
-	p := &STNPlugin{}
+func NewPlugin(opts ...Option) *PuntPlugin {
+	p := &PuntPlugin{}
 
-	p.PluginName = "vpp-stn-plugin"
+	p.PluginName = "vpp-punt-plugin"
 	p.Scheduler = &kvscheduler.DefaultPlugin
 	p.GoVppmux = &govppmux.DefaultPlugin
 	p.IfPlugin = &ifplugin.DefaultPlugin
@@ -45,11 +45,11 @@ func NewPlugin(opts ...Option) *STNPlugin {
 }
 
 // Option is a function that can be used in NewPlugin to customize Plugin.
-type Option func(*STNPlugin)
+type Option func(puntPlugin *PuntPlugin)
 
 // UseDeps returns Option that can inject custom dependencies.
-func UseDeps(f func(*Deps)) Option {
-	return func(p *STNPlugin) {
+func UseDeps(f func(deps *Deps)) Option {
+	return func(p *PuntPlugin) {
 		f(&p.Deps)
 	}
 }

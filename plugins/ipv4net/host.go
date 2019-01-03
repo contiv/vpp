@@ -25,7 +25,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/stn"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
 )
 
 /* VPP - Host interconnect */
@@ -299,12 +299,13 @@ func (n *IPv4Net) routeServicesFromHost(nextHopIP net.IP) (key string, config *l
 // stnRule returns configuration for STN rule, used to forward all traffic not matched
 // in VPP to host via interconnect interface.
 // The method assumes that node has IP address allocated!
-func (n *IPv4Net) stnRule() (key string, config *stn.Rule) {
-	rule := &stn.Rule{
-		IpAddress: n.nodeIP.String(),
-		Interface: n.hostInterconnectVPPIfName(),
+func (n *IPv4Net) stnRule() (key string, config *punt.IpRedirect) {
+	rule := &punt.IpRedirect{
+		L3Protocol:  punt.L3Protocol_ALL,
+		TxInterface: n.hostInterconnectVPPIfName(),
+		NextHop:     n.nodeIP.String(),
 	}
-	key = stn.Key(rule.Interface, rule.IpAddress)
+	key = punt.IPRedirectKey(rule.L3Protocol, rule.TxInterface)
 	return key, rule
 }
 

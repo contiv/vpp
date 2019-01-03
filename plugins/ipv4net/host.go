@@ -65,8 +65,9 @@ const (
 	/* STN */
 
 	// MAC address of the TAP/veth interface connecting host stack with VPP - Linux side
-	// VPP STN plugin can only send packets to this destination MAC
-	hostInterconnectMACinLinuxSTN = "00:00:00:00:00:02"
+	// -required to be able to configure the static ARP towards linux on VPP in STN case
+	// (dynamic ARP for an IP that is also assigned on VPP does not work)
+	hostInterconnectMACinLinuxSTN = "02:fa:00:00:00:01"
 )
 
 // prefix for the hardware address of host interconnects
@@ -146,7 +147,7 @@ func (n *IPv4Net) interconnectTapHost() (key string, config *linux_interfaces.In
 		Enabled:    true,
 	}
 	if n.ContivConf.InSTNMode() {
-		// TODO: this specific MAC address can be removed after moving to the IP punt redirect instead of the STN plugin
+		// static MAC for STN case - we need a static ARP entry towards Linux from VPP
 		tap.PhysAddress = hostInterconnectMACinLinuxSTN
 
 		if len(n.nodeIP) > 0 {
@@ -226,7 +227,7 @@ func (n *IPv4Net) interconnectVethHost() (key string, config *linux_interfaces.I
 		HostIfName: hostInterconnectVETH1HostName,
 	}
 	if n.ContivConf.InSTNMode() {
-		// TODO: this specific MAC address can be removed after moving to the IP punt redirect instead of the STN plugin
+		// static MAC for STN case - we need a static ARP entry towards Linux from VPP
 		veth.PhysAddress = hostInterconnectMACinLinuxSTN
 
 		if len(n.nodeIP) > 0 {
@@ -334,6 +335,18 @@ func (n *IPv4Net) proxyArpForSTNGateway() (key string, config *l3.ProxyARP) {
 	}
 	key = l3.ProxyARPKey
 	return key, proxyarp
+}
+
+// staticArpForSTNHostInterface creates a static ARP entry for for the host stack interface on VPP.
+func (n *IPv4Net) staticArpForSTNHostInterface() (key string, config *l3.ARPEntry) {
+	arp := &l3.ARPEntry{
+		Interface:   n.hostInterconnectVPPIfName(),
+		IpAddress:   n.nodeIP.String(),
+		PhysAddress: hostInterconnectMACinLinuxSTN,
+		Static:      true,
+	}
+	key = l3.ArpEntryKey(arp.Interface, arp.IpAddress)
+	return key, arp
 }
 
 // stnGwIPForHost returns gateway IP address used in the host stack for routes pointing towards VPP

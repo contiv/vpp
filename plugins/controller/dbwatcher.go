@@ -408,7 +408,11 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 			return
 		}
 	}
-	w.processedVals[key] = change
+	if change.GetChangeType() == datasync.Delete {
+		delete(w.processedVals, key)
+	} else {
+		w.processedVals[key] = change
+	}
 
 	// check if this is resource or and an external configuration
 	resourceMeta, externalCfg := w.getResourceByKey(key)

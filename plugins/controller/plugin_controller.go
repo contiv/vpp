@@ -464,11 +464,11 @@ func (c *Controller) eventLoop() {
 			}
 			if j > i {
 				copy(c.eventHistory[i:], c.eventHistory[j:])
-				newTail := len(c.eventHistory) - (j - i)
-				for k := newTail; k < len(c.eventHistory); k++ {
+				newLen := len(c.eventHistory) - (j - i)
+				for k := newLen; k < len(c.eventHistory); k++ {
 					c.eventHistory[k] = nil
 				}
-				c.eventHistory = c.eventHistory[:newTail]
+				c.eventHistory = c.eventHistory[:newLen]
 			}
 			c.historyLock.Unlock()
 		}

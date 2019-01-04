@@ -257,8 +257,6 @@ func (w *dbWatcher) stopWatching() {
 		// close previous watch
 		close(w.remoteWatchCloseCh)
 		w.remoteWatchCloseCh = nil
-		// TODO: verify that etcd plugin (default remoteDB) properly closes
-		// the watch and de-allocates all resource associated with it
 	}
 }
 

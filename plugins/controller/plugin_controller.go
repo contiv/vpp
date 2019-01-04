@@ -79,7 +79,12 @@ const (
 	defaultRecordEventHistory = true
 
 	// by default, only events processed in the last 24 hours are kept recorded
+	// (with the exception of permanently recorded init period)
 	defaultEventHistoryAgeLimit = 24 * 60 // in minutes
+
+	// by default, events from the first hour of runtime are permanently recorded
+	// in memory
+	defaultPermanentlyRecordedInitPeriod = 60 // in minutes
 )
 
 // Controller implements single event loop for Contiv.
@@ -154,6 +159,7 @@ type Controller struct {
 
 	historyLock  sync.Mutex
 	eventHistory []*EventRecord
+	startTime    time.Time
 
 	wg     sync.WaitGroup
 	ctx    context.Context
@@ -195,8 +201,9 @@ type Config struct {
 	RemoteDBProbingInterval time.Duration `json:"remoteDBProbingInterval"`
 
 	// event history
-	RecordEventHistory   bool   `json:"recordEventHistory"`
-	EventHistoryAgeLimit uint32 `json:"eventHistoryAgeLimit"`
+	RecordEventHistory            bool   `json:"recordEventHistory"`
+	EventHistoryAgeLimit          uint32 `json:"eventHistoryAgeLimit"`
+	PermanentlyRecordedInitPeriod uint32 `json:"permanentlyRecordedInitPeriod"`
 }
 
 // EventRecord is a record of a processed event, added into the history of events,
@@ -244,6 +251,7 @@ var (
 // Init loads config file and starts the event loop.
 func (c *Controller) Init() error {
 	// initialize attributes
+	c.startTime = time.Now()
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	c.eventQueue = make(chan *QueuedEvent, eventQueueSize)
 	c.followUpEventQueue = make(chan *QueuedEvent, eventQueueSize)
@@ -256,17 +264,18 @@ func (c *Controller) Init() error {
 
 	// default configuration
 	c.config = &Config{
-		DelayLocalResync:        defaultDelayLocalResync,
-		StartupResyncDeadline:   defaultStartupResyncDeadline,
-		RemoteDBProbingInterval: defaultRemoteDBProbingInterval,
-		EnableRetry:             defaultEnableRetry,
-		DelayRetry:              defaultDelayRetry,
-		EnableExpBackoffRetry:   defaultEnableExpBackoffRetry,
-		EnablePeriodicHealing:   defaultEnablePeriodicHealing,
-		PeriodicHealingInterval: defaultPeriodicHealingInterval,
-		DelayAfterErrorHealing:  defaultDelayAfterErrorHealing,
-		RecordEventHistory:      defaultRecordEventHistory,
-		EventHistoryAgeLimit:    defaultEventHistoryAgeLimit,
+		DelayLocalResync:              defaultDelayLocalResync,
+		StartupResyncDeadline:         defaultStartupResyncDeadline,
+		RemoteDBProbingInterval:       defaultRemoteDBProbingInterval,
+		EnableRetry:                   defaultEnableRetry,
+		DelayRetry:                    defaultDelayRetry,
+		EnableExpBackoffRetry:         defaultEnableExpBackoffRetry,
+		EnablePeriodicHealing:         defaultEnablePeriodicHealing,
+		PeriodicHealingInterval:       defaultPeriodicHealingInterval,
+		DelayAfterErrorHealing:        defaultDelayAfterErrorHealing,
+		RecordEventHistory:            defaultRecordEventHistory,
+		EventHistoryAgeLimit:          defaultEventHistoryAgeLimit,
+		PermanentlyRecordedInitPeriod: defaultPermanentlyRecordedInitPeriod,
 	}
 
 	// load configuration
@@ -439,16 +448,27 @@ func (c *Controller) eventLoop() {
 			c.historyLock.Lock()
 			now := time.Now()
 			ageLimit := time.Duration(c.config.EventHistoryAgeLimit) * time.Minute
-			var i int
+			initPeriod := time.Duration(c.config.PermanentlyRecordedInitPeriod) * time.Minute
+			var i, j int // i = first after init period, j = first after init period to keep
 			for i = 0; i < len(c.eventHistory); i++ {
-				elapsed := now.Sub(c.eventHistory[i].ProcessingEnd)
+				sinceStart := c.eventHistory[i].ProcessingStart.Sub(c.startTime)
+				if sinceStart > initPeriod {
+					break
+				}
+			}
+			for j = i; j < len(c.eventHistory); j++ {
+				elapsed := now.Sub(c.eventHistory[j].ProcessingEnd)
 				if elapsed <= ageLimit {
 					break
 				}
-				c.eventHistory[i] = nil
 			}
-			if i > 0 {
-				c.eventHistory = c.eventHistory[i:]
+			if j > i {
+				copy(c.eventHistory[i:], c.eventHistory[j:])
+				newTail := len(c.eventHistory) - (j - i)
+				for k := newTail; k < len(c.eventHistory); k++ {
+					c.eventHistory[k] = nil
+				}
+				c.eventHistory = c.eventHistory[:newTail]
 			}
 			c.historyLock.Unlock()
 		}

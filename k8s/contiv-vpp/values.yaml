@@ -63,6 +63,7 @@ controller:
   periodicHealingInterval: 30000000000
   recordEventHistory: true
   eventHistoryAgeLimit: 1440
+  permanentlyRecordedInitPeriod: 60
 
 
 # ETCD server to be used by Contiv

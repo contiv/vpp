@@ -104,6 +104,7 @@ data:
     periodicHealingInterval: {{ .Values.controller.periodicHealingInterval | int64 }}
     recordEventHistory: {{ .Values.controller.recordEventHistory }}
     eventHistoryAgeLimit: {{ .Values.controller.eventHistoryAgeLimit }}
+    permanentlyRecordedInitPeriod: {{ .Values.controller.permanentlyRecordedInitPeriod }}
   service.conf: |
     {{- if .Values.contiv.cleanupIdleNATSessions }}
     cleanupIdleNATSessions: true
@@ -168,6 +169,7 @@ data:
   kvscheduler.conf: |
     record-transaction-history: {{ .Values.controller.recordEventHistory }}
     transaction-history-age-limit: {{ .Values.controller.eventHistoryAgeLimit }}
+    permanently-recorded-init-period: {{ .Values.controller.permanentlyRecordedInitPeriod }}
 
 ---
 

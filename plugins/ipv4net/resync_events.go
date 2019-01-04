@@ -310,6 +310,10 @@ func (n *IPv4Net) configureSTNConnectivity(txn controller.ResyncOperations) {
 		// proxy ARP for ARP requests from the host
 		key, proxyarp := n.proxyArpForSTNGateway()
 		txn.Put(key, proxyarp)
+
+		// VPP ARP entry for the host interface
+		key, arp := n.staticArpForSTNHostInterface()
+		txn.Put(key, arp)
 	}
 
 	// STN routes

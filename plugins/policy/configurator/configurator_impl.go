@@ -288,7 +288,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 					continue
 				}
 				if peerData.IpAddress == "" {
-					pct.Log.WithField("peer", peer).Warn("Peer pod has no IP address assigned")
+					pct.Log.WithField("peer", peer).Debug("Peer pod has no IP address assigned")
 					continue
 				}
 				peerIPNet := utils.GetOneHostSubnet(peerData.IpAddress)

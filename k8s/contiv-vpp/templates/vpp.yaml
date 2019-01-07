@@ -20,6 +20,7 @@ metadata:
   namespace: kube-system
 data:
   contiv.conf: |-
+    useL2Interconnect: {{ .Values.contiv.useL2Interconnect }}
     useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}

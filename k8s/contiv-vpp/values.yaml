@@ -1,5 +1,6 @@
 ---
 contiv:
+  useL2Interconnect: false
   useTAPInterfaces: true
   tapInterfaceVersion: 2
   tapv2RxRingSize: 256

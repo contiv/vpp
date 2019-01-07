@@ -50,6 +50,7 @@ data:
     periodicHealingInterval: 30000000000
     recordEventHistory: true
     eventHistoryAgeLimit: 1440
+    permanentlyRecordedInitPeriod: 60
   service.conf: |
     cleanupIdleNATSessions: true
     tcpNATSessionTimeout: 180
@@ -102,6 +103,7 @@ data:
   kvscheduler.conf: |
     record-transaction-history: true
     transaction-history-age-limit: 1440
+    permanently-recorded-init-period: 60
 
 ---
 

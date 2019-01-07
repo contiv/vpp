@@ -689,7 +689,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:78edbb6155fa9213ce138c9c050b772aabd21ed8dfe6a6e934ce08b83d99ac1d"
+  digest = "1:cbb0662e8d1525bafd1e7ec419e2cdde9d3467cb885b751dc6ab7cc8d93fe2a9"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -725,11 +725,11 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "19b96718a1fada5ae615a42226e94054a0791d0b"
+  revision = "7332c57ac284a7aa1778ace0005ddaf2552698d5"
 
 [[projects]]
   branch = "dev"
-  digest = "1:cec097819a5b28ebe1044b45a30f1ad83f070962eead7b6b2feccbd931d61eb3"
+  digest = "1:245461a8ce3990ba11f6705b1c4b77f68886603db0662c5275c02b97729fbe7d"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv2/linux",
@@ -770,9 +770,9 @@
     "plugins/vpp/binapi/l2",
     "plugins/vpp/binapi/memif",
     "plugins/vpp/binapi/nat",
+    "plugins/vpp/binapi/punt",
     "plugins/vpp/binapi/session",
     "plugins/vpp/binapi/stats",
-    "plugins/vpp/binapi/stn",
     "plugins/vpp/binapi/tap",
     "plugins/vpp/binapi/tapv2",
     "plugins/vpp/binapi/vmxnet3",
@@ -805,18 +805,18 @@
     "plugins/vppv2/model/l2",
     "plugins/vppv2/model/l3",
     "plugins/vppv2/model/nat",
-    "plugins/vppv2/model/stn",
+    "plugins/vppv2/model/punt",
     "plugins/vppv2/natplugin",
     "plugins/vppv2/natplugin/descriptor",
     "plugins/vppv2/natplugin/descriptor/adapter",
     "plugins/vppv2/natplugin/vppcalls",
-    "plugins/vppv2/stnplugin",
-    "plugins/vppv2/stnplugin/descriptor",
-    "plugins/vppv2/stnplugin/descriptor/adapter",
-    "plugins/vppv2/stnplugin/vppcalls",
+    "plugins/vppv2/puntplugin",
+    "plugins/vppv2/puntplugin/descriptor",
+    "plugins/vppv2/puntplugin/descriptor/adapter",
+    "plugins/vppv2/puntplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "59feaed0157222a4237500b6cd7727a44a63a92e"
+  revision = "e97cad6d0d52db6ba0ddeeb5e23d5cc289d05daf"
 
 [[projects]]
   branch = "master"
@@ -1160,14 +1160,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5d01684d2b42069b219b55e880a67bdf3f5fdf1456d5de918832ac976177029e"
+  digest = "1:e416f26d20a9d29b38c16a89d177a4021f814d4a1dadab3c376f90a1afa789db"
   name = "github.com/vishvananda/netlink"
   packages = [
     ".",
     "nl",
   ]
   pruneopts = "UT"
-  revision = "8aa85bfa77a45236ae842cab3a91853e2b74e07a"
+  revision = "1e2e7ab670e05e2fd29bf5d0bcab2f9907e9f9f4"
 
 [[projects]]
   branch = "master"
@@ -1722,9 +1722,9 @@
     "github.com/ligato/vpp-agent/plugins/vppv2/model/l2",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/l3",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/nat",
-    "github.com/ligato/vpp-agent/plugins/vppv2/model/stn",
+    "github.com/ligato/vpp-agent/plugins/vppv2/model/punt",
     "github.com/ligato/vpp-agent/plugins/vppv2/natplugin",
-    "github.com/ligato/vpp-agent/plugins/vppv2/stnplugin",
+    "github.com/ligato/vpp-agent/plugins/vppv2/puntplugin",
     "github.com/namsral/flag",
     "github.com/nerdtakula/supervisor",
     "github.com/onsi/gomega",

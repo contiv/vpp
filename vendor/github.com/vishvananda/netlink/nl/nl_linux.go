@@ -275,15 +275,22 @@ func NewRtAttr(attrType int, data []byte) *RtAttr {
 	}
 }
 
-// Create a new RtAttr obj anc add it as a child of an existing object
+// NewRtAttrChild adds an RtAttr as a child to the parent and returns the new attribute
+//
+// Deprecated: Use AddRtAttr() on the parent object
 func NewRtAttrChild(parent *RtAttr, attrType int, data []byte) *RtAttr {
+	return parent.AddRtAttr(attrType, data)
+}
+
+// AddRtAttr adds an RtAttr as a child and returns the new attribute
+func (a *RtAttr) AddRtAttr(attrType int, data []byte) *RtAttr {
 	attr := NewRtAttr(attrType, data)
-	parent.children = append(parent.children, attr)
+	a.children = append(a.children, attr)
 	return attr
 }
 
-// AddChild adds an existing RtAttr as a child.
-func (a *RtAttr) AddChild(attr *RtAttr) {
+// AddChild adds an existing NetlinkRequestData as a child.
+func (a *RtAttr) AddChild(attr NetlinkRequestData) {
 	a.children = append(a.children, attr)
 }
 
@@ -364,16 +371,12 @@ func (req *NetlinkRequest) Serialize() []byte {
 }
 
 func (req *NetlinkRequest) AddData(data NetlinkRequestData) {
-	if data != nil {
-		req.Data = append(req.Data, data)
-	}
+	req.Data = append(req.Data, data)
 }
 
 // AddRawData adds raw bytes to the end of the NetlinkRequest object during serialization
 func (req *NetlinkRequest) AddRawData(data []byte) {
-	if data != nil {
-		req.RawData = append(req.RawData, data...)
-	}
+	req.RawData = append(req.RawData, data...)
 }
 
 // Execute the request against a the given sockType.
@@ -614,23 +617,6 @@ func (s *NetlinkSocket) Send(request *NetlinkRequest) error {
 	return nil
 }
 
-func (s *NetlinkSocket) Receive2() ([]syscall.NetlinkMessage, error) {
-	fd := int(atomic.LoadInt32(&s.fd))
-	if fd < 0 {
-		return nil, fmt.Errorf("Receive called on a closed socket")
-	}
-	rb := make([]byte, RECEIVE_BUFFER_SIZE)
-	nr, _, err := unix.Recvfrom(fd, rb, 0)
-	if err != nil {
-		return nil, err
-	}
-	if nr < unix.NLMSG_HDRLEN {
-		return nil, fmt.Errorf("Got short response from netlink")
-	}
-	rb = rb[:nr]
-	return syscall.ParseNetlinkMessage(rb)
-}
-
 func (s *NetlinkSocket) Receive() ([]syscall.NetlinkMessage, error) {
 	fd := int(atomic.LoadInt32(&s.fd))
 	if fd < 0 {
@@ -641,7 +627,6 @@ func (s *NetlinkSocket) Receive() ([]syscall.NetlinkMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	//fmt.Printf("NetlinkSocket: Received %d bytes.\n", nr)
 	if nr < unix.NLMSG_HDRLEN {
 		return nil, fmt.Errorf("Got short response from netlink")
 	}

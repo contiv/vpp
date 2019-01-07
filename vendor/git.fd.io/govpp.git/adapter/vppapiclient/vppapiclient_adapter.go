@@ -14,6 +14,8 @@
 
 // +build !windows,!darwin
 
+// Package vppapiclient is the default VPP adapter being used for the connection with VPP via shared memory.
+// It is based on the communication with the vppapiclient VPP library written in C via CGO.
 package vppapiclient
 
 /*
@@ -39,7 +41,7 @@ typedef struct __attribute__((__packed__)) _reply_header {
 } reply_header_t;
 
 static void
-govpp_msg_callback(unsigned char *data, int size)
+govpp_msg_callback (unsigned char *data, int size)
 {
     reply_header_t *header = ((reply_header_t *)data);
     go_msg_callback(ntohs(header->msg_id), data, size);
@@ -54,13 +56,13 @@ govpp_send(uint32_t context, void *data, size_t size)
 }
 
 static int
-govpp_connect(char *shm)
+govpp_connect (char *shm)
 {
     return vac_connect("govpp", shm, govpp_msg_callback, 32);
 }
 
 static int
-govpp_disconnect()
+govvp_disconnect()
 {
     return vac_disconnect();
 }
@@ -85,35 +87,32 @@ import (
 )
 
 const (
-	// shmDir is a directory where shared memory is supposed to be created.
-	shmDir = "/dev/shm/"
-	// vppShmFile is a default name of the file in the shmDir.
-	vppShmFile = "vpe-api"
+	// watchedFolder is a folder where vpp's shared memory is supposed to be created.
+	// File system events are monitored in this folder.
+	watchedFolder = "/dev/shm/"
+	// watchedFile is a default name of the file in the watchedFolder. Once the file is present,
+	// the vpp is ready to accept a new connection.
+	watchedFile = "vpe-api"
 )
 
-// global VPP binary API client, library vppapiclient only supports
-// single connection at a time
-var globalVppClient *vppClient
-
-// stubVppClient is the default implementation of the VppAPI.
-type vppClient struct {
-	shmPrefix   string
-	msgCallback adapter.MsgCallback
+// vppAPIClientAdapter is the opaque context of the adapter.
+type vppAPIClientAdapter struct {
+	shmPrefix string
+	callback  adapter.MsgCallback
 }
 
-// NewVppClient returns a new VPP binary API client.
-func NewVppClient(shmPrefix string) adapter.VppAPI {
-	return &vppClient{
+var vppClient *vppAPIClientAdapter // global vpp API client adapter context
+
+// NewVppAdapter returns a new vpp API client adapter.
+func NewVppAdapter(shmPrefix string) adapter.VppAdapter {
+	return &vppAPIClientAdapter{
 		shmPrefix: shmPrefix,
 	}
 }
 
 // Connect connects the process to VPP.
-func (a *vppClient) Connect() error {
-	if globalVppClient != nil {
-		return fmt.Errorf("already connected to binary API, disconnect first")
-	}
-
+func (a *vppAPIClientAdapter) Connect() error {
+	vppClient = a
 	var rc _Ctype_int
 	if a.shmPrefix == "" {
 		rc = C.govpp_connect(nil)
@@ -122,27 +121,18 @@ func (a *vppClient) Connect() error {
 		rc = C.govpp_connect(shm)
 	}
 	if rc != 0 {
-		return fmt.Errorf("connecting to VPP binary API failed (rc=%v)", rc)
+		return fmt.Errorf("unable to connect to VPP (error=%d)", rc)
 	}
-
-	globalVppClient = a
 	return nil
 }
 
 // Disconnect disconnects the process from VPP.
-func (a *vppClient) Disconnect() error {
-	globalVppClient = nil
-
-	rc := C.govpp_disconnect()
-	if rc != 0 {
-		return fmt.Errorf("disconnecting from VPP binary API failed (rc=%v)", rc)
-	}
-
-	return nil
+func (a *vppAPIClientAdapter) Disconnect() {
+	C.govvp_disconnect()
 }
 
 // GetMsgID returns a runtime message ID for the given message name and CRC.
-func (a *vppClient) GetMsgID(msgName string, msgCrc string) (uint16, error) {
+func (a *vppAPIClientAdapter) GetMsgID(msgName string, msgCrc string) (uint16, error) {
 	nameAndCrc := C.CString(msgName + "_" + msgCrc)
 	defer C.free(unsafe.Pointer(nameAndCrc))
 
@@ -156,56 +146,45 @@ func (a *vppClient) GetMsgID(msgName string, msgCrc string) (uint16, error) {
 }
 
 // SendMsg sends a binary-encoded message to VPP.
-func (a *vppClient) SendMsg(context uint32, data []byte) error {
+func (a *vppAPIClientAdapter) SendMsg(context uint32, data []byte) error {
 	rc := C.govpp_send(C.uint32_t(context), unsafe.Pointer(&data[0]), C.size_t(len(data)))
 	if rc != 0 {
-		return fmt.Errorf("unable to send the message (rc=%v)", rc)
+		return fmt.Errorf("unable to send the message (error=%d)", rc)
 	}
 	return nil
 }
 
-// SetMsgCallback sets a callback function that will be called by the adapter
-// whenever a message comes from VPP.
-func (a *vppClient) SetMsgCallback(cb adapter.MsgCallback) {
-	a.msgCallback = cb
+// SetMsgCallback sets a callback function that will be called by the adapter whenever a message comes from VPP.
+func (a *vppAPIClientAdapter) SetMsgCallback(cb adapter.MsgCallback) {
+	a.callback = cb
 }
 
 // WaitReady blocks until shared memory for sending
 // binary api calls is present on the file system.
-func (a *vppClient) WaitReady() error {
+func (a *vppAPIClientAdapter) WaitReady() error {
+	// Path to the shared memory segment
 	var path string
-
-	// join the path to the shared memory segment
 	if a.shmPrefix == "" {
-		path = filepath.Join(shmDir, vppShmFile)
+		path = filepath.Join(watchedFolder, watchedFile)
 	} else {
-		path = filepath.Join(shmDir, a.shmPrefix+"-"+vppShmFile)
+		path = filepath.Join(watchedFolder, a.shmPrefix+"-"+watchedFile)
 	}
 
-	// check if file at the path exists
-	if _, err := os.Stat(path); err == nil {
-		// file exists, we are ready
-		return nil
-	} else if !os.IsNotExist(err) {
-		return err
-	}
+	// Watch folder if file does not exist yet
+	if !fileExists(path) {
+		watcher, err := fsnotify.NewWatcher()
+		if err != nil {
+			return err
+		}
+		defer watcher.Close()
 
-	// file does not exist, start watching folder
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return err
-	}
-	defer watcher.Close()
+		if err := watcher.Add(watchedFolder); err != nil {
+			return err
+		}
 
-	if err := watcher.Add(shmDir); err != nil {
-		return err
-	}
-
-	for {
-		ev := <-watcher.Events
-		if ev.Name == path {
-			if (ev.Op & fsnotify.Create) == fsnotify.Create {
-				// file was created, we are ready
+		for {
+			ev := <-watcher.Events
+			if ev.Name == path && (ev.Op&fsnotify.Create) == fsnotify.Create {
 				break
 			}
 		}
@@ -214,11 +193,20 @@ func (a *vppClient) WaitReady() error {
 	return nil
 }
 
+func fileExists(name string) bool {
+	if _, err := os.Stat(name); err != nil {
+		if os.IsNotExist(err) {
+			return false
+		}
+	}
+	return true
+}
+
 //export go_msg_callback
 func go_msg_callback(msgID C.uint16_t, data unsafe.Pointer, size C.size_t) {
 	// convert unsafe.Pointer to byte slice
-	sliceHeader := &reflect.SliceHeader{Data: uintptr(data), Len: int(size), Cap: int(size)}
-	byteSlice := *(*[]byte)(unsafe.Pointer(sliceHeader))
+	slice := &reflect.SliceHeader{Data: uintptr(data), Len: int(size), Cap: int(size)}
+	byteArr := *(*[]byte)(unsafe.Pointer(slice))
 
-	globalVppClient.msgCallback(uint16(msgID), byteSlice)
+	vppClient.callback(uint16(msgID), byteArr)
 }

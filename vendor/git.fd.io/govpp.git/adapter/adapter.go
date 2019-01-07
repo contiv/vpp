@@ -24,17 +24,16 @@ var ErrNotImplemented = errors.New("not implemented for this OS")
 // MsgCallback defines func signature for message callback.
 type MsgCallback func(msgID uint16, data []byte)
 
-// VppAPI provides connection to VPP binary API.
-// It is responsible for sending and receiving of binary-encoded messages to/from VPP.
-type VppAPI interface {
+// VppAdapter provides connection to VPP. It is responsible for sending and receiving of binary-encoded messages to/from VPP.
+type VppAdapter interface {
 	// Connect connects the process to VPP.
 	Connect() error
 
 	// Disconnect disconnects the process from VPP.
-	Disconnect() error
+	Disconnect()
 
 	// GetMsgID returns a runtime message ID for the given message name and CRC.
-	GetMsgID(msgName string, msgCrc string) (msgID uint16, err error)
+	GetMsgID(msgName string, msgCrc string) (uint16, error)
 
 	// SendMsg sends a binary-encoded message to VPP.
 	SendMsg(context uint32, data []byte) error

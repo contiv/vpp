@@ -48,7 +48,7 @@ export class DataService {
     return this.getNetworkData().pipe(
       switchMap(data => {
         const observables = data.map(d => {
-          return this.k8sService.loadNamespaces(AppConfig.K8S_REST_MASTER_URL).pipe(
+          return this.k8sService.loadNamespaces().pipe(
             map(res => {
               const namespaces = {
                 namespaces: res
@@ -72,8 +72,7 @@ export class DataService {
     return this.getVrfInterfaces().pipe(
       switchMap(data => {
         const observables = data.map(d => {
-          const url = this.getRestUrl(d.node.name);
-          return this.vppService.getBridgeDomains(url).pipe(
+          return this.vppService.getBridgeDomains(d.node.ip).pipe(
             map(res => {
               const bdObj = {
                 bd: res
@@ -89,34 +88,32 @@ export class DataService {
     );
   }
 
-  private getArpByIp(restUrl: string, ip: string): Observable<VppArpModel> {
-    return this.vppService.getArps(restUrl).pipe(
+  private getArpByIp(vswitchIp: string, ip: string): Observable<VppArpModel> {
+    return this.vppService.getArps(vswitchIp).pipe(
       map(res => res.find(e => e.IP === ip))
     );
   }
 
-  private getTapInterfaceByName(restUrl: string, ifName: string): Observable<VppInterfaceTapModel> {
-    return this.vppService.getTapInterfaces(restUrl).pipe(
+  private getTapInterfaceByName(vswitchIp: string, ifName: string): Observable<VppInterfaceTapModel> {
+    return this.vppService.getTapInterfaces(vswitchIp).pipe(
       map(res => res.find(e => e.name === ifName))
     );
   }
 
-  private getInterfaceByPod(pod: K8sPodModel): Observable<VppInterfaceTapModel> {
-    const url = this.getRestUrl(pod.node);
-
-    return this.getArpByIp(url, pod.podIp).pipe(
+  private getInterfaceByPod(pod: K8sPodModel, vswitchIp: string): Observable<VppInterfaceTapModel> {
+    return this.getArpByIp(vswitchIp, pod.podIp).pipe(
       switchMap(arp => {
-        return arp ? this.getTapInterfaceByName(url, arp.interface) : of(null);
+        return arp ? this.getTapInterfaceByName(vswitchIp, arp.interface) : of(null);
       })
     );
   }
 
-  private getInterfacesByPods(pods: K8sPodModel[]): Observable<VppInterfaceTapModel[]> {
+  private getInterfacesByPods(pods: K8sPodModel[], vswitchIp: string): Observable<VppInterfaceTapModel[]> {
     if (!pods.length) {
       return of(null);
     }
 
-    const observables = pods.map(p => this.getInterfaceByPod(p));
+    const observables = pods.map(p => this.getInterfaceByPod(p, vswitchIp));
 
     return forkJoin(observables);
   }
@@ -125,9 +122,7 @@ export class DataService {
     return this.getPodsVppIps().pipe(
       switchMap(data => {
         const observables = data.map(d => {
-          const url = this.getRestUrl(d.node.name);
-
-          return this.vppService.getInterfaces(url).pipe(
+          return this.vppService.getInterfaces(d.node.ip).pipe(
             map(res => {
               const ifacesObject = {
                 interfaces: res
@@ -147,7 +142,7 @@ export class DataService {
     return this.getPodsByNode().pipe(
       switchMap(data => {
         const observables = data.map(d => {
-          return this.getInterfacesByPods(d.vppPods).pipe(
+          return this.getInterfacesByPods(d.vppPods, d.node.ip).pipe(
             map(res => {
               if (res) {
                 res.forEach((r, i) => {
@@ -173,7 +168,7 @@ export class DataService {
       switchMap(data => {
         const observables = data.map(d => {
           /* TODO Move outside map */
-          return this.k8sService.loadPods(AppConfig.K8S_REST_MASTER_URL).pipe(
+          return this.k8sService.loadPods().pipe(
             map(res => {
               const podsObj = {
                 vppPods: res.filter(pod => pod.node === d.node.name && pod.hostIp !== pod.podIp),
@@ -195,12 +190,10 @@ export class DataService {
     node: K8sNodeModel;
     ipam: VppIpamModel;
   }[]> {
-    return this.k8sService.loadNodes(AppConfig.K8S_REST_MASTER_URL).pipe(
+    return this.k8sService.loadNodes().pipe(
       switchMap(nodes => {
         const observables = nodes.map(n => {
-          const url = this.getRestUrl(n.name);
-
-          return this.vppService.getIPAM(url).pipe(
+          return this.vppService.getIPAM(n.ip).pipe(
             map(ipam => {
               return {
                 node: n,
@@ -214,21 +207,4 @@ export class DataService {
     );
   }
 
-  public getRestUrl(nodeId: string): string {
-    let url: string;
-
-    switch (nodeId) {
-      case 'k8s-master':
-        url = AppConfig.VPP_REST_MASTER_URL;
-        break;
-      case 'k8s-worker1':
-        url = AppConfig.VPP_REST_WORKER1_URL;
-        break;
-      case 'k8s-worker2':
-        url = AppConfig.VPP_REST_WORKER2_URL;
-        break;
-    }
-
-    return url;
-  }
 }

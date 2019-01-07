@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Contiv - UI</title>
+<link rel="stylesheet" href="/stylesheets/main.css">
+<script type="text/javascript"
+        src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js">
+</script>
+<script type="text/javascript">
+    $(document).ready(function () {
+        $('#k8sBtn').click(function(){
+            $.get('/k8s/' + $("#k8sapi").val(), function (data, textStatus, jqXHR) {
+                $('p').text(JSON.stringify(data));
+            });
+        });
+        $('#contivBtn').click(function(){
+            var url = '/contiv/'+$("#contivapi").val();
+            if ($("#vswitch").val() !== "") {
+                url += "?vswitch="+ $("#vswitch").val();
+            }
+
+            $.get(url,function (data, textStatus, jqXHR) {
+                $('p').text(JSON.stringify(data));
+            });
+        });
+    });
+</script>
+</head>
+<body>
+<h1>Showcase</h1>
+<button id="k8sBtn">K8s api</button>
+<input id="k8sapi" placeholder="e.g.: api/v1/nodes"/>
+<br/>
+<button id="contivBtn">Contiv api</button>
+<input id="vswitch" placeholder="vswitch"/>
+<input id="contivapi" placeholder="e.g.: contiv/v1/ipam"/>
+
+<p></p>
+</body>
+</html>

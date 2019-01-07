@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-ui-cfg
+  namespace: kube-system
+data:
+  contiv-ui.conf: |-
+    port: 9500
+    contivPort: 9999
+
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contiv-ui
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      run: contiv-ui
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        run: contiv-ui
+    spec:
+      hostNetwork: true
+      serviceAccountName: contiv-ui
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      containers:
+      - name: ui
+        image: contiv-ui
+        env:
+          - name: CONTIV_UI_CONF
+            value: "/etc/contiv-ui/contiv-ui.conf"
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 9500
+        volumeMounts:
+          - name: ui-cfg
+            mountPath: /etc/contiv-ui/
+      volumes:
+        - name: ui-cfg
+          configMap:
+             name: contiv-ui-cfg
+

@@ -23,7 +23,6 @@ import { AppComponent } from './app.component';
 import { KubernetesComponent } from './kubernetes/kubernetes.component';
 import { PodNetworkComponent } from './pod-network/pod-network.component';
 import { VppComponent } from './vpp/vpp.component';
-import { TerminalComponent } from './terminal/terminal.component';
 import { SidepanelComponent } from './shared/sidepanel/sidepanel.component';
 import { PodsComponent } from './shared/sidepanel/pods/pods.component';
 import { NodesComponent } from './shared/sidepanel/nodes/nodes.component';
@@ -56,7 +55,6 @@ import { ServicesTopologyService } from './shared/sidepanel/services/services-to
     KubernetesComponent,
     PodNetworkComponent,
     VppComponent,
-    TerminalComponent,
     PodsComponent,
     NodesComponent,
     SidepanelComponent,

@@ -2,7 +2,6 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { KubernetesService } from '../../services/kubernetes.service';
 import { K8sServiceModel } from '../../models/k8s/k8s-service-model';
 import { Subscription } from 'rxjs';
-import { AppConfig } from 'src/app/app-config';
 import { DataService } from '../../services/data.service';
 import { K8sEndpointModel } from '../../models/k8s/k8s-endpoint-model';
 import { TopologyHighlightService } from '../../../d3-topology/topology-viz/topology-highlight.service';
@@ -63,9 +62,9 @@ export class ServicesComponent implements OnInit, OnDestroy {
           this.k8sNodes = this.dataService.contivData.getK8sNodes();
 
           this.subscriptions.push(
-            this.k8sService.loadServices(AppConfig.K8S_REST_MASTER_URL).subscribe(services => {
+            this.k8sService.loadServices().subscribe(services => {
               this.subscriptions.push(
-                this.k8sService.loadEndpoints(AppConfig.K8S_REST_MASTER_URL).subscribe(endpoints => {
+                this.k8sService.loadEndpoints().subscribe(endpoints => {
                   this.services = services;
                   this.endpoints = endpoints;
                 })
@@ -139,9 +138,10 @@ export class ServicesComponent implements OnInit, OnDestroy {
   }
 
   public showVppState(nodeId: string) {
-    const url = this.getRestUrl(nodeId);
-
-    this.vppService.getNatRaw(url).subscribe(output => this.modalService.showApiOutput('Service Map', JSON.stringify(output)));
+    const vswitchIp = this.getHostIp(nodeId);
+    this.vppService.getNatRaw(vswitchIp).subscribe(
+      output => this.modalService.showApiOutput('Service Map', JSON.stringify(output))
+    );
   }
 
   public getHostIp(nodeId: string): string {
@@ -160,24 +160,6 @@ export class ServicesComponent implements OnInit, OnDestroy {
     this.showAllServices = false;
     this.shownTopology = false;
     this.shownEndpoints = false;
-  }
-
-  private getRestUrl(nodeId: string): string {
-    let url: string;
-
-    switch (nodeId) {
-      case 'k8s-master':
-        url = AppConfig.VPP_REST_MASTER_URL;
-        break;
-      case 'k8s-worker1':
-        url = AppConfig.VPP_REST_WORKER1_URL;
-        break;
-      case 'k8s-worker2':
-        url = AppConfig.VPP_REST_WORKER2_URL;
-        break;
-    }
-
-    return url;
   }
 
   ngOnDestroy() {

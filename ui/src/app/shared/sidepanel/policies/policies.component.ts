@@ -2,7 +2,6 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { KubernetesService } from '../../services/kubernetes.service';
 import { K8sPolicyModel } from '../../models/k8s/k8s-policy-model';
-import { AppConfig } from 'src/app/app-config';
 
 @Component({
   selector: 'app-policies',
@@ -20,7 +19,7 @@ export class PoliciesComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.policies = [];
-    this.policiesSubscription = this.k8sService.loadPolicies(AppConfig.K8S_REST_MASTER_URL).subscribe(res => this.policies = res);
+    this.policiesSubscription = this.k8sService.loadPolicies().subscribe(res => this.policies = res);
   }
 
   ngOnDestroy() {

@@ -47,7 +47,7 @@ export class VswitchDiagramComponent implements OnInit, OnDestroy {
               this.nic = this.domain.getGigInterface();
 
               this.subscriptions.push(
-                this.vppService.getVersion(this.dataService.getRestUrl(this.domain.node.name)).subscribe(output => this.version = output)
+                this.vppService.getVersion(this.domain.node.ip).subscribe(output => this.version = output)
               );
             }
           })

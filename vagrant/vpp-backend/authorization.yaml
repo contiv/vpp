@@ -1,0 +1,43 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: contiv-ui
+  namespace: kube-system
+rules:
+  - apiGroups:
+    - ""
+    - extensions
+    resources:
+      - pods
+      - namespaces
+      - networkpolicies
+      - services
+      - endpoints
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: contiv-ui
+  namespace: kube-system
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: contiv-ui
+subjects:
+  - kind: ServiceAccount
+    name: contiv-ui
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: contiv-ui
+  apiGroup: rbac.authorization.k8s.io

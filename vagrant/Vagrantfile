@@ -664,8 +664,7 @@ VAGRANTFILE_API_VERSION = "2"
         k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
       end
 
-      k8smaster.vm.network "forwarded_port", guest: 8080, host: 8080, host_ip: '127.0.0.1', guest_ip: '127.0.0.1'
-      k8smaster.vm.network "forwarded_port", guest: 9999, host: 9999, host_ip: '127.0.0.1', guest_ip: '127.0.0.1'
+      k8smaster.vm.network "forwarded_port", guest: 9500, host: 9500, host_ip: '127.0.0.1', guest_ip: '127.0.0.1'
       k8smaster.vm.network "forwarded_port", guest: 8088, host: 8088, host_ip: '127.0.0.1', guest_ip: '127.0.0.1'
 
       k8smaster.vm.provider "virtualbox" do |v|
@@ -686,20 +685,33 @@ VAGRANTFILE_API_VERSION = "2"
       end
 
       k8smaster.vm.provision "shell", run: "once", inline: <<-SHELL
-        echo "Installing Node.JS"
+        echo ""
+        echo "Installing Node.JS ..."
         curl -sL https://deb.nodesource.com/setup_8.x | bash -
         sudo -E apt-get install -y nodejs
 
         npm install npm -g
-        echo "Installing Web-Terminal"
+        echo ""
+        echo "Installing Web-Terminal ..."
         npm install --unsafe-perm -g web-terminal
+      SHELL
+
+      k8smaster.vm.provision "shell",
+      privileged: false,
+      run: "once",
+      inline: <<-SHELL
+        echo ""
+        echo "Deploying backend ..."
+        cd /vagrant/vpp-backend
+        sudo make
+        kubectl apply -f /vagrant/vpp-backend/authorization.yaml
+        kubectl apply -f /vagrant/vpp-backend/deployment.yaml
       SHELL
 
       k8smaster.vm.provision "shell",
         privileged: false,
         run: "always",
         inline: <<-SHELL
-          nohup kubectl proxy --port=8080 > /dev/null 2>&1 < /dev/null &
           cd /vagrant && nohup web-terminal --port 8088 > /dev/null 2>&1 < /dev/null &
           echo "Web-Terminal accessible at http://localhost:8088/terminal"
           echo ""
@@ -727,14 +739,6 @@ VAGRANTFILE_API_VERSION = "2"
         else
           node.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
           node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
-        end
-
-        if n == 0
-          node.vm.network "forwarded_port", guest: 8080, host: 8081, host_ip: '127.0.0.1', guest_ip: '127.0.0.1'
-          node.vm.network "forwarded_port", guest: 9999, host: 9991, host_ip: '127.0.0.1', guest_ip: '127.0.0.1'
-        elsif n == 1
-          node.vm.network "forwarded_port", guest: 8080, host: 8082, host_ip: '127.0.0.1', guest_ip: '127.0.0.1'
-          node.vm.network "forwarded_port", guest: 9999, host: 9992, host_ip: '127.0.0.1', guest_ip: '127.0.0.1'
         end
 
         node.vm.provider "virtualbox" do |v|

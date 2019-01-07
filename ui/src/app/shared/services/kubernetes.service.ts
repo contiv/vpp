@@ -21,38 +21,38 @@ export class KubernetesService {
     private coreService: CoreService
   ) { }
 
-  public loadPods(restUrl: string): Observable<K8sPodModel[]> {
-    return this.http.get(restUrl + AppConfig.API_V1 + 'pods').pipe(
+  public loadPods(): Observable<K8sPodModel[]> {
+    return this.http.get(AppConfig.K8S_REST_URL + AppConfig.API_V1 + 'pods').pipe(
       map(res => this.coreService.extractListData(res['items'] as Array<any>, K8sPodModel))
     );
   }
 
-  public loadNodes(restUrl: string): Observable<K8sNodeModel[]> {
-    return this.http.get(restUrl + AppConfig.API_V1 + 'nodes').pipe(
+  public loadNodes(): Observable<K8sNodeModel[]> {
+    return this.http.get(AppConfig.K8S_REST_URL + AppConfig.API_V1 + 'nodes').pipe(
       map(res => this.coreService.extractListData(res['items'] as Array<any>, K8sNodeModel))
     );
   }
 
-  public loadPolicies(restUrl: string): Observable<K8sPolicyModel[]> {
-    return this.http.get(restUrl + AppConfig.API_V1_NETWORKING + 'networkpolicies').pipe(
+  public loadPolicies(): Observable<K8sPolicyModel[]> {
+    return this.http.get(AppConfig.K8S_REST_URL + AppConfig.API_V1_NETWORKING + 'networkpolicies').pipe(
       map(res => this.coreService.extractListData(res['items'] as Array<any>, K8sPolicyModel))
     );
   }
 
-  public loadServices(restUrl: string): Observable<K8sServiceModel[]> {
-    return this.http.get(restUrl + AppConfig.API_V1 + 'services').pipe(
+  public loadServices(): Observable<K8sServiceModel[]> {
+    return this.http.get(AppConfig.K8S_REST_URL + AppConfig.API_V1 + 'services').pipe(
       map(res => this.coreService.extractListData(res['items'] as Array<any>, K8sServiceModel))
     );
   }
 
-  public loadEndpoints(restUrl: string): Observable<K8sEndpointModel[]> {
-    return this.http.get(restUrl + AppConfig.API_V1 + 'endpoints').pipe(
+  public loadEndpoints(): Observable<K8sEndpointModel[]> {
+    return this.http.get(AppConfig.K8S_REST_URL + AppConfig.API_V1 + 'endpoints').pipe(
       map(res => this.coreService.extractListData(res['items'] as Array<any>, K8sEndpointModel))
     );
   }
 
-  public loadNamespaces(restUrl: string): Observable<K8sNamespaceModel[]> {
-    return this.http.get(restUrl + AppConfig.API_V1 + 'namespaces').pipe(
+  public loadNamespaces(): Observable<K8sNamespaceModel[]> {
+    return this.http.get(AppConfig.K8S_REST_URL + AppConfig.API_V1 + 'namespaces').pipe(
       map(res => this.coreService.extractListData(res['items'] as Array<any>, K8sNamespaceModel))
     );
   }

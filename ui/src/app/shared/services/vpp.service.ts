@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { map } from 'rxjs/operators';
 import { Observable } from 'rxjs';
 import { CoreService } from './core.service';
@@ -22,102 +22,118 @@ export class VppService {
     private coreService: CoreService
   ) { }
 
-  public getIPAM(restUrl: string): Observable<VppIpamModel> {
-    return this.http.get(restUrl + AppConfig.API_V1_CONTIV + 'ipam').pipe(
+  public getIPAM(vswitchIp: string): Observable<VppIpamModel> {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_CONTIV + 'ipam', {params}).pipe(
       map(res => {
         return this.coreService.extractObjectData(res, VppIpamModel);
       })
     );
   }
 
-  public getIpamRaw(restUrl: string) {
-    return this.http.get(restUrl + AppConfig.API_V1_CONTIV + 'ipam');
+  public getIpamRaw(vswitchIp: string) {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_CONTIV + 'ipam', {params});
   }
 
-  public getRoutes(restUrl: string): Observable<VppRouteModel[]> {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'routes').pipe(
+  public getRoutes(vswitchIp: string): Observable<VppRouteModel[]> {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'routes', {params}).pipe(
       map(res => {
         return this.coreService.extractListData(res as Array<any>, VppRouteModel);
       })
     );
   }
 
-  public getRoutesRaw(restUrl: string) {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'routes');
+  public getRoutesRaw(vswitchIp: string) {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'routes', {params});
   }
 
-  public getArps(restUrl: string): Observable<VppArpModel[]> {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'arps').pipe(
+  public getArps(vswitchIp: string): Observable<VppArpModel[]> {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'arps', {params}).pipe(
       map(res => {
         return this.coreService.extractListData(res as Array<any>, VppArpModel);
       })
     );
   }
 
-  public getArpsRaw(restUrl: string) {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'arps');
+  public getArpsRaw(vswitchIp: string) {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'arps', {params});
   }
 
-  public getInterfaces(restUrl: string): Observable<VppInterfaceModel[]> {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'interfaces').pipe(
+  public getInterfaces(vswitchIp: string): Observable<VppInterfaceModel[]> {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'interfaces', {params}).pipe(
       map(res => {
         return this.coreService.extractObjectDataToArray(res, VppInterfaceModel);
       })
     );
   }
 
-  public getInterfacesRaw(restUrl: string) {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'interfaces');
+  public getInterfacesRaw(vswitchIp: string) {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'interfaces', {params});
   }
 
-  public getVxlanInterfaces(restUrl: string): Observable<VppInterfaceVxlanModel[]> {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'interfaces/vxlan').pipe(
+  public getVxlanInterfaces(vswitchIp: string): Observable<VppInterfaceVxlanModel[]> {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'interfaces/vxlan', {params}).pipe(
       map(res => {
         return this.coreService.extractObjectDataToArray(res, VppInterfaceVxlanModel);
       })
     );
   }
 
-  public getVxlanInterfacesRaw(restUrl: string) {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'interfaces/vxlan');
+  public getVxlanInterfacesRaw(vswitchIp: string) {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'interfaces/vxlan', {params});
   }
 
-  public getTapInterfaces(restUrl: string): Observable<VppInterfaceTapModel[]> {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'interfaces/tap').pipe(
+  public getTapInterfaces(vswitchIp: string): Observable<VppInterfaceTapModel[]> {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'interfaces/tap', {params}).pipe(
       map(res => {
         return this.coreService.extractObjectDataToArray(res, VppInterfaceTapModel);
       })
     );
   }
 
-  public getTapInterfacesRaw(restUrl: string) {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'interfaces/tap');
+  public getTapInterfacesRaw(vswitchIp: string) {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'interfaces/tap', {params});
   }
 
-  public getBridgeDomains(restUrl: string): Observable<VppBdModel[]> {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'bd').pipe(
+  public getBridgeDomains(vswitchIp: string): Observable<VppBdModel[]> {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'bd', {params}).pipe(
       map(res => {
         return this.coreService.extractObjectDataToArray(res, VppBdModel);
       })
     );
   }
 
-  public getbridgeDomainsRaw(restUrl: string) {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'bd');
+  public getbridgeDomainsRaw(vswitchIp: string) {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'bd', {params});
   }
 
-  public getNatRaw(restUrl: string) {
-    return this.http.get(restUrl + AppConfig.API_V1_VPP + 'nat');
+  public getNatRaw(vswitchIp: string) {
+    const params = new HttpParams().set('vswitch', vswitchIp);
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'nat', {params});
   }
 
-  public getVersion(restUrl: string) {
+  public getVersion(vswitchIp: string) {
+    const params = new HttpParams().set('vswitch', vswitchIp);
     const headers = new HttpHeaders({
       'Content-Type':  'application/json',
     });
 
     const body = {'vppclicommand': 'show version'};
 
-    return this.http.post(restUrl + 'vpp/command', body, {headers, responseType: 'text'}).pipe(
+    return this.http.post(AppConfig.VPP_REST_URL + 'vpp/command', body, {params, headers, responseType: 'text'}).pipe(
 
     );
   }

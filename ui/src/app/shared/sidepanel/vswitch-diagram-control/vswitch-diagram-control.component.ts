@@ -7,7 +7,6 @@ import { VswitchInterfaceList } from '../../interfaces/vswitch-interface-list';
 import { ModalService } from '../../services/modal.service';
 import { K8sPodModel } from '../../models/k8s/k8s-pod-model';
 import { VppService } from '../../services/vpp.service';
-import { AppConfig } from '../../../app-config';
 
 @Component({
   selector: 'app-vswitch-diagram-control',
@@ -101,30 +100,11 @@ export class VswitchDiagramControlComponent implements OnInit, OnDestroy {
   }
 
   public showApi() {
-    const restUrl = this.getRestUrl(this.domain.node.name);
     const fn = this.apiList.find(e => e.name === this.apis).fn;
 
     this.subscriptions.push(
-      this.vppService[fn](restUrl).subscribe(output => this.modalService.showApiOutput(this.apis, JSON.stringify(output)))
+      this.vppService[fn](this.domain.node.ip).subscribe(output => this.modalService.showApiOutput(this.apis, JSON.stringify(output)))
     );
-  }
-
-  private getRestUrl(nodeId: string): string {
-    let url: string;
-
-    switch (nodeId) {
-      case 'k8s-master':
-        url = AppConfig.VPP_REST_MASTER_URL;
-        break;
-      case 'k8s-worker1':
-        url = AppConfig.VPP_REST_WORKER1_URL;
-        break;
-      case 'k8s-worker2':
-        url = AppConfig.VPP_REST_WORKER2_URL;
-        break;
-    }
-
-    return url;
   }
 
   ngOnDestroy() {

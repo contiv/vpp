@@ -1,3 +1,4 @@
+---
 apiVersion: v1
 kind: Pod
 metadata:
@@ -25,15 +26,15 @@ spec:
         - name: memif-sockets
           mountPath: /var/run/contiv
   volumes:
-  - name: vpp-config
-    configMap:
-      name: vnf-vpp-cfg
-  - name: agent-config
-    configMap:
-      name: vnf-agent-cfg
-  - name: memif-sockets
-    hostPath:
-      path: /var/run/contiv
+    - name: vpp-config
+      configMap:
+        name: vnf-vpp-cfg
+    - name: agent-config
+      configMap:
+        name: vnf-agent-cfg
+    - name: memif-sockets
+      hostPath:
+        path: /var/run/contiv
   nodeSelector:
     role: affinity
 

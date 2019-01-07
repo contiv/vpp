@@ -37,19 +37,17 @@ import (
 	"sync"
 	"time"
 
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	vppnodemodel "github.com/contiv/vpp/plugins/nodesync/vppnode"
 
 	"k8s.io/client-go/tools/clientcmd"
 
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
 
-// Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
-// for changes in policies, pods and namespaces and applies rules into extendable
-// set of network stacks.
+// Plugin implements NodeConfig and TelemetryReport CRDs.
 type Plugin struct {
 	Deps
 
@@ -74,7 +72,7 @@ type Plugin struct {
 	processor            api.ContivTelemetryProcessor
 }
 
-// Deps defines dependencies of policy plugin.
+// Deps defines dependencies of CRD plugin.
 type Deps struct {
 	infra.PluginDeps
 	// Kubeconfig with k8s cluster address and access credentials to use.
@@ -118,10 +116,20 @@ func (p *Plugin) Init() error {
 	}
 
 	// Time interval for periodic report collection
-	collectionInterval := 1 * time.Minute
-	configuredInterval, err := strconv.Atoi(os.Getenv("CONTIV_CRD_INTERVAL"))
+	collectionInterval := 5 * time.Minute
+	configuredInterval, err := strconv.Atoi(os.Getenv("CONTIV_CRD_VALIDATE_INTERVAL"))
 	if err == nil {
 		collectionInterval = time.Duration(configuredInterval) * time.Minute
+	}
+
+	// Agent state to dump and validate
+	validateState := os.Getenv("CONTIV_CRD_VALIDATE_STATE")
+	if validateState != "internal" && validateState != "NB" && validateState != "SB" {
+		if validateState != "" {
+			p.Log.WithField("validateState", validateState).Warn(
+				"Unrecognized value set for CONTIV_CRD_VALIDATE_STATE, defaulting to \"SB\"")
+		}
+		validateState = "SB"
 	}
 
 	p.telemetryController = &telemetry.Controller{
@@ -134,7 +142,7 @@ func (p *Plugin) Init() error {
 	}
 
 	// This where we initialize all layers
-	p.cache = cache.NewTelemetryCache(p.Log, collectionInterval, *verbose)
+	p.cache = cache.NewTelemetryCache(p.Log, collectionInterval, validateState, *verbose)
 
 	p.cache.Init()
 
@@ -221,7 +229,7 @@ func (p *Plugin) AfterInit() error {
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
 		Watch("ContivTelemetry Resources", p.changeChan, p.resyncChan,
-			podmodel.KeyPrefix(), nodemodel.KeyPrefix(), nodeinfomodel.AllocatedIDsKeyPrefix)
+			podmodel.KeyPrefix(), nodemodel.KeyPrefix(), vppnodemodel.KeyPrefix)
 	return err
 }
 
@@ -265,7 +273,7 @@ func (p *Plugin) watchEvents() {
 	}
 }
 
-func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
+func (p *Plugin) handleResync(resyncChan <-chan resync.StatusEvent) {
 
 	for {
 		select {

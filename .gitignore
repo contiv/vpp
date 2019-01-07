@@ -9,6 +9,7 @@ cmd/contiv-stn/contiv-stn
 cmd/contiv-crd/contiv-crd
 cmd/contiv-netctl/contiv-netctl
 cmd/tools/ldpreload-label-injector/ldpreload-label-injector
+plugins/controller/example/example
 vagrant/images.tar
 .vagrant
 .vagrant-state

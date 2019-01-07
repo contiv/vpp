@@ -1,3 +1,5 @@
+---
+
 # Configuration for node in the cluster
 apiVersion: nodeconfig.contiv.vpp/v1
 kind: NodeConfig

@@ -17,7 +17,6 @@
 package cache
 
 import (
-	"crypto/rand"
 	"fmt"
 	"net"
 
@@ -35,9 +34,8 @@ type RendererCache struct {
 	orientation Orientation
 
 	// tables
-	localTables       *LocalTables
-	globalTable       *ContivRuleTable
-	allocatedTableIDs AllocatedIDs
+	localTables *LocalTables
+	globalTable *ContivRuleTable
 
 	// last received pod configuration
 	config Config
@@ -81,8 +79,8 @@ func (rc *RendererCache) Init(orientation Orientation) {
 // Flush completely wipes out the cache content.
 func (rc *RendererCache) Flush() {
 	rc.localTables = NewLocalTables(rc.Log)
-	rc.globalTable = NewContivRuleTable(GlobalTableID)
-	rc.allocatedTableIDs = make(AllocatedIDs)
+	rc.globalTable = NewContivRuleTable(Global)
+	rc.globalTable.GetID() // set cached id for UTs
 	rc.config = make(Config)
 }
 
@@ -104,9 +102,8 @@ func (rc *RendererCache) Resync(tables []*ContivRuleTable) error {
 	// Re-synchronize outside of the cache first.
 	// In-progress failure should not affect the cache content.
 	config := make(Config)
-	allocatedTableIDs := make(AllocatedIDs)
 	localTables := NewLocalTables(rc.Log)
-	globalTable := NewContivRuleTable(GlobalTableID)
+	globalTable := NewContivRuleTable(Global)
 
 	// Build the list of local tables.
 	for _, table := range tables {
@@ -121,11 +118,6 @@ func (rc *RendererCache) Resync(tables []*ContivRuleTable) error {
 			// Skip unused local tables.
 			continue
 		}
-		_, duplicity := allocatedTableIDs[table.ID]
-		if duplicity {
-			return fmt.Errorf("duplicate ContivRuleTable ID: %s", table.ID)
-		}
-		allocatedTableIDs[table.ID] = struct{}{}
 		localTables.Insert(table)
 		// The configuration cannot be reconstructed, but at least the set of all pods
 		// can be.
@@ -139,7 +131,6 @@ func (rc *RendererCache) Resync(tables []*ContivRuleTable) error {
 	}
 
 	// Replace the cache content.
-	rc.allocatedTableIDs = allocatedTableIDs
 	rc.localTables = localTables
 	rc.globalTable = globalTable
 	rc.config = config
@@ -197,7 +188,7 @@ func (rct *RendererCacheTxn) Update(pod podmodel.ID, podConfig *PodConfig) {
 	rct.config[pod] = podConfig
 	rct.cache.Log.WithFields(logging.Fields{
 		"podID":        pod,
-		"newPodConfig": podConfig,
+		"newPodConfig": *podConfig,
 		"config":       rct.config,
 	}).Debug("Updating pod")
 	rct.upToDateTables = false
@@ -233,7 +224,7 @@ func (rct *RendererCacheTxn) GetChanges() (changes []*TxnChange) {
 	// Get changes related to local tables.
 	for i := 0; i < rct.localTables.numTables; i++ {
 		txnTable := rct.localTables.tables[i]
-		origTable := rct.cache.localTables.LookupByID(txnTable.ID)
+		origTable := rct.cache.localTables.LookupByID(txnTable.GetID())
 		if txnTable.NumOfRules == 0 {
 			// skip empty local tables
 			continue
@@ -280,18 +271,18 @@ func (rct *RendererCacheTxn) Commit() error {
 	// Commit local tables.
 	for i := 0; i < rct.localTables.numTables; i++ {
 		txnTable := rct.localTables.tables[i]
-		origTable := rct.cache.localTables.LookupByID(txnTable.ID)
+		origTable := rct.cache.localTables.LookupByID(txnTable.GetID())
 
 		if origTable != nil {
 			if len(txnTable.Pods) == 0 {
 				// Local table removed in the transaction.
 				rct.cache.localTables.Remove(txnTable)
 				rct.cache.Log.WithFields(logging.Fields{
-					"table": txnTable.ID,
+					"table": txnTable.GetID(),
 				}).Debug("Local table was removed in the transaction")
 			} else if !txnTable.Pods.Equals(origTable.Pods) {
 				rct.cache.Log.WithFields(logging.Fields{
-					"table":    txnTable.ID,
+					"table":    txnTable.GetID(),
 					"origPods": origTable.Pods,
 					"newPods":  txnTable.Pods,
 				}).Debug("Local table was re-assigned to different set of pods in the transaction")
@@ -314,7 +305,7 @@ func (rct *RendererCacheTxn) Commit() error {
 				// New local table created in the transaction.
 				rct.cache.localTables.Insert(txnTable)
 				rct.cache.Log.WithFields(logging.Fields{
-					"table": txnTable.ID,
+					"table": txnTable.GetID(),
 				}).Debug("New local table was created in the transaction")
 			}
 		}
@@ -421,17 +412,11 @@ func (rct *RendererCacheTxn) refreshTables() {
 		podCfg := rct.GetPodConfig(podID)
 		newTable := rct.buildLocalTable(podID, podCfg)
 
-		rct.cache.Log.WithFields(logging.Fields{
-			"podID":    podID,
-			"newTable": newTable.ID,
-		}).Debug("Refreshing pod's local table")
-
 		// Add pod's original table into the transaction if is not already there.
 		origTable := rct.cache.localTables.LookupByPod(podID)
-		if origTable != nil && rct.localTables.LookupByID(origTable.ID) == nil {
+		if origTable != nil && rct.localTables.LookupByID(origTable.GetID()) == nil {
 			// Create a copy in the transaction (only shallow copy of rules).
 			updatedTable := &ContivRuleTable{
-				ID:         origTable.ID,
 				Type:       origTable.Type,
 				Rules:      origTable.Rules,
 				NumOfRules: origTable.NumOfRules,
@@ -445,8 +430,7 @@ func (rct *RendererCacheTxn) refreshTables() {
 		txnTable := rct.localTables.LookupByRules(newTable.Rules[:newTable.NumOfRules])
 		if txnTable != nil {
 			rct.localTables.AssignPod(txnTable, podID)
-			// Throw away the local table that was just built.
-			delete(rct.cache.allocatedTableIDs, newTable.ID)
+			// The local table that was just built is thrown away...
 			continue
 		}
 
@@ -455,7 +439,6 @@ func (rct *RendererCacheTxn) refreshTables() {
 		if cacheTable != nil {
 			// Create a copy in the transaction with added pod (only shallow copy of rules).
 			updatedTable := &ContivRuleTable{
-				ID:         cacheTable.ID,
 				Type:       cacheTable.Type,
 				Rules:      cacheTable.Rules,
 				NumOfRules: cacheTable.NumOfRules,
@@ -464,8 +447,7 @@ func (rct *RendererCacheTxn) refreshTables() {
 			}
 			updatedTable.Pods.Add(podID)
 			rct.localTables.Insert(updatedTable)
-			// Throw away the local table that was just built.
-			delete(rct.cache.allocatedTableIDs, newTable.ID)
+			//  The local table that was just built is thrown away...
 			continue
 		}
 
@@ -478,15 +460,15 @@ func (rct *RendererCacheTxn) refreshTables() {
 
 	rct.upToDateTables = true
 	rct.cache.Log.WithFields(logging.Fields{
-		"number of local tables": rct.localTables.numTables,
-		"number of global rules": rct.globalTable.NumOfRules,
+		"local":  rct.localTables,
+		"global": rct.globalTable,
 	}).Debug("tables in transaction were refreshed")
 }
 
 // buildLocalTable builds the local table corresponding to the given pod
 // for the current state of the transaction.
 func (rct *RendererCacheTxn) buildLocalTable(dstPodID podmodel.ID, dstPodCfg *PodConfig) *ContivRuleTable {
-	table := NewContivRuleTable(rct.generateTableID())
+	table := NewContivRuleTable(Local)
 	table.Pods.Add(dstPodID)
 	if dstPodCfg.Removed {
 		// For removed pod return empty table.
@@ -638,7 +620,7 @@ func (rct *RendererCacheTxn) installAllowedPorts(dstTable *ContivRuleTable, srcP
 // rebuildGlobalTable rebuilds the content of the global table for the current state
 // of the transaction.
 func (rct *RendererCacheTxn) rebuildGlobalTable() {
-	rct.globalTable = NewContivRuleTable(GlobalTableID)
+	rct.globalTable = NewContivRuleTable(Global)
 
 	// For every pod, take the deny-rules with the opposite orientation wrt. the cache
 	// and install them into the global table.
@@ -671,22 +653,6 @@ func (rct *RendererCacheTxn) installGlobalRules(podCfg *PodConfig) {
 		}
 		rct.globalTable.InsertRule(ruleCopy)
 	}
-}
-
-// Generator for ContivRuleTable IDs.
-func (rct *RendererCacheTxn) generateTableID() string {
-	var id string
-	for {
-		// Generate random suffix, 10 characters long.
-		b := make([]byte, 5)
-		rand.Read(b)
-		id = fmt.Sprintf("%X", b)
-		if _, exists := rct.cache.allocatedTableIDs[id]; !exists {
-			rct.cache.allocatedTableIDs[id] = struct{}{}
-			break
-		}
-	}
-	return id
 }
 
 func (rct *RendererCacheTxn) allowAll() *renderer.ContivRule {

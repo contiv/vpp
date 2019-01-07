@@ -133,7 +133,7 @@ func verifyPodLocalTable(view View, podID podmodel.ID, expPtr *ContivRuleTable, 
 	if expPtr != nil {
 		gomega.Expect(table).To(gomega.Equal(expPtr))
 	}
-	gomega.Expect(table.ID).ToNot(gomega.BeEmpty())
+	gomega.Expect(table.GetID()).ToNot(gomega.BeEmpty())
 	gomega.Expect(table.Type).To(gomega.Equal(Local))
 	verifyRules(table, rules)
 	gomega.Expect(table.Pods).To(gomega.BeEquivalentTo(pods))
@@ -147,10 +147,10 @@ func verifyPodNilLocalTable(view View, podID podmodel.ID) {
 func verifyLocalTable(table *ContivRuleTable, expPtr *ContivRuleTable, rules []*renderer.ContivRule, pods PodSet) {
 	gomega.Expect(table).ToNot(gomega.BeNil())
 	if expPtr != nil {
-		gomega.Expect(table.ID).To(gomega.Equal(expPtr.ID))
+		gomega.Expect(table.GetID()).To(gomega.Equal(expPtr.GetID()))
 	}
-	gomega.Expect(table.ID).ToNot(gomega.BeEmpty())
-	gomega.Expect(table.ID).ToNot(gomega.BeEquivalentTo(GlobalTableID))
+	gomega.Expect(table.GetID()).ToNot(gomega.BeEmpty())
+	gomega.Expect(table.GetID()).ToNot(gomega.BeEquivalentTo(GlobalTableID))
 	gomega.Expect(table.Type).To(gomega.Equal(Local))
 	verifyRules(table, rules)
 	gomega.Expect(table.Pods).To(gomega.BeEquivalentTo(pods))
@@ -170,8 +170,8 @@ func verifyGlobalTable(table *ContivRuleTable, expPtr, notExpPtr *ContivRuleTabl
 	if notExpPtr != nil {
 		gomega.Expect(table).ToNot(gomega.Equal(notExpPtr))
 	}
-	gomega.Expect(table.ID).To(gomega.BeEquivalentTo(GlobalTableID))
 	gomega.Expect(table.Type).To(gomega.Equal(Global))
+	gomega.Expect(table.GetID()).To(gomega.BeEquivalentTo(GlobalTableID))
 	verifyRules(table, rules)
 	gomega.Expect(table.Pods).To(gomega.BeEmpty())
 }
@@ -1549,7 +1549,7 @@ func TestResyncEgressOrientation(t *testing.T) {
 		pod1ResyncCfg.Egress[1] /* smaller subnet */, pod1ResyncCfg.Egress[0],
 		AllowAll(),
 	}
-	pod1LocalTable := NewContivRuleTable("pod1-local")
+	pod1LocalTable := NewContivRuleTable(Local)
 	pod1LocalTable.Pods.Add(Pod1)
 	for _, rule := range pod1LocalRules {
 		pod1LocalTable.InsertRule(rule)
@@ -1561,7 +1561,7 @@ func TestResyncEgressOrientation(t *testing.T) {
 		blockPodEgress(Pod3IP),
 		Ts7.Pod3Egress[0], Ts7.Pod3Egress[1], Ts7.Pod3Egress[2], Ts7.Pod3Egress[3],
 	}
-	pod3LocalTable := NewContivRuleTable("pod3-local")
+	pod3LocalTable := NewContivRuleTable(Local)
 	pod3LocalTable.Pods.Add(Pod3)
 	for _, rule := range pod3LocalRules {
 		pod3LocalTable.InsertRule(rule)
@@ -1572,7 +1572,7 @@ func TestResyncEgressOrientation(t *testing.T) {
 	globalRules = append(globalRules, modifySrc(Pod1IP, pod1ResyncCfg.Ingress[0], pod1ResyncCfg.Ingress[1])...)
 	globalRules = append(globalRules, modifySrc(Pod3IP, pod3Cfg.Ingress[0], pod3Cfg.Ingress[1], pod3Cfg.Ingress[2])...)
 	globalRules = append(globalRules, AllowAll())
-	globalTable := NewContivRuleTable(GlobalTableID)
+	globalTable := NewContivRuleTable(Global)
 	for _, rule := range globalRules {
 		globalTable.InsertRule(rule)
 	}
@@ -1697,7 +1697,7 @@ func TestResyncIngressOrientation(t *testing.T) {
 		blockPodIngress(Pod3IP),
 		pod1ResyncCfg.Ingress[0], pod1ResyncCfg.Ingress[1],
 	}
-	pod1LocalTable := NewContivRuleTable("pod1-local")
+	pod1LocalTable := NewContivRuleTable(Local)
 	pod1LocalTable.Pods.Add(Pod1)
 	for _, rule := range pod1LocalRules {
 		pod1LocalTable.InsertRule(rule)
@@ -1709,7 +1709,7 @@ func TestResyncIngressOrientation(t *testing.T) {
 		blockPodIngress(Pod3IP),
 		pod3Cfg.Ingress[1], pod3Cfg.Ingress[2],
 	}
-	pod3LocalTable := NewContivRuleTable("pod3-local")
+	pod3LocalTable := NewContivRuleTable(Local)
 	pod3LocalTable.Pods.Add(Pod3)
 	for _, rule := range pod3LocalRules {
 		pod3LocalTable.InsertRule(rule)
@@ -1724,7 +1724,7 @@ func TestResyncIngressOrientation(t *testing.T) {
 	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[2], Pod3IP)...)
 	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[3], Pod3IP)...)
 	globalRules = append(globalRules, AllowAll())
-	globalTable := NewContivRuleTable(GlobalTableID)
+	globalTable := NewContivRuleTable(Global)
 	for _, rule := range globalRules {
 		globalTable.InsertRule(rule)
 	}

@@ -14,7 +14,12 @@
 
 package api
 
-import "github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+import (
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/ipv4net"
+)
 
 const (
 	// SubnetMask defines the default subnet mask for pod addressing - TODO: must be refactored to consider CIDR
@@ -25,9 +30,9 @@ const (
 
 // VppCache defines the operations on the VPP node data store.
 type VppCache interface {
-	CreateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
+	CreateNode(ID uint32, nodeName, IPAdr string) error
 	RetrieveNode(nodeName string) (*telemetrymodel.Node, error)
-	UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
+	UpdateNode(ID uint32, nodeName, IPAdr string) error
 	DeleteNode(nodeName string) error
 
 	RetrieveNodeByHostIPAddr(ipAddr string) (*telemetrymodel.Node, error)
@@ -37,14 +42,14 @@ type VppCache interface {
 
 	RetrieveAllNodes() []*telemetrymodel.Node
 
-	SetNodeLiveness(name string, nL *telemetrymodel.NodeLiveness) error
-	SetNodeInterfaces(name string, nInt map[int]telemetrymodel.NodeInterface) error
-	SetNodeBridgeDomain(name string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error
-	SetNodeL2Fibs(name string, nL2f map[string]telemetrymodel.NodeL2FibEntry) error
+	SetNodeLiveness(name string, nL *status.AgentStatus) error
+	SetNodeInterfaces(name string, nInt telemetrymodel.NodeInterfaces) error
+	SetNodeBridgeDomain(name string, nBridge telemetrymodel.NodeBridgeDomains) error
+	SetNodeL2Fibs(name string, nL2f telemetrymodel.NodeL2FibTable) error
 	SetNodeTelemetry(name string, nTele map[string]telemetrymodel.NodeTelemetry) error
-	SetNodeIPARPs(name string, nArps []telemetrymodel.NodeIPArpEntry) error
-	SetNodeStaticRoutes(nodeName string, nSrs []telemetrymodel.NodeIPRoute) error
-	SetNodeIPam(nodeName string, nIPam telemetrymodel.IPamEntry) error
+	SetNodeIPARPs(name string, nArps telemetrymodel.NodeIPArpTable) error
+	SetNodeStaticRoutes(nodeName string, nSrs telemetrymodel.NodeStaticRoutes) error
+	SetNodeIPam(nodeName string, nIPam ipv4net.IPAMData) error
 	SetLinuxInterfaces(nodeName string, nInt telemetrymodel.LinuxInterfaces) error
 
 	SetSecondaryNodeIndices(node *telemetrymodel.Node) []string

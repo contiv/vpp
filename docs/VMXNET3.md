@@ -35,33 +35,66 @@ interface rx modes, it is a good idea to configure the `interrupt` or `adaptive`
 
 Example configuration:
 ```diff
-iff --git a/k8s/contiv-vpp.yaml b/k8s/contiv-vpp.yaml
-index 83909b1c2..346a1b2b1 100644
+diff --git a/k8s/contiv-vpp.yaml b/k8s/contiv-vpp.yaml
+index 8d1d270a0..4b249c349 100644
 --- a/k8s/contiv-vpp.yaml
 +++ b/k8s/contiv-vpp.yaml
-@@ -36,6 +40,7 @@ data:
-     ServiceLocalEndpointWeight: 1
-     DisableNATVirtualReassembly: false
-     CRDNodeConfigurationDisabled: true
-+    InterfaceRxMode: adaptive
-     IPAMConfig:
-       NodeInterconnectDHCP: false
-       NodeInterconnectCIDR: 192.168.16.0/24
-@@ -45,6 +50,13 @@ data:
-       VPPHostSubnetCIDR: 172.30.0.0/16
-       VPPHostNetworkPrefixLen: 24
-       VxlanCIDR: 192.168.30.0/24
-+    NodeConfig:
-+    - NodeName: ubuntu-server-1
-+      MainVppInterface:
-+        InterfaceName: vmxnet3-0/b/0/0
-+    - NodeName: ubuntu-server-2
-+      MainVppInterface:
-+        InterfaceName: vmxnet3-0/b/0/0
-   logs.conf: |
-     default-level: debug
-     loggers:
+@@ -26,6 +26,7 @@ data:
+     tapInterfaceVersion: 2
+     tapv2RxRingSize: 256
+     tapv2TxRingSize: 256
++    interfaceRxMode: "adaptive"
+     tcpChecksumOffloadDisabled: true
+     natExternalTraffic: true
+     mtuSize: 1450
+@@ -44,6 +45,12 @@ data:
+       vppHostSubnetCIDR: 172.30.0.0/16
+       vppHostSubnetOneNodePrefixLen: 24
+       vxlanCIDR: 192.168.30.0/24
++    nodeConfig:
++    - nodeName: ubuntu-server-1
++      mainVppInterface:
++        interfaceName: vmxnet3-0/b/0/0
++    - nodeName: ubuntu-server-2
++      mainVppInterface:
++        interfaceName: vmxnet3-0/b/0/0
+   controller.conf: |
+     delayLocalResync: 5000000000
+     enablePeriodicHealing: false
 ``` 
 
 Please note that this config can be specified using the [helm chart](../k8s/contiv-vpp), 
 and the node config also via CRD.
+
+## STN Usage
+Vmxnet3 VPP driver can also be used in the [STN (single NIC) mode](SINGLE_NIC_SETUP.md).
+In this case, you need to specify `stealInterface` as usually. In case that the
+`vmxnet3` kernel driver was  used in the host OS before stealing the NIC, vmxnet3 driver
+will be automatically used.
+
+Example configuration:
+
+```diff
+diff --git a/k8s/contiv-vpp.yaml b/k8s/contiv-vpp.yaml
+index 8d1d270a0..4b249c349 100644
+--- a/k8s/contiv-vpp.yaml
++++ b/k8s/contiv-vpp.yaml
+@@ -26,6 +26,7 @@ data:
+     tapInterfaceVersion: 2
+     tapv2RxRingSize: 256
+     tapv2TxRingSize: 256
++    interfaceRxMode: "adaptive"
+     tcpChecksumOffloadDisabled: true
+     natExternalTraffic: true
+     mtuSize: 1450
+@@ -44,6 +45,12 @@ data:
+       vppHostSubnetCIDR: 172.30.0.0/16
+       vppHostSubnetOneNodePrefixLen: 24
+       vxlanCIDR: 192.168.30.0/24
++    nodeConfig:
++    - nodeName: ubuntu-server-1
++      stealInterface: ens192
+   controller.conf: |
+     delayLocalResync: 5000000000
+     enablePeriodicHealing: false
+```

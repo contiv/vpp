@@ -4,20 +4,25 @@ package localclient
 import (
 	"sync"
 
-	"github.com/contiv/vpp/mock/localclient/dsl"
-	mocklinux "github.com/contiv/vpp/mock/localclient/dsl/linux"
-	mockvpp "github.com/contiv/vpp/mock/localclient/dsl/vpp"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/syncbase"
-	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/clientv1/vpp"
+
+	"github.com/ligato/vpp-agent/clientv2/linux"
+	"github.com/ligato/vpp-agent/clientv2/vpp"
+
+	mockcontroller "github.com/contiv/vpp/mock/localclient/controller"
+	mocklinux "github.com/contiv/vpp/mock/localclient/dsl/linux"
+	mockvpp "github.com/contiv/vpp/mock/localclient/dsl/vpp"
 )
 
 // TxnTracker tracks all transactions executed or pending in the mock localclient.
 type TxnTracker struct {
 	// lock allows to use the same mock localclient from multiple go routines.
 	lock sync.Mutex
+	// next transaction sequence number
+	txnSeqNum uint64
 	// LatestRevisions maintains the map of keys & values with revision.
 	LatestRevisions *syncbase.PrevRevisions
 	// CommittedTxns is a list finalized transaction in the order as they were
@@ -56,7 +61,10 @@ func NewTxnTracker(onCommit func(txn *Txn, latestRevs *syncbase.PrevRevisions) e
 // NewLinuxDataChangeTxn is a factory for DataChange transactions.
 func (t *TxnTracker) NewLinuxDataChangeTxn() linuxclient.DataChangeDSL {
 	txn := &Txn{}
-	dsl := mocklinux.NewMockDataChangeDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataChangeTxnOps, Ops) })
+	dsl := mocklinux.NewMockDataChangeDSL(
+		func(values map[string]proto.Message) error {
+			return t.commit(txn, t.applyDataChangeTxnOps, values)
+		})
 	txn.LinuxDataChangeTxn = dsl
 	t.PendingTxns[txn] = struct{}{}
 	return dsl
@@ -65,20 +73,23 @@ func (t *TxnTracker) NewLinuxDataChangeTxn() linuxclient.DataChangeDSL {
 // NewVPPDataChangeTxn is a factory for VPP Plugins's DataChange transactions.
 func (t *TxnTracker) NewVPPDataChangeTxn() vppclient.DataChangeDSL {
 	txn := &Txn{}
-	dsl := mockvpp.NewMockDataChangeDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataChangeTxnOps, Ops) })
+	dsl := mockvpp.NewMockDataChangeDSL(
+		func(values map[string]proto.Message) error {
+			return t.commit(txn, t.applyDataChangeTxnOps, values)
+		})
 	txn.VPPDataChangeTxn = dsl
 	t.PendingTxns[txn] = struct{}{}
 	return dsl
 }
 
 // applyDataChangeTxnOps reflects the effect of data change transaction operations into the mock DB.
-func (t *TxnTracker) applyDataChangeTxnOps(ops []dsl.TxnOp) {
-	for _, op := range ops {
-		if op.Value != nil {
-			change := syncbase.NewChange(op.Key, op.Value, 0, datasync.Put)
-			t.LatestRevisions.Put(op.Key, change)
+func (t *TxnTracker) applyDataChangeTxnOps(values map[string]proto.Message) {
+	for key, value := range values {
+		if value != nil {
+			change := syncbase.NewChange(key, value, 0, datasync.Put)
+			t.LatestRevisions.Put(key, change)
 		} else {
-			t.LatestRevisions.Del(op.Key)
+			t.LatestRevisions.Del(key)
 		}
 	}
 }
@@ -86,7 +97,10 @@ func (t *TxnTracker) applyDataChangeTxnOps(ops []dsl.TxnOp) {
 // NewLinuxDataResyncTxn is a factory for Linux Plugins's RESYNC transactions.
 func (t *TxnTracker) NewLinuxDataResyncTxn() linuxclient.DataResyncDSL {
 	txn := &Txn{}
-	dsl := mocklinux.NewMockDataResyncDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataResyncTxnOps, Ops) })
+	dsl := mocklinux.NewMockDataResyncDSL(
+		func(values map[string]proto.Message) error {
+			return t.commit(txn, t.applyDataResyncTxnOps, values)
+		})
 	txn.LinuxDataResyncTxn = dsl
 	t.PendingTxns[txn] = struct{}{}
 	return dsl
@@ -95,18 +109,47 @@ func (t *TxnTracker) NewLinuxDataResyncTxn() linuxclient.DataResyncDSL {
 // NewVPPDataResyncTxn is a factory for VPP plugins's RESYNC transactions.
 func (t *TxnTracker) NewVPPDataResyncTxn() vppclient.DataResyncDSL {
 	txn := &Txn{}
-	dsl := mockvpp.NewMockDataResyncDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataResyncTxnOps, Ops) })
+	dsl := mockvpp.NewMockDataResyncDSL(
+		func(values map[string]proto.Message) error {
+			return t.commit(txn, t.applyDataResyncTxnOps, values)
+		})
 	txn.VPPDataResyncTxn = dsl
 	t.PendingTxns[txn] = struct{}{}
 	return dsl
 }
 
 // applyDataResyncTxnOps reflects the effect of data resync transaction operations into the mock DB.
-func (t *TxnTracker) applyDataResyncTxnOps(ops []dsl.TxnOp) {
-	for _, op := range ops {
-		change := syncbase.NewChange(op.Key, op.Value, 0, datasync.Put)
-		t.LatestRevisions.PutWithRevision(op.Key, change)
+func (t *TxnTracker) applyDataResyncTxnOps(values map[string]proto.Message) {
+	for key, value := range values {
+		change := syncbase.NewChange(key, value, 0, datasync.Put)
+		t.LatestRevisions.PutWithRevision(key, change)
 	}
+}
+
+// NewControllerTxn is a factory for Controller's transaction.
+// It also implements adapter between localclient and Controller transactions.
+func (t *TxnTracker) NewControllerTxn(isResync bool) *mockcontroller.MockControllerTxn {
+	txn := &Txn{}
+	if isResync {
+		dsl := mocklinux.NewMockDataResyncDSL(nil)
+		txn.LinuxDataResyncTxn = dsl
+	} else {
+		dsl := mocklinux.NewMockDataChangeDSL(nil)
+		txn.LinuxDataChangeTxn = dsl
+	}
+	controllerTxn := mockcontroller.NewMockControllerTxn(t.txnSeqNum,
+		func(values map[string]proto.Message) error {
+			// convert Controller txn into localclient txn
+			if isResync {
+				txn.LinuxDataResyncTxn.Values = values
+				return t.commit(txn, t.applyDataResyncTxnOps, values)
+			}
+			txn.LinuxDataChangeTxn.Values = values
+			return t.commit(txn, t.applyDataChangeTxnOps, values)
+		})
+	t.txnSeqNum++
+	t.PendingTxns[txn] = struct{}{}
+	return controllerTxn
 }
 
 // Clear clears the TxnTracker state. Already created transactions become invalid.
@@ -117,14 +160,14 @@ func (t *TxnTracker) Clear() {
 }
 
 // commit applies a transaction (and transaction operations to current state of mock DB)
-func (t *TxnTracker) commit(txn *Txn, applyTxnOpsFunc func([]dsl.TxnOp), ops []dsl.TxnOp) error {
+func (t *TxnTracker) commit(txn *Txn, applyTxnOpsFunc func(values map[string]proto.Message), values map[string]proto.Message) error {
 	var err error
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	if t.onCommit != nil {
 		err = t.onCommit(txn, t.LatestRevisions)
 	}
-	applyTxnOpsFunc(ops)
+	applyTxnOpsFunc(values)
 	delete(t.PendingTxns, txn)
 	t.CommittedTxns = append(t.CommittedTxns, txn)
 	return err

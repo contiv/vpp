@@ -356,14 +356,6 @@
   version = "v1.1.0"
 
 [[projects]]
-  digest = "1:f4f6279cb37479954644babd8f8ef00584ff9fa63555d2c6718c1c3517170202"
-  name = "github.com/elazarl/go-bindata-assetfs"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "30f82fa23fd844bd5bb1e5f216db87fd77b5eb43"
-  version = "v1.0.0"
-
-[[projects]]
   digest = "1:090a62de4c2a9a8865af567f15f64067962f562c7d30fdad4f37991109928195"
   name = "github.com/euank/go-kmsg-parser"
   packages = ["kmsgparser"]
@@ -452,10 +444,11 @@
   version = "v4.1.0"
 
 [[projects]]
-  digest = "1:522998382a4827ca08e094d0206abd979e41fe86557101b20ab511531fda3332"
+  digest = "1:c30185d83c2a351bf3b21e7784d3c9b84281d56d0958959c2a6cd8a47f422c49"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
+    "jsonpb",
     "plugin/compare",
     "plugin/defaultcheck",
     "plugin/description",
@@ -480,6 +473,7 @@
     "protoc-gen-gogo/grpc",
     "protoc-gen-gogo/plugin",
     "sortkeys",
+    "types",
     "vanity",
     "vanity/command",
   ]
@@ -694,8 +688,8 @@
   revision = "959962c1b48bbdbfbba4d59d58a8c15ff3fb9b22"
 
 [[projects]]
-  branch = "master"
-  digest = "1:83946d2afbc48b86cdc5b79c125cc7a445eb8581b0d9a319a56e8ed80556bff0"
+  branch = "dev"
+  digest = "1:cbb0662e8d1525bafd1e7ec419e2cdde9d3467cb885b751dc6ab7cc8d93fe2a9"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -720,7 +714,6 @@
     "logging/logrus",
     "logging/measure",
     "logging/measure/model/apitrace",
-    "messaging",
     "rpc/grpc",
     "rpc/prometheus",
     "rpc/rest",
@@ -732,42 +725,44 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "d14944d428eb692263280ef68100affa3449c0b7"
+  revision = "7332c57ac284a7aa1778ace0005ddaf2552698d5"
 
 [[projects]]
-  digest = "1:9a8dbfbf8ae18db519cd9d7afb11c46d100017674ce1bfc6be077866215b7c39"
+  branch = "dev"
+  digest = "1:245461a8ce3990ba11f6705b1c4b77f68886603db0662c5275c02b97729fbe7d"
   name = "github.com/ligato/vpp-agent"
   packages = [
-    "clientv1/linux",
-    "clientv1/linux/dbadapter",
-    "clientv1/linux/localclient",
-    "clientv1/vpp",
-    "clientv1/vpp/dbadapter",
-    "idxvpp",
-    "idxvpp/cacheutil",
-    "idxvpp/nametoidx",
+    "clientv2/linux",
+    "clientv2/vpp",
+    "idxvpp2",
     "plugins/govppmux",
     "plugins/govppmux/vppcalls",
-    "plugins/linux",
-    "plugins/linux/ifplugin",
-    "plugins/linux/ifplugin/ifaceidx",
-    "plugins/linux/ifplugin/linuxcalls",
-    "plugins/linux/l3plugin",
-    "plugins/linux/l3plugin/l3idx",
-    "plugins/linux/l3plugin/linuxcalls",
+    "plugins/kvscheduler",
+    "plugins/kvscheduler/api",
+    "plugins/kvscheduler/internal/graph",
+    "plugins/kvscheduler/internal/registry",
+    "plugins/kvscheduler/internal/utils",
     "plugins/linux/model/interfaces",
-    "plugins/linux/model/l3",
-    "plugins/linux/nsplugin",
-    "plugins/rest",
-    "plugins/rest/resturl",
+    "plugins/linuxv2/ifplugin",
+    "plugins/linuxv2/ifplugin/descriptor",
+    "plugins/linuxv2/ifplugin/descriptor/adapter",
+    "plugins/linuxv2/ifplugin/ifaceidx",
+    "plugins/linuxv2/ifplugin/linuxcalls",
+    "plugins/linuxv2/l3plugin",
+    "plugins/linuxv2/l3plugin/descriptor",
+    "plugins/linuxv2/l3plugin/descriptor/adapter",
+    "plugins/linuxv2/l3plugin/linuxcalls",
+    "plugins/linuxv2/model/interfaces",
+    "plugins/linuxv2/model/l3",
+    "plugins/linuxv2/model/namespace",
+    "plugins/linuxv2/nsplugin",
+    "plugins/linuxv2/nsplugin/descriptor",
+    "plugins/linuxv2/nsplugin/linuxcalls",
+    "plugins/restv2",
+    "plugins/restv2/resturl",
     "plugins/telemetry",
-    "plugins/vpp",
-    "plugins/vpp/aclplugin",
-    "plugins/vpp/aclplugin/aclidx",
-    "plugins/vpp/aclplugin/vppcalls",
     "plugins/vpp/binapi/acl",
     "plugins/vpp/binapi/af_packet",
-    "plugins/vpp/binapi/bfd",
     "plugins/vpp/binapi/dhcp",
     "plugins/vpp/binapi/interfaces",
     "plugins/vpp/binapi/ip",
@@ -775,48 +770,53 @@
     "plugins/vpp/binapi/l2",
     "plugins/vpp/binapi/memif",
     "plugins/vpp/binapi/nat",
+    "plugins/vpp/binapi/punt",
     "plugins/vpp/binapi/session",
-    "plugins/vpp/binapi/sr",
     "plugins/vpp/binapi/stats",
-    "plugins/vpp/binapi/stn",
     "plugins/vpp/binapi/tap",
     "plugins/vpp/binapi/tapv2",
     "plugins/vpp/binapi/vmxnet3",
     "plugins/vpp/binapi/vpe",
     "plugins/vpp/binapi/vxlan",
-    "plugins/vpp/ifplugin",
-    "plugins/vpp/ifplugin/ifaceidx",
-    "plugins/vpp/ifplugin/vppcalls",
-    "plugins/vpp/ipsecplugin",
-    "plugins/vpp/ipsecplugin/ipsecidx",
-    "plugins/vpp/ipsecplugin/vppcalls",
-    "plugins/vpp/l2plugin",
-    "plugins/vpp/l2plugin/l2idx",
-    "plugins/vpp/l2plugin/vppcalls",
-    "plugins/vpp/l3plugin",
-    "plugins/vpp/l3plugin/l3idx",
-    "plugins/vpp/l3plugin/vppcalls",
-    "plugins/vpp/l4plugin",
-    "plugins/vpp/l4plugin/nsidx",
-    "plugins/vpp/l4plugin/vppcalls",
-    "plugins/vpp/model/acl",
     "plugins/vpp/model/bfd",
-    "plugins/vpp/model/interfaces",
     "plugins/vpp/model/ipsec",
-    "plugins/vpp/model/l2",
-    "plugins/vpp/model/l3",
     "plugins/vpp/model/l4",
-    "plugins/vpp/model/nat",
-    "plugins/vpp/model/rpc",
-    "plugins/vpp/model/srv6",
     "plugins/vpp/model/stn",
-    "plugins/vpp/rpc",
-    "plugins/vpp/srplugin",
-    "plugins/vpp/srplugin/cache",
-    "plugins/vpp/srplugin/vppcalls",
+    "plugins/vppv2/aclplugin",
+    "plugins/vppv2/aclplugin/aclidx",
+    "plugins/vppv2/aclplugin/descriptor",
+    "plugins/vppv2/aclplugin/descriptor/adapter",
+    "plugins/vppv2/aclplugin/vppcalls",
+    "plugins/vppv2/ifplugin",
+    "plugins/vppv2/ifplugin/descriptor",
+    "plugins/vppv2/ifplugin/descriptor/adapter",
+    "plugins/vppv2/ifplugin/ifaceidx",
+    "plugins/vppv2/ifplugin/vppcalls",
+    "plugins/vppv2/l2plugin",
+    "plugins/vppv2/l2plugin/descriptor",
+    "plugins/vppv2/l2plugin/descriptor/adapter",
+    "plugins/vppv2/l2plugin/vppcalls",
+    "plugins/vppv2/l3plugin",
+    "plugins/vppv2/l3plugin/descriptor",
+    "plugins/vppv2/l3plugin/descriptor/adapter",
+    "plugins/vppv2/l3plugin/vppcalls",
+    "plugins/vppv2/model/acl",
+    "plugins/vppv2/model/interfaces",
+    "plugins/vppv2/model/l2",
+    "plugins/vppv2/model/l3",
+    "plugins/vppv2/model/nat",
+    "plugins/vppv2/model/punt",
+    "plugins/vppv2/natplugin",
+    "plugins/vppv2/natplugin/descriptor",
+    "plugins/vppv2/natplugin/descriptor/adapter",
+    "plugins/vppv2/natplugin/vppcalls",
+    "plugins/vppv2/puntplugin",
+    "plugins/vppv2/puntplugin/descriptor",
+    "plugins/vppv2/puntplugin/descriptor/adapter",
+    "plugins/vppv2/puntplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "b325ab3e9252277b1fd6d69f0a6d134cc21bd33a"
+  revision = "e97cad6d0d52db6ba0ddeeb5e23d5cc289d05daf"
 
 [[projects]]
   branch = "master"
@@ -1160,14 +1160,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5d01684d2b42069b219b55e880a67bdf3f5fdf1456d5de918832ac976177029e"
+  digest = "1:e416f26d20a9d29b38c16a89d177a4021f814d4a1dadab3c376f90a1afa789db"
   name = "github.com/vishvananda/netlink"
   packages = [
     ".",
     "nl",
   ]
   pruneopts = "UT"
-  revision = "8aa85bfa77a45236ae842cab3a91853e2b74e07a"
+  revision = "1e2e7ab670e05e2fd29bf5d0bcab2f9907e9f9f4"
 
 [[projects]]
   branch = "master"
@@ -1640,7 +1640,6 @@
   analyzer-version = 1
   input-imports = [
     "git.fd.io/govpp.git/adapter/mock",
-    "git.fd.io/govpp.git/adapter/mock/binapi",
     "git.fd.io/govpp.git/api",
     "git.fd.io/govpp.git/codec",
     "git.fd.io/govpp.git/core",
@@ -1652,11 +1651,13 @@
     "github.com/docker/distribution",
     "github.com/docker/docker/api",
     "github.com/docker/swarmkit",
+    "github.com/fsouza/go-dockerclient",
     "github.com/ghodss/yaml",
+    "github.com/go-errors/errors",
+    "github.com/gogo/protobuf/jsonpb",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/protoc-gen-gogo",
     "github.com/gogo/protobuf/sortkeys",
-    "github.com/golang/protobuf/proto",
     "github.com/google/cadvisor",
     "github.com/ligato/cn-infra/agent",
     "github.com/ligato/cn-infra/config",
@@ -1683,42 +1684,47 @@
     "github.com/ligato/cn-infra/rpc/rest",
     "github.com/ligato/cn-infra/servicelabel",
     "github.com/ligato/cn-infra/utils/safeclose",
-    "github.com/ligato/vpp-agent/clientv1/linux",
-    "github.com/ligato/vpp-agent/clientv1/linux/localclient",
-    "github.com/ligato/vpp-agent/clientv1/vpp",
-    "github.com/ligato/vpp-agent/idxvpp",
-    "github.com/ligato/vpp-agent/idxvpp/nametoidx",
+    "github.com/ligato/vpp-agent/clientv2/linux",
+    "github.com/ligato/vpp-agent/clientv2/vpp",
+    "github.com/ligato/vpp-agent/idxvpp2",
     "github.com/ligato/vpp-agent/plugins/govppmux",
-    "github.com/ligato/vpp-agent/plugins/linux",
-    "github.com/ligato/vpp-agent/plugins/linux/ifplugin/linuxcalls",
-    "github.com/ligato/vpp-agent/plugins/linux/l3plugin/linuxcalls",
-    "github.com/ligato/vpp-agent/plugins/linux/model/interfaces",
-    "github.com/ligato/vpp-agent/plugins/linux/model/l3",
-    "github.com/ligato/vpp-agent/plugins/rest",
+    "github.com/ligato/vpp-agent/plugins/kvscheduler",
+    "github.com/ligato/vpp-agent/plugins/kvscheduler/api",
+    "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin",
+    "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/descriptor",
+    "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/ifaceidx",
+    "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin",
+    "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces",
+    "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3",
+    "github.com/ligato/vpp-agent/plugins/linuxv2/model/namespace",
+    "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin",
+    "github.com/ligato/vpp-agent/plugins/restv2",
     "github.com/ligato/vpp-agent/plugins/telemetry",
-    "github.com/ligato/vpp-agent/plugins/vpp",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/ip",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/session",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/stats",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe",
-    "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx",
-    "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls",
-    "github.com/ligato/vpp-agent/plugins/vpp/ipsecplugin/ipsecidx",
-    "github.com/ligato/vpp-agent/plugins/vpp/l2plugin/l2idx",
-    "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/vppcalls",
-    "github.com/ligato/vpp-agent/plugins/vpp/l4plugin/nsidx",
-    "github.com/ligato/vpp-agent/plugins/vpp/model/acl",
     "github.com/ligato/vpp-agent/plugins/vpp/model/bfd",
-    "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces",
     "github.com/ligato/vpp-agent/plugins/vpp/model/ipsec",
-    "github.com/ligato/vpp-agent/plugins/vpp/model/l2",
-    "github.com/ligato/vpp-agent/plugins/vpp/model/l3",
     "github.com/ligato/vpp-agent/plugins/vpp/model/l4",
-    "github.com/ligato/vpp-agent/plugins/vpp/model/nat",
     "github.com/ligato/vpp-agent/plugins/vpp/model/stn",
+    "github.com/ligato/vpp-agent/plugins/vppv2/aclplugin",
+    "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin",
+    "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor",
+    "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx",
+    "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls",
+    "github.com/ligato/vpp-agent/plugins/vppv2/l2plugin",
+    "github.com/ligato/vpp-agent/plugins/vppv2/l2plugin/descriptor",
+    "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin",
+    "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/descriptor",
+    "github.com/ligato/vpp-agent/plugins/vppv2/model/acl",
+    "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces",
+    "github.com/ligato/vpp-agent/plugins/vppv2/model/l2",
+    "github.com/ligato/vpp-agent/plugins/vppv2/model/l3",
+    "github.com/ligato/vpp-agent/plugins/vppv2/model/nat",
+    "github.com/ligato/vpp-agent/plugins/vppv2/model/punt",
+    "github.com/ligato/vpp-agent/plugins/vppv2/natplugin",
+    "github.com/ligato/vpp-agent/plugins/vppv2/puntplugin",
     "github.com/namsral/flag",
     "github.com/nerdtakula/supervisor",
     "github.com/onsi/gomega",
@@ -1733,7 +1739,6 @@
     "github.com/ugorji/go/codec",
     "github.com/unrolled/render",
     "github.com/vishvananda/netlink",
-    "github.com/vishvananda/netns",
     "github.com/wadey/gocovmerge",
     "golang.org/x/exp/inotify",
     "golang.org/x/net/context",

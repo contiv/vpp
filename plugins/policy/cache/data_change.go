@@ -17,157 +17,129 @@
 package cache
 
 import (
-	"github.com/ligato/cn-infra/datasync"
-
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	namespacemodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 )
 
 // changePropagateEvent propagates CHANGE in the K8s configuration into the Cache.
-func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) error {
-	var err error
-	var diff bool
-	key := dataChngEv.GetKey()
-	pc.Log.Debug("Received CHANGE key ", key)
-
-	// Propagate Policy CHANGE event
-	_, _, err = policymodel.ParsePolicyFromKey(key)
-	if err == nil {
-		var value, prevValue policymodel.Policy
-
-		if err = dataChngEv.GetValue(&value); err != nil {
-			return err
-		}
-
-		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-			return err
-		}
-
-		if datasync.Delete == dataChngEv.GetChangeType() {
-			oldPolicyID := policymodel.GetID(&prevValue).String()
-			pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
+func (pc *PolicyCache) changePropagateEvent(kubeStateChange *controller.KubeStateChange) error {
+	switch kubeStateChange.Resource {
+	case namespacemodel.NamespaceKeyword:
+		if kubeStateChange.PrevValue == nil {
+			// add namespace
+			namespace := kubeStateChange.NewValue.(*namespacemodel.Namespace)
+			namespaceID := namespace.Name
+			pc.configuredNamespaces.RegisterNamespace(namespaceID, namespace)
 
 			for _, watcher := range pc.watchers {
-				if err := watcher.DelPolicy(&prevValue); err != nil {
+				if err := watcher.AddNamespace(namespace); err != nil {
 					return err
 				}
 			}
-
-		} else if diff {
-			policyID := policymodel.GetID(&value).String()
-			oldPolicyID := policymodel.GetID(&prevValue).String()
-			pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
-			pc.configuredPolicies.RegisterPolicy(policyID, &value)
-
-			for _, watcher := range pc.watchers {
-				if err := watcher.UpdatePolicy(&prevValue, &value); err != nil {
-					return err
-				}
-			}
-
-		} else {
-			policyID := policymodel.GetID(&value).String()
-			pc.configuredPolicies.RegisterPolicy(policyID, &value)
-
-			for _, watcher := range pc.watchers {
-				if err := watcher.AddPolicy(&value); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-
-	// Propagate Pod CHANGE event
-	podName, podNs, err := podmodel.ParsePodFromKey(key)
-	if err == nil {
-		var value, prevValue podmodel.Pod
-		podID := podmodel.ID{Name: podName, Namespace: podNs}
-
-		if err = dataChngEv.GetValue(&value); err != nil {
-			return err
-		}
-
-		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-			return err
-		}
-
-		if datasync.Delete == dataChngEv.GetChangeType() {
-			pc.configuredPods.UnregisterPod(podID.String())
-
-			for _, watcher := range pc.watchers {
-				if err := watcher.DelPod(podID, &prevValue); err != nil {
-					return err
-				}
-			}
-
-		} else if diff {
-			pc.configuredPods.UnregisterPod(podID.String())
-			pc.configuredPods.RegisterPod(podID.String(), &value)
-
-			for _, watcher := range pc.watchers {
-				if err := watcher.UpdatePod(podID, &prevValue, &value); err != nil {
-					return err
-				}
-			}
-
-		} else {
-			pc.configuredPods.RegisterPod(podID.String(), &value)
-
-			for _, watcher := range pc.watchers {
-				if err := watcher.AddPod(podID, &value); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-
-	// Propagate Namespace CHANGE event
-	_, err = namespacemodel.ParseNamespaceFromKey(key)
-	if err == nil {
-		var value, prevValue namespacemodel.Namespace
-
-		if err = dataChngEv.GetValue(&value); err != nil {
-			return err
-		}
-
-		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-			return err
-		}
-
-		if datasync.Delete == dataChngEv.GetChangeType() {
-			oldNamespaceID := prevValue.Name
+		} else if kubeStateChange.NewValue == nil {
+			// delete namespace
+			oldNamespace := kubeStateChange.PrevValue.(*namespacemodel.Namespace)
+			oldNamespaceID := oldNamespace.Name
 			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
 
 			for _, watcher := range pc.watchers {
-				if err := watcher.DelNamespace(&prevValue); err != nil {
+				if err := watcher.DelNamespace(oldNamespace); err != nil {
 					return err
 				}
 			}
-
-		} else if diff {
-			namespaceID := value.Name
-			oldNamespaceID := prevValue.Name
-			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
-			pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
-
-			for _, watcher := range pc.watchers {
-				if err := watcher.UpdateNamespace(&prevValue, &value); err != nil {
-					return err
-				}
-			}
-
 		} else {
-			namespaceID := value.Name
-			pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
+			// update namespace
+			oldNamespace := kubeStateChange.PrevValue.(*namespacemodel.Namespace)
+			newNamespace := kubeStateChange.NewValue.(*namespacemodel.Namespace)
+			namespaceID := newNamespace.Name
+			oldNamespaceID := oldNamespace.Name
+			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
+			pc.configuredNamespaces.RegisterNamespace(namespaceID, newNamespace)
 
 			for _, watcher := range pc.watchers {
-				if err := watcher.AddNamespace(&value); err != nil {
+				if err := watcher.UpdateNamespace(oldNamespace, newNamespace); err != nil {
 					return err
 				}
+			}
+		}
 
+	case podmodel.PodKeyword:
+		if kubeStateChange.PrevValue == nil {
+			// add pod
+			pod := kubeStateChange.NewValue.(*podmodel.Pod)
+			podID := podmodel.GetID(pod)
+			pc.configuredPods.RegisterPod(podID.String(), pod)
+
+			for _, watcher := range pc.watchers {
+				if err := watcher.AddPod(podID, pod); err != nil {
+					return err
+				}
+			}
+		} else if kubeStateChange.NewValue == nil {
+			// delete pod
+			oldPod := kubeStateChange.PrevValue.(*podmodel.Pod)
+			oldPodID := podmodel.GetID(oldPod)
+			pc.configuredPods.UnregisterPod(oldPodID.String())
+
+			for _, watcher := range pc.watchers {
+				if err := watcher.DelPod(oldPodID, oldPod); err != nil {
+					return err
+				}
+			}
+		} else {
+			// update pod
+			oldPod := kubeStateChange.PrevValue.(*podmodel.Pod)
+			newPod := kubeStateChange.NewValue.(*podmodel.Pod)
+			podID := podmodel.GetID(newPod)
+			oldPodID := podmodel.GetID(oldPod)
+			pc.configuredPods.UnregisterPod(oldPodID.String())
+			pc.configuredPods.RegisterPod(podID.String(), newPod)
+
+			for _, watcher := range pc.watchers {
+				if err := watcher.UpdatePod(podID, oldPod, newPod); err != nil {
+					return err
+				}
+			}
+		}
+
+	case policymodel.PolicyKeyword:
+		if kubeStateChange.PrevValue == nil {
+			// add policy
+			policy := kubeStateChange.NewValue.(*policymodel.Policy)
+			policyID := policymodel.GetID(policy)
+			pc.configuredPolicies.RegisterPolicy(policyID.String(), policy)
+
+			for _, watcher := range pc.watchers {
+				if err := watcher.AddPolicy(policy); err != nil {
+					return err
+				}
+			}
+		} else if kubeStateChange.NewValue == nil {
+			// delete policy
+			oldPolicy := kubeStateChange.PrevValue.(*policymodel.Policy)
+			oldPolicyID := policymodel.GetID(oldPolicy)
+			pc.configuredPolicies.UnregisterPolicy(oldPolicyID.String())
+
+			for _, watcher := range pc.watchers {
+				if err := watcher.DelPolicy(oldPolicy); err != nil {
+					return err
+				}
+			}
+		} else {
+			// update policy
+			oldPolicy := kubeStateChange.PrevValue.(*policymodel.Policy)
+			newPolicy := kubeStateChange.NewValue.(*policymodel.Policy)
+			policyID := policymodel.GetID(newPolicy)
+			oldPolicyID := policymodel.GetID(oldPolicy)
+			pc.configuredPolicies.UnregisterPolicy(oldPolicyID.String())
+			pc.configuredPolicies.RegisterPolicy(policyID.String(), newPolicy)
+
+			for _, watcher := range pc.watchers {
+				if err := watcher.UpdatePolicy(oldPolicy, newPolicy); err != nil {
+					return err
+				}
 			}
 		}
 	}

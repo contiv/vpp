@@ -17,20 +17,21 @@
 package processor
 
 import (
-	"net"
 	"strings"
 
-	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	"github.com/contiv/vpp/plugins/contiv"
-	nodemodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contivconf"
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipam"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/service/renderer"
-	"sync"
 )
 
 // ServiceProcessor implements ServiceProcessorAPI.
@@ -39,9 +40,6 @@ type ServiceProcessor struct {
 
 	renderers []renderer.ServiceRendererAPI
 
-	/* nodes */
-	nodes map[int]*nodemodel.NodeInfo
-
 	/* internal maps */
 	services map[svcmodel.ID]*Service
 	localEps map[podmodel.ID]*LocalEndpoint
@@ -49,18 +47,17 @@ type ServiceProcessor struct {
 	/* local frontend and backend interfaces */
 	frontendIfs renderer.Interfaces
 	backendIfs  renderer.Interfaces
-
-	/* a local copy of kubernetes state data */
-	k8sStateData map[string]datasync.LazyValueWithRev // key -> value, revision
-
-	sync.Mutex
 }
 
 // Deps lists dependencies of ServiceProcessor.
 type Deps struct {
 	Log          logging.Logger
 	ServiceLabel servicelabel.ReaderAPI
-	Contiv       contiv.API /* to get all interface names and pod IP network */
+	ContivConf   contivconf.API
+	NodeSync     nodesync.API
+	PodManager   podmanager.API
+	IPAM         ipam.API
+	IPv4Net      ipv4net.API
 }
 
 // LocalEndpoint represents a node-local endpoint.
@@ -72,9 +69,6 @@ type LocalEndpoint struct {
 // Init initializes service processor.
 func (sp *ServiceProcessor) Init() error {
 	sp.reset()
-	sp.Contiv.RegisterPodPreRemovalHook(sp.processDeletingPod)
-	sp.Contiv.RegisterPodPostAddHook(sp.processNewPod)
-	sp.k8sStateData = make(map[string]datasync.LazyValueWithRev)
 	return nil
 }
 
@@ -85,7 +79,6 @@ func (sp *ServiceProcessor) AfterInit() error {
 
 // reset clears the state of the processor.
 func (sp *ServiceProcessor) reset() error {
-	sp.nodes = make(map[int]*nodemodel.NodeInfo)
 	sp.services = make(map[svcmodel.ID]*Service)
 	sp.localEps = make(map[podmodel.ID]*LocalEndpoint)
 	sp.frontendIfs = renderer.NewInterfaces()
@@ -93,45 +86,55 @@ func (sp *ServiceProcessor) reset() error {
 	return nil
 }
 
-// Update processes a datasync change event associated with the state data
-// of K8s pods, endpoints, services and nodes.
-// The data change is stored into the cache and all registered renderers
-// are notified about any changes related to services that need to be
-// reflected in the underlying network stack(s).
-func (sp *ServiceProcessor) Update(dataChngEv datasync.ChangeEvent) error {
-	sp.Lock()
-	defer sp.Unlock()
+// Update is called for:
+//  - KubeStateChange for service-related data
+//  - AddPod & DeletePod
+//  - NodeUpdate event
+func (sp *ServiceProcessor) Update(event controller.Event) error {
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
+		return sp.propagateDataChangeEv(ksChange)
+	}
 
-	return sp.propagateDataChangeEv(dataChngEv)
+	if addPod, isAddPod := event.(*podmanager.AddPod); isAddPod {
+		return sp.ProcessNewPod(addPod.Pod.Namespace, addPod.Pod.Name)
+	}
+	if deletePod, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
+		return sp.ProcessDeletingPod(deletePod.Pod.Namespace, deletePod.Pod.Name)
+	}
+
+	if _, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
+		return sp.renderNodePorts()
+	}
+
+	return nil
 }
 
-// Resync processes a datasync resync event associated with the state data
-// of K8s pods, endpoints, services and nodes.
+// Revert is called for failed AddPod event.
+func (sp *ServiceProcessor) Revert(event controller.Event) error {
+	if addPod, isAddPod := event.(*podmanager.AddPod); isAddPod {
+		return sp.ProcessDeletingPod(addPod.Pod.Namespace, addPod.Pod.Name)
+	}
+	return nil
+}
+
+// Resync processes a resync event.
 // The cache content is fully replaced and all registered renderers
 // receive a full snapshot of Contiv Services at the present state to be
 // (re)installed.
-func (sp *ServiceProcessor) Resync(resyncEv datasync.ResyncEvent) error {
-	sp.Lock()
-	defer sp.Unlock()
-
-	resyncEvData := sp.parseResyncEv(resyncEv)
+func (sp *ServiceProcessor) Resync(kubeStateData controller.KubeStateData) error {
+	resyncEvData := sp.parseResyncEv(kubeStateData)
 	return sp.processResyncEvent(resyncEvData)
 }
 
 // RegisterRenderer registers a new service renderer.
 // The renderer will be receiving updates for all services on the cluster.
 func (sp *ServiceProcessor) RegisterRenderer(renderer renderer.ServiceRendererAPI) error {
-	sp.Lock()
-	defer sp.Unlock()
-
 	sp.renderers = append(sp.renderers, renderer)
 	return nil
 }
 
-func (sp *ServiceProcessor) processNewPod(podNamespace string, podName string) error {
-	sp.Lock()
-	defer sp.Unlock()
-
+// ProcessNewPod is called when connectivity to pod is being established.
+func (sp *ServiceProcessor) ProcessNewPod(podNamespace string, podName string) error {
 	sp.Log.WithFields(logging.Fields{
 		"name":      podName,
 		"namespace": podNamespace,
@@ -140,7 +143,7 @@ func (sp *ServiceProcessor) processNewPod(podNamespace string, podName string) e
 
 	localEp := sp.getLocalEndpoint(podID)
 
-	ifName, ifExists := sp.Contiv.GetIfName(podID.Namespace, podID.Name)
+	ifName, ifExists := sp.IPv4Net.GetIfName(podID.Namespace, podID.Name)
 	if !ifExists {
 		sp.Log.WithFields(logging.Fields{
 			"pod-ns":   podID.Namespace,
@@ -163,63 +166,8 @@ func (sp *ServiceProcessor) processNewPod(podNamespace string, podName string) e
 	return nil
 }
 
-func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
-	sp.Log.WithFields(logging.Fields{
-		"pod": *pod,
-	}).Debug("ServiceProcessor - processUpdatedPod()")
-	podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
-
-	if pod.IpAddress == "" {
-		return nil
-	}
-	podIPAddress := net.ParseIP(pod.IpAddress)
-	if podIPAddress == nil || !sp.Contiv.GetPodNetwork().Contains(podIPAddress) {
-		/* ignore pods deployed on other nodes */
-		return nil
-	}
-
-	localEp := sp.getLocalEndpoint(podID)
-	if localEp.ifName != "" {
-		/* already processed */
-		return nil
-	}
-	ifName, ifExists := sp.Contiv.GetIfName(podID.Namespace, podID.Name)
-	if !ifExists {
-		sp.Log.WithFields(logging.Fields{
-			"pod-ns":   podID.Namespace,
-			"pod-name": podID.Name,
-		}).Warn("Failed to get pod interface name")
-		return nil
-	}
-
-	localEp.ifName = ifName
-	if localEp.svcCount > 0 {
-		newBackendIfs := sp.backendIfs.Copy()
-		newBackendIfs.Add(ifName)
-		for _, renderer := range sp.renderers {
-			err := renderer.UpdateLocalBackendIfs(sp.backendIfs, newBackendIfs)
-			if err != nil {
-				return err
-			}
-		}
-		sp.backendIfs = newBackendIfs
-	}
-	newFrontendIfs := sp.frontendIfs.Copy()
-	newFrontendIfs.Add(ifName)
-	for _, renderer := range sp.renderers {
-		err := renderer.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
-		if err != nil {
-			return err
-		}
-	}
-	sp.frontendIfs = newFrontendIfs
-	return nil
-}
-
-func (sp *ServiceProcessor) processDeletingPod(podNamespace string, podName string) error {
-	sp.Lock()
-	defer sp.Unlock()
-
+// ProcessDeletingPod is called during pod removal.
+func (sp *ServiceProcessor) ProcessDeletingPod(podNamespace string, podName string) error {
 	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 	sp.Log.WithFields(logging.Fields{
 		"podID": podID,
@@ -326,36 +274,6 @@ func (sp *ServiceProcessor) processDeletedService(serviceID svcmodel.ID) error {
 	oldBackends := svc.GetLocalBackends()
 	svc.SetMetadata(nil)
 	return sp.renderService(svc, oldContivSvc, oldBackends)
-}
-
-func (sp *ServiceProcessor) processNewNode(node *nodemodel.NodeInfo) error {
-	sp.Log.WithFields(logging.Fields{
-		"node": *node,
-	}).Debug("ServiceProcessor - processNewNode()")
-
-	sp.nodes[int(node.Id)] = node
-	return sp.renderNodePorts()
-}
-
-func (sp *ServiceProcessor) processUpdatedNode(node *nodemodel.NodeInfo) error {
-	sp.Log.WithFields(logging.Fields{
-		"node": *node,
-	}).Debug("ServiceProcessor - processUpdatedNode()")
-
-	sp.nodes[int(node.Id)] = node
-	return sp.renderNodePorts()
-}
-
-func (sp *ServiceProcessor) processDeletedNode(nodeID int) error {
-	sp.Log.WithFields(logging.Fields{
-		"nodeID": nodeID,
-	}).Debug("ServiceProcessor - processDeletedNode()")
-
-	if _, hasNode := sp.nodes[nodeID]; hasNode {
-		delete(sp.nodes, nodeID)
-		return sp.renderNodePorts()
-	}
-	return nil
 }
 
 // renderService reacts to added/removed/changed service.
@@ -471,33 +389,14 @@ func (sp *ServiceProcessor) renderNodePorts() error {
 // without duplicities.
 func (sp *ServiceProcessor) getNodeIPs() *renderer.IPAddresses {
 	nodeIPs := renderer.NewIPAddresses()
-	addedNodeIPs := map[string]struct{}{}
 
-	for _, node := range sp.nodes {
-		// Node IP (VPP)
-		ipAddr := sp.trimIPAddrPrefix(node.IpAddress)
-		sp.Log.WithField("IPAddr", ipAddr).Debug("Node IP")
-		if _, duplicate := addedNodeIPs[ipAddr]; !duplicate {
-			nodeIP := net.ParseIP(ipAddr)
-			if nodeIP != nil {
-				nodeIPs.Add(nodeIP)
-			}
+	for _, node := range sp.NodeSync.GetAllNodes() {
+		for _, vppIP := range node.VppIPAddresses {
+			nodeIPs.Add(vppIP.Address)
 		}
-		addedNodeIPs[ipAddr] = struct{}{}
-		// Node management IP (K8s, host)
-		mgmtIPs := strings.Split(node.ManagementIpAddress, contiv.MgmtIPSeparator)
-		for _, mIP := range mgmtIPs {
-			ipAddr = sp.trimIPAddrPrefix(mIP)
-			sp.Log.WithField("IPAddr", ipAddr).Debug("Node mgmt IP")
-			if _, duplicate := addedNodeIPs[ipAddr]; !duplicate {
-				nodeMgmtIP := net.ParseIP(ipAddr)
-				if nodeMgmtIP != nil {
-					nodeIPs.Add(nodeMgmtIP)
-				}
-			}
-			addedNodeIPs[ipAddr] = struct{}{}
+		for _, mgmtIP := range node.MgmtIPAddresses {
+			nodeIPs.Add(mgmtIP)
 		}
-
 	}
 
 	return nodeIPs
@@ -511,28 +410,24 @@ func (sp *ServiceProcessor) trimIPAddrPrefix(ip string) string {
 }
 
 func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error {
-	sp.Log.WithFields(logging.Fields{
-		"resyncEv": resyncEv,
-	}).Debug("ServiceProcessor - processResyncEvent()")
 	sp.reset()
 
 	// Re-build the current state.
 	confResyncEv := renderer.NewResyncEventData()
 
-	// Replace the map of node IDs & IP addresses.
-	sp.nodes = resyncEv.Nodes
+	// Collect IP addresses of all nodes in the cluster.
 	confResyncEv.NodeIPs = sp.getNodeIPs()
 
 	// Fill up the set of frontend/backend interfaces and local endpoints.
 	// With physical interfaces also build SNAT configuration.
 	// -> VXLAN BVI interface
-	vxlanBVIIf := sp.Contiv.GetVxlanBVIIfName()
+	vxlanBVIIf := sp.IPv4Net.GetVxlanBVIIfName()
 	if vxlanBVIIf != "" {
 		sp.frontendIfs.Add(vxlanBVIIf)
 		sp.backendIfs.Add(vxlanBVIIf)
 	}
 	// -> main physical interfaces
-	mainPhysIf := sp.Contiv.GetMainPhysicalIfName()
+	mainPhysIf := sp.ContivConf.GetMainInterfaceName()
 	if mainPhysIf != "" {
 		if vxlanBVIIf == "" {
 			sp.backendIfs.Add(mainPhysIf)
@@ -540,33 +435,21 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		sp.frontendIfs.Add(mainPhysIf)
 	}
 	// -> other physical interfaces
-	for _, physIf := range sp.Contiv.GetOtherPhysicalIfNames() {
-		sp.frontendIfs.Add(physIf)
+	for _, physIf := range sp.ContivConf.GetOtherVPPInterfaces() {
+		sp.frontendIfs.Add(physIf.InterfaceName)
 	}
 	// -> host interconnect
-	hostInterconnect := sp.Contiv.GetHostInterconnectIfName()
+	hostInterconnect := sp.IPv4Net.GetHostInterconnectIfName()
 	if hostInterconnect != "" {
 		sp.frontendIfs.Add(hostInterconnect)
 		sp.backendIfs.Add(hostInterconnect)
 	}
 	// -> pods
-	for _, pod := range resyncEv.Pods {
-		podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
-		if pod.IpAddress == "" {
-			continue
-		}
-		podIPAddress := net.ParseIP(pod.IpAddress)
-		if podIPAddress == nil || !sp.Contiv.GetPodNetwork().Contains(podIPAddress) {
-			continue
-		}
-
+	for _, podID := range resyncEv.Pods {
 		// -> pod interface
-		ifName, ifExists := sp.Contiv.GetIfName(podID.Namespace, podID.Name)
+		ifName, ifExists := sp.IPv4Net.GetIfName(podID.Namespace, podID.Name)
 		if !ifExists {
-			sp.Log.WithFields(logging.Fields{
-				"pod-ns":   podID.Namespace,
-				"pod-name": podID.Name,
-			}).Warn("Failed to get pod interface name")
+			// not an error, this is just pod deployed in the host networking
 			continue
 		}
 		localEp := sp.getLocalEndpoint(podID)

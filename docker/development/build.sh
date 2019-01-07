@@ -16,8 +16,10 @@
 # fail in case of error
 set -e
 
-# the build needs to be executed from the github repository root
-cd ../..
+# copy files to replace in the image
+cp ../../cmd/contiv-init/contiv-init .
+cp ../../cmd/contiv-agent/contiv-agent .
+cp ../../docker/vpp-vswitch/prod/vswitch/supervisord.conf .
 
 # build the development vswitch
-docker build -f docker/development/Dockerfile -t contivvpp/vswitch --no-cache --force-rm=true .
+docker build -f Dockerfile -t contivvpp/vswitch --no-cache --force-rm=true .

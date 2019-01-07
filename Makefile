@@ -26,7 +26,7 @@ contiv-ksr:
 # Build contiv-crd
 contiv-crd:
 	@echo "# building contiv-crd"
-	cd cmd/contiv-crd && go build -v -i -ldflags "${LDFLAGS}"
+	cd cmd/contiv-crd && go build -v -i -ldflags "${LDFLAGS}" -tags="${GO_BUILD_TAGS}"
 
 # Build contiv-cni
 contiv-cni:
@@ -45,7 +45,7 @@ contiv-init:
 
 # Build contiv-netctl
 contiv-netctl:
-	@echo "# building contiv-init"
+	@echo "# building contiv-netctl"
 	cd cmd/contiv-netctl && go build -v -i -ldflags "${LDFLAGS}" -tags="${GO_BUILD_TAGS}"
 
 # Install commands
@@ -74,10 +74,8 @@ clean:
 test:
 	@echo "# running unit tests"
 	go test ./cmd/contiv-cni -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/contiv -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/contiv/ipam -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/contiv/containeridx -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/kvdbproxy -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/ipv4net -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/ipam -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/ksr -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
@@ -98,10 +96,8 @@ test:
 test-race:
 	@echo "# running unit tests with -race"
 	go test ./cmd/contiv-cni -race -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/contiv -race -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/contiv/ipam -race -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/contiv/containeridx -race -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/kvdbproxy -race -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/ipv4net -race -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/ipam -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/ksr -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/configurator -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/cache -race -tags="${GO_BUILD_TAGS}"
@@ -121,16 +117,15 @@ test-race:
 
 # Get coverage report tools
 get-covtools:
+	go get -v github.com/mattn/goveralls
 	go install -v ./vendor/github.com/wadey/gocovmerge
 
 # Run coverage report
 test-cover: get-covtools
 	@echo "# running unit tests with coverage analysis"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u1.out ./cmd/contiv-cni -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u2.out ./plugins/contiv -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u3.out ./plugins/contiv/ipam -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u4.out ./plugins/contiv/containeridx -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u5.out ./plugins/kvdbproxy -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u2.out ./plugins/ipv4net -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u3.out ./plugins/ipam -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u6.out ./plugins/ksr -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u7.out ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u8.out ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
@@ -152,8 +147,6 @@ test-cover: get-covtools
 			${COVER_DIR}cov_u1.out \
 			${COVER_DIR}cov_u2.out \
 			${COVER_DIR}cov_u3.out \
-			${COVER_DIR}cov_u4.out \
-			${COVER_DIR}cov_u5.out \
 			${COVER_DIR}cov_u6.out \
 			${COVER_DIR}cov_u7.out \
 			${COVER_DIR}cov_u8.out \
@@ -188,22 +181,39 @@ get-generators:
 # Generate sources
 generate: get-generators
 	@echo "# generating sources"
-	cd plugins/contiv && go generate
-	cd plugins/contiv/containeridx && go generate
+	cd plugins/nodesync && go generate
+	cd plugins/podmanager && go generate
 	cd plugins/ksr && go generate
 	cd cmd/contiv-stn && go generate
-	cd cmd/contiv-crd/handler/nodeconfig && go generate
+	cd plugins/crd/handler/nodeconfig && go generate
 
 # Get linter tools
 get-linters:
 	@echo " => installing linters"
 	go get -v golang.org/x/lint/golint
+	pip install --user yamllint
+	curl https://raw.githubusercontent.com/helm/helm/master/scripts/get | bash
 
 # Run code analysis
 lint:
 	@echo "# running code analysis"
 	./scripts/golint.sh
 	./scripts/govet.sh
+
+# Run YAML lint tool
+lint-yaml:
+	@echo "# running YAML lint"
+	yamllint --strict --config-file=.yamllint.yml .
+
+# Run HELM lint tool
+lint-helm:
+	@echo "# running HELM lint"
+	helm lint k8s/contiv-vpp/
+
+# Check if manifest YAMLs need to be re-generated
+check-manifests:
+	@echo "Checking manifest YAMLs"
+	./scripts/check_manifests.sh
 
 # Run metalinter tool
 metalinter:
@@ -273,17 +283,15 @@ generate-manifest-arm64:
 helm-package:
 	helm package k8s/contiv-vpp/
 
-helm-yaml:
-	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp > k8s/contiv-vpp.yaml
+helm-yaml: generate-manifest
 
-helm-yaml-arm64:
-	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp -f k8s/contiv-vpp/values-arm64.yaml,k8s/contiv-vpp/values.yaml > k8s/contiv-vpp-arm64.yaml
+helm-yaml-arm64: generate-manifest-arm64
 
 .PHONY: build all \
 	install clean test test-race \
 	get-covtools test-cover test-cover-html test-cover-xml \
 	get-generators generate \
-	get-linters lint metalinter format check-format \
+	get-linters lint metalinter lint-yaml lint-helm format check-format \
 	get-linkcheck check-links \
 	get-dep dep-install \
 	docker-images docker-dev vagrant-images\

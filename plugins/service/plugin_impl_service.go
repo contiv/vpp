@@ -15,30 +15,24 @@
 package service
 
 import (
-	"context"
-	"sync"
+	"strings"
 
-	"github.com/ligato/cn-infra/datasync"
-	kvdbsync_local "github.com/ligato/cn-infra/datasync/kvdbsync/local"
-	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/utils/safeclose"
-
-	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
-	"github.com/ligato/vpp-agent/plugins/vpp"
-
-	"github.com/contiv/vpp/plugins/contiv"
-	"github.com/contiv/vpp/plugins/service/processor"
-	"github.com/contiv/vpp/plugins/service/renderer/nat44"
-
-	"github.com/contiv/vpp/plugins/contiv/model/node"
-	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
-	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
+
+	"github.com/contiv/vpp/plugins/contivconf"
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipam"
+	"github.com/contiv/vpp/plugins/ipv4net"
+	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
+	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/contiv/vpp/plugins/service/config"
+	"github.com/contiv/vpp/plugins/service/processor"
+	"github.com/contiv/vpp/plugins/service/renderer/nat44"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -47,21 +41,14 @@ import (
 type Plugin struct {
 	Deps
 
-	resyncChan chan datasync.ResyncEvent
-	changeChan chan datasync.ChangeEvent
+	config *config.Config
 
-	watchConfigReg datasync.WatchRegistration
+	// ongoing transaction
+	resyncTxn controller.ResyncOperations
+	updateTxn controller.UpdateOperations
+	changes   []string
 
-	resyncLock sync.Mutex
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
-
-	// delay resync until the contiv plugin has been re-synchronized.
-	resyncCounter  uint
-	pendingResync  datasync.ResyncEvent
-	pendingChanges []datasync.ChangeEvent
-
+	// layers of the service plugin
 	processor     *processor.ServiceProcessor
 	nat44Renderer *nat44.Renderer
 }
@@ -70,20 +57,26 @@ type Plugin struct {
 type Deps struct {
 	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
-	Resync       resync.Subscriber
-	Watcher      datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
-	Contiv       contiv.API                  /* to get the Node IP and all interface names */
-	VPP          vpp.API                     /* interface indexes && IP addresses */
-	GoVPP        govppmux.API                /* used for direct NAT binary API calls */
-	Stats        statscollector.API          /* used for exporting the statistics */
+	ContivConf   contivconf.API
+	IPAM         ipam.API
+	IPv4Net      ipv4net.API        /* to get the Node IP and all interface names */
+	NodeSync     nodesync.API       /* to get the list of all node IPs for nodePort services */
+	PodManager   podmanager.API     /* to get the list or running pods which determines frontend interfaces */
+	GoVPP        govppmux.API       /* used for direct NAT binary API calls */
+	Stats        statscollector.API /* used for exporting the statistics */
 }
 
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
 func (p *Plugin) Init() error {
 	var err error
 
-	p.resyncChan = make(chan datasync.ResyncEvent)
-	p.changeChan = make(chan datasync.ChangeEvent)
+	// load configuration
+	p.config = config.DefaultConfig()
+	_, err = p.Cfg.LoadValue(p.config)
+	if err != nil {
+		return err
+	}
+	p.Log.Infof("Service plugin configuration: %+v", *p.config)
 
 	const goVPPChanBufSize = 1 << 12
 	goVppCh, err := p.GoVPP.NewAPIChannelBuffered(goVPPChanBufSize, goVPPChanBufSize)
@@ -95,21 +88,30 @@ func (p *Plugin) Init() error {
 		Deps: processor.Deps{
 			Log:          p.Log.NewLogger("-serviceProcessor"),
 			ServiceLabel: p.ServiceLabel,
-			Contiv:       p.Contiv,
+			ContivConf:   p.ContivConf,
+			IPAM:         p.IPAM,
+			IPv4Net:      p.IPv4Net,
+			NodeSync:     p.NodeSync,
+			PodManager:   p.PodManager,
 		},
 	}
 
 	p.nat44Renderer = &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:       p.Log.NewLogger("-nat44Renderer"),
-			VPP:       p.VPP,
-			Contiv:    p.Contiv,
-			GoVPPChan: goVppCh,
-			NATTxnFactory: func() linuxclient.DataChangeDSL {
-				return localclient.DataChangeRequest(p.String())
+			Log:        p.Log.NewLogger("-nat44Renderer"),
+			Config:     p.config,
+			ContivConf: p.ContivConf,
+			IPAM:       p.IPAM,
+			IPv4Net:    p.IPv4Net,
+			GoVPPChan:  goVppCh,
+			UpdateTxnFactory: func(change string) controller.UpdateOperations {
+				p.changes = append(p.changes, change)
+				return p.updateTxn
 			},
-			LatestRevs: kvdbsync_local.Get().LastRev(),
-			Stats:      p.Stats,
+			ResyncTxnFactory: func() controller.ResyncOperations {
+				return p.resyncTxn
+			},
+			Stats: p.Stats,
 		},
 	}
 
@@ -118,15 +120,6 @@ func (p *Plugin) Init() error {
 
 	// Register renderers.
 	p.processor.RegisterRenderer(p.nat44Renderer)
-
-	p.ctx, p.cancel = context.WithCancel(context.Background())
-
-	go p.watchEvents()
-	err = p.subscribeWatcher()
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -136,99 +129,74 @@ func (p *Plugin) Init() error {
 func (p *Plugin) AfterInit() error {
 	p.processor.AfterInit()
 	p.nat44Renderer.AfterInit()
-
-	if p.Resync != nil {
-		reg := p.Resync.Register(string(p.PluginName))
-		go p.handleResync(reg.StatusChan())
-	}
 	return nil
 }
 
-func (p *Plugin) subscribeWatcher() (err error) {
-	p.watchConfigReg, err = p.Watcher.
-		Watch("K8s services", p.changeChan, p.resyncChan,
-			epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix(), node.AllocatedIDsKeyPrefix)
-	return err
-}
-
-func (p *Plugin) watchEvents() {
-	p.wg.Add(1)
-	defer p.wg.Done()
-
-	for {
-		select {
-		case resyncConfigEv := <-p.resyncChan:
-			p.resyncLock.Lock()
-			p.resyncCounter++
-			p.pendingResync = resyncConfigEv
-			resyncConfigEv.Done(nil)
-			p.Log.WithField("config", resyncConfigEv).Info("Delaying RESYNC config")
-			p.resyncLock.Unlock()
-
-		case dataChngEv := <-p.changeChan:
-			p.resyncLock.Lock()
-			if p.resyncCounter == 0 || p.pendingResync != nil {
-				p.pendingChanges = append(p.pendingChanges, dataChngEv)
-				dataChngEv.Done(nil)
-				p.Log.WithField("key", dataChngEv.GetKey()).Info("Delaying data-change")
-			} else {
-				err := p.processor.Update(dataChngEv)
-				dataChngEv.Done(err)
-			}
-			p.resyncLock.Unlock()
-
-		case <-p.ctx.Done():
-			p.Log.Debug("Stop watching events")
-			return
+// HandlesEvent selects:
+//  - any resync event
+//  - KubeStateChange for service-related data
+//  - AddPod & DeletePod
+//  - NodeUpdate event
+func (p *Plugin) HandlesEvent(event controller.Event) bool {
+	if event.Method() != controller.Update {
+		return true
+	}
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
+		switch ksChange.Resource {
+		case epmodel.EndpointsKeyword:
+			return true
+		case svcmodel.ServiceKeyword:
+			return true
+		default:
+			// unhandled Kubernetes state change
+			return false
 		}
 	}
-}
-
-func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
-	// block until NodeIP is set
-	nodeIPWatcher := make(chan string, 1)
-	p.Contiv.WatchNodeIP(nodeIPWatcher)
-	nodeIP, nodeNet := p.Contiv.GetNodeIP()
-	if nodeIP == nil || nodeNet == nil {
-		<-nodeIPWatcher
+	if _, isAddPod := event.(*podmanager.AddPod); isAddPod {
+		return true
+	}
+	if _, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
+		return true
+	}
+	if _, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
+		return true
 	}
 
-	for {
-		select {
-		case ev := <-resyncChan:
-			var err error
-			status := ev.ResyncStatus()
-			if status == resync.Started {
-				p.resyncLock.Lock()
-				if p.pendingResync != nil {
-					p.Log.WithField("config", p.pendingResync).Info("Applying delayed RESYNC config")
-					err = p.processor.Resync(p.pendingResync)
-					for i := 0; err == nil && i < len(p.pendingChanges); i++ {
-						dataChngEv := p.pendingChanges[i]
-						p.Log.WithField("key", dataChngEv.GetKey()).Info("Applying delayed data-change")
-						err = p.processor.Update(dataChngEv)
-					}
-					p.pendingResync = nil
-					p.pendingChanges = []datasync.ChangeEvent{}
-				}
-				p.resyncLock.Unlock()
-			}
-			if err != nil {
-				p.Log.Error(err)
-			}
-			ev.Ack()
-		case <-p.ctx.Done():
-			return
-		}
-	}
+	// unhandled event
+	return false
 }
 
-// Close stops watching of KSR reflected data.
+// Resync is called by Controller to handle event that requires full
+// re-synchronization.
+// For startup resync, resyncCount is 1. Higher counter values identify
+// run-time resync.
+func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeStateData,
+	resyncCount int, txn controller.ResyncOperations) error {
+
+	p.resyncTxn = txn
+	p.updateTxn = nil
+	return p.processor.Resync(kubeStateData)
+}
+
+// Update is called for:
+//  - KubeStateChange for service-related data
+//  - AddPod & DeletePod
+//  - NodeUpdate event
+func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
+	p.resyncTxn = nil
+	p.updateTxn = txn
+	p.changes = []string{}
+	err = p.processor.Update(event)
+	changeDescription = strings.Join(p.changes, ", ")
+	return changeDescription, err
+}
+
+// Revert is called for failed AddPod event.
+func (p *Plugin) Revert(event controller.Event) error {
+	return p.processor.Revert(event)
+}
+
+// Close is NOOP.
 func (p *Plugin) Close() error {
-	if p.cancel != nil {
-		p.cancel()
-	}
-	p.wg.Wait()
-	safeclose.CloseAll(p.watchConfigReg, p.resyncChan, p.changeChan)
 	return nil
 }

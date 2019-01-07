@@ -17,19 +17,23 @@ package l3
 
 import (
 	"fmt"
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/onsi/gomega"
+
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/logging/logrus"
+
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/contiv/vpp/plugins/crd/testdata"
 	"github.com/contiv/vpp/plugins/crd/validator/l2"
 	"github.com/contiv/vpp/plugins/crd/validator/utils"
+	"github.com/contiv/vpp/plugins/ipv4net"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
-	"github.com/onsi/gomega"
-	"os"
-	"strings"
-	"testing"
 )
 
 type l3ValidatorTestVars struct {
@@ -132,7 +136,7 @@ func testErrorFreeEndToEnd(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l3Validator.Validate()
 
-	checkDataReport(1, 4, 4)
+	checkDataReport(1, 2, 2)
 }
 
 func testMissingIPAM(t *testing.T) {
@@ -147,7 +151,7 @@ func testMissingIPAM(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l3Validator.Validate()
 
-	checkDataReport(1, 1, 7)
+	checkDataReport(1, 1, 5)
 
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
@@ -171,7 +175,7 @@ func testMissingInterfaces(t *testing.T) {
 
 	// NOTE: Expect one error per node in L3 validation until we can validate
 	// static routes configured through Linux
-	checkDataReport(1, 1, 7)
+	checkDataReport(1, 1, 5)
 }
 
 func testMissingStaticRoutes(t *testing.T) {
@@ -188,7 +192,7 @@ func testMissingStaticRoutes(t *testing.T) {
 
 	// NOTE: Expect one error per node in L3 validation until we can validate
 	// static routes configured through Linux
-	checkDataReport(1, 1, 4)
+	checkDataReport(1, 1, 2)
 }
 
 func testValidateRoutesToLocalPods(t *testing.T) {
@@ -209,8 +213,8 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
-			if rte.Ipr.DstAddr == pod.IPAddress+"/32" {
-				delete(vrfMap[1], rte.Ipr.DstAddr)
+			if rte.Value.DstNetwork == pod.IPAddress+"/32" {
+				delete(vrfMap[1], rte.Value.DstNetwork)
 				break
 			}
 		}
@@ -231,7 +235,6 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	// INJECT FAULTS:
 	// - Bad next hop in the route for a Pod
 	// - Bad outgoing interface name in the route for a Pod
-	// - Bad outgoing swIfIndex in the route for a Pod
 	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
 		if pod.IPAddress == pod.HostIPAddress {
 			continue
@@ -239,11 +242,11 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
-			if rte.Ipr.DstAddr == pod.IPAddress+"/32" {
-				rte.Ipr.NextHopAddr = "1.2.3.4"
-				rte.IprMeta.OutgoingIfIdx = rte.IprMeta.OutgoingIfIdx + 1
-				rte.Ipr.OutIface = "someInterfaceName"
-				vrfMap[1][rte.Ipr.DstAddr] = rte
+			if rte.Value.DstNetwork == pod.IPAddress+"/32" {
+				rte = rte.DeepCopy()
+				rte.Value.NextHopAddr = "1.2.3.4"
+				rte.Value.OutgoingInterface = "someInterfaceName"
+				vrfMap[1][rte.Value.DstNetwork] = rte
 				break
 			}
 		}
@@ -256,11 +259,12 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 3, 0)
-	gomega.Expect(numErrs).To(gomega.Equal(3))
+	checkDataReport(0, 2, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(2))
 
 	// Restore data back to error free state
 	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
+	gomega.Expect(err).To(gomega.BeNil())
 
 	// ----------------------------------------------------------------
 	// INJECT FAULT: Route to vpp-side pod-facing tap interface missing
@@ -270,18 +274,18 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 		}
 
 		podIfIPAddr, podIfIPMask, err :=
-			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodVPPSubnetCIDR)
 		gomega.Expect(err).To(gomega.BeNil())
 		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
 
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
-			rteIfIPAddr, _, err := utils.Ipv4CidrToAddressAndMask(rte.Ipr.DstAddr)
+			rteIfIPAddr, _, err := utils.Ipv4CidrToAddressAndMask(rte.Value.DstNetwork)
 			gomega.Expect(err).To(gomega.BeNil())
 
 			rteIfIPPrefix := rteIfIPAddr &^ podIfIPMask
 			if rteIfIPPrefix == podIfIPPrefix {
-				delete(vrfMap[1], rte.Ipr.DstAddr)
+				delete(vrfMap[1], rte.Value.DstNetwork)
 				break
 			}
 		}
@@ -303,30 +307,29 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	// INJECT FAULTS:
 	// - Bad next hop in the route to pod-facing tqp interface
 	// - Bad outgoing interface name in the route to pod-facing tqp interface
-	// - Bad outgoing swIfIndex in the route to pod-facing tqp interface
 	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
 		if pod.IPAddress == pod.HostIPAddress {
 			continue
 		}
 
 		podIfIPAddr, podIfIPMask, err :=
-			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodVPPSubnetCIDR)
 		gomega.Expect(err).To(gomega.BeNil())
 		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
 
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
-			rteIfIPAddr, _, err := utils.Ipv4CidrToAddressAndMask(rte.Ipr.DstAddr)
+			rteIfIPAddr, _, err := utils.Ipv4CidrToAddressAndMask(rte.Value.DstNetwork)
 			gomega.Expect(err).To(gomega.BeNil())
 
 			rteIfIPPrefix := rteIfIPAddr &^ podIfIPMask
 			if rteIfIPPrefix == podIfIPPrefix {
-				rte.Ipr.NextHopAddr = "1.2.3.4"
-				rte.IprMeta.OutgoingIfIdx = rte.IprMeta.OutgoingIfIdx + 1
-				rte.Ipr.OutIface = "someInterfaceName"
-				rte.Ipr.Type = rte.Ipr.Type + 1
-				rte.Ipr.ViaVRFID = rte.Ipr.Type + 1
-				vrfMap[1][rte.Ipr.DstAddr] = rte
+				rte = rte.DeepCopy()
+				rte.Value.NextHopAddr = "1.2.3.4"
+				rte.Value.OutgoingInterface = "someInterfaceName"
+				rte.Value.Type = rte.Value.Type + 1
+				rte.Value.ViaVrfId = rte.Value.ViaVrfId + 1
+				vrfMap[1][rte.Value.DstNetwork] = rte
 				break
 			}
 		}
@@ -338,8 +341,8 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 5, 0)
-	gomega.Expect(numErrs).To(gomega.Equal(5))
+	checkDataReport(0, 4, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(4))
 
 	// Restore data back to error free state
 	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
@@ -377,43 +380,42 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	gigeRoute, ok := vrfMap[0][vtv.vppCache.NodeMap[vtv.nodeKey].IPAddr]
 	gomega.Expect(ok).To(gomega.BeTrue())
 
-	oldNextHop := gigeRoute.Ipr.DstAddr
-	gigeRoute.Ipr.DstAddr = "1.2.3.4"
+	oldNextHop := gigeRoute.Value.DstNetwork
+	gigeRoute.Value.DstNetwork = "1.2.3.4"
 
-	oldOutIface := gigeRoute.Ipr.OutIface
-	gigeRoute.Ipr.OutIface = "SomeInterfaceName"
+	oldOutIface := gigeRoute.Value.OutgoingInterface
+	intf, ok := vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces.GetByName(oldOutIface)
+	gomega.Expect(ok).To(gomega.BeTrue())
+	gigeRoute.Value.OutgoingInterface = "SomeInterfaceName"
 
 	vrfMap[0][vtv.vppCache.NodeMap[vtv.nodeKey].IPAddr] = gigeRoute
 
-	intf, ok := vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(gigeRoute.IprMeta.OutgoingIfIdx)]
-	gomega.Expect(ok).To(gomega.BeTrue())
-
-	oldSwIdx := intf.IfMeta.SwIfIndex
-	intf.IfMeta.SwIfIndex++
-	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(gigeRoute.IprMeta.OutgoingIfIdx)] = intf
+	oldSwIdx := intf.Metadata.SwIfIndex
+	intf.Metadata.SwIfIndex++
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[oldSwIdx] = intf
 
 	// Perform test
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf0GigERoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 5, 0)
-	gomega.Expect(numErrs).To(gomega.Equal(5))
+	checkDataReport(0, 1, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
 
 	// Restore data back to error free state
-	gigeRoute.Ipr.DstAddr = oldNextHop
-	gigeRoute.Ipr.OutIface = oldOutIface
+	gigeRoute.Value.DstNetwork = oldNextHop
+	gigeRoute.Value.OutgoingInterface = oldOutIface
 	vrfMap[0][vtv.vppCache.NodeMap[vtv.nodeKey].IPAddr] = gigeRoute
 
-	intf.IfMeta.SwIfIndex = oldSwIdx
-	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(gigeRoute.IprMeta.OutgoingIfIdx)] = intf
+	intf.Metadata.SwIfIndex = oldSwIdx
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[oldSwIdx] = intf
 
 	// ------------------------------------------------------------------
 	// INJECT FAULT: mismatched data on the route to local VPP GigE port
 	gigeRoute, ok = vrfMap[0][vtv.vppCache.NodeMap[vtv.nodeKey].IPAddr]
 	gomega.Expect(ok).To(gomega.BeTrue())
 
-	oldOutgoingIfIdx := gigeRoute.IprMeta.OutgoingIfIdx
-	gigeRoute.IprMeta.OutgoingIfIdx++
+	oldOutgoingIface := gigeRoute.Value.OutgoingInterface
+	gigeRoute.Value.OutgoingInterface = "interface"
 	vrfMap[0][vtv.vppCache.NodeMap[vtv.nodeKey].IPAddr] = gigeRoute
 
 	// Perform test
@@ -424,7 +426,7 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	gomega.Expect(numErrs).To(gomega.Equal(1))
 
 	// Restore data back to error free state
-	gigeRoute.IprMeta.OutgoingIfIdx = oldOutgoingIfIdx
+	gigeRoute.Value.OutgoingInterface = oldOutgoingIface
 	vrfMap[0][vtv.vppCache.NodeMap[vtv.nodeKey].IPAddr] = gigeRoute
 
 	// ------------------------------------------------------------------
@@ -451,11 +453,11 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	route, ok := vrfMap[0][dstAddr]
 	gomega.Expect(ok).To(gomega.BeTrue())
 
-	oldNextHop = gigeRoute.Ipr.DstAddr
-	route.Ipr.NextHopAddr = "1.2.3.4"
+	oldNextHop = gigeRoute.Value.DstNetwork
+	route.Value.NextHopAddr = "1.2.3.4"
 
-	oldOutIface = route.Ipr.OutIface
-	route.Ipr.OutIface = "SomeInterfaceName"
+	oldOutIface = route.Value.OutgoingInterface
+	route.Value.OutgoingInterface = "SomeInterfaceName"
 
 	vrfMap[0][dstAddr] = route
 
@@ -467,8 +469,8 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	gomega.Expect(numErrs).To(gomega.Equal(2))
 
 	// Restore data back to error free state
-	route.Ipr.NextHopAddr = oldNextHop
-	route.Ipr.OutIface = oldOutIface
+	route.Value.NextHopAddr = oldNextHop
+	route.Value.OutgoingInterface = oldOutIface
 	vrfMap[0][dstAddr] = route
 
 }
@@ -485,9 +487,9 @@ func testValidateInterfaceLookup(t *testing.T) {
 	// INJECT FAULT:
 	// - Bad GigE interface name
 	gigeIfc, err := findInterface(gigENameMatch, vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces)
-	oldGigeIfName := gigeIfc.If.Name
-	gigeIfc.If.Name = "SomeInterface"
-	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(gigeIfc.IfMeta.SwIfIndex)] = *gigeIfc
+	oldGigeIfName := gigeIfc.Value.Name
+	gigeIfc.Value.Name = "SomeInterface"
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[gigeIfc.Metadata.SwIfIndex] = *gigeIfc
 
 	numErrs := vtv.l3Validator.validateVrf0GigERoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 	gomega.Expect(numErrs).To(gomega.Equal(1))
@@ -496,16 +498,16 @@ func testValidateInterfaceLookup(t *testing.T) {
 	gomega.Expect(numErrs).To(gomega.Equal(1))
 
 	// Restore data back to error free state
-	gigeIfc.If.Name = oldGigeIfName
-	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(gigeIfc.IfMeta.SwIfIndex)] = *gigeIfc
+	gigeIfc.Value.Name = oldGigeIfName
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[gigeIfc.Metadata.SwIfIndex] = *gigeIfc
 
 	// --------------------------------------------------
 	// INJECT FAULT:
 	// - Bad vlxanBVI interface name
-	bviIfc, err := findInterface(vxlanBviName, vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces)
-	oldBviIfName := gigeIfc.If.Name
-	bviIfc.If.Name = "SomeInterface"
-	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(bviIfc.IfMeta.SwIfIndex)] = *bviIfc
+	bviIfc, err := findInterface(ipv4net.VxlanBVIInterfaceName, vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces)
+	oldBviIfName := gigeIfc.Value.Name
+	bviIfc.Value.Name = "SomeInterface"
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[bviIfc.Metadata.SwIfIndex] = *bviIfc
 
 	numErrs = vtv.l3Validator.validateRouteToLocalVxlanBVI(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 	gomega.Expect(numErrs).To(gomega.Equal(1))
@@ -514,23 +516,23 @@ func testValidateInterfaceLookup(t *testing.T) {
 	gomega.Expect(numErrs).To(gomega.Equal(1))
 
 	// Restore data back to error free state
-	bviIfc.If.Name = oldBviIfName
-	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(bviIfc.IfMeta.SwIfIndex)] = *bviIfc
+	bviIfc.Value.Name = oldBviIfName
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[bviIfc.Metadata.SwIfIndex] = *bviIfc
 
 	// --------------------------------------------------
 	// INJECT FAULT:
 	// - Bad vlxanBVI interface name
 	tapIfc, err := findInterface(tap2HostName, vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces)
-	oldTapIfName := gigeIfc.If.Name
-	tapIfc.If.Name = "SomeInterface"
-	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(tapIfc.IfMeta.SwIfIndex)] = *tapIfc
+	oldTapIfName := gigeIfc.Value.Name
+	tapIfc.Value.Name = "SomeInterface"
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[tapIfc.Metadata.SwIfIndex] = *tapIfc
 
 	numErrs = vtv.l3Validator.validateLocalVppHostNetworkRoute(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 	gomega.Expect(numErrs).To(gomega.Equal(1))
 
 	// Restore data back to error free state
-	tapIfc.If.Name = oldTapIfName
-	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(tapIfc.IfMeta.SwIfIndex)] = *tapIfc
+	tapIfc.Value.Name = oldTapIfName
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[tapIfc.Metadata.SwIfIndex] = *tapIfc
 
 }
 
@@ -552,13 +554,23 @@ func resetToInitialErrorFreeState() {
 		gomega.Panic()
 	}
 
-	if err := testdata.CreateK8sNodeTestData(vtv.k8sCache); err != nil {
+	if err := testdata.CreateK8sNodeTestData(vtv.k8sCache, vtv.vppCache); err != nil {
 		vtv.log.SetOutput(os.Stdout)
 		vtv.log.Error(err)
 		gomega.Panic()
 	}
 
 	for _, node := range vtv.vppCache.RetrieveAllNodes() {
+		k8snode, err := vtv.k8sCache.RetrieveK8sNode(node.Name)
+		if err == nil {
+			for _, adr := range k8snode.Addresses {
+				if adr.Type == nodemodel.NodeAddress_NodeInternalIP {
+					node.ManIPAddr = adr.Address
+					break
+				}
+			}
+		}
+
 		errReport := vtv.l3Validator.VppCache.SetSecondaryNodeIndices(node)
 		for _, r := range errReport {
 			vtv.l3Validator.Report.AppendToNodeReport(node.Name, r)
@@ -579,6 +591,7 @@ func resetToInitialErrorFreeState() {
 }
 
 func checkDataReport(globalCnt int, nodeKeyCnt int, defaultCnt int) {
+	vtv.report.Print()
 	for k := range vtv.report.Data {
 		switch k {
 		case api.GlobalMsg:

@@ -21,7 +21,6 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
@@ -50,8 +49,15 @@ type PolicyProcessor struct {
 type Deps struct {
 	Log          logging.Logger
 	Cache        cache.PolicyCacheAPI
-	Contiv       contiv.API /* to get the Host IP */
+	IPAM         IPAM
 	Configurator config.PolicyConfiguratorAPI
+}
+
+// IPAM interface lists IPAM methods needed by Policy Processor.
+type IPAM interface {
+	// PodSubnetThisNode returns POD network for the current node
+	// (given by nodeID allocated for this node).
+	PodSubnetThisNode() *net.IPNet
 }
 
 // Init initializes the Policy Processor.
@@ -79,7 +85,7 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 
 	txn := pp.Configurator.NewTxn(resync)
 	processedPolicies := make(map[policymodel.ID]*config.ContivPolicy)
-	pp.Log.WithField("pods", pods).Info("Non-empty set of pods sent to Process")
+	pp.Log.Debugf("Pods selected for policy pre-processing: %v", pods)
 
 	for _, pod := range pods {
 		policies := []*config.ContivPolicy{}
@@ -145,14 +151,21 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 // Resync processes the RESYNC event by re-calculating the policies for all
 // known pods.
 func (pp *PolicyProcessor) Resync(data *cache.DataResyncEvent) error {
+	// resync the map pod->IP first
+	pp.podIPAddressMap = make(map[podmodel.ID]net.IP)
+	for _, pod := range data.Pods {
+		if pod.IpAddress == "" {
+			continue
+		}
+		pp.podIPAddressMap[podmodel.GetID(pod)] = net.ParseIP(pod.IpAddress)
+	}
+
 	return pp.Process(true, pp.Cache.ListAllPods())
 }
 
 // AddPod processes the event of newly added pod. The processor will postpone
 // the reconfiguration until all needed data are available (IP address).
 func (pp *PolicyProcessor) AddPod(podID podmodel.ID, pod *podmodel.Pod) error {
-	pp.Log.WithField("pod", pod).Info("Pod was added")
-
 	// Remember pod IP.
 	if pod.IpAddress == "" {
 		pp.Log.WithField("add-pod", pod).Info("Pod does not have an IP Address assigned yet")
@@ -175,11 +188,6 @@ func (pp *PolicyProcessor) AddPod(podID podmodel.ID, pod *podmodel.Pod) error {
 
 // DelPod processes the event of a removed pod (no action needed).
 func (pp *PolicyProcessor) DelPod(podID podmodel.ID, pod *podmodel.Pod) error {
-	pp.Log.WithFields(logging.Fields{
-		"podID":   podID,
-		"del-pod": pod,
-	}).Info("Pod was removed")
-
 	// For every matched policy (before removal), find all the pods that have the policy attached.
 	pods := []podmodel.ID{}
 	podPolicies := pp.getPoliciesReferencingPod(pod)
@@ -193,9 +201,7 @@ func (pp *PolicyProcessor) DelPod(podID podmodel.ID, pod *podmodel.Pod) error {
 	err := pp.Process(false, pods)
 
 	// Remove remembered pod IP address.
-	if _, hadIP := pp.podIPAddressMap[podID]; hadIP {
-		delete(pp.podIPAddressMap, podID)
-	}
+	delete(pp.podIPAddressMap, podID)
 
 	return err
 }
@@ -204,12 +210,6 @@ func (pp *PolicyProcessor) DelPod(podID podmodel.ID, pod *podmodel.Pod) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdatePod(podID podmodel.ID, oldPod, newPod *podmodel.Pod) error {
-	pp.Log.WithFields(logging.Fields{
-		"podID":   podID,
-		"new-pod": newPod,
-		"old-pod": oldPod,
-	}).Info("Pod was updated")
-
 	// Remember pod IP if it was added / has changed.
 	if newPod.IpAddress != "" {
 		pp.podIPAddressMap[podID] = net.ParseIP(newPod.IpAddress)
@@ -249,8 +249,6 @@ func (pp *PolicyProcessor) UpdatePod(podID podmodel.ID, oldPod, newPod *podmodel
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
-	pp.Log.WithField("policy", policy).Info("Policy was added")
-
 	// Check if policy was read correctly.
 	if policy == nil {
 		pp.Log.WithField("policy", policy).Error("Error reading Policy")
@@ -266,8 +264,6 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
-	pp.Log.WithField("policy", policy).Info("Policy was deleted")
-
 	// Check if policy was read correctly.
 	if policy == nil {
 		pp.Log.WithField("policy", policy).Error("Error reading Policy")
@@ -283,11 +279,6 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy) error {
-	pp.Log.WithFields(logging.Fields{
-		"new-policy": newPolicy,
-		"old-policy": oldPolicy,
-	}).Info("Policy was updated")
-
 	if newPolicy == nil {
 		pp.Log.WithField("policy", newPolicy).Error("Error reading New Policy")
 		return nil
@@ -308,13 +299,11 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 
 // AddNamespace processes the event of newly added namespace (no action needed).
 func (pp *PolicyProcessor) AddNamespace(ns *nsmodel.Namespace) error {
-	pp.Log.WithField("ns", ns).Info("Namespace was added")
 	return nil
 }
 
 // DelNamespace processes the event of a removed namespace (no action needed).
 func (pp *PolicyProcessor) DelNamespace(ns *nsmodel.Namespace) error {
-	pp.Log.WithField("ns", ns).Info("Namespace was deleted")
 	return nil
 }
 
@@ -322,11 +311,6 @@ func (pp *PolicyProcessor) DelNamespace(ns *nsmodel.Namespace) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) error {
-	pp.Log.WithFields(logging.Fields{
-		"new-ns": newNs,
-		"old-ns": oldNs,
-	}).Info("Namespace was updated")
-
 	pods := []podmodel.ID{}
 	if newNs == nil {
 		pp.Log.WithField("namespace", newNs).Error("Error reading Namespace")
@@ -362,7 +346,7 @@ func (pp *PolicyProcessor) filterHostPods(pods []podmodel.ID) []podmodel.ID {
 		hadIP        bool
 		hostPods     []podmodel.ID
 	)
-	hostNetwork := pp.Contiv.GetPodNetwork()
+	hostNetwork := pp.IPAM.PodSubnetThisNode()
 
 	for _, podID := range pods {
 		found, podData := pp.Cache.LookupPod(podID)

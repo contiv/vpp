@@ -16,7 +16,7 @@ package service
 
 import (
 	"github.com/contiv/vpp/plugins/statscollector"
-	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
@@ -28,7 +28,6 @@ func NewPlugin(opts ...Option) *Plugin {
 
 	p.PluginName = "service"
 	p.ServiceLabel = &servicelabel.DefaultPlugin
-	p.Resync = &resync.DefaultPlugin
 	p.GoVPP = &govppmux.DefaultPlugin
 	p.Stats = &statscollector.DefaultPlugin
 
@@ -38,6 +37,9 @@ func NewPlugin(opts ...Option) *Plugin {
 
 	if p.Deps.Log == nil {
 		p.Deps.Log = logging.ForPlugin(p.String())
+	}
+	if p.Cfg == nil {
+		p.Cfg = config.ForPlugin(p.String())
 	}
 
 	return p

@@ -18,16 +18,27 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/contiv/vpp/plugins/crd/api"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/contiv/vpp/plugins/crd/datastore"
-	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/logging"
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"strings"
 	"time"
+
+	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+	"github.com/ligato/cn-infra/logging"
+
+	linuxifdescr "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/descriptor"
+	vppifdescr "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
+
+	vppl2descr "github.com/ligato/vpp-agent/plugins/vppv2/l2plugin/descriptor"
+	vppl3descr "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/descriptor"
+
+	"github.com/contiv/vpp/plugins/crd/api"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/crd/datastore"
+	"github.com/contiv/vpp/plugins/ipv4net"
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 )
 
 const (
@@ -36,15 +47,9 @@ const (
 	numDTOs   = 8
 	agentPort = ":9999"
 
-	livenessURL       = "/liveness"
-	linuxInterfaceURL = "/linux/dump/v1/interfaces"
-	ipamURL           = "/contiv/v1/ipam"
-
-	nodeInterfaceURL = "/vpp/dump/v1/interfaces"
-	bridgeDomainURL  = "/vpp/dump/v1/bd"
-	l2FibsURL        = "/vpp/dump/v1/fib"
-	arpURL           = "/vpp/dump/v1/arps"
-	staticRouteURL   = "/vpp/dump/v1/routes"
+	kvschedulerDumpURL = "/scheduler/dump?descriptor=<descriptor>&state=<state>"
+	livenessURL        = "/liveness"
+	ipamURL            = "/contiv/v1/ipam"
 
 	clientTimeout = 10 // HTTP client timeout, in seconds
 )
@@ -71,6 +76,7 @@ type ContivTelemetryCache struct {
 	collectionInterval   time.Duration
 	httpClientTimeout    time.Duration
 	agentPort            string
+	validateState        string
 	validationInProgress bool
 	databaseVersion      uint32
 	dataChangeEvents     DcEventQueue
@@ -81,7 +87,7 @@ type ContivTelemetryCache struct {
 	nnResponses  uint32
 }
 
-// Deps lists dependencies of PolicyCache.
+// Deps lists dependencies of ContivTelemetryCache.
 type Deps struct {
 	Log logging.Logger
 }
@@ -100,7 +106,7 @@ type NodeDTO struct {
 }
 
 // NewTelemetryCache returns a new instance of telemetry cache
-func NewTelemetryCache(p logging.PluginLogger, collectionInterval time.Duration, verbose bool) *ContivTelemetryCache {
+func NewTelemetryCache(p logging.PluginLogger, collectionInterval time.Duration, validateState string, verbose bool) *ContivTelemetryCache {
 	ticker := time.NewTicker(collectionInterval)
 	if collectionInterval <= 0 {
 		// If we have 0 collection interval, just stop ticker
@@ -119,6 +125,7 @@ func NewTelemetryCache(p logging.PluginLogger, collectionInterval time.Duration,
 
 		agentPort:            agentPort,
 		collectionInterval:   collectionInterval,
+		validateState:        validateState,
 		httpClientTimeout:    clientTimeout * time.Second,
 		validationInProgress: false,
 
@@ -210,6 +217,7 @@ func (ctc *ContivTelemetryCache) startNodeInfoCollection() {
 	ctc.ClearCache()
 	ctc.validationInProgress = true
 	for _, node := range nodelist {
+		ctc.corelateMgmtIP(node)
 		ctc.collectAgentInfo(node)
 	}
 }
@@ -238,6 +246,12 @@ func (ctc *ContivTelemetryCache) validateCluster() {
 	ctc.ControllerReport.GenerateCRDReport()
 }
 
+func (ctc *ContivTelemetryCache) kvSchedulerDumpURL(descriptor string) string {
+	url := strings.Replace(kvschedulerDumpURL, "<descriptor>", descriptor, 1)
+	url = strings.Replace(url, "<state>", ctc.validateState, 1)
+	return url
+}
+
 // Collect real-time node state (mainly VPP, but some Linux too) from the
 // specified node's VPP Agent.
 func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
@@ -249,54 +263,66 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 	}
 	ctc.Report.SetPrefix("HTTP")
 
-	go ctc.getNodeInfo(client, node, livenessURL, &telemetrymodel.NodeLiveness{}, ctc.databaseVersion)
+	go ctc.getNodeInfo(client, node, livenessURL, &status.AgentStatus{}, ctc.databaseVersion)
 
 	nodeInterfaces := make(telemetrymodel.NodeInterfaces, 0)
-	go ctc.getNodeInfo(client, node, nodeInterfaceURL, &nodeInterfaces, ctc.databaseVersion)
+	url := ctc.kvSchedulerDumpURL(vppifdescr.InterfaceDescriptorName)
+	go ctc.getNodeInfo(client, node, url, &nodeInterfaces, ctc.databaseVersion)
 
 	nodeBridgeDomains := make(telemetrymodel.NodeBridgeDomains, 0)
-	go ctc.getNodeInfo(client, node, bridgeDomainURL, &nodeBridgeDomains, ctc.databaseVersion)
+	url = ctc.kvSchedulerDumpURL(vppl2descr.BridgeDomainDescriptorName)
+	go ctc.getNodeInfo(client, node, url, &nodeBridgeDomains, ctc.databaseVersion)
 
 	nodel2fibs := make(telemetrymodel.NodeL2FibTable, 0)
-	go ctc.getNodeInfo(client, node, l2FibsURL, &nodel2fibs, ctc.databaseVersion)
+	url = ctc.kvSchedulerDumpURL(vppl2descr.FIBDescriptorName)
+	go ctc.getNodeInfo(client, node, url, &nodel2fibs, ctc.databaseVersion)
 
 	//TODO: Implement getTelemetry correctly.
 	//Does not parse information correctly
 	//nodetelemetry := make(map[string]NodeTelemetry)
 	//go ctc.getNodeInfo(client, node, telemetryURL, &nodetelemetry)
 
-	nodeiparpslice := make(telemetrymodel.NodeIPArpTable, 0)
-	go ctc.getNodeInfo(client, node, arpURL, &nodeiparpslice, ctc.databaseVersion)
+	nodeiparps := make(telemetrymodel.NodeIPArpTable, 0)
+	url = ctc.kvSchedulerDumpURL(vppl3descr.ArpDescriptorName)
+	go ctc.getNodeInfo(client, node, url, &nodeiparps, ctc.databaseVersion)
 
 	nodestaticroutes := make(telemetrymodel.NodeStaticRoutes, 0)
-	go ctc.getNodeInfo(client, node, staticRouteURL, &nodestaticroutes, ctc.databaseVersion)
+	url = ctc.kvSchedulerDumpURL(vppl3descr.StaticRouteDescriptorName)
+	go ctc.getNodeInfo(client, node, url, &nodestaticroutes, ctc.databaseVersion)
 
-	nodeipam := telemetrymodel.IPamEntry{}
+	nodeipam := ipv4net.IPAMData{}
 	go ctc.getNodeInfo(client, node, ipamURL, &nodeipam, ctc.databaseVersion)
 
 	linuxInterfaces := make(telemetrymodel.LinuxInterfaces, 0)
-	go ctc.getNodeInfo(client, node, linuxInterfaceURL, &linuxInterfaces, ctc.databaseVersion)
+	url = ctc.kvSchedulerDumpURL(linuxifdescr.InterfaceDescriptorName)
+	go ctc.getNodeInfo(client, node, url, &linuxInterfaces, ctc.databaseVersion)
 
 }
 
-/* Here are the several functions that run as goroutines to collect information
-about a specific node using an http client. First, an http request is made to the
-specific url and port of the desired information and the request received is read
-and unmarshalled into a struct to contain that information. Then, a data transfer
-object is created to hold the struct of information as well as the name and is sent
-over the plugins node database channel to node_db_processor.go where it will be read,
-processed, and added to the node database.
+/* getNodeInfo runs in a goroutine to collect information about a specific node
+using an http client. First, an http request is made to the specific url and port
+of the desired information and the request received is read and unmarshalled
+into a struct to contain that information. Then, a data transfer object is created
+to hold the struct of information as well as the name and is sent over the plugins
+node database channel to node_db_processor.go where it will be read, processed,
+and added to the node database.
 */
 func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetrymodel.Node, url string,
 	nodeInfo interface{}, version uint32) {
 
+	var err error
+	defer func() {
+		ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nodeInfo, err, version}
+		if err != nil {
+			ctc.Report.AppendToNodeReport(node.Name, err.Error())
+		}
+	}()
+
 	res, err := client.Get(ctc.getAgentURL(node.ManIPAddr, url))
 	if err != nil {
-		ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nil, err, version}
 		return
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
-		err := fmt.Errorf("HTTP Get error: url %s, Status: %s", url, res.Status)
-		ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nil, err, version}
+		err = fmt.Errorf("HTTP Get error: url %s, Status: %s", url, res.Status)
 		return
 	}
 
@@ -305,10 +331,23 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 
 	err = json.Unmarshal(b, nodeInfo)
 	if err != nil {
-		errString := fmt.Sprintf("failed to unmarshal data for node %s, error %s", node.Name, err)
-		ctc.Report.AppendToNodeReport(node.Name, errString)
+		err = fmt.Errorf("failed to unmarshal data for node %s, error %s", node.Name, err)
+		return
 	}
-	ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nodeInfo, err, version}
+}
+
+// corelateMgmtIP correlates VPP Cache with K8s Cache to obtain and set/update the management
+// IP address of the given node.
+func (ctc *ContivTelemetryCache) corelateMgmtIP(node *telemetrymodel.Node) {
+	k8snode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
+	if err == nil {
+		for _, adr := range k8snode.Addresses {
+			if adr.Type == nodemodel.NodeAddress_NodeInternalIP {
+				node.ManIPAddr = adr.Address
+				break
+			}
+		}
+	}
 }
 
 // populateNodeMaps populates many of needed node maps for processing once
@@ -316,10 +355,6 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 // that there are no duplicate addresses within the map.
 func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 	ctc.Report.SetPrefix("NODE-MAP")
-	errReport := ctc.VppCache.SetSecondaryNodeIndices(node)
-	for _, r := range errReport {
-		ctc.Report.AppendToNodeReport(node.Name, r)
-	}
 
 	k8snode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
 	if err != nil {
@@ -334,14 +369,13 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 						k8snode.Name, adr.Address)
 					ctc.Report.AppendToNodeReport(node.Name, errString)
 				}
-			case nodemodel.NodeAddress_NodeInternalIP:
-				if adr.Address != node.ManIPAddr {
-					errString := fmt.Sprintf("Inconsistent Host IP Address for node %s: Contiv: %s, K8s %s",
-						k8snode.Name, node.ManIPAddr, adr.Address)
-					ctc.Report.AppendToNodeReport(node.Name, errString)
-				}
 			}
 		}
+	}
+
+	errReport := ctc.VppCache.SetSecondaryNodeIndices(node)
+	for _, r := range errReport {
+		ctc.Report.AppendToNodeReport(node.Name, r)
 	}
 
 	node.PodMap = make(map[string]*telemetrymodel.Pod, 0)
@@ -404,8 +438,8 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 		}
 
 		switch data.NodeInfo.(type) {
-		case *telemetrymodel.NodeLiveness:
-			nl := data.NodeInfo.(*telemetrymodel.NodeLiveness)
+		case *status.AgentStatus:
+			nl := data.NodeInfo.(*status.AgentStatus)
 			err = ctc.VppCache.SetNodeLiveness(data.NodeName, nl)
 		case *telemetrymodel.NodeInterfaces:
 			niDto := data.NodeInfo.(*telemetrymodel.NodeInterfaces)
@@ -425,8 +459,8 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 		case *telemetrymodel.NodeStaticRoutes:
 			nSrDto := data.NodeInfo.(*telemetrymodel.NodeStaticRoutes)
 			err = ctc.VppCache.SetNodeStaticRoutes(data.NodeName, *nSrDto)
-		case *telemetrymodel.IPamEntry:
-			nipamDto := data.NodeInfo.(*telemetrymodel.IPamEntry)
+		case *ipv4net.IPAMData:
+			nipamDto := data.NodeInfo.(*ipv4net.IPAMData)
 			err = ctc.VppCache.SetNodeIPam(data.NodeName, *nipamDto)
 		case *telemetrymodel.LinuxInterfaces:
 			liDto := data.NodeInfo.(*telemetrymodel.LinuxInterfaces)
@@ -461,10 +495,12 @@ func (ctc *ContivTelemetryCache) processQueuedDataStoreUpdates() {
 		case datasync.ChangeEvent:
 			ctc.nUpdates++
 			dataChngEv := data.(datasync.ChangeEvent)
-			if err := ctc.update(dataChngEv); err != nil {
-				ctc.Log.Errorf("data update error, %s", err.Error())
-				ctc.Synced = false
-				// TODO: initiate resync at this point
+			for _, dataChng := range dataChngEv.GetChanges() {
+				if err := ctc.update(dataChng); err != nil {
+					ctc.Log.Errorf("data update error, %s", err.Error())
+					ctc.Synced = false
+					// TODO: initiate resync at this point
+				}
 			}
 
 		default:

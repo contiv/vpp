@@ -294,7 +294,7 @@ do
                         if echo "$n" | grep -q "tap"
                         then
                             # Compare just the 3rd digit of the IP address for now;
-                            # Assumes /16 PodSubnetCIDR and /24 PodIfIPCIDR
+                            # Assumes /16 PodSubnetCIDR and /24 PodVPPSubnetCIDR
                             POD_ID=$( echo "$POD_IP" | awk -F. '{print $4}' )
                             TAP_ID=$( echo "${IF_IP[$n]}" | awk -F/ '{print $1}' |awk -F. '{print $4}' )
                             if [ "$POD_ID" == "$TAP_ID" ]

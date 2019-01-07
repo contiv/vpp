@@ -17,27 +17,26 @@
 package nat44
 
 import (
+	"fmt"
 	"net"
-	"strings"
+	"sync/atomic"
 	"time"
 
-	"github.com/golang/protobuf/proto"
+	govpp "git.fd.io/govpp.git/api"
+	"github.com/gogo/protobuf/proto"
 
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/plugins/vpp"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
-
-	"github.com/contiv/vpp/plugins/contiv"
-	"github.com/contiv/vpp/plugins/service/renderer"
-
-	govpp "git.fd.io/govpp.git/api"
-	"github.com/contiv/vpp/plugins/statscollector"
 	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
-	"sync/atomic"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
+
+	"github.com/contiv/vpp/plugins/contivconf"
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipam"
+	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/service/config"
+	"github.com/contiv/vpp/plugins/service/renderer"
+	"github.com/contiv/vpp/plugins/statscollector"
 )
 
 const (
@@ -114,13 +113,15 @@ type Renderer struct {
 
 // Deps lists dependencies of the Renderer.
 type Deps struct {
-	Log           logging.Logger
-	VPP           vpp.API    /* for DumpNat44Global & DumpNat44DNat */
-	Contiv        contiv.API /* for GetNatLoopbackIP, GetServiceLocalEndpointWeight */
-	NATTxnFactory func() (dsl linuxclient.DataChangeDSL)
-	LatestRevs    *syncbase.PrevRevisions
-	GoVPPChan     govpp.Channel      /* used for direct NAT binary API calls */
-	Stats         statscollector.API /* used for exporting the statistics */
+	Log              logging.Logger
+	Config           *config.Config
+	ContivConf       contivconf.API
+	IPAM             ipam.API
+	IPv4Net          ipv4net.API
+	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
+	ResyncTxnFactory func() (txn controller.ResyncOperations)
+	GoVPPChan        govpp.Channel      /* used for direct NAT binary API calls */
+	Stats            statscollector.API /* used for exporting the statistics */
 }
 
 // Init initializes the renderer.
@@ -130,6 +131,9 @@ func (rndr *Renderer) Init(snatOnly bool) error {
 	rndr.snatOnly = snatOnly
 	rndr.natGlobalCfg = &nat.Nat44Global{
 		Forwarding: true,
+	}
+	if rndr.Config == nil {
+		rndr.Config = config.DefaultConfig()
 	}
 	return nil
 }
@@ -146,18 +150,11 @@ func (rndr *Renderer) AddService(service *renderer.ContivService) error {
 	if rndr.snatOnly {
 		return nil
 	}
+
 	dnat := rndr.contivServiceToDNat(service)
-	rndr.Log.WithFields(logging.Fields{
-		"service": service,
-		"DNAT":    dnat,
-	}).Debug("Nat44Renderer - AddService()")
-
-	// Configure DNAT via ligato/vpp-agent.
-	dsl := rndr.NATTxnFactory()
-	putDsl := dsl.Put()
-	putDsl.NAT44DNat(dnat)
-
-	return dsl.Send().ReceiveReply()
+	txn := rndr.UpdateTxnFactory(fmt.Sprintf("add service '%v'", service.ID))
+	txn.Put(nat.DNAT44Key(dnat.Label), dnat)
+	return nil
 }
 
 // UpdateService updates destination-NAT rules for a changed service.
@@ -166,18 +163,9 @@ func (rndr *Renderer) UpdateService(oldService, newService *renderer.ContivServi
 		return nil
 	}
 	newDNAT := rndr.contivServiceToDNat(newService)
-	rndr.Log.WithFields(logging.Fields{
-		"oldService": oldService,
-		"newService": newService,
-		"newDNAT":    newDNAT,
-	}).Debug("Nat44Renderer - UpdateService()")
-
-	// Update DNAT via ligato/vpp-agent.
-	dsl := rndr.NATTxnFactory()
-	putDsl := dsl.Put()
-	putDsl.NAT44DNat(newDNAT)
-
-	return dsl.Send().ReceiveReply()
+	txn := rndr.UpdateTxnFactory(fmt.Sprintf("update service '%v'", newService.ID))
+	txn.Put(nat.DNAT44Key(newDNAT.Label), newDNAT)
+	return nil
 }
 
 // DeleteService removes destination-NAT configuration associated with a freshly
@@ -186,16 +174,10 @@ func (rndr *Renderer) DeleteService(service *renderer.ContivService) error {
 	if rndr.snatOnly {
 		return nil
 	}
-	rndr.Log.WithFields(logging.Fields{
-		"service": service,
-	}).Debug("Nat44Renderer - DeleteService()")
 
-	// Delete DNAT via ligato/vpp-agent.
-	dsl := rndr.NATTxnFactory()
-	deleteDsl := dsl.Delete()
-	deleteDsl.NAT44DNat(service.ID.String())
-
-	return dsl.Send().ReceiveReply()
+	txn := rndr.UpdateTxnFactory(fmt.Sprintf("delete service '%v'", service.ID))
+	txn.Delete(nat.DNAT44Key(service.ID.String()))
+	return nil
 }
 
 // UpdateNodePortServices updates configuration of nodeport services to reflect
@@ -206,29 +188,15 @@ func (rndr *Renderer) UpdateNodePortServices(nodeIPs *renderer.IPAddresses,
 	if rndr.snatOnly {
 		return nil
 	}
-	rndr.Log.WithFields(logging.Fields{
-		"nodeIPs":    nodeIPs,
-		"npServices": npServices,
-	}).Debug("Nat44Renderer - UpdateNodePortServices()")
-
 	// Update cached internal node IPs.
 	rndr.nodeIPs = nodeIPs
 
 	// Update DNAT of all node-port services via ligato/vpp-agent.
-	dsl := rndr.NATTxnFactory()
-	putDsl := dsl.Put()
-
+	txn := rndr.UpdateTxnFactory("update nodeport services")
 	for _, npService := range npServices {
 		newDNAT := rndr.contivServiceToDNat(npService)
-		putDsl.NAT44DNat(newDNAT)
+		txn.Put(nat.DNAT44Key(newDNAT.Label), newDNAT)
 	}
-
-	err := dsl.Send().ReceiveReply()
-	if err != nil {
-		rndr.Log.Error(err)
-		return err
-	}
-
 	return nil
 }
 
@@ -238,15 +206,11 @@ func (rndr *Renderer) UpdateLocalFrontendIfs(oldIfNames, newIfNames renderer.Int
 	if rndr.snatOnly {
 		return nil
 	}
-	rndr.Log.WithFields(logging.Fields{
-		"oldIfNames": oldIfNames,
-		"newIfNames": newIfNames,
-	}).Debug("Nat44Renderer - UpdateLocalFrontendIfs()")
 
 	// Re-build the list of interfaces with enabled NAT features.
 	rndr.natGlobalCfg = proto.Clone(rndr.natGlobalCfg).(*nat.Nat44Global)
 	// - keep non-frontends unchanged
-	newNatIfs := []*nat.Nat44Global_NatInterface{}
+	newNatIfs := []*nat.Nat44Global_Interface{}
 	for _, natIf := range rndr.natGlobalCfg.NatInterfaces {
 		if natIf.IsInside || natIf.OutputFeature {
 			newNatIfs = append(newNatIfs, natIf)
@@ -260,7 +224,7 @@ func (rndr *Renderer) UpdateLocalFrontendIfs(oldIfNames, newIfNames renderer.Int
 			continue
 		}
 		newNatIfs = append(newNatIfs,
-			&nat.Nat44Global_NatInterface{
+			&nat.Nat44Global_Interface{
 				Name:          frontendIf,
 				IsInside:      false,
 				OutputFeature: false,
@@ -270,11 +234,9 @@ func (rndr *Renderer) UpdateLocalFrontendIfs(oldIfNames, newIfNames renderer.Int
 	rndr.natGlobalCfg.NatInterfaces = newNatIfs
 
 	// Update global NAT config via ligato/vpp-agent.
-	dsl := rndr.NATTxnFactory()
-	putDsl := dsl.Put()
-	putDsl.NAT44Global(rndr.natGlobalCfg)
-
-	return dsl.Send().ReceiveReply()
+	txn := rndr.UpdateTxnFactory("update frontends")
+	txn.Put(nat.GlobalNAT44Key, rndr.natGlobalCfg)
+	return nil
 }
 
 // UpdateLocalBackendIfs enables in2out VPP/NAT feature for interfaces connecting
@@ -283,15 +245,11 @@ func (rndr *Renderer) UpdateLocalBackendIfs(oldIfNames, newIfNames renderer.Inte
 	if rndr.snatOnly {
 		return nil
 	}
-	rndr.Log.WithFields(logging.Fields{
-		"oldIfNames": oldIfNames,
-		"newIfNames": newIfNames,
-	}).Debug("Nat44Renderer - UpdateLocalBackendIfs()")
 
 	// Re-build the list of interfaces with enabled NAT features.
 	rndr.natGlobalCfg = proto.Clone(rndr.natGlobalCfg).(*nat.Nat44Global)
 	// - keep non-backends unchanged
-	newNatIfs := []*nat.Nat44Global_NatInterface{}
+	newNatIfs := []*nat.Nat44Global_Interface{}
 	for _, natIf := range rndr.natGlobalCfg.NatInterfaces {
 		if !natIf.IsInside || natIf.OutputFeature {
 			newNatIfs = append(newNatIfs, natIf)
@@ -300,7 +258,7 @@ func (rndr *Renderer) UpdateLocalBackendIfs(oldIfNames, newIfNames renderer.Inte
 	// - re-create the list of backends
 	for backendIf := range newIfNames {
 		newNatIfs = append(newNatIfs,
-			&nat.Nat44Global_NatInterface{
+			&nat.Nat44Global_Interface{
 				Name:          backendIf,
 				IsInside:      true,
 				OutputFeature: false,
@@ -310,24 +268,15 @@ func (rndr *Renderer) UpdateLocalBackendIfs(oldIfNames, newIfNames renderer.Inte
 	rndr.natGlobalCfg.NatInterfaces = newNatIfs
 
 	// Update global NAT config via ligato/vpp-agent.
-	dsl := rndr.NATTxnFactory()
-	putDsl := dsl.Put()
-	putDsl.NAT44Global(rndr.natGlobalCfg)
-
-	return dsl.Send().ReceiveReply()
+	txn := rndr.UpdateTxnFactory("update backends")
+	txn.Put(nat.GlobalNAT44Key, rndr.natGlobalCfg)
+	return nil
 }
 
 // Resync completely replaces the current NAT configuration with the provided
 // full state of K8s services.
 func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
-	var err error
-	rndr.Log.WithFields(logging.Fields{
-		"resyncEv": resyncEv,
-	}).Debug("Nat44Renderer - Resync()")
-
-	dsl := rndr.NATTxnFactory()
-	putDsl := dsl.Put()
-	deleteDsl := dsl.Delete()
+	txn := rndr.ResyncTxnFactory()
 
 	// In case the renderer is supposed to configure only the dynamic source-NAT,
 	// just pretend there are no services, frontends and backends to be configured.
@@ -338,9 +287,9 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	// Configure SNAT only if it is explicitly enabled in the Contiv configuration.
 	rndr.defaultIfName = ""
 	rndr.defaultIfIP = nil
-	if rndr.Contiv.NatExternalTraffic() {
+	if rndr.ContivConf.NatExternalTraffic() {
 		// Get interface used by default for cluster-outbound traffic.
-		rndr.defaultIfName, rndr.defaultIfIP = rndr.Contiv.GetDefaultInterface()
+		rndr.defaultIfName, rndr.defaultIfIP = rndr.getDefaultInterface()
 
 		// If intra-cluster traffic flows without encapsulation through the same
 		// interface as the cluster-outbound traffic, then we have to disable
@@ -349,8 +298,8 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 		// the pure L2 mode without VXLANs this cannot be achieved with the VPP/NAT
 		// plugin. On the other hand, with VXLANs we can define identity NAT to
 		// exclude VXLAN-encapsulated traffic from being SNATed.
-		if rndr.Contiv.GetVxlanBVIIfName() == "" &&
-			rndr.defaultIfName == rndr.Contiv.GetMainPhysicalIfName() {
+		if rndr.IPv4Net.GetVxlanBVIIfName() == "" &&
+			rndr.defaultIfName == rndr.ContivConf.GetMainInterfaceName() {
 			rndr.defaultIfName = ""
 			rndr.defaultIfIP = nil
 		}
@@ -363,99 +312,45 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	// Update cached internal node IP.
 	rndr.nodeIPs = resyncEv.NodeIPs
 
-	// Dump currently configured services.
-	dnatDump, err := rndr.VPP.DumpNat44DNat()
-	if err != nil {
-		rndr.Log.Error(err)
-		return err
-	}
-
-	// Get the latest revisions of DNATs in-sync with VPP.
-	keyList := rndr.LatestRevs.ListKeys()
-	keys := map[string]struct{}{}
-	for _, key := range keyList {
-		if strings.HasPrefix(key, nat.DNatPrefix) {
-			keys[key] = struct{}{}
-		}
-	}
-	for _, dnat := range dnatDump.DnatConfigs {
-		key := nat.DNatKey(dnat.Label)
-		value := syncbase.NewChange(key, dnat, 0, datasync.Put)
-		rndr.LatestRevs.PutWithRevision(key, value)
-		delete(keys, key)
-	}
-	for key := range keys {
-		rndr.LatestRevs.Del(key)
-	}
-
 	// Resync DNAT configuration.
-	// - remove obsolete DNATs
-	for _, dnatConfig := range dnatDump.DnatConfigs {
-		if dnatConfig.Label == identityDNATLabel {
-			continue
-		}
-		removed := true
-		for _, service := range resyncEv.Services {
-			if service.ID.String() == dnatConfig.Label {
-				removed = false
-				break
-			}
-		}
-		if removed {
-			deleteDsl.NAT44DNat(dnatConfig.Label)
-		}
-	}
-	// - update all DNATs
 	for _, service := range resyncEv.Services {
 		dnat := rndr.contivServiceToDNat(service)
-		putDsl.NAT44DNat(dnat)
+		txn.Put(nat.DNAT44Key(dnat.Label), dnat)
 	}
-	// - identity mappings
-	putDsl.NAT44DNat(rndr.exportIdentityMappings())
-
-	// Re-sync global config's last revision with VPP.
-	globalNatDump, err := rndr.VPP.DumpNat44Global()
-	if err != nil {
-		rndr.Log.Error(err)
-		return err
-	}
-
-	if globalNatDump.Forwarding {
-		// Global NAT was configured by the agent.
-		key := nat.GlobalPrefix
-		value := syncbase.NewChange(nat.GlobalPrefix, globalNatDump, 0, datasync.Put)
-		rndr.LatestRevs.PutWithRevision(key, value)
-	} else {
-		// Not configured by the agent.
-		rndr.LatestRevs.Del(nat.GlobalPrefix)
-	}
+	dnat := rndr.exportIdentityMappings()
+	txn.Put(nat.DNAT44Key(dnat.Label), dnat)
 
 	// Re-build the global NAT config.
 	rndr.natGlobalCfg = &nat.Nat44Global{
 		Forwarding: true,
 	}
+	if rndr.Config.DisableNATVirtualReassembly {
+		rndr.natGlobalCfg.VirtualReassembly = &nat.VirtualReassembly{
+			DropFragments: true, // drop fragmented packets
+		}
+	}
 	// - address pool
 	if rndr.defaultIfIP != nil {
 		// Address for SNAT:
-		rndr.natGlobalCfg.AddressPools = append(rndr.natGlobalCfg.AddressPools,
-			&nat.Nat44Global_AddressPool{
-				FirstSrcAddress: rndr.defaultIfIP.String(),
-				VrfId:           ^uint32(0),
+		rndr.natGlobalCfg.AddressPool = append(rndr.natGlobalCfg.AddressPool,
+			&nat.Nat44Global_Address{
+				Address: rndr.defaultIfIP.String(),
+				VrfId:   ^uint32(0),
 			})
 	}
 	// Address for self-TwiceNAT:
 	if !rndr.snatOnly {
-		rndr.natGlobalCfg.AddressPools = append(rndr.natGlobalCfg.AddressPools,
-			&nat.Nat44Global_AddressPool{
-				FirstSrcAddress: rndr.Contiv.GetNatLoopbackIP().String(),
-				VrfId:           ^uint32(0),
-				TwiceNat:        true,
+		rndr.natGlobalCfg.AddressPool = append(rndr.natGlobalCfg.AddressPool,
+			&nat.Nat44Global_Address{
+				Address:  rndr.IPAM.NatLoopbackIP().String(),
+				VrfId:    ^uint32(0),
+				TwiceNat: true,
 			})
 	}
 	// - frontends
 	for frontendIf := range resyncEv.FrontendIfs {
 		rndr.natGlobalCfg.NatInterfaces = append(rndr.natGlobalCfg.NatInterfaces,
-			&nat.Nat44Global_NatInterface{
+			&nat.Nat44Global_Interface{
 				Name:          frontendIf,
 				IsInside:      false,
 				OutputFeature: false,
@@ -464,7 +359,7 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	// - backends
 	for backendIf := range resyncEv.BackendIfs {
 		rndr.natGlobalCfg.NatInterfaces = append(rndr.natGlobalCfg.NatInterfaces,
-			&nat.Nat44Global_NatInterface{
+			&nat.Nat44Global_Interface{
 				Name:          backendIf,
 				IsInside:      true,
 				OutputFeature: false,
@@ -473,46 +368,76 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	//  - post-routing
 	if rndr.defaultIfName != "" {
 		rndr.natGlobalCfg.NatInterfaces = append(rndr.natGlobalCfg.NatInterfaces,
-			&nat.Nat44Global_NatInterface{
+			&nat.Nat44Global_Interface{
 				Name:          rndr.defaultIfName,
 				IsInside:      false,
 				OutputFeature: true,
 			})
 	}
 	// - add to the transaction
-	putDsl.NAT44Global(rndr.natGlobalCfg)
+	txn.Put(nat.GlobalNAT44Key, rndr.natGlobalCfg)
+	return nil
+}
 
-	return dsl.Send().ReceiveReply()
+// getDefaultInterface returns the name and the IP address of the interface
+// used by the default route to send packets out from VPP towards the default gateway.
+// If the default GW is not configured, the function returns zero values.
+func (rndr *Renderer) getDefaultInterface() (ifName string, ifAddress net.IP) {
+	mainPhysicalIf := rndr.ContivConf.GetMainInterfaceName()
+	mainIP, mainIPNet := rndr.IPv4Net.GetNodeIP()
+
+	if rndr.ContivConf.InSTNMode() || rndr.ContivConf.UseDHCP() {
+		return mainPhysicalIf, mainIP
+	}
+
+	defaultGw := rndr.ContivConf.GetStaticDefaultGW()
+	if len(defaultGw) > 0 {
+		if mainPhysicalIf != "" {
+			if mainIPNet != nil && mainIPNet.Contains(defaultGw) {
+				return mainPhysicalIf, mainIP
+			}
+		}
+		for _, physicalIf := range rndr.ContivConf.GetOtherVPPInterfaces() {
+			for _, ip := range physicalIf.IPs {
+				if ip.Network != nil && ip.Network.Contains(defaultGw) {
+					return physicalIf.InterfaceName, ip.Address
+				}
+			}
+		}
+	}
+
+	return "", nil
 }
 
 // contivServiceToDNat returns DNAT configuration corresponding to a given service.
-func (rndr *Renderer) contivServiceToDNat(service *renderer.ContivService) *nat.Nat44DNat_DNatConfig {
-	dnat := &nat.Nat44DNat_DNatConfig{}
+func (rndr *Renderer) contivServiceToDNat(service *renderer.ContivService) *nat.DNat44 {
+	dnat := &nat.DNat44{}
 	dnat.Label = service.ID.String()
 	dnat.StMappings = rndr.exportDNATMappings(service)
 	return dnat
 }
 
 // exportDNATMappings exports the corresponding list of D-NAT mappings from a Contiv service.
-func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat.Nat44DNat_DNatConfig_StaticMapping {
-	mappings := []*nat.Nat44DNat_DNatConfig_StaticMapping{}
+func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat.DNat44_StaticMapping {
+	mappings := []*nat.DNat44_StaticMapping{}
 
 	// Export NAT mappings for NodePort services.
 	if service.HasNodePort() {
-		mappings = rndr.exportServiceIPMappings(service, mappings, rndr.nodeIPs, nodeIP)
+		mappings = append(mappings, rndr.exportServiceIPMappings(service, rndr.nodeIPs, nodeIP)...)
 	}
 
 	// Export NAT mappings for cluster & external IPs.
-	mappings = rndr.exportServiceIPMappings(service, mappings, service.ClusterIPs, clusterIP)
-	mappings = rndr.exportServiceIPMappings(service, mappings, service.ExternalIPs, externalIP)
+	mappings = append(mappings, rndr.exportServiceIPMappings(service, service.ClusterIPs, clusterIP)...)
+	mappings = append(mappings, rndr.exportServiceIPMappings(service, service.ExternalIPs, externalIP)...)
 
 	return mappings
 }
 
 // exportServiceIPMappings exports the corresponding list of D-NAT mappings from a list of service IPs of the given service.
-func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService, mappings []*nat.Nat44DNat_DNatConfig_StaticMapping,
-	serviceIPs *renderer.IPAddresses, ipType serviceIPType) []*nat.Nat44DNat_DNatConfig_StaticMapping {
+func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
+	serviceIPs *renderer.IPAddresses, ipType serviceIPType) (mappings []*nat.DNat44_StaticMapping) {
 
+	routingCfg := rndr.ContivConf.GetRoutingConfig()
 	for _, ip := range serviceIPs.List() {
 		if ip.To4() != nil {
 			ip = ip.To4()
@@ -524,11 +449,11 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService, m
 			} else if ipType != nodeIP && port.Port == 0 {
 				continue
 			}
-			mapping := &nat.Nat44DNat_DNatConfig_StaticMapping{}
+			mapping := &nat.DNat44_StaticMapping{}
 			if ipType == externalIP && service.TrafficPolicy == renderer.ClusterWide {
-				mapping.TwiceNat = nat.TwiceNatMode_ENABLED
+				mapping.TwiceNat = nat.DNat44_StaticMapping_ENABLED
 			} else {
-				mapping.TwiceNat = nat.TwiceNatMode_SELF
+				mapping.TwiceNat = nat.DNat44_StaticMapping_SELF
 			}
 			mapping.ExternalIp = ip.String()
 			if ipType == nodeIP {
@@ -538,28 +463,28 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService, m
 			}
 			switch port.Protocol {
 			case renderer.TCP:
-				mapping.Protocol = nat.Protocol_TCP
+				mapping.Protocol = nat.DNat44_TCP
 			case renderer.UDP:
-				mapping.Protocol = nat.Protocol_UDP
+				mapping.Protocol = nat.DNat44_UDP
 			}
 			for _, backend := range service.Backends[portName] {
 				if service.TrafficPolicy != renderer.ClusterWide && !backend.Local {
 					// Do not NAT+LB remote backends.
 					continue
 				}
-				local := &nat.Nat44DNat_DNatConfig_StaticMapping_LocalIP{
+				local := &nat.DNat44_StaticMapping_LocalIP{
 					LocalIp:   backend.IP.String(),
 					LocalPort: uint32(backend.Port),
 				}
 				if backend.Local {
-					local.Probability = uint32(rndr.Contiv.GetServiceLocalEndpointWeight())
+					local.Probability = uint32(rndr.Config.ServiceLocalEndpointWeight)
 				} else {
 					local.Probability = 1
 				}
 				if rndr.isNodeLocalIP(backend.IP) {
-					local.VrfId = rndr.Contiv.GetMainVrfID()
+					local.VrfId = routingCfg.MainVRFID
 				} else {
-					local.VrfId = rndr.Contiv.GetPodVrfID()
+					local.VrfId = routingCfg.PodVRFID
 				}
 				mapping.LocalIps = append(mapping.LocalIps, local)
 			}
@@ -579,12 +504,12 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService, m
 
 // isNodeLocalIP returns true if the given IP is local to the current node, false otherwise.
 func (rndr *Renderer) isNodeLocalIP(ip net.IP) bool {
-	nodeIP, _ := rndr.Contiv.GetNodeIP()
+	nodeIP, _ := rndr.IPv4Net.GetNodeIP()
 	if ip.Equal(nodeIP) {
 		return true
 	}
 
-	for _, hostIP := range rndr.Contiv.GetHostIPs() {
+	for _, hostIP := range rndr.IPv4Net.GetHostIPs() {
 		if hostIP.Equal(ip) {
 			return true
 		}
@@ -596,30 +521,31 @@ func (rndr *Renderer) isNodeLocalIP(ip net.IP) bool {
 // exportIdentityMappings returns DNAT configuration with identities to exclude
 // VXLAN port and main interface IP (with the exception of node-ports)
 // from dynamic mappings.
-func (rndr *Renderer) exportIdentityMappings() *nat.Nat44DNat_DNatConfig {
-	idNat := &nat.Nat44DNat_DNatConfig{
+func (rndr *Renderer) exportIdentityMappings() *nat.DNat44 {
+	idNat := &nat.DNat44{
 		Label: identityDNATLabel,
 	}
 
 	if rndr.defaultIfIP != nil {
+		routingCfg := rndr.ContivConf.GetRoutingConfig()
 		/* identity NAT for the VXLAN tunnel - incoming packets */
-		vxlanID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
+		vxlanID := &nat.DNat44_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
-			Protocol:  nat.Protocol_UDP,
+			Protocol:  nat.DNat44_UDP,
 			Port:      vxlanPort,
-			VrfId:     rndr.Contiv.GetMainVrfID(),
+			VrfId:     routingCfg.MainVRFID,
 		}
 		/* identity NAT for the VXLAN tunnel - outgoing packets */
-		mainIfID1 := &nat.Nat44DNat_DNatConfig_IdentityMapping{
+		mainIfID1 := &nat.DNat44_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
-			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
-			VrfId:     rndr.Contiv.GetPodVrfID(),
+			Protocol:  nat.DNat44_UDP, /* Address-only mappings are dumped with UDP as protocol */
+			VrfId:     routingCfg.PodVRFID,
 		}
 		/* identity NAT for the STN (host-facing) traffic */
-		mainIfID2 := &nat.Nat44DNat_DNatConfig_IdentityMapping{
+		mainIfID2 := &nat.DNat44_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
-			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
-			VrfId:     rndr.Contiv.GetMainVrfID(),
+			Protocol:  nat.DNat44_UDP, /* Address-only mappings are dumped with UDP as protocol */
+			VrfId:     routingCfg.MainVRFID,
 		}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
 		idNat.IdMappings = append(idNat.IdMappings, mainIfID1)
@@ -638,12 +564,12 @@ func (rndr *Renderer) Close() error {
 // This should be removed once VPP supports timing out of the NAT sessions.
 func (rndr *Renderer) idleNATSessionCleanup() {
 	// run only if requested
-	if !rndr.Contiv.CleanupIdleNATSessions() {
+	if !rndr.Config.CleanupIdleNATSessions {
 		return
 	}
 
-	tcpTimeout := time.Duration(rndr.Contiv.GetTCPNATSessionTimeout()) * time.Minute
-	otherTimeout := time.Duration(rndr.Contiv.GetOtherNATSessionTimeout()) * time.Minute
+	tcpTimeout := time.Duration(rndr.Config.TCPNATSessionTimeout) * time.Minute
+	otherTimeout := time.Duration(rndr.Config.OtherNATSessionTimeout) * time.Minute
 	if tcpTimeout == 0 {
 		tcpTimeout = defaultIdleTCPTimeout
 	}

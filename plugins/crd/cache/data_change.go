@@ -15,10 +15,10 @@
 package cache
 
 import (
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/golang/protobuf/proto"
+	vppnodemodel "github.com/contiv/vpp/plugins/nodesync/vppnode"
+	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"reflect"
 
@@ -105,10 +105,10 @@ func (nc *nodeChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) er
 	return ctc.K8sCache.DeleteK8sNode(names[0])
 }
 
-// dataChangeProcessor implementation for nodeIndo data
-type nodeInfoChange struct{}
+// dataChangeProcessor implementation for vppNode data
+type vppNodeChange struct{}
 
-func (nic *nodeInfoChange) GetNames(key string) ([]string, error) {
+func (nic *vppNodeChange) GetNames(key string) ([]string, error) {
 	nodeParts := strings.Split(key, "/")
 	if len(nodeParts) != 2 {
 		return nil, fmt.Errorf("invalid nodeLiveness key %s", key)
@@ -116,29 +116,29 @@ func (nic *nodeInfoChange) GetNames(key string) ([]string, error) {
 	return []string{nodeParts[1]}, nil
 }
 
-func (nic *nodeInfoChange) GetValueProto() proto.Message {
-	return &nodeinfomodel.NodeInfo{}
+func (nic *vppNodeChange) GetValueProto() proto.Message {
+	return &vppnodemodel.VppNode{}
 }
 
-func (nic *nodeInfoChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
+func (nic *vppNodeChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
 	ctc.Log.Infof("Adding VPP node, names %+v, nodeValue %+v", names, record)
 
-	if ni, ok := record.(*nodeinfomodel.NodeInfo); ok {
-		return ctc.VppCache.CreateNode(ni.Id, ni.Name, ni.IpAddress, ni.ManagementIpAddress)
+	if ni, ok := record.(*vppnodemodel.VppNode); ok {
+		return ctc.VppCache.CreateNode(ni.Id, ni.Name, ni.IpAddress)
 	}
 	return fmt.Errorf("bad record type %s", reflect.TypeOf(record))
 }
 
-func (nic *nodeInfoChange) UpdateRecord(ctc *ContivTelemetryCache, names []string, _, newRecord proto.Message) error {
+func (nic *vppNodeChange) UpdateRecord(ctc *ContivTelemetryCache, names []string, _, newRecord proto.Message) error {
 	ctc.Log.Infof("Updating VPP node, names %+v, nodeInfoValue %+v", names, newRecord)
 
-	if ni, ok := newRecord.(*nodeinfomodel.NodeInfo); ok {
-		return ctc.VppCache.UpdateNode(ni.Id, ni.Name, ni.IpAddress, ni.ManagementIpAddress)
+	if ni, ok := newRecord.(*vppnodemodel.VppNode); ok {
+		return ctc.VppCache.UpdateNode(ni.Id, ni.Name, ni.IpAddress)
 	}
 	return fmt.Errorf("bad record type %s", reflect.TypeOf(newRecord))
 }
 
-func (nic *nodeInfoChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
+func (nic *vppNodeChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
 	ctc.Log.Infof("Deleting VPP node, names %+v", names)
 	return ctc.VppCache.DeleteNode(names[0])
 }
@@ -154,15 +154,15 @@ func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
 // The change is applied into the cache and all subscribed watchers are
 // notified.
 // The function will forward any error returned by a watcher.
-func (ctc *ContivTelemetryCache) update(dataChngEv datasync.ChangeEvent) error {
+func (ctc *ContivTelemetryCache) update(dataChngEv datasync.ProtoWatchResp) error {
 	err := error(nil)
 	key := dataChngEv.GetKey()
 	var dcp dataChangeProcessor
 
 	// Determine which data is changing
 	switch {
-	case strings.HasPrefix(key, nodeinfomodel.AllocatedIDsKeyPrefix):
-		dcp = &nodeInfoChange{}
+	case strings.HasPrefix(key, vppnodemodel.KeyPrefix):
+		dcp = &vppNodeChange{}
 
 	case strings.HasPrefix(key, nodemodel.KeyPrefix()):
 		dcp = &nodeChange{}

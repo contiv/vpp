@@ -5,14 +5,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/contiv/vpp/plugins/contiv"
-	"github.com/contiv/vpp/plugins/contiv/containeridx"
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/infra"
 	prometheusplugin "github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -55,7 +56,7 @@ type Plugin struct {
 type stats struct {
 	podName      string
 	podNamespace string
-	data         *interfaces.InterfacesState_Interface
+	data         *interfaces.InterfaceState
 	metrics      map[string]prometheus.Gauge
 }
 
@@ -63,8 +64,8 @@ type stats struct {
 type Deps struct {
 	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
-	// Contiv plugin is used to lookup pod related to interfaces statistics
-	Contiv contiv.API
+	// IPv4Net plugin is used to lookup pod connected by the given interface
+	IPv4Net ipv4net.API
 
 	// Prometheus plugin used to stream statistics
 	Prometheus prometheusplugin.API
@@ -129,23 +130,38 @@ func (p *Plugin) Init() error {
 	return nil
 }
 
-// processPodEvent processes pod delete events; it removes the deleted pod's
-// stats entry from the stats set reported to Prometheus.
-func (p *Plugin) processPodEvent(event containeridx.ChangeEvent) {
+// HandlesEvent selects DeletePod events.
+func (p *Plugin) HandlesEvent(event controller.Event) bool {
+	if _, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
+		return true
+	}
+
+	// unhandled event
+	return false
+}
+
+// Resync is NOOP - statscollector does not support re-synchronization.
+func (p *Plugin) Resync(controller.Event, controller.KubeStateData, int, controller.ResyncOperations) error {
+	return nil
+}
+
+// Update is called for:
+//   - AddPod and DeletePod
+//   - NodeUpdate for other nodes
+//   - Shutdown event
+func (p *Plugin) Update(event controller.Event, _ controller.UpdateOperations) (changeDescription string, err error) {
 	p.Lock()
 	defer p.Unlock()
 
-	var err error
-	if !event.Del {
-		return
-	}
-	nsmap, exists := p.podIfs[event.Value.PodNamespace]
+	deletePod := event.(*podmanager.DeletePod)
+
+	nsmap, exists := p.podIfs[deletePod.Pod.Namespace]
 	if !exists {
-		return
+		return "", nil
 	}
-	ifs, exists := nsmap[event.Value.PodName]
+	ifs, exists := nsmap[deletePod.Pod.Name]
 	if !exists {
-		return
+		return "", nil
 	}
 	for _, key := range ifs {
 		entry, exists := p.ifStats[key]
@@ -165,15 +181,13 @@ func (p *Plugin) processPodEvent(event containeridx.ChangeEvent) {
 		}
 		delete(p.ifStats, key)
 	}
+
+	return "removed interface stats", nil
 }
 
-// AfterInit subscribes for monitoring of changes in ContainerIndex
-func (p *Plugin) AfterInit() error {
-	// watch containerIDX and remove gauges of pods that have been deleted
-	return p.Contiv.GetContainerIndex().Watch(p.PluginName, func(event containeridx.ChangeEvent) {
-		p.processPodEvent(event)
-	})
-
+// Revert is NOOP - only BestEffort DeletePod event is handled.
+func (p *Plugin) Revert(controller.Event) error {
+	return nil
 }
 
 // Close cleans up the plugin resources
@@ -209,7 +223,7 @@ func (p *Plugin) Put(key string, data proto.Message, opts ...datasync.PutOption)
 			entry *stats
 			found bool
 		)
-		if st, ok := data.(*interfaces.InterfacesState_Interface); ok {
+		if st, ok := data.(*interfaces.InterfaceState); ok {
 			entry, found = p.ifStats[key]
 			if found && entry.podName != "" {
 				// interface is associated with a pod and we're already streaming its statistics
@@ -249,7 +263,7 @@ func (p *Plugin) RegisterGaugeFunc(name string, help string, valueFunc func() fl
 	}
 }
 
-func (p *Plugin) addNewEntry(key string, data *interfaces.InterfacesState_Interface) (newEntry *stats, created bool) {
+func (p *Plugin) addNewEntry(key string, data *interfaces.InterfaceState) (newEntry *stats, created bool) {
 	var (
 		err            error
 		entry          *stats
@@ -263,7 +277,7 @@ func (p *Plugin) addNewEntry(key string, data *interfaces.InterfacesState_Interf
 		podName = contivSystemInterfacePlaceholder
 		podNs = contivSystemInterfacePlaceholder
 	} else {
-		podNs, podName, found = p.Contiv.GetPodByIf(data.Name)
+		podNs, podName, found = p.IPv4Net.GetPodByIf(data.Name)
 	}
 
 	if found {

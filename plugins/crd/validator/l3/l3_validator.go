@@ -18,16 +18,19 @@ package l3
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 	"text/tabwriter"
+
+	"github.com/gogo/protobuf/sortkeys"
+	"github.com/ligato/cn-infra/logging"
+
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/validator/utils"
-	"github.com/gogo/protobuf/sortkeys"
-	"github.com/ligato/cn-infra/logging"
-
-	"regexp"
-	"strings"
+	"github.com/contiv/vpp/plugins/ipv4net"
 )
 
 const (
@@ -37,12 +40,8 @@ const (
 	routeValid        = iota
 
 	// VPP interface names
-	vxlanBviName  = "vxlanBVI"
 	gigENameMatch = `GigabitEthernet[[:alnum:]]*/[[:alnum:]]*/[[:alnum:]]*`
 	tap2HostName  = "tap-vpp2"
-
-	// Outgoing interface index definitions
-	maxIfIdx = 0xFFFFFFFF
 
 	hostToVppIfName = "vpp1"
 	vppToHostIfName = "tap-vpp2"
@@ -154,16 +153,12 @@ func (v *Validator) Validate() {
 func (v *Validator) createVrfMap(node *telemetrymodel.Node) (VrfMap, error) {
 	vrfMap := make(VrfMap, 0)
 	for _, route := range node.NodeStaticRoutes {
-		vrf, ok := vrfMap[route.Ipr.VrfID]
+		vrf, ok := vrfMap[route.Value.VrfId]
 		if !ok {
-			vrfMap[route.Ipr.VrfID] = make(Vrf, 0)
-			vrf = vrfMap[route.Ipr.VrfID]
+			vrfMap[route.Value.VrfId] = make(Vrf, 0)
+			vrf = vrfMap[route.Value.VrfId]
 		}
-
-		if !strings.Contains(route.IprMeta.TableName, "-VRF:") {
-			continue
-		}
-		vrf[route.Ipr.DstAddr] = route
+		vrf[route.Value.DstNetwork] = route
 	}
 	return vrfMap, nil
 }
@@ -177,7 +172,7 @@ func (v *Validator) createValidationMap(vm map[uint32]Vrf) RouteMap {
 	for vIdx, vrf := range vm {
 		vrfRoutes := make(map[string]int, 0)
 		for _, rte := range vrf {
-			vrfRoutes[rte.Ipr.DstAddr] = routeNotValidated
+			vrfRoutes[rte.Value.DstNetwork] = routeNotValidated
 		}
 		valMap[vIdx] = vrfRoutes
 	}
@@ -202,7 +197,7 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap VrfM
 
 		if pod.IPAddress != "" {
 			numErrs += v.validateRoute(pod.IPAddress+"/32", 1, vrfMap, routeMap, node.Name,
-				pod.VppIfName, pod.VppSwIfIdx, pod.IPAddress, 0, 0)
+				pod.VppIfName, pod.IPAddress, 0, l3.StaticRoute_INTRA_VRF)
 		} else {
 			numErrs++
 			errString := fmt.Sprintf("pod '%s': IP Address empty, pod route validation skipped", pod.Name)
@@ -213,7 +208,7 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap VrfM
 		// exists and is valid
 		if pod.VppIfIPAddr != "" {
 			numErrs += v.validateRoute(pod.VppIfIPAddr, 1, vrfMap, routeMap, node.Name,
-				pod.VppIfName, pod.VppSwIfIdx, strings.Split(pod.VppIfIPAddr, "/")[0], 0, 0)
+				pod.VppIfName, strings.Split(pod.VppIfIPAddr, "/")[0], 0, l3.StaticRoute_INTRA_VRF)
 		} else {
 			numErrs++
 			errString := fmt.Sprintf("pod '%s': VppIfIPAddr empty, VppIfIPAddr route validation skipped",
@@ -239,14 +234,14 @@ func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap Vrf
 	}
 
 	// Validate the route to the GigE subnet
-	numErrs += v.validateRoute(node.IPAddr, 0, vrfMap, routeMap, node.Name, ifc.If.Name,
-		ifc.IfMeta.SwIfIndex, "0.0.0.0", 0, 0)
+	numErrs += v.validateRoute(node.IPAddr, 0, vrfMap, routeMap, node.Name, ifc.Value.Name,
+		"0.0.0.0", 0, l3.StaticRoute_INTRA_VRF)
 
 	// Validate gigE interface drop routes
-	for _, ipAddr := range ifc.If.IPAddresses {
+	for _, ipAddr := range ifc.Value.IpAddresses {
 		if ipAddr == node.IPAddr {
 			numErrs += v.validatePhyNextHopRoutes(ipAddr, 0, vrfMap, routeMap, node.Name,
-				ifc, 0, 2)
+				ifc, 0, l3.StaticRoute_DROP)
 			break
 		}
 	}
@@ -260,8 +255,8 @@ func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap Vrf
 		}
 
 		dstIP := strings.Split(remoteNode.IPAddr, "/")
-		numErrs += v.validateRoute(dstIP[0]+"/32", 0, vrfMap, routeMap, node.Name, ifc.If.Name,
-			ifc.IfMeta.SwIfIndex, dstIP[0], 0, 0)
+		numErrs += v.validateRoute(dstIP[0]+"/32", 0, vrfMap, routeMap, node.Name, ifc.Value.Name,
+			dstIP[0], 0, l3.StaticRoute_INTRA_VRF)
 	}
 
 	return numErrs
@@ -272,9 +267,9 @@ func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap Vrf
 func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap VrfMap, routeMap RouteMap) int {
 	numErrs := 0
 
-	// Find the local vxlanBVI - this will be the outgoing ifIndex for routes
-	// to Pod and host subnets on remote nodes
-	localVxlanBVI, err := findInterface(vxlanBviName, node.NodeInterfaces)
+	// Check for existence of local vxlanBVI - this will be the outgoing interface
+	// for routes to Pod and host subnets on remote nodes
+	_, err := findInterface(ipv4net.VxlanBVIInterfaceName, node.NodeInterfaces)
 	if err != nil {
 		numErrs++
 		errString := fmt.Sprintf("local vxlanBVI lookup failed, error %s; "+
@@ -301,13 +296,13 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 			// Validate route from VRF1 to the vppHostNetwork subnet on the
 			// local node.
 			numErrs += v.validateRoute(othNode.NodeIPam.VppHostNetwork, 1, vrfMap, routeMap, node.Name,
-				"", maxIfIdx, "0.0.0.0", 0, 1)
+				"", "0.0.0.0", 0, l3.StaticRoute_INTER_VRF)
 			continue
 		}
 
 		// Validate routes to remote nodes
 		// Find the remote node's BVI interface
-		ifc, err := findInterface(vxlanBviName, othNode.NodeInterfaces)
+		ifc, err := findInterface(ipv4net.VxlanBVIInterfaceName, othNode.NodeInterfaces)
 		if err != nil {
 			numErrs++
 			errString := fmt.Sprintf("failed to validate route %s VRF%d - "+
@@ -326,36 +321,36 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 			// node. The outgoing interface should be the local vxlanBVI interface
 			// (i.e. the path to the remote node should be through the vxlan tunnel).
 			numErrs += v.validateRoute(othNode.NodeIPam.VppHostNetwork, 1, vrfMap, routeMap, node.Name,
-				vxlanBviName, localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0, 0)
+				ipv4net.VxlanBVIInterfaceName, bviAddr, 0, l3.StaticRoute_INTRA_VRF)
 
 			// Validate route from VRF0 to Host IP address (Management IP address)
 			// on a remote node. It should point to VRF1.
 			numErrs += v.validateRoute(othNode.ManIPAddr+"/32", 0, vrfMap, routeMap, node.Name,
-				"", maxIfIdx, "0.0.0.0", 1, 1)
+				"", "0.0.0.0", 1, l3.StaticRoute_INTER_VRF)
 
 			// Validate route from VRF1 to Host IP address (Management IP address)
 			// on a remote node. Its next hop should be the IP address of the
 			// vxlanBVI interface on the remote node and its outgoing interface
 			// should be the local vxlanBVI interface.
 			numErrs += v.validateRoute(othNode.ManIPAddr+"/32", 1, vrfMap, routeMap, node.Name,
-				vxlanBviName, localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0, 0)
+				ipv4net.VxlanBVIInterfaceName, bviAddr, 0, l3.StaticRoute_INTRA_VRF)
 		} else {
 			numErrs++
 			v.Report.AppendToNodeReport(node.Name, err.Error())
 		}
 
-		// Check if the nextHop on the route to the PodNetwork subnet on
+		// Check if the nextHop on the route to the PodSubnetThisNode subnet on
 		// the remote node is one of the IP addresses configured on the remote
 		// node's vxlanBVI interface
-		bviAddr, err = checkIfRouteNextHopPointsToInterface(othNode.NodeIPam.PodNetwork, 1, vrfMap,
+		bviAddr, err = checkIfRouteNextHopPointsToInterface(othNode.NodeIPam.PodSubnetThisNode, 1, vrfMap,
 			ifc, othNode.Name)
 		if err == nil {
-			// Validate route from VRF1 to the PodNetwork subnet on the remote
+			// Validate route from VRF1 to the PodSubnetThisNode subnet on the remote
 			// node. The outgoing interface should be the local vxlanBVI
 			// interface (i.e. the path to the remote node should be through
 			// the vxlan tunnel).
-			numErrs += v.validateRoute(othNode.NodeIPam.PodNetwork, 1, vrfMap, routeMap, node.Name,
-				vxlanBviName, localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0, 0)
+			numErrs += v.validateRoute(othNode.NodeIPam.PodSubnetThisNode, 1, vrfMap, routeMap, node.Name,
+				ipv4net.VxlanBVIInterfaceName, bviAddr, 0, l3.StaticRoute_INTRA_VRF)
 		} else {
 			numErrs++
 			v.Report.AppendToNodeReport(node.Name, err.Error())
@@ -379,26 +374,33 @@ func (v *Validator) validateVrf0LocalHostRoute(node *telemetrymodel.Node, vrfMap
 		v.Report.AppendToNodeReport(node.Name, errString)
 		return numErrs
 	}
+	tapIntf, ok := node.NodeInterfaces.GetByName(localRoute.Value.OutgoingInterface)
+	if !ok {
+		numErrs++
+		errString := fmt.Sprintf("missing interface %s for route with dst IP %s in VRF0 for node %s",
+			localRoute.Value.OutgoingInterface, localRoute.Value.DstNetwork, node.Name)
+		v.Report.AppendToNodeReport(node.Name, errString)
+		return numErrs
+	}
 
 	// If we see the next hop in the ARP table, validate it in the host route
 	// and validate the route to the next hop; otherwise, just skip nextHop
 	// validation
-	tapIntf := node.NodeInterfaces[int(localRoute.IprMeta.OutgoingIfIdx)]
 	var nextHop string
 	for _, arpEntry := range node.NodeIPArp {
-		if arpEntry.AeMeta.IfIndex == tapIntf.IfMeta.SwIfIndex {
-			nextHop = arpEntry.Ae.IPAddress
+		if arpEntry.Value.Interface == tapIntf.Value.Name {
+			nextHop = arpEntry.Value.IpAddress
 
 			// Validate the nexthop found in the local host route
 			numErrs += v.validateRoute(nextHop+"/32", 0, vrfMap, routeMap, node.Name,
-				tap2HostName, tapIntf.IfMeta.SwIfIndex, nextHop, 0, 0)
+				tap2HostName, nextHop, 0, l3.StaticRoute_INTRA_VRF)
 			break
 		}
 	}
 
 	// Validate the local host route itself
 	numErrs += v.validateRoute(node.ManIPAddr+"/32", 0, vrfMap, routeMap, node.Name,
-		tap2HostName, tapIntf.IfMeta.SwIfIndex, nextHop, 0, 0)
+		tap2HostName, nextHop, 0, l3.StaticRoute_INTRA_VRF)
 
 	return numErrs
 }
@@ -426,35 +428,35 @@ func (v *Validator) validateDefaultRoutes(node *telemetrymodel.Node, vrfMap VrfM
 	// the default Gateway, validate the route to it
 	// numErrs += v.validateGigEDefaultRteNextHop("0.0.0.0/0", 0, vrfMap, routeMap, node, ifc)
 	numErrs += v.validateRoute("0.0.0.0/0", 0, vrfMap, routeMap, node.Name,
-		ifc.If.Name, ifc.IfMeta.SwIfIndex, "", 0, 0)
+		ifc.Value.Name, "", 0, l3.StaticRoute_INTRA_VRF)
 
 	// Validate VRF0 boiler plate routes
 	numErrs += v.validateRoute("0.0.0.0/32", 0, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "0.0.0.0", 0, 2)
+		"", "0.0.0.0", 0, l3.StaticRoute_DROP)
 	numErrs += v.validateRoute("224.0.0.0/4", 0, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "0.0.0.0", 0, 2)
+		"", "0.0.0.0", 0, l3.StaticRoute_DROP)
 	numErrs += v.validateRoute("240.0.0.0/4", 0, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "0.0.0.0", 0, 2)
+		"", "0.0.0.0", 0, l3.StaticRoute_DROP)
 	numErrs += v.validateRoute("255.255.255.255/32", 0, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "0.0.0.0", 0, 2)
+		"", "0.0.0.0", 0, l3.StaticRoute_DROP)
 	numErrs += v.validateRoute("::/0", 0, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "::", 0, 2)
+		"", "::", 0, l3.StaticRoute_DROP)
 	numErrs += v.validateRoute("fe80::/10", 0, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "::", 0, 0)
+		"", "::", 0, l3.StaticRoute_INTRA_VRF)
 
 	// Validate the default route in VRF1
 	numErrs += v.validateRoute("0.0.0.0/0", 1, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "0.0.0.0", 0, 1)
+		"", "0.0.0.0", 0, l3.StaticRoute_INTER_VRF)
 
 	// Validate VRF1 boiler plate routes
 	numErrs += v.validateRoute("0.0.0.0/32", 1, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "0.0.0.0", 0, 2)
+		"", "0.0.0.0", 0, l3.StaticRoute_DROP)
 	numErrs += v.validateRoute("224.0.0.0/4", 1, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "0.0.0.0", 0, 2)
+		"", "0.0.0.0", 0, l3.StaticRoute_DROP)
 	numErrs += v.validateRoute("240.0.0.0/4", 1, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "0.0.0.0", 0, 2)
+		"", "0.0.0.0", 0, l3.StaticRoute_DROP)
 	numErrs += v.validateRoute("255.255.255.255/32", 1, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "0.0.0.0", 0, 2)
+		"", "0.0.0.0", 0, l3.StaticRoute_DROP)
 
 	return numErrs
 }
@@ -465,7 +467,7 @@ func (v *Validator) validateRouteToLocalVxlanBVI(node *telemetrymodel.Node, vrfM
 	routeMap map[uint32]map[string]int) int {
 
 	numErrs := 0
-	loopIf, err := findInterface(vxlanBviName, node.NodeInterfaces)
+	loopIf, err := findInterface(ipv4net.VxlanBVIInterfaceName, node.NodeInterfaces)
 	if err != nil {
 		numErrs++
 		v.Report.AppendToNodeReport(node.Name, err.Error())
@@ -473,12 +475,13 @@ func (v *Validator) validateRouteToLocalVxlanBVI(node *telemetrymodel.Node, vrfM
 	}
 
 	// Validate the route to each of the vxlanBVI's IP addresses
-	for _, ip := range loopIf.If.IPAddresses {
+	for _, ip := range loopIf.Value.IpAddresses {
 		// Validate route to vxlanBVI subnet
 		numErrs += v.validateRoute(ip, 1, vrfMap, routeMap, node.Name,
-			loopIf.IfMeta.Tag, loopIf.IfMeta.SwIfIndex, "0.0.0.0", 0, 0)
+			loopIf.Value.Name, "0.0.0.0", 0, l3.StaticRoute_INTRA_VRF)
 
-		numErrs += v.validatePhyNextHopRoutes(ip, 1, vrfMap, routeMap, node.Name, loopIf, 0, 2)
+		numErrs += v.validatePhyNextHopRoutes(ip, 1, vrfMap, routeMap,
+			node.Name, loopIf, 0, l3.StaticRoute_DROP)
 	}
 
 	return numErrs
@@ -500,9 +503,9 @@ func (v *Validator) validatePodSubnetCidrRoutes(node *telemetrymodel.Node, vrfMa
 	podSubnetCidrRte := node.NodeIPam.Config.PodSubnetCIDR
 
 	numErrs += v.validateRoute(podSubnetCidrRte, 0, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "0.0.0.0", 1, 1)
+		"", "0.0.0.0", 1, l3.StaticRoute_INTER_VRF)
 	numErrs += v.validateRoute(podSubnetCidrRte, 1, vrfMap, routeMap, node.Name,
-		"local0", maxIfIdx, "0.0.0.0", 0, 2)
+		"local0", "0.0.0.0", 0, l3.StaticRoute_DROP)
 
 	return numErrs
 }
@@ -520,10 +523,10 @@ func (v *Validator) validateVppHostNetworkRoutes(node *telemetrymodel.Node, vrfM
 		return numErrs
 	}
 
-	numErrs += v.validateRoute(node.NodeIPam.Config.VppHostSubnetCIDR, 0, vrfMap, routeMap, node.Name,
-		"", maxIfIdx, "0.0.0.0", 1, 1)
-	numErrs += v.validateRoute(node.NodeIPam.Config.VppHostSubnetCIDR, 1, vrfMap, routeMap, node.Name,
-		"local0", maxIfIdx, "0.0.0.0", 0, 2)
+	numErrs += v.validateRoute(node.NodeIPam.Config.VPPHostSubnetCIDR, 0, vrfMap, routeMap, node.Name,
+		"", "0.0.0.0", 1, l3.StaticRoute_INTER_VRF)
+	numErrs += v.validateRoute(node.NodeIPam.Config.VPPHostSubnetCIDR, 1, vrfMap, routeMap, node.Name,
+		"local0", "0.0.0.0", 0, l3.StaticRoute_DROP)
 
 	numErrs += v.validateLocalVppHostNetworkRoute(node, vrfMap, routeMap)
 
@@ -562,20 +565,21 @@ func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, 
 	}
 	ipamHostNetPrefix := ipamHostNetAddr &^ ipamHostNetMask
 
-	for _, ipAddr := range ifc.If.IPAddresses {
+	for _, ipAddr := range ifc.Value.IpAddresses {
 		// Validate host subnet route
 		numErrs += v.validateRoute(ipAddr, 0, vrfMap, routeMap, node.Name,
-			ifc.If.Name, ifc.IfMeta.SwIfIndex, "0.0.0.0", 0, 0)
+			ifc.Value.Name, "0.0.0.0", 0, l3.StaticRoute_INTRA_VRF)
 
 		// Validate tap-vpp2's drop routes (.0/32, .1/32 and .255/32)
-		numErrs += v.validatePhyNextHopRoutes(ipAddr, 0, vrfMap, routeMap, node.Name, ifc, 0, 2)
+		numErrs += v.validatePhyNextHopRoutes(ipAddr, 0, vrfMap, routeMap,
+			node.Name, ifc, 0, l3.StaticRoute_DROP)
 
 		// Make sure that the tap-vpp2 ip address is within the vppHostNetwork subnet
 		ifHostNetAddr, ifHostNetMask, err := utils.Ipv4CidrToAddressAndMask(ipAddr)
 		if err != nil {
 			numErrs++
 			errString := fmt.Sprintf("tap-vpp2 IP address %s bad format; err %s",
-				ifc.If.IPAddresses[0], err)
+				ifc.Value.IpAddresses[0], err)
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
@@ -584,7 +588,7 @@ func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, 
 		if (ifHostNetMask != ipamHostNetMask) || (ifHostNetPrefix != ipamHostNetPrefix) {
 			numErrs++
 			errString := fmt.Sprintf("inconsistent ipam vppHostNetwork %s vs tap-vpp2 IP address %s",
-				node.NodeIPam.VppHostNetwork, ifc.If.IPAddresses[0])
+				node.NodeIPam.VppHostNetwork, ifc.Value.IpAddresses[0])
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
@@ -595,7 +599,7 @@ func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, 
 
 // validateRoute performs all validations checks on a given route
 func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtMap RouteMap, nodeName string,
-	eOutIface string, eOutgoingIfIdx uint32, eNextHopAddr string, eViaVrf uint32, eType uint32) int {
+	eOutIface string, eNextHopAddr string, eViaVrf uint32, eType l3.StaticRoute_RouteType) int {
 
 	numErrs := 0
 
@@ -610,47 +614,39 @@ func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtM
 
 	// Assume at first that the route is valid. Any error found below will
 	// flip the route status to false
-	rtMap[vrfID][route.Ipr.DstAddr] = routeValid
+	rtMap[vrfID][route.Value.DstNetwork] = routeValid
 
 	// If Outgoing interface name is empty, skip outgoing interface validation
-	if (route.Ipr.OutIface != "") && (eOutIface != route.Ipr.OutIface) {
+	if (route.Value.OutgoingInterface != "") && (eOutIface != route.Value.OutgoingInterface) {
 		numErrs++
-		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
+		rtMap[vrfID][route.Value.DstNetwork] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad outgoing if - "+
-			"have '%s', expecting '%s'", route.Ipr.DstAddr, vrfID, route.Ipr.OutIface, eOutIface)
+			"have '%s', expecting '%s'", route.Value.DstNetwork, vrfID, route.Value.OutgoingInterface, eOutIface)
 		v.Report.AppendToNodeReport(nodeName, errString)
 	}
 
-	if route.IprMeta.OutgoingIfIdx != eOutgoingIfIdx {
+	if route.Value.ViaVrfId != eViaVrf {
 		numErrs++
-		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
-		errString := fmt.Sprintf("invalid route %s in VRF%d; bad outgoing swIndex - "+
-			"have '%d', expecting '%d'", route.Ipr.DstAddr, vrfID, route.IprMeta.OutgoingIfIdx, eOutgoingIfIdx)
-		v.Report.AppendToNodeReport(nodeName, errString)
-	}
-
-	if route.Ipr.ViaVRFID != eViaVrf {
-		numErrs++
-		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
+		rtMap[vrfID][route.Value.DstNetwork] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad viaVrfID - "+
-			"have '%d', expecting '%d'", route.Ipr.DstAddr, vrfID, route.Ipr.ViaVRFID, eViaVrf)
+			"have '%d', expecting '%d'", route.Value.DstNetwork, vrfID, route.Value.ViaVrfId, eViaVrf)
 		v.Report.AppendToNodeReport(nodeName, errString)
 	}
 
-	if route.Ipr.Type != eType {
+	if route.Value.Type != eType {
 		numErrs++
-		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
+		rtMap[vrfID][route.Value.DstNetwork] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad Type - "+
-			"have '%d', expecting '%d'", route.Ipr.DstAddr, vrfID, route.Ipr.Type, eType)
+			"have '%d', expecting '%d'", route.Value.DstNetwork, vrfID, route.Value.Type, eType)
 		v.Report.AppendToNodeReport(nodeName, errString)
 	}
 
 	// eNextHopAddr is empty if the next hop should not be validated
-	if (eNextHopAddr != "") && (route.Ipr.NextHopAddr != eNextHopAddr) {
+	if (eNextHopAddr != "") && (route.Value.NextHopAddr != eNextHopAddr) {
 		numErrs++
-		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
+		rtMap[vrfID][route.Value.DstNetwork] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad nextHop -"+
-			"have '%s', expecting '%s", route.Ipr.DstAddr, vrfID, route.Ipr.NextHopAddr, eNextHopAddr)
+			"have '%s', expecting '%s", route.Value.DstNetwork, vrfID, route.Value.NextHopAddr, eNextHopAddr)
 		v.Report.AppendToNodeReport(nodeName, errString)
 	}
 
@@ -660,7 +656,7 @@ func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtM
 // validatePhyNextHopRoutes validates routes tp physical next hop nodes and
 // automatically inserted drop routes.
 func (v *Validator) validatePhyNextHopRoutes(rteID string, vrfID uint32, vrfMap VrfMap, rtMap RouteMap, nodeName string,
-	outIfc *telemetrymodel.NodeInterface, eViaVrf uint32, eType uint32) int {
+	outIfc *telemetrymodel.NodeInterface, eViaVrf uint32, eType l3.StaticRoute_RouteType) int {
 	numErrs := 0
 
 	rteAddr, rteMask, _ := utils.Ipv4CidrToAddressAndMask(rteID)
@@ -670,16 +666,16 @@ func (v *Validator) validatePhyNextHopRoutes(rteID string, vrfID uint32, vrfMap 
 	phyNextHopAddr := fmt.Sprintf("%d.%d.%d.%d",
 		rteAddr>>24, (rteAddr>>16)&0xFF, (rteAddr>>8)&0xff, rteAddr&0xFF)
 	numErrs += v.validateRoute(phyNextHopCidr, vrfID, vrfMap, rtMap, nodeName,
-		outIfc.IfMeta.Tag, outIfc.IfMeta.SwIfIndex, phyNextHopAddr, 0, 0)
+		outIfc.Value.Name, phyNextHopAddr, 0, l3.StaticRoute_INTRA_VRF)
 
 	// Validate local vxlanBVI drop routes
 	drop1Addr := utils.AddressAndMaskToIPv4(rteAddr&^rteMask, ^uint32(0))
 	numErrs += v.validateRoute(drop1Addr, vrfID, vrfMap, rtMap, nodeName,
-		"", maxIfIdx, "0.0.0.0", 0, eType)
+		"", "0.0.0.0", 0, eType)
 
 	drop2Addr := utils.AddressAndMaskToIPv4(rteAddr|rteMask, ^uint32(0))
 	numErrs += v.validateRoute(drop2Addr, vrfID, vrfMap, rtMap, nodeName,
-		"", maxIfIdx, "0.0.0.0", 0, eType)
+		"", "0.0.0.0", 0, eType)
 
 	return numErrs
 }
@@ -691,11 +687,11 @@ func (v *Validator) validatePhyNextHopRoutes(rteID string, vrfID uint32, vrfMap 
 func (v *Validator) validateGigEDefaultRteNextHop(rteID string, vrfID uint32, vrfMap VrfMap, rtMap RouteMap,
 	node *telemetrymodel.Node, outIfc *telemetrymodel.NodeInterface) int {
 	if defaultRte, ok := vrfMap[0]["0.0.0.0/0"]; ok {
-		defaultRteID := defaultRte.Ipr.NextHopAddr + "/32"
+		defaultRteID := defaultRte.Value.NextHopAddr + "/32"
 
 		if defaultRte, ok := vrfMap[0][defaultRteID]; ok {
-			numErrs := v.validateRoute(defaultRteID, 0, vrfMap, rtMap, node.Name, outIfc.If.Name,
-				maxIfIdx, defaultRte.Ipr.NextHopAddr, 0, 2)
+			numErrs := v.validateRoute(defaultRteID, 0, vrfMap, rtMap, node.Name, outIfc.Value.Name,
+				defaultRte.Value.NextHopAddr, 0, l3.StaticRoute_DROP)
 
 			// Check that the next hop also has an ARP table entry
 			//for _, arpEntry := range node.NodeIPArp {
@@ -718,12 +714,12 @@ func (v *Validator) validateGigEDefaultRteNextHop(rteID string, vrfID uint32, vr
 }
 
 // validateRoutesToLinuxInterfaces validates routes to interfaces/subnets
-// attached to teh host stack
+// attached to the host stack
 func (v *Validator) validateRoutesToLinuxInterfaces(node *telemetrymodel.Node, vrfMap VrfMap, rtMap RouteMap) int {
 	numErrs := 0
 
 	nhIP, linuxRtes := getLinuxNextHopAndIfIP(node.LinuxInterfaces)
-	linuxRteIfName, linuxRteIfIdx, err := getToHostIfNameAndIdx(node.NodeInterfaces)
+	linuxRteIfName, _, err := getToHostIfNameAndIdx(node.NodeInterfaces)
 	if err != nil {
 		numErrs++
 		errString := fmt.Sprintf("can not validate routes to host; vpp interface to host stack not found")
@@ -734,7 +730,7 @@ func (v *Validator) validateRoutesToLinuxInterfaces(node *telemetrymodel.Node, v
 	for _, ifRteID := range linuxRtes {
 		if _, ok := vrfMap[0][ifRteID]; ok {
 			numErrs += v.validateRoute(ifRteID, 0, vrfMap, rtMap, node.Name, linuxRteIfName,
-				linuxRteIfIdx, nhIP, 0, 0)
+				nhIP, 0, l3.StaticRoute_INTRA_VRF)
 		}
 	}
 
@@ -750,12 +746,12 @@ func getLinuxNextHopAndIfIP(lifcs telemetrymodel.LinuxInterfaces) (string, []str
 	nonVppIfIPRte := make([]string, 0)
 
 	for _, ifc := range lifcs {
-		for _, ifCidr := range ifc.If.IPAddresses {
+		for _, ifCidr := range ifc.Value.IpAddresses {
 			if v4CidrRe.Match([]byte(ifCidr)) {
 				ifSubnet := strings.Split(ifCidr, " ")[0]
 				ipAddr := strings.Split(ifSubnet, "/")[0]
 
-				if ifc.If.HostIfName == hostToVppIfName {
+				if ifc.Value.HostIfName == hostToVppIfName {
 					vppIfIP = ipAddr
 				} else {
 					nonVppIfIPRte = append(nonVppIfIPRte, fmt.Sprintf("%s/32", ipAddr))
@@ -769,11 +765,11 @@ func getLinuxNextHopAndIfIP(lifcs telemetrymodel.LinuxInterfaces) (string, []str
 
 // getToHostIfNameAndIdx finds the name and ifIndex of the vpp <-> host stack
 // interface.
-func getToHostIfNameAndIdx(ifcs telemetrymodel.NodeInterfaces) (string, uint32, error) {
+func getToHostIfNameAndIdx(ifcs map[uint32]telemetrymodel.NodeInterface) (string, uint32, error) {
 
 	for _, v := range ifcs {
-		if v.If.Name == vppToHostIfName {
-			return v.If.Name, v.IfMeta.SwIfIndex, nil
+		if v.Value.Name == vppToHostIfName {
+			return v.Value.Name, v.Metadata.SwIfIndex, nil
 		}
 	}
 
@@ -834,9 +830,9 @@ func (v *Validator) checkUnvalidatedRoutes(routeMap RouteMap, nodeName string) i
 
 // findInterface find the interface whose name matches the 'name' pattern.
 // 'name' is specified as a regexp string
-func findInterface(name string, ifcs telemetrymodel.NodeInterfaces) (*telemetrymodel.NodeInterface, error) {
+func findInterface(name string, ifcs map[uint32]telemetrymodel.NodeInterface) (*telemetrymodel.NodeInterface, error) {
 	for _, ifc := range ifcs {
-		match, err := regexp.Match(name, []byte(ifc.If.Name))
+		match, err := regexp.Match(name, []byte(ifc.Value.Name))
 		if err != nil {
 			return nil, err
 		}
@@ -859,15 +855,15 @@ func checkIfRouteNextHopPointsToInterface(rteID string, vrfID uint32, vrfMap Vrf
 		return "", fmt.Errorf("missing route %s VRF%d", rteID, vrfID)
 	}
 
-	for _, ip := range ifc.If.IPAddresses {
+	for _, ip := range ifc.Value.IpAddresses {
 		bviAddr := strings.Split(ip, "/")[0]
-		if bviAddr == route.Ipr.NextHopAddr {
+		if bviAddr == route.Value.NextHopAddr {
 			return bviAddr, nil
 		}
 	}
 
 	return "", fmt.Errorf("invalid route %s; nextHop Address %s not configured on node %s, if %s",
-		rteID, route.Ipr.NextHopAddr, nodeName, ifc.If.Name)
+		rteID, route.Value.NextHopAddr, nodeName, ifc.Value.Name)
 }
 
 func printS(errCnt int) string {
@@ -895,7 +891,7 @@ func printValidationMap(routeMap RouteMap, vrfMap VrfMap) {
 		sortkeys.Strings(routeIDs)
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
-		fmt.Fprintf(w, "\tROUTE\tNEXT_HOP\tOUT_INTERFACE\tOUT-SW-IDX\tVIA-VRF\tTYPE\n")
+		fmt.Fprintf(w, "\tROUTE\tNEXT_HOP\tOUT_INTERFACE\tVIA-VRF\tTYPE\n")
 		for _, rteID := range routeIDs {
 			sts := routeMap[key][rteID]
 
@@ -905,8 +901,8 @@ func printValidationMap(routeMap RouteMap, vrfMap VrfMap) {
 			}
 
 			rte := vrfMap[key][rteID]
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%d\t%d\n", tag, rteID,
-				rte.Ipr.NextHopAddr, rte.Ipr.OutIface, rte.IprMeta.OutgoingIfIdx, rte.Ipr.ViaVRFID, rte.Ipr.Type)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%d\n", tag, rteID,
+				rte.Value.NextHopAddr, rte.Value.OutgoingInterface, rte.Value.ViaVrfId, rte.Value.Type)
 		}
 		w.Flush()
 		fmt.Println("")

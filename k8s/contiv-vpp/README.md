@@ -61,14 +61,13 @@ The following tables lists the configurable parameters of the Contiv-VPP chart a
 Parameter | Description | Default
 --------- | ----------- | -------
 `contiv.mtuSize` | MTU Size | 1450
-`contiv.tcpStackDisabled` | Disable TCP stack | `True`
 `contiv.useTAPInterfaces` | Enable TAP interfaces | `True`
 `contiv.tapInterfaceVersion`| TAP interface version | 2
 `contiv.tapv2RxRingSize`| TAPv2 interface receive ring size | 256
 `contiv.tapv2TxRingSize`| TAPv2 interface transmit ring size | 256
 `contiv.vmxnet3RxRingSize`| Vmxnet3 interface receive ring size | 1024
 `contiv.vmxnet3TxRingSize`| Vmxnet3 interface transmit ring size | 1024
-`contiv.interfaceRxMode`| Interface packet receive mode: "" = polling / interrupt / adaptive  | `""`
+`contiv.interfaceRxMode`| Interface packet receive mode: "" == "default" / "polling" / "interrupt" / "adaptive"  | `"default"`
 `contiv.stealInterface` | Enable Steal The NIC feature on the specified interface on each node | `""`
 `contiv.stealFirstNIC` | Enable Steal The NIC feature on the first interface on each node | `False`
 `contiv.natExternalTraffic`| NAT cluster-external traffic | `True`
@@ -78,10 +77,10 @@ Parameter | Description | Default
 `contiv.serviceLocalEndpointWeight` | load-balancing weight for locally deployed service endpoints | 1
 `contiv.disableNATVirtualReassembly` | Disable NAT virtual reassembly (drop fragmented packets) | `False`
 `contiv.ipamConfig.podSubnetCIDR` | Pod subnet CIDR | `10.1.0.0/16`
-`contiv.ipamConfig.podNetworkPrefixLen` | Pod network prefix length | `24`
-`contiv.ipamConfig.PodIfIPCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
+`contiv.ipamConfig.podSubnetOneNodePrefixLen` | Pod network prefix length | `24`
+`contiv.ipamConfig.PodVPPSubnetCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
 `contiv.ipamConfig.vppHostSubnetCIDR` | VPP host subnet CIDR | `172.30.0.0/16`
-`contiv.ipamConfig.vppHostNetworkPrefixLen` | VPP host network prefix length | `24`
+`contiv.ipamConfig.vppHostSubnetOneNodePrefixLen` | VPP host network prefix length | `24`
 `contiv.ipamConfig.vxlanCIDR` | VXLAN CIDR | `192.168.30.0/24`
 `contiv.ipamConfig.nodeInterconnectCIDR` | Node interconnect CIDR, uses DHCP if empty | `""`
 `contiv.ipamConfig.serviceCIDR` | Service CIDR | `""`
@@ -92,6 +91,12 @@ Parameter | Description | Default
 `contiv.vswitch.memoryLimit` | memory limit for vswitch container | `1024Mi`
 `contiv.vswitch.enableCoreDumps` | enable core dumps of VPP into coreDumpsDir | `false`
 `contiv.vswitch.coreDumpsDir` | location of the VPP core dumps | `/var/contiv/dumps`
+`controller.delayLocalResync` | how long to wait for etcd connection before using bolt DB as a fallback for startup resync | `5000000000`
+`controller.enablePeriodicHealing` | enable periodic resync | `False`
+`controller.periodicHealingInterval` | periodic resync time interval in nanoseconds | `30000000000`
+`controller.recordEventHistory` | enable recording of processed events | `True`
+`controller.eventHistoryAgeLimit` | event records older than the given age limit (in minutes) are periodically trimmed from the history | `1440`
+`controller.permanentlyRecordedInitPeriod` | time period (in minutes) from the start of the application with events permanently recorded | `60`
 `cni.image.repository` | cni container image repository | `contivvpp/cni`
 `cni.image.tag`| cni container image tag | `latest`
 `cni.image.pullPolicy` | cni container image pull policy | `IfNotPresent`
@@ -133,3 +138,5 @@ Parameter | Description | Default
 `bolt.persistentVolumeSize` | Size of Kubernetes persistent volume | `2Gi`
 `bolt.persistentVolumeStorageClass` | Kubernetes persistent volume storage class (use "-" for an empty storage class) | (no value)
 `bolt.dataDir` | Use hostPath of this directory to persist bolt data (ignored if usePersistentVolume is true) | `/var/bolt`
+`crd.validateInterval` | Interval in minutes between Contiv configuration validations for TelemetryReport CRD | `1`
+`crd.validateState` | Which state of the Contiv configuration to validate for TelemetryReport CRD (options: "SB", "internal", "NB") | `SB`

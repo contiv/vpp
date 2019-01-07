@@ -35,17 +35,14 @@ Which can be deployed/undeployed using the above kubectl steps on your newly gen
 To use the development image for testing with specific version of VPP, see
 [DEVIMAGE.md](../docker/DEVIMAGE.md).
 
-**contiv.yaml**
+**contiv.conf**
 
   Configuration file for Contiv agent is deployed via the Config map `contiv-agent-cfg`
-  into the location `/etc/agent/contiv.yaml` of vSwitch. It includes several options
+  into the location `/etc/contiv/contiv.conf` of vSwitch. It includes several options
   allowing to customize the network connectivity between pods, such as the configuration
   of interfaces and allocation of IP addresses.
 
   * Pod-to-VPP connectivity (top-level options)
-    - `TCPstackDisabled`: if the flag is set to `true`, neither VPP TCP stack nor STN is configured
-      and only VETHs or TAPs are used to connect Pods with VPP
-    - `TCPChecksumOffloadDisabled`: disable checksum offloading for eth0 of every deployed pod
     - `UseL2Interconnect`: use pure L2 node interconnect instead of VXLANs
     - `UseTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP and VPP-to-Host interconnection
     - `TAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
@@ -62,11 +59,11 @@ To use the development image for testing with specific version of VPP, see
 
   * IPAM (section `IPAMConfig`)
     - `PodSubnetCIDR`: subnet used for all pods across all nodes
-    - `PodIfIPCIDR`: subnet CIDR for VPP-side POD addresses
-    - `PodNetworkPrefixLen`: subnet prefix length used for all pods of 1 k8s node
+    - `PodVPPSubnetCIDR`: subnet CIDR for VPP-side POD addresses
+    - `PodSubnetOneNodePrefixLen`: subnet prefix length used for all pods of 1 k8s node
       (pod network = pod subnet for one k8s node);
     - `VPPHostSubnetCIDR`: subnet used in each node for VPP-to-host connectivity;
-    - `VPPHostNetworkPrefixLen`: prefix length of the subnet used for VPP-to-host connectivity
+    - `VPPHostSubnetOneNodePrefixLen`: prefix length of the subnet used for VPP-to-host connectivity
       on 1 k8s node (VPPHost network = VPPHost subnet for one k8s node)
     - `NodeInterconnectCIDR`: subnet used for main interfaces of all nodes
     - `NodeInterconnectDHCP`: use DHCP to acquire IP for all nodes by default

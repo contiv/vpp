@@ -51,15 +51,14 @@ or individually for every node in the cluster.
 Global configuration is used in homogeneous environments where all nodes in 
 a given cluster have the same hardware configuration, for example only a single
 Network Adapter. To enable the STN feature globally, put the `StealFirstNIC: True`
-stanza into the [`contiv-vpp.yaml`][1] deployment file, for example:
+stanza into the [`contiv.conf`][1] deployment file, for example:
 ```
 data:
-  contiv.yaml: |-
+  contiv.conf: |-
     TCPstackDisabled: true
     ...
     StealFirstNIC: True
     ...
-    IPAMConfig:
 ```
 
 Setting `StealFirstNIC` to `True` will tell the STN Daemon on every node in the 
@@ -70,22 +69,58 @@ cluster, as shown [above](#creating-the-vpp-interface-configuration).
 
 ##### Individual configuration:
 Individual configuration is used in heterogeneous environments where each node
-in a given cluster may be configured differently. To enable the STN feature 
-for a specific node in the cluster, put the following stanza into its Node
-Configuration in the [`contiv-vpp.yaml`][1] deployment file, for example:
+in a given cluster may be configured differently. The configuration of nodes can
+be defined in two ways:
+
+- **contiv deployment file** This approach expects configuration for all cluster nodes
+to be part of contiv deployment yaml file. To enable the STN feature for a specific
+node in the cluster, put the following stanza into its Node Configuration in the [`contiv.conf`][1]
+deployment file, for example:
 ```
 ...
     NodeConfig:
-    - NodeName: "ubuntu-1"
-      StealInterface: "enp0s8"
-    - NodeName: "ubuntu-2"
-      StealInterface: "enp0s8"
+    - nodeName: "k8s-master"
+      stealInterface: "enp0s8"
+    - nodeName: "k8s-worker1"
+      stealInterface: "enp0s8"
 ...
 ``` 
-Note that you still have to create the vswitch configuration on the node as
+
+- **CRD** The node configuration is applied using custom defined k8s resource. The same behavior
+as above can be achieved by the following CRD config. Usage of CRD allows to dynamically add new configuration 
+for nodes joining a cluster.
+
+```
+$ cat master.yaml
+
+# Configuration for node in the cluster
+apiVersion: nodeconfig.contiv.vpp/v1
+kind: NodeConfig
+metadata:
+  name: k8s-master
+spec:
+  stealInterface: "enp0s8"
+
+$ cat worker1.yaml
+
+# Configuration for node in the cluster
+apiVersion: nodeconfig.contiv.vpp/v1
+kind: NodeConfig
+metadata:
+  name: k8s-worker1
+spec:
+  stealInterface: "enp0s8"
+
+
+kubectl apply -f master.yaml
+kubectl apply -f worker1.yaml
+```
+
+These two ways of configuration are mutually exclusive. You select the one you want to use by
+`crdNodeConfigurationDisabled` option in `contiv.conf`.
+
+Note that regardless of node config option you still have to create the vswitch configuration on the node as
 shown [here](#creating-the-vpp-interface-configuration).
-
-
 
 #### Uninstalling the STN daemon
 

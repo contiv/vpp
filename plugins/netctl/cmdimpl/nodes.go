@@ -20,16 +20,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/contiv/vpp/plugins/netctl/remote"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"io/ioutil"
-	"sort"
-
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+
+	"github.com/contiv/vpp/plugins/netctl/remote"
 )
 
 // PrintNodes will print out all of the cmdimpl in a network in a table format.
@@ -46,32 +47,32 @@ func PrintNodes(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd) {
 	for _, n := range nodes {
 		nodeInfo := nodeInfo[n]
 		// Get liveness data which contains image version / build date
-		bytes, err := getNodeInfo(client, nodeInfo.ManagementIpAddress, "liveness")
+		bytes, err := getNodeInfo(client, nodeInfo.mgmtIPAddress, "liveness")
 		if err != nil {
-			fmt.Printf("Could not get liveness data for node '%s'\n", nodeInfo.Name)
-			return
+			fmt.Printf("Could not get liveness data for node '%s'\n", nodeInfo.name)
+			continue
 		}
 
 		// Reformat the image build date to the common format
 		buildDate := "Not Available"
 		buildVersion := "Not Available"
-		var liveness telemetrymodel.NodeLiveness
+		var liveness status.AgentStatus
 		if err = json.Unmarshal(bytes, &liveness); err == nil {
 			buildVersion = liveness.BuildVersion
 			buildDate = liveness.BuildDate
-			bd, err1 := time.Parse("2006-01-02T15:04+00:00", buildDate)
+			bd, err1 := time.Parse("2006-01-02T15:04Z07:00", buildDate)
 			if err1 == nil {
 				buildDate = bd.Format(timeLayout)
 			}
 		}
 
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%d\t%s\t%s\n",
-			nodeInfo.Id,
-			nodeInfo.Name,
-			strings.Split(nodeInfo.IpAddress, "/")[0],
-			nodeInfo.ManagementIpAddress,
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			nodeInfo.id,
+			nodeInfo.name,
+			strings.Split(nodeInfo.vppIPAddress, "/")[0],
+			nodeInfo.mgmtIPAddress,
 			time.Unix(int64(liveness.StartTime), 0).Format(timeLayout),
-			liveness.State,
+			status.OperationalState_name[int32(liveness.State)],
 			buildVersion,
 			buildDate)
 	}
@@ -117,7 +118,7 @@ func setNodeInfo(client *remote.HTTPClient, base string, cmd string, body string
 	}
 
 	b, _ := ioutil.ReadAll(res.Body)
-	fmt.Println(string(b))
+	fmt.Println(strings.Replace(string(b), "\\n", "\n", -1))
 	return nil
 
 }

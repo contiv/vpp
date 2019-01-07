@@ -16,12 +16,17 @@ package datastore
 
 import (
 	"fmt"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/pkg/errors"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/pkg/errors"
+
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/ipv4net"
 )
 
 //VppDataStore holds various maps which all take different keys but point to the same underlying value.
@@ -37,7 +42,7 @@ type VppDataStore struct {
 
 // CreateNode will add a node to the node cache with the given parameters,
 // making sure there are no duplicates.
-func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAddr, ManIPAdr string) error {
+func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAddr string) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -46,7 +51,7 @@ func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAddr, ManIPAdr string
 	}
 
 	n := &telemetrymodel.Node{
-		NodeInfo: &telemetrymodel.NodeInfo{IPAddr: IPAddr, ManIPAddr: ManIPAdr, ID: ID, Name: nodeName},
+		NodeInfo: &telemetrymodel.NodeInfo{IPAddr: IPAddr, ID: ID, Name: nodeName},
 	}
 	n.PodMap = make(map[string]*telemetrymodel.Pod)
 	vds.NodeMap[nodeName] = n
@@ -89,9 +94,9 @@ func (vds *VppDataStore) DeleteNode(nodeName string) error {
 	for _, node := range vds.NodeMap {
 		if node.ID == uint32(nodeID) {
 			for _, intf := range node.NodeInterfaces {
-				if intf.IfMeta.VppInternalName == "loop0" {
-					delete(vds.LoopMACMap, intf.If.PhysAddress)
-					for _, ip := range intf.If.IPAddresses {
+				if intf.Value.Name == ipv4net.VxlanBVIInterfaceName {
+					delete(vds.LoopMACMap, intf.Value.PhysAddress)
+					for _, ip := range intf.Value.IpAddresses {
 						delete(vds.LoopIPMap, ip)
 					}
 				}
@@ -130,7 +135,7 @@ func (vds *VppDataStore) RetrieveAllNodes() []*telemetrymodel.Node {
 // UpdateNode handles updates of node data in the cache. If the node identified
 // by 'nodeName' exists, its data is updated and nil error is returned.
 // otherwise, an error is returned.
-func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAddr, ManIPAdr string) error {
+func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAddr string) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -141,7 +146,6 @@ func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAddr, ManIPAdr string
 	}
 	node.IPAddr = IPAddr
 	node.ID = ID
-	node.ManIPAddr = ManIPAdr
 
 	if IPAddr != "" {
 		ipa := strings.Split(IPAddr, "/")
@@ -154,7 +158,6 @@ func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAddr, ManIPAdr string
 //ClearCache with clear all vpp cache data except for the base NodeMap that contains
 // the discovered nodes..
 func (vds *VppDataStore) ClearCache() {
-
 	// Clear collected data for each node
 	for _, node := range vds.NodeMap {
 		node.NodeInterfaces = nil
@@ -201,7 +204,7 @@ func NewVppDataStore() (n *VppDataStore) {
 }
 
 // SetNodeLiveness is a simple function to set a nodes liveness given its name.
-func (vds *VppDataStore) SetNodeLiveness(nodeName string, nLive *telemetrymodel.NodeLiveness) error {
+func (vds *VppDataStore) SetNodeLiveness(nodeName string, nLive *status.AgentStatus) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -214,7 +217,7 @@ func (vds *VppDataStore) SetNodeLiveness(nodeName string, nLive *telemetrymodel.
 }
 
 // SetNodeInterfaces is a simple function to set a nodes interface given its name.
-func (vds *VppDataStore) SetNodeInterfaces(nodeName string, nInt map[int]telemetrymodel.NodeInterface) error {
+func (vds *VppDataStore) SetNodeInterfaces(nodeName string, nInt telemetrymodel.NodeInterfaces) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -222,7 +225,10 @@ func (vds *VppDataStore) SetNodeInterfaces(nodeName string, nInt map[int]telemet
 	if !ok {
 		return fmt.Errorf("failed to set NodeInterfaces for node %s", nodeName)
 	}
-	node.NodeInterfaces = nInt
+	node.NodeInterfaces = make(telemetrymodel.NodeInterfaceMap)
+	for _, iface := range nInt {
+		node.NodeInterfaces[iface.Metadata.SwIfIndex] = iface
+	}
 	return nil
 }
 
@@ -240,7 +246,7 @@ func (vds *VppDataStore) SetLinuxInterfaces(nodeName string, nInt telemetrymodel
 }
 
 //SetNodeStaticRoutes is a simple function to set a nodes static routes given its name.
-func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs []telemetrymodel.NodeIPRoute) error {
+func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs telemetrymodel.NodeStaticRoutes) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -253,7 +259,7 @@ func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs []telemetrymo
 }
 
 // SetNodeBridgeDomain is a simple function to set a nodes bridge domain given its name.
-func (vds *VppDataStore) SetNodeBridgeDomain(nodeName string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error {
+func (vds *VppDataStore) SetNodeBridgeDomain(nodeName string, nBridge telemetrymodel.NodeBridgeDomains) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -266,7 +272,7 @@ func (vds *VppDataStore) SetNodeBridgeDomain(nodeName string, nBridge map[int]te
 }
 
 // SetNodeL2Fibs is a simple function to set a nodes l2 fibs given its name.
-func (vds *VppDataStore) SetNodeL2Fibs(nodeName string, nL2F map[string]telemetrymodel.NodeL2FibEntry) error {
+func (vds *VppDataStore) SetNodeL2Fibs(nodeName string, nL2F telemetrymodel.NodeL2FibTable) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -292,7 +298,7 @@ func (vds *VppDataStore) SetNodeTelemetry(nodeName string, nTele map[string]tele
 }
 
 // SetNodeIPARPs is a simple function to set a nodes ip arp table given its name.
-func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps []telemetrymodel.NodeIPArpEntry) error {
+func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps telemetrymodel.NodeIPArpTable) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -306,7 +312,7 @@ func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps []telemetrymodel.N
 }
 
 // SetNodeIPam is a simple function to set the node with the given node name's ipam
-func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam telemetrymodel.IPamEntry) error {
+func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam ipv4net.IPAMData) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -339,30 +345,32 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 		errReport = append(errReport,
 			fmt.Sprintf("duplicate Host IP Address %s, hosts %s, %s", node.ManIPAddr, nIP.Name, node.Name))
 	} else {
-		vds.HostIPMap[node.ManIPAddr] = node
+		if node.ManIPAddr != "" {
+			vds.HostIPMap[node.ManIPAddr] = node
+		}
 	}
 
-	for _, ipAddr := range loopIF.If.IPAddresses {
+	for _, ipAddr := range loopIF.Value.IpAddresses {
 		if ipAddr == "" {
-			errReport = append(errReport, fmt.Sprintf("empty IP address for Loop if %s", loopIF.If.Name))
+			errReport = append(errReport, fmt.Sprintf("empty IP address for Loop if %s", loopIF.Value.Name))
 		} else {
 			if _, ok := vds.LoopIPMap[ipAddr]; ok {
 				errReport = append(errReport,
-					fmt.Sprintf("duplicate Loop IP Address %s, interface %s", ipAddr, loopIF.If.Name))
+					fmt.Sprintf("duplicate Loop IP Address %s, interface %s", ipAddr, loopIF.Value.Name))
 			} else {
 				vds.LoopIPMap[ipAddr] = node
 			}
 		}
 	}
 
-	if loopIF.If.PhysAddress == "" {
-		errReport = append(errReport, fmt.Sprintf("empty MAC address for Loop if %s", loopIF.If.Name))
+	if loopIF.Value.PhysAddress == "" {
+		errReport = append(errReport, fmt.Sprintf("empty MAC address for Loop if %s", loopIF.Value.Name))
 	} else {
-		if _, ok := vds.LoopMACMap[loopIF.If.PhysAddress]; ok {
+		if _, ok := vds.LoopMACMap[loopIF.Value.PhysAddress]; ok {
 			errReport = append(errReport,
-				fmt.Sprintf("duplicate Loop MAC Address %s, interface %s", loopIF.If.PhysAddress, loopIF.If.Name))
+				fmt.Sprintf("duplicate Loop MAC Address %s, interface %s", loopIF.Value.PhysAddress, loopIF.Value.Name))
 		} else {
-			vds.LoopMACMap[loopIF.If.PhysAddress] = node
+			vds.LoopMACMap[loopIF.Value.PhysAddress] = node
 		}
 	}
 
@@ -408,7 +416,7 @@ func (vds *VppDataStore) RetrieveNodeByGigEIPAddr(ipAddress string) (*telemetrym
 // GetNodeLoopIFInfo gets the loop interface for the given node
 func GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface, error) {
 	for _, ifs := range node.NodeInterfaces {
-		if ifs.IfMeta.VppInternalName == "loop0" {
+		if ifs.Value.Name == ipv4net.VxlanBVIInterfaceName {
 			return &ifs, nil
 		}
 	}

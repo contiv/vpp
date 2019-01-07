@@ -22,12 +22,14 @@ import (
 )
 
 const (
-	pciVendorFile   = "/sys/bus/pci/devices/%s/vendor"
-	pciDeviceIDFile = "/sys/bus/pci/devices/%s/device"
-	pciNewIDFile    = "/sys/bus/pci/drivers/%s/new_id"
-	pciBindFile     = "/sys/bus/pci/drivers/%s/bind"
-	pciUnbindFile   = "/sys/bus/pci/devices/%s/driver/unbind"
-	pciPresenceFile = "/sys/bus/pci/drivers/%s/%s"
+	sysBusPCI           = "/sys/bus/pci"
+	pciDevVendorFile    = sysBusPCI + "/devices/%s/vendor"
+	pciDevIDFile        = sysBusPCI + "/devices/%s/device"
+	pciDriverNewDevFile = sysBusPCI + "/drivers/%s/new_id"
+	pciDriverBindFile   = sysBusPCI + "/drivers/%s/bind"
+	pciDevUnbindFile    = sysBusPCI + "/devices/%s/driver/unbind"
+	pciDriverDir        = sysBusPCI + "/drivers/%s"
+	pciDriverDevDir     = pciDriverDir + "/%s"
 )
 
 const (
@@ -37,9 +39,15 @@ const (
 // DriverBind binds the PCI device to specified driver.
 func DriverBind(pciAddr string, driver string) error {
 
-	// check if not bound already
-	if boundToDriver(pciAddr, driver) {
-		log.Printf("%s already bound to driver %s", pciAddr, driver)
+	// check if the driver is loaded
+	if !fileExists(fmt.Sprintf(pciDriverDir, driver)) {
+		log.Printf("%s driver is not loaded", driver)
+		return fmt.Errorf("%s driver is not loaded", driver)
+	}
+
+	// check if not already bound to the specified driver
+	if fileExists(fmt.Sprintf(pciDriverDevDir, driver, pciAddr)) {
+		log.Printf("%s already bound to the driver %s", pciAddr, driver)
 		return nil
 	}
 
@@ -51,7 +59,7 @@ func DriverBind(pciAddr string, driver string) error {
 	var vendor, devID uint32
 
 	// get vendor ID
-	vendorStr, err := readFromFileFile(fmt.Sprintf(pciVendorFile, pciAddr))
+	vendorStr, err := readFromFileFile(fmt.Sprintf(pciDevVendorFile, pciAddr))
 	if err != nil {
 		log.Println(err)
 		return err
@@ -59,7 +67,7 @@ func DriverBind(pciAddr string, driver string) error {
 	fmt.Sscanf(vendorStr, "0x%x", &vendor)
 
 	// get device ID
-	devIDStr, err := readFromFileFile(fmt.Sprintf(pciDeviceIDFile, pciAddr))
+	devIDStr, err := readFromFileFile(fmt.Sprintf(pciDevIDFile, pciAddr))
 	if err != nil {
 		log.Println(err)
 		return err
@@ -67,18 +75,18 @@ func DriverBind(pciAddr string, driver string) error {
 	fmt.Sscanf(devIDStr, "0x%x", &devID)
 
 	// enable device in the driver
-	err = writeToFile(fmt.Sprintf(pciNewIDFile, driver),
-		fmt.Sprintf("%x %x", vendor, devID))
+	err = writeToFile(fmt.Sprintf(pciDriverNewDevFile, driver),
+		fmt.Sprintf("%4x %4x", vendor, devID))
 	if err != nil {
-		log.Println(err)
-		return err
+		log.Printf("(non-fatal) %s", err)
+		// do not return an error here, on some systems it returns an error even if it actually works
 	}
 
 	// bind by writing to proper file
-	err = writeToFile(fmt.Sprintf(pciBindFile, driver), pciAddr)
+	err = writeToFile(fmt.Sprintf(pciDriverBindFile, driver), pciAddr)
 	if err != nil {
-		log.Println(err)
-		return err
+		log.Printf("(non-fatal) %s", err)
+		// do not return an error here, on some systems it returns an error even if it actually works
 	}
 
 	return nil
@@ -89,15 +97,18 @@ func DriverUnbind(pciAddr string) error {
 	log.Printf("Unbinding %s from its current driver", pciAddr)
 
 	// unbind by writing to proper file
-	err := writeToFile(fmt.Sprintf(pciUnbindFile, pciAddr), pciAddr)
+	err := writeToFile(fmt.Sprintf(pciDevUnbindFile, pciAddr), pciAddr)
+	if err != nil {
+		log.Println(err)
+	}
 
 	return err
 }
 
-// boundToDriver returns true in case the PCI device is bound to the specified driver, false otherwise.
-func boundToDriver(pciAddr string, driver string) bool {
-	// check presence of pciPresenceFile
-	if _, err := os.Stat(fmt.Sprintf(pciPresenceFile, driver, pciAddr)); err == nil {
+// fileExists returns true in case the provided file exists, false otherwise.
+func fileExists(file string) bool {
+	// check presence of pciDriverDevDir
+	if _, err := os.Stat(file); err == nil {
 		return true
 	}
 	return false
@@ -109,8 +120,7 @@ func readFromFileFile(fileName string) (string, error) {
 	// try opening the file
 	f, err := os.OpenFile(fileName, os.O_RDONLY, os.ModePerm)
 	if err != nil {
-		log.Printf("Error by opening %s: %v", fileName, err)
-		return "", err
+		return "", fmt.Errorf("error by opening %s: %v", fileName, err)
 	}
 	defer f.Close()
 
@@ -118,8 +128,7 @@ func readFromFileFile(fileName string) (string, error) {
 	buf := make([]byte, maxReadSize)
 	_, err = f.Read(buf)
 	if err != nil {
-		log.Printf("Error by reading from %s: %v", fileName, err)
-		return "", err
+		return "", fmt.Errorf("error by reading from %s: %v", fileName, err)
 	}
 
 	return strings.TrimSpace(fmt.Sprintf("%s", buf)), nil
@@ -133,16 +142,14 @@ func writeToFile(fileName string, content string) error {
 	// try opening the file
 	f, err := os.OpenFile(fileName, os.O_WRONLY, os.ModePerm)
 	if err != nil {
-		log.Printf("Error by opening %s: %v", fileName, err)
-		return err
+		return fmt.Errorf("error by opening %s: %v", fileName, err)
 	}
 	defer f.Close()
 
 	// write to file
 	_, err = f.Write([]byte(content))
 	if err != nil {
-		log.Printf("Error by writing to %s: %v", fileName, err)
-		return err
+		return fmt.Errorf("error by writing to %s: %v", fileName, err)
 	}
 
 	return nil

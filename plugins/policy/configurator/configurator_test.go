@@ -25,7 +25,6 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/policycache"
 	. "github.com/contiv/vpp/mock/renderer"
 
@@ -37,6 +36,18 @@ import (
 const (
 	natLoopbackIP = "10.1.255.254"
 )
+
+type ipamMock struct {
+	natLoopbackIP net.IP
+}
+
+func (m *ipamMock) NatLoopbackIP() net.IP {
+	return m.natLoopbackIP
+}
+
+func (m *ipamMock) SetNatLoopbackIP(ip string) {
+	m.natLoopbackIP = net.ParseIP(ip)
+}
 
 func parseIP(ip string) *net.IP {
 	netIP := net.ParseIP(ip)
@@ -89,17 +100,17 @@ func TestSinglePolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipam := &ipamMock{}
+	ipam.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:   logger,
+			Cache: cache,
+			IPAM:  ipam,
 		},
 	}
 	configurator.Init(false)
@@ -212,17 +223,17 @@ func TestSinglePolicyWithIPBlockSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipam := &ipamMock{}
+	ipam.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:   logger,
+			Cache: cache,
+			IPAM:  ipam,
 		},
 	}
 	configurator.Init(false)
@@ -358,17 +369,17 @@ func TestSinglePolicyMultiplePods(t *testing.T) {
 	cache.AddPodConfig(pod2, pod2IP)
 	cache.AddPodConfig(pod3, pod3IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipam := &ipamMock{}
+	ipam.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:   logger,
+			Cache: cache,
+			IPAM:  ipam,
 		},
 	}
 	configurator.Init(false)
@@ -531,17 +542,17 @@ func TestSinglePolicyWithNestedIPBlocksSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipam := &ipamMock{}
+	ipam.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:   logger,
+			Cache: cache,
+			IPAM:  ipam,
 		},
 	}
 	configurator.Init(false)
@@ -631,17 +642,17 @@ func TestSingleEgressPolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipam := &ipamMock{}
+	ipam.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:   logger,
+			Cache: cache,
+			IPAM:  ipam,
 		},
 	}
 	configurator.Init(false)
@@ -751,17 +762,17 @@ func TestSingleEgressPolicyWithIPBlockSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipam := &ipamMock{}
+	ipam.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:   logger,
+			Cache: cache,
+			IPAM:  ipam,
 		},
 	}
 	configurator.Init(false)
@@ -897,17 +908,17 @@ func TestSingleBothWaysPolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipam := &ipamMock{}
+	ipam.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:   logger,
+			Cache: cache,
+			IPAM:  ipam,
 		},
 	}
 	configurator.Init(false)
@@ -1059,8 +1070,8 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipam := &ipamMock{}
+	ipam.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer1 := NewMockRenderer("A", logger)
 	renderer2 := NewMockRenderer("B", logger)
@@ -1069,9 +1080,9 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:   logger,
+			Cache: cache,
+			IPAM:  ipam,
 		},
 	}
 	configurator.Init(true)
@@ -1309,17 +1320,17 @@ func TestMultiplePoliciesSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipam := &ipamMock{}
+	ipam.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:   logger,
+			Cache: cache,
+			IPAM:  ipam,
 		},
 	}
 	configurator.Init(false)
@@ -1535,17 +1546,17 @@ func TestMultiplePodsSpecialCases(t *testing.T) {
 	cache.AddPodConfig(pod2, pod2IP)
 	cache.AddPodConfig(pod3, pod3IP)
 
-	contiv := NewMockContiv()
-	contiv.SetNatLoopbackIP(natLoopbackIP)
+	ipam := &ipamMock{}
+	ipam.SetNatLoopbackIP(natLoopbackIP)
 
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:    logger,
-			Cache:  cache,
-			Contiv: contiv,
+			Log:   logger,
+			Cache: cache,
+			IPAM:  ipam,
 		},
 	}
 	configurator.Init(false)

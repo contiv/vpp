@@ -22,7 +22,6 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/cache"
 	"github.com/contiv/vpp/plugins/policy/renderer"
@@ -47,9 +46,17 @@ type PolicyConfigurator struct {
 
 // Deps lists dependencies of PolicyConfigurator.
 type Deps struct {
-	Log    logging.Logger
-	Cache  cache.PolicyCacheAPI
-	Contiv contiv.API /* to get the NAT-loopback IP */
+	Log   logging.Logger
+	Cache cache.PolicyCacheAPI
+	IPAM  IPAM
+}
+
+// IPAM interface lists IPAM methods needed by Policy Configurator.
+type IPAM interface {
+	// NatLoopbackIP returns the IP address of a virtual loopback, used to route
+	// traffic between clients and services via VPP even if the source and destination
+	// are the same IP addresses and would otherwise be routed locally.
+	NatLoopbackIP() net.IP
 }
 
 // PolicyConfiguratorTxn represents a single transaction of the policy configurator.
@@ -110,11 +117,15 @@ func (pc *PolicyConfigurator) Close() error {
 // transaction are left unchanged.
 func (pc *PolicyConfigurator) NewTxn(resync bool) Txn {
 	txn := &PolicyConfiguratorTxn{
-		Log:            pc.Log,
-		configurator:   pc,
-		resync:         resync,
-		config:         make(map[podmodel.ID]ContivPolicies),
-		podIPAddresses: pc.podIPAddresses.Copy(),
+		Log:          pc.Log,
+		configurator: pc,
+		resync:       resync,
+		config:       make(map[podmodel.ID]ContivPolicies),
+	}
+	if resync {
+		txn.podIPAddresses = make(PodIPAddresses)
+	} else {
+		txn.podIPAddresses = pc.podIPAddresses.Copy()
 	}
 	return txn
 }
@@ -277,7 +288,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 					continue
 				}
 				if peerData.IpAddress == "" {
-					pct.Log.WithField("peer", peer).Warn("Peer pod has no IP address assigned")
+					pct.Log.WithField("peer", peer).Debug("Peer pod has no IP address assigned")
 					continue
 				}
 				peerIPNet := utils.GetOneHostSubnet(peerData.IpAddress)
@@ -434,7 +445,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 	if hasPolicy && !allAllowed {
 		if direction == MatchIngress {
 			// Allow connections from the virtual NAT-loopback (access to service from itself).
-			natLoopIP := pct.configurator.Contiv.GetNatLoopbackIP()
+			natLoopIP := pct.configurator.IPAM.NatLoopbackIP()
 			ruleAny := &renderer.ContivRule{
 				Action:      renderer.ActionPermit,
 				Protocol:    renderer.ANY,

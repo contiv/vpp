@@ -427,7 +427,7 @@ transformed data further down the stack.
 
 The Service plugin subscribes to Etcd in `subscribeWatcher()` to watch for
 changes related to [services][svc-model], [endpoints][eps-model], [pods][pod-model]
-and [node IDs/IPs][node-info-model], as reflected from the K8s API into the
+and [node IDs/IPs][vpp-node-model], as reflected from the K8s API into the
 data store by the KSR. Both services and endpoints need to be watched to
 learn the mapping between service VIPs and the real pod IP addresses behind.
 Pods are monitored so that the set of Frontend and Backend interfaces is kept
@@ -446,7 +446,7 @@ The processor is also notified when locally deployed pod is created/updated or
 deleted.
 
 Additionally, the processor watches changes in the assignment of
-[cluster and management IPs][node-info-model] for all nodes in the cluster.
+[cluster and management IPs][vpp-node-model] for all nodes in the cluster.
 Every time a new node is assigned an IP address or an existing one is destroyed,
 the NodePort services have to be re-configured.
 
@@ -528,7 +528,7 @@ periodically cleaning up inactive NAT sessions.
 [pod-model]: http://github.com/contiv/vpp/blob/master/plugins/ksr/model/pod/pod.proto
 [svc-model]: https://github.com/contiv/vpp/blob/master/plugins/ksr/model/service/service.proto
 [eps-model]: https://github.com/contiv/vpp/blob/master/plugins/ksr/model/endpoints/endpoints.proto
-[node-info-model]: https://github.com/contiv/vpp/blob/master/plugins/contiv/model/node/node.proto
+[vpp-node-model]: https://github.com/contiv/vpp/blob/master/plugins/nodesync/vppnode/vppnode.proto
 [contiv-cni-conflist]: https://github.com/contiv/vpp/blob/master/docker/vpp-cni/10-contiv-vpp.conflist
 [contiv-plugin]: http://github.com/contiv/vpp/tree/master/plugins/contiv
 [local-client]: http://github.com/ligato/vpp-agent/tree/pantheon-dev/clientv1

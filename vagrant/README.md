@@ -20,8 +20,33 @@ It is organized into two subfolders:
  - (vagrant) - contains scripts for creating, destroying, rebooting
     and shuting down the VMs that host the K8s cluster.
 
-To create and run a K8s cluster with contiv-vpp CNI plugin, run the 
-`vagrant-start` script, located in the vagrant folder. The `vagrant-start`
+The following environment variables can be used to customize created cluster:
+
+Environment variable | Description | Default
+--------- | ----------- | -------
+`K8S_NODE_OS` | OS to be used for cluster node. Vagrantfile currently supports only `ubuntu` | `ubuntu`
+`K8S_NODE_OS_RELEASE` | Version of the OS to be used for cluster nodes `16.04` or `18.04`| `16.04`
+`K8S_MASTER_CPUS` | Number of CPUs to be allocated for a master node | `4`
+`K8S_NODE_CPUS` | Number of CPUs to be allocated for a worker node | `4`
+`K8S_MASTER_MEMORY` | Memory size for master node | `4096`
+`K8S_NODE_MEMORY` | Memory size for worker nodes | `4096`
+`K8S_VERSION` | Kubernetes version to be installed | `1.11.5`
+`K8S_DEPLOYMENT_SCENARIO` | Contiv deployment scenario to be used [`stn`](../docs/SINGLE_NIC_SETUP.md) or `nostn` | `nostn`
+`CONTIV_IMAGE_TAG` | Docker image tag denoting contiv/vpp version to be installed | `latest`
+`CRD_DISABLED` | If set to `true` nodeconfig must be set in contiv deployment file. Otherwise it is configure using crd. | `true`
+`HELM_EXTRA_OPTS` | Allows to pass arbitrary helm option see [available parameters](../k8s/contiv-vpp)| `""`
+
+If you want to customize the default behavior export the corresponding variables and execute `./vagrant-up`.
+E.g.:
+```
+cd vpp/vagrant
+export K8S_NODE_OS_RELEASE=18.04
+export K8S_NODES=1
+./vagrant-up
+
+```
+
+You can use interactive `vagrant-start` script, alternatively. The `vagrant-start`
 script prompts the user to select the number of worker nodes of the kubernetes cluster. 
 Zero (0) worker nodes mean that a single-node cluster (with one kubernetes master node) will be deployed. 
 Next, the user is prompted to select either the *production environment* or the *development environment*.
@@ -142,12 +167,12 @@ vagrant@k8s-master:~$
 Verify the Kubernetes/Contiv-VPP installation. First, verify the nodes
 in the cluster:
 
-```apple js
+```
 vagrant@k8s-master:~$ kubectl get nodes -o wide
 
-NAME          STATUS    ROLES     AGE       VERSION   EXTERNAL-IP   OS-IMAGE           KERNEL-VERSION     CONTAINER-RUNTIME
-k8s-master    Ready     master    22m       v1.9.2    <none>        Ubuntu 16.04 LTS   4.4.0-21-generic   docker://17.12.0-ce
-k8s-worker1   Ready     <none>    15m       v1.9.2    <none>        Ubuntu 16.04 LTS   4.4.0-21-generic   docker://17.12.0-ce
+NAME          STATUS    ROLES     AGE       VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE           KERNEL-VERSION     CONTAINER-RUNTIME
+k8s-master    Ready     master    3m        v1.11.5   10.20.0.2     <none>        Ubuntu 16.04 LTS   4.4.0-21-generic   docker://18.3.0
+k8s-worker1   Ready     <none>    38s       v1.11.5   10.20.0.10    <none>        Ubuntu 16.04 LTS   4.4.0-21-generic   docker://18.3.0
 ```
 
 Next, verify that all pods are running correctly:
@@ -155,24 +180,27 @@ Next, verify that all pods are running correctly:
 ```
 vagrant@k8s-master:~$ kubectl get pods -n kube-system -o wide
 
-NAME                                 READY     STATUS             RESTARTS   AGE       IP             NODE
-contiv-etcd-2ngdc                    1/1       Running            0          17m       192.169.1.10   k8s-master
-contiv-ksr-x7gsq                     1/1       Running            3          17m       192.169.1.10   k8s-master
-contiv-vswitch-9bql6                 2/2       Running            0          17m       192.169.1.10   k8s-master
-contiv-vswitch-hpt2x                 2/2       Running            0          10m       192.169.1.11   k8s-worker1
-etcd-k8s-master                      1/1       Running            0          16m       192.169.1.10   k8s-master
-kube-apiserver-k8s-master            1/1       Running            0          16m       192.169.1.10   k8s-master
-kube-controller-manager-k8s-master   1/1       Running            0          15m       192.169.1.10   k8s-master
-kube-dns-6f4fd4bdf-62rv4             2/3       CrashLoopBackOff   14         17m       10.1.1.2       k8s-master
-kube-proxy-bvr74                     1/1       Running            0          10m       192.169.1.11   k8s-worker1
-kube-proxy-v4fzq                     1/1       Running            0          17m       192.169.1.10   k8s-master
-kube-scheduler-k8s-master            1/1       Running            0          16m       192.169.1.10   k8s-master
+NAME                                 READY     STATUS    RESTARTS   AGE       IP           NODE          NOMINATED NODE
+contiv-crd-vg668                     1/1       Running   0          4m        10.20.0.2    k8s-master    <none>
+contiv-etcd-0                        1/1       Running   0          4m        10.20.0.2    k8s-master    <none>
+contiv-ksr-z4vgh                     1/1       Running   0          4m        10.20.0.2    k8s-master    <none>
+contiv-vswitch-djcfb                 1/1       Running   0          3m        10.20.0.10   k8s-worker1   <none>
+contiv-vswitch-xnr2c                 1/1       Running   0          4m        10.20.0.2    k8s-master    <none>
+coredns-78fcdf6894-fqn2d             1/1       Running   0          4m        10.1.1.3     k8s-master    <none>
+coredns-78fcdf6894-pnzcm             1/1       Running   0          4m        10.1.1.2     k8s-master    <none>
+etcd-k8s-master                      1/1       Running   0          4m        10.20.0.2    k8s-master    <none>
+kube-apiserver-k8s-master            1/1       Running   0          3m        10.20.0.2    k8s-master    <none>
+kube-controller-manager-k8s-master   1/1       Running   0          3m        10.20.0.2    k8s-master    <none>
+kube-proxy-fmqsb                     1/1       Running   0          4m        10.20.0.2    k8s-master    <none>
+kube-proxy-p42x5                     1/1       Running   0          3m        10.20.0.10   k8s-worker1   <none>
+kube-scheduler-k8s-master            1/1       Running   0          4m        10.20.0.2    k8s-master    <none>
+
 ```
 
 If you want your pods to be scheduled on both the master and the workers,
 you have to untaint the master node:
 ```
-
+kubectl taint nodes --all node-role.kubernetes.io/master-
 ```
 
 Check VPP and its interfaces:

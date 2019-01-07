@@ -1,21 +1,81 @@
 ### Setting up a node with multiple NICs
 
-* First, configure hardware interfaces in the VPP startup config, as
+First, configure hardware interfaces in the VPP startup config, as
 described [here](https://github.com/contiv/vpp/blob/master/docs/VPP_CONFIG.md#multi-nic-configuration).
 
-* For each interface owned by Linux, you need to provide individual
-  configuration for each interface used by VPP in the Node Configuration 
-  for thenode in the `contiv-vpp.yaml`. For example, if both `ens3` and
-  `ens4` are known to Linux, you put the following stanza into the node's
-  NodeConfig:
+
+##### Global configuration:
+Global configuration is used in homogeneous environments where all nodes in
+a given cluster have the same hardware configuration. If you want use DHCP to configure
+node IPs. Put the following stanza into the [`contiv.conf`](../k8s/contiv-vpp.yaml) deployment file:
+```
+data:
+  contiv.conf: |-
+    ...
+    ipamConfig:
+       nodeInterconnectDHCP: true
+    ...
+```
+
+##### Individual configuration:
+Individual configuration is used in heterogeneous environments where each node
+in a given cluster may be configured differently. The configuration of nodes can
+be defined in two ways:
+
+- **contiv deployment file** This approach expects configuration for all cluster nodes
+to be part of contiv deployment yaml file. Put the following stanza for each node into
+the [`contiv.conf`][1] deployment file, for example:
 ```
 ...
     NodeConfig:
-    - NodeName: "ubuntu-1"
-      StealInterface: "ens3"
-      StealInterface: "ens4"
+    - nodeName: "k8s-master"
+      mainVPPInterface:
+        interfaceName: "GigabitEthernet0/8/0"
+        ip: "192.168.16.1/24"
+      gateway: "192.168.16.100"
+    - nodeName: "k8s-worker1"
+      mainVPPInterface:
+        interfaceName: "GigabitEthernet0/8/0"
+        ip: "192.168.16.2/24"
+      gateway: "192.168.16.100"
 ...
 ``` 
-  If only `ens3` is known to Linux, you only put a line for `ens3' into the 
-  above NodeConfig.
 
+- **CRD** The node configuration is applied using custom defined k8s resource. The same behavior
+as above can be achieved by the following CRD config. Usage of CRD allows to dynamically add new configuration
+for nodes joining a cluster.
+
+```
+$ cat master.yaml
+
+# Configuration for node in the cluster
+apiVersion: nodeconfig.contiv.vpp/v1
+kind: NodeConfig
+metadata:
+  name: k8s-master
+spec:
+  mainVPPInterface:
+     interfaceName: "GigabitEthernet0/8/0"
+     ip: "192.168.16.1/24"
+  gateway: "192.168.16.100"
+
+$ cat worker1.yaml
+
+# Configuration for node in the cluster
+apiVersion: nodeconfig.contiv.vpp/v1
+kind: NodeConfig
+metadata:
+  name: k8s-worker1
+spec:
+  mainVPPInterface:
+     interfaceName: "GigabitEthernet0/8/0"
+     ip: "192.168.16.2/24"
+  gateway: "192.168.16.100"
+
+
+kubectl apply -f master.yaml
+kubectl apply -f worker1.yaml
+```
+
+These two ways of configuration are mutually exclusive. You select the one you want to use by
+`crdNodeConfigurationDisabled` option in `contiv.conf`.

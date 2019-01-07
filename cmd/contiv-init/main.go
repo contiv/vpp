@@ -16,39 +16,36 @@ package main
 
 import (
 	"context"
-	"flag"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"github.com/ghodss/yaml"
+	"github.com/namsral/flag"
 	"github.com/nerdtakula/supervisor"
-	"github.com/vishvananda/netlink"
 	"google.golang.org/grpc"
 
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
-	"github.com/ligato/cn-infra/servicelabel"
-
-	"fmt"
-	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
-	"github.com/contiv/vpp/pkg/pci"
-	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/ligato/cn-infra/servicelabel"
+
+	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"github.com/contiv/vpp/pkg/pci"
+	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/controller"
+	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/nodesync/vppnode"
 )
 
 const (
-	defaultContivCfgFile    = "/etc/agent/contiv.yaml"
 	defaultEtcdCfgFile      = "/etc/etcd/etcd.conf"
-	defaultBoltCfgFile      = "/etc/agent/bolt.conf"
+	defaultBoltCfgFile      = "/etc/vpp-agent/bolt.conf"
 	defaultSupervisorSocket = "/run/supervisor.sock"
 	defaultStnServerSocket  = "/var/run/contiv/stn.sock"
 	defaultCNISocketFile    = "/var/run/contiv/cni.sock"
@@ -56,11 +53,12 @@ const (
 	vppProcessName         = "vpp"
 	contivAgentProcessName = "contiv-agent"
 
-	etcdConnectionRetries = 20 // number of retries to connect to ETCD once STN is configured
+	etcdConnectionRetries = 2 // number of retries to connect to ETCD
+
+	vmxnet3PreferredDriver = "vfio-pci" // driver required for vmxnet3 interfaces
 )
 
 var (
-	contivCfgFile    = flag.String("contiv-config", defaultContivCfgFile, "location of the contiv-agent config file")
 	etcdCfgFile      = flag.String("etcd-config", defaultEtcdCfgFile, "location of the ETCD config file")
 	boltCfgFile      = flag.String("bolt-config", defaultBoltCfgFile, "location of the Bolt config file")
 	supervisorSocket = flag.String("supervisor-socket", defaultSupervisorSocket, "management API socket file of the supervisor process")
@@ -142,112 +140,25 @@ func stnGrpcConnect() (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-// parseConfig parses global Contiv config & node config from the file specified as an argument and optionally also from CRD.
-func parseConfig() (config *contiv.Config, nodeConfig *contiv.NodeConfig, err error) {
-	// read config YAML
-	yamlFile, err := ioutil.ReadFile(*contivCfgFile)
-	if err != nil {
-		logger.Errorf("Error by reading config file %s: %v", *contivCfgFile, err)
-		return
-	}
-
-	// unmarshal the YAML
-	config = &contiv.Config{}
-	err = yaml.Unmarshal(yamlFile, config)
-	if err != nil {
-		logger.Errorf("Error by unmarshalling YAML: %v", err)
-		return
-	}
-	config.ApplyDefaults()
-
-	// try to find node config
-	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
-	logger.Debugf("Looking for node '%s' specific config in ETCD/Bolt", nodeName)
-	if nodeConfig = loadNodeConfigFromCRD(nodeName); nodeConfig != nil {
-		// node configuration defined via CRD
-		return
-	}
-
-	// node configuration not defined via CRD => search for node specific config inside
-	// the configuration file
-	logger.Debugf("Looking for node '%s' specific config inside the configuration file", nodeName)
-	nodeConfig = config.GetNodeConfig(nodeName)
-
-	return
+// etcdWithAtomicPut augments ProtoWrapper with atomic Put operation.
+type etcdWithAtomicPut struct {
+	*kvproto.ProtoWrapper
+	conn *etcd.BytesConnectionEtcd
 }
 
-// processSTNConfig looks up for STN configuration in the Contiv config ang node config.
-// In case that STN was requested for this node, returns the interface to be stolen.
-func processSTNConfig(config *contiv.Config, nodeConfig *contiv.NodeConfig) (nicToSteal string, useDHCP bool, err error) {
-
-	// node config: interface name - priority 1
-	if nodeConfig != nil {
-		nicToSteal = nodeConfig.StealInterface
-		if nicToSteal != "" {
-			logger.Debugf("Found interface to be stolen: %s", nicToSteal)
-			if nodeConfig.MainVPPInterface.UseDHCP == true {
-				useDHCP = true
-			}
-		}
-	}
-
-	// global config: interface name - priority 2
-	if nicToSteal == "" && config.StealInterface != "" {
-		nicToSteal = config.StealInterface
-		logger.Debugf("Found interface to be stolen: %s", nicToSteal)
-	}
-
-	// global config - first interface - priority 3
-	if nicToSteal == "" && config.StealFirstNIC {
-		// the first NIC will be stolen
-		nicToSteal = getFirstInterfaceName()
-		if nicToSteal != "" {
-			logger.Infof("No specific NIC to steal specified, stealing the first one: %s", nicToSteal)
-		}
-	}
-
-	useDHCP = useDHCP || config.IPAMConfig.NodeInterconnectDHCP
-	return
+// PutIfNotExists implements the atomic Put operation.
+func (etcd *etcdWithAtomicPut) PutIfNotExists(key string, value []byte) (succeeded bool, err error) {
+	return etcd.conn.PutIfNotExists(key, value)
 }
 
-// loadNodeConfigFromCRD loads node configuration defined via CRD, which was reflected
-// into a remote kv-store by contiv-crd and possibly mirrored into local kv-store by contiv-agent.
-func loadNodeConfigFromCRD(nodeName string) (nodeConfig *contiv.NodeConfig) {
-	// try to connect to ETCD db
-	etcdDB, err := etcdConnect()
-	if err == nil {
-		defer etcdDB.Close()
-	}
-	// try to open local Bolt db
-	boltDB, err := boltOpen()
-	if err == nil {
-		defer boltDB.Close()
-	}
-	return contiv.LoadNodeConfigFromCRD(nodeName, etcdDB, boltDB, logger)
-}
-
-// getFirstInterfaceName returns the name of the first non-virtual Linux interface
-func getFirstInterfaceName() string {
-	// list existing links
-	links, err := netlink.LinkList()
-	if err != nil {
-		logger.Error("Unable to list links:", err)
-		return ""
-	}
-
-	// find link to steal
-	for _, l := range links {
-		if !strings.HasPrefix(l.Attrs().Name, "lo") &&
-			!strings.HasPrefix(l.Attrs().Name, "vir") &&
-			!strings.HasPrefix(l.Attrs().Name, "docker") {
-			return l.Attrs().Name
-		}
-	}
-	return ""
+// OnConnect immediately calls the callback - etcdConnect() returns etcd client
+// in the connected state (or as nil).
+func (etcd *etcdWithAtomicPut) OnConnect(callback func() error) {
+	callback()
 }
 
 // etcdConnect connects to ETCD db.
-func etcdConnect() (protoDb *kvproto.ProtoWrapper, err error) {
+func etcdConnect() (etcdConn nodesync.ClusterWideDB, err error) {
 	etcdConfig := &etcd.Config{}
 
 	// parse ETCD config file
@@ -280,8 +191,12 @@ func etcdConnect() (protoDb *kvproto.ProtoWrapper, err error) {
 		}
 	}
 
-	protoDb = kvproto.NewProtoWrapper(conn, &keyval.SerializerJSON{})
-	return protoDb, nil
+	protoDb := kvproto.NewProtoWrapper(conn, &keyval.SerializerJSON{})
+	etcdConn = &etcdWithAtomicPut{
+		ProtoWrapper: protoDb,
+		conn:         conn,
+	}
+	return etcdConn, nil
 }
 
 // boltOpen opens local Bolt db.
@@ -306,60 +221,142 @@ func boltOpen() (protoDb *kvproto.ProtoWrapper, err error) {
 	return protoDb, nil
 }
 
-// deriveVmxnet3PCI derives PCI address string from the vmxnet3 interface name
-func deriveVmxnet3PCI(ifName string) (string, error) {
-	var function, slot, bus, domain uint32
-	numLen, err := fmt.Sscanf(ifName, "vmxnet3-%x/%x/%x/%x", &domain, &bus, &slot, &function)
+// prepareForLocalResync re-synchronizes Bolt against Etcd for STN case,
+// so that when agent starts without connectivity, it will execute local resync
+// against relatively up-to-date data that contains at least node ID.
+// Steps:
+//   1. if etcd is available, allocate/retrieve node ID from there
+//   2. if etcd is available, resync bolt against etcd
+//   3. check that node ID is in bolt
+func prepareForLocalResync(nodeName string, boltDB contivconf.KVBrokerFactory, etcdDB nodesync.ClusterWideDB) error {
+	var err error
+
+	// if etcd is available, allocate/retrieve ID from there
+	if etcdDB != nil {
+		// try to obtain snapshot of Kubernetes state data
+		resyncEv, _, err := controller.LoadKubeStateForResync(etcdDB.NewBroker(""), logger)
+		if err != nil {
+			return err
+		}
+
+		// allocate or retrieve ID from etcd
+		nodeSync := nodesync.NewPlugin()
+		nodeSync.DB = etcdDB
+		nodeSync.Init()
+		kubeState := resyncEv.KubeState
+		err = nodeSync.Resync(resyncEv, kubeState, 1, nil)
+		if err == nil {
+			// update kube state to handle newly allocated ID
+			nodeID := nodeSync.GetNodeID()
+			if _, hadID := kubeState[vppnode.Keyword][vppnode.Key(nodeID)]; !hadID {
+				kubeState[vppnode.Keyword][vppnode.Key(nodeID)] = &vppnode.VppNode{
+					Id:   nodeID,
+					Name: nodeName,
+				}
+			}
+		}
+
+		// resync bolt against etcd
+		err = controller.ResyncDatabase(boltDB.NewBroker(""), kubeState)
+		if err != nil {
+			return err
+		}
+	}
+
+	// check that node ID is in bolt
+	resyncEv, _, err := controller.LoadKubeStateForResync(boltDB.NewBroker(""), logger)
 	if err != nil {
-		err = fmt.Errorf("cannot parse PCI address from the vmxnet3 interface name %s: %v", ifName, err)
-		return "", err
+		return err
 	}
-	if numLen != 4 {
-		err = fmt.Errorf("cannot parse PCI address from the interface name %s: expected 4 address elements, received %d",
-			ifName, numLen)
-		return "", err
-	}
-	return fmt.Sprintf("%04x:%02x:%02x.%0x", domain, bus, slot, function), nil
+	nodeSync := nodesync.NewPlugin()
+	nodeSync.DB = nil
+	nodeSync.Init()
+	err = nodeSync.Resync(resyncEv, resyncEv.KubeState, 1, nil)
+	return err
 }
 
 func main() {
-	flag.Parse()
 	logger.Debugf("Starting contiv-init process")
 
-	contivCfg, nodeCfg, err := parseConfig()
+	// init and parse flags
+	contivConf := contivconf.NewPlugin()
+	config.DefineFlagsFor(contivConf.String())
+	flag.Parse()
+
+	// get microservice label
+	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
+	servicelabel.DefaultPlugin.MicroserviceLabel = nodeName
+
+	// try to connect to ETCD db
+	etcdDB, err := etcdConnect()
+	if err == nil {
+		defer etcdDB.Close()
+	}
+
+	// try to open local Bolt db
+	boltDB, err := boltOpen()
 	if err != nil {
-		logger.Errorf("Error by parsing config: %v", err)
+		logger.Errorf("Failed to open Bolt DB: %v", err)
+		os.Exit(-1)
+	}
+	defer func() {
+		if boltDB != nil {
+			// if Bolt DB was not closed properly (exiting with error), close it now
+			boltDB.Close()
+		}
+	}()
+
+	// use ContivConf plugin to load the configuration
+	contivConf.ContivInitDeps = &contivconf.ContivInitDeps{
+		LocalDB:  boltDB,
+		RemoteDB: etcdDB,
+	}
+	err = contivConf.Init()
+	if err != nil {
+		logger.Errorf("Failed to initialize ContivConf plugin: %v", err)
 		os.Exit(-1)
 	}
 
 	// check whether STN is required and get NIC name
-	nicToSteal, useDHCP, err := processSTNConfig(contivCfg, nodeCfg)
-	if err != nil {
-		logger.Errorf("Error by processing STN config: %v", err)
-		os.Exit(-1)
+	var nicToSteal string
+	if contivConf.InSTNMode() {
+		nicToSteal = contivConf.GetSTNConfig().StealInterface
 	}
+	useDHCP := contivConf.UseDHCP()
 
 	var stnData *stn.STNReply
 	if nicToSteal != "" {
+		// prepare for local resync
+		err := prepareForLocalResync(nodeName, boltDB, etcdDB)
+		if err != nil {
+			logger.Errorf("Failed to prepare for local resync: %v", err)
+			os.Exit(-1)
+		}
 		// steal the NIC
 		stnData, err = stealNIC(nicToSteal, useDHCP)
 		if err != nil {
 			logger.Warnf("Error by stealing the NIC %s: %v", nicToSteal, err)
-			// do not fail of STN was not successful
+			// do not fail if STN was not successful
 			nicToSteal = ""
+		}
+		// Check if the STN Daemon has been initialized
+		if stnData == nil {
+			logger.Errorf("STN configured in vswitch, but STN Daemon not initialized")
+			os.Exit(-1)
 		}
 	} else {
 		logger.Debug("STN not requested")
 	}
 
-	// check if explicit bind to vfio-pci driver is needed (required for vmxnet3 interfaces)
-	if nodeCfg != nil && strings.HasPrefix(nodeCfg.MainVPPInterface.InterfaceName, "vmxnet3-") {
-		pciAddr, err := deriveVmxnet3PCI(nodeCfg.MainVPPInterface.InterfaceName)
+	// check whether vmxnet3 interface bind is required
+	if !contivConf.InSTNMode() && contivConf.UseVmxnet3() {
+
+		vmxnet3Cfg, err := contivConf.GetVmxnet3Config()
 		if err != nil {
-			logger.Errorf("Error by deriving PCI address: %v", err)
+			logger.Errorf("Error by getting vmxnet3 config: %v", err)
 			os.Exit(-1)
 		}
-		err = pci.DriverBind(pciAddr, "vfio-pci")
+		err = pci.DriverBind(vmxnet3Cfg.MainInterfacePCIAddress, vmxnet3PreferredDriver)
 		if err != nil {
 			logger.Errorf("Error binding to vfio-pci: %v", err)
 			os.Exit(-1)
@@ -377,32 +374,11 @@ func main() {
 		os.Exit(-1)
 	}
 
-	if nicToSteal != "" {
-		// Check if the STN Daemon has been initialized
-		if stnData == nil {
-			logger.Errorf("STN configured in vswitch, but STN Daemon not initialized")
-			os.Exit(-1)
-		}
-
-		// configure connectivity on VPP
-		vppCfg, err := configureVpp(contivCfg, stnData, useDHCP)
-		if err != nil {
-			logger.Errorf("Error by configuring VPP: %v", err)
-			client.StopProcess(vppProcessName, false)
-			os.Exit(-1)
-		}
-
-		// persist VPP config in ETCD
-		err = persistVppConfig(contivCfg, stnData, vppCfg, useDHCP)
-		if err != nil {
-			logger.Errorf("Error by persisting VPP config in ETCD: %v", err)
-			client.StopProcess(vppProcessName, false)
-			os.Exit(-1)
-		}
-	}
-
 	// start contiv-agent
 	logger.Debugf("Starting contiv-agent")
+	// release bolt DB before starting the Contiv agent
+	boltDB.Close()
+	boltDB = nil
 	// remove CNI server socket file
 	// TODO: this should be done automatically by CNI-infra before socket bind, remove once implemented
 	os.Remove(defaultCNISocketFile)

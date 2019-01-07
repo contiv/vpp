@@ -17,17 +17,30 @@
 package cmdimpl
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/contiv/vpp/plugins/contiv/model/node"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/gogo/protobuf/jsonpb"
+
+	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"github.com/ligato/cn-infra/servicelabel"
+
+	"github.com/contiv/vpp/plugins/ksr"
+	"github.com/contiv/vpp/plugins/ksr/model/node"
+	"github.com/contiv/vpp/plugins/nodesync/vppnode"
 )
 
-type clusterNodeInfo map[string]*node.NodeInfo
+type clusterNodeInfo map[string]*oneNodeInfo
+
+type oneNodeInfo struct {
+	id            uint32
+	name          string
+	mgmtIPAddress string
+	vppIPAddress  string
+}
 
 var (
 	nodeInfo clusterNodeInfo
@@ -37,24 +50,65 @@ var (
 func getClusterNodeInfo(db *etcd.BytesConnectionEtcd) clusterNodeInfo {
 	if len(nodeInfo) == 0 {
 		nodeInfo = make(clusterNodeInfo, 0)
-		itr, err := db.ListValues(nodeInfoDataKey)
+		ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
+
+		// read Name, ID and VPP IP address
+		itr, err := db.ListValues(ksrPrefix + vppnode.KeyPrefix)
 		if err != nil {
 			fmt.Println("Failed to discover nodes in Contiv cluster")
 			os.Exit(-1)
 		}
-
 		for {
 			kv, stop := itr.GetNext()
 			if stop {
 				break
 			}
 			buf := kv.GetValue()
-			ni := &node.NodeInfo{}
-			if err = json.Unmarshal(buf, ni); err != nil {
+			vn := &vppnode.VppNode{}
+			if err = jsonpb.UnmarshalString(string(buf), vn); err != nil {
 				fmt.Printf("failed to decode node info for node %s, error %s\n", kv.GetKey(), err)
 				continue
 			}
-			nodeInfo[ni.Name] = ni
+			entry := &oneNodeInfo{
+				id:   vn.Id,
+				name: vn.Name,
+			}
+			vppIPs := append(vn.IpAddresses, vn.IpAddress)
+			if len(vppIPs) > 0 {
+				entry.vppIPAddress = vppIPs[0]
+			}
+			nodeInfo[vn.Name] = entry
+
+		}
+
+		// read management IP addresses
+		itr, err = db.ListValues(ksrPrefix + node.KeyPrefix())
+		if err != nil {
+			fmt.Println("Failed to read management IP addresses of nodes in Contiv cluster")
+			os.Exit(-1)
+		}
+		for {
+			kv, stop := itr.GetNext()
+			if stop {
+				break
+			}
+			buf := kv.GetValue()
+			ni := &node.Node{}
+			if err = jsonpb.UnmarshalString(string(buf), ni); err != nil {
+				fmt.Printf("failed to decode k8s data for node %s, error %s\n", kv.GetKey(), err)
+				continue
+			}
+			if entry, hasEntry := nodeInfo[ni.Name]; hasEntry {
+				var mgmtAddr string
+				for _, address := range ni.Addresses {
+					if address.Type == node.NodeAddress_NodeInternalIP ||
+						address.Type == node.NodeAddress_NodeExternalIP {
+						mgmtAddr = address.Address
+						break
+					}
+				}
+				entry.mgmtIPAddress = mgmtAddr
+			}
 		}
 	}
 
@@ -70,7 +124,7 @@ func resolveNodeOrIP(db *etcd.BytesConnectionEtcd, nodeName string) (ipAdr strin
 
 	for k, v := range getClusterNodeInfo(db) {
 		if k == nodeName {
-			return v.ManagementIpAddress
+			return v.mgmtIPAddress
 		}
 	}
 
@@ -118,4 +172,12 @@ func getIPAddressAndMask(ip string) (uint32, uint32, error) {
 	mask := maskLength2Mask(maskLen)
 
 	return address, mask, nil
+}
+
+func vppDumpCommand(descriptor string) string {
+	url := kvschedulerDumpCmd
+	if descriptor != "" {
+		url += "?state=SB&descriptor=" + descriptor
+	}
+	return url
 }

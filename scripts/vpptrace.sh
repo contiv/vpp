@@ -174,7 +174,7 @@ function trace {
 
         IDX=0
         while true; do
-            TRACE=`vppctl show trace max "$TRACE_BUF_SIZE"`
+            TRACE=`vppctl show trace max "$TRACE_BUF_SIZE" | tr -d '\0'`
             STATE=0
             PACKET=""
             PACKETIDX=0

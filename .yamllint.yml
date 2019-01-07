@@ -1,0 +1,11 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 150
+
+ignore: |
+  k8s/contiv-vpp/templates/vpp.yaml
+  tests/
+  vendor/

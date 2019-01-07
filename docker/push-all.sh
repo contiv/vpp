@@ -75,7 +75,7 @@ while [ "$1" != "" ]; do
 done
 
 BRANCH_TAG="${BRANCH_NAME}"
-BRANCH_ADV_TAG="${BRANCH_TAG}"
+BRANCH_ADV_TAG="${BRANCH_TAG}-"
 if [ "${BRANCH_NAME}" == "master" ]; then
   BRANCH_TAG="latest"
   BRANCH_ADV_TAG=""
@@ -96,7 +96,7 @@ echo "exported VPP=$VPP"
 # tag and push each image
 for IMAGE in "${IMAGES_VPP[@]}"
 do
-	if [ "${DEV_UPLOAD}" != "true" ] && [ "$IMAGE" == dev* ]; then
+	if [ "${DEV_UPLOAD}" != "true" ] && [ "$IMAGE" == contivvpp/dev* ]; then
 		continue
 	fi
 

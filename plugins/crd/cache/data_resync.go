@@ -17,9 +17,9 @@ package cache
 import (
 	"github.com/ligato/cn-infra/datasync"
 
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	vppnodemodel "github.com/contiv/vpp/plugins/nodesync/vppnode"
 
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/api"
@@ -55,8 +55,8 @@ func (ctc *ContivTelemetryCache) resync(resyncEv datasync.ResyncEvent) error {
 
 			key := evData.GetKey()
 			switch resyncKey {
-			case nodeinfomodel.AllocatedIDsKeyPrefix:
-				err = ctc.parseAndCacheNodeInfoData(key, evData)
+			case vppnodemodel.KeyPrefix:
+				err = ctc.parseAndCacheVppNodeData(key, evData)
 
 			case podmodel.KeyPrefix():
 				err = ctc.parseAndCachePodData(key, evData)
@@ -84,32 +84,32 @@ func (ctc *ContivTelemetryCache) resync(resyncEv datasync.ResyncEvent) error {
 	return nil
 }
 
-func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData datasync.KeyVal) error {
-	pattern := fmt.Sprintf("%s[0-9]*$", nodeinfomodel.AllocatedIDsKeyPrefix)
+func (ctc *ContivTelemetryCache) parseAndCacheVppNodeData(key string, evData datasync.KeyVal) error {
+	pattern := fmt.Sprintf("%s[0-9]*$", vppnodemodel.KeyPrefix)
 	matched, err := regexp.Match(pattern, []byte(key))
 	if !matched || err != nil {
 		return fmt.Errorf("invalid key %s", key)
 	}
 
-	nodeInfoValue := &nodeinfomodel.NodeInfo{}
-	err = evData.GetValue(nodeInfoValue)
+	vppNodeValue := &vppnodemodel.VppNode{}
+	err = evData.GetValue(vppNodeValue)
 	if err != nil {
 		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
 	}
 
-	ctc.Log.Infof("parseAndCacheNodeInfoData: node %s, id: %d", nodeInfoValue.Name, nodeInfoValue.Id)
+	ctc.Log.Infof("parseAndCacheVppNodeData: node %s, id: %d", vppNodeValue.Name, vppNodeValue.Id)
 
 	id, _ := strconv.Atoi(strings.Split(key, "/")[1])
-	if nodeInfoValue.Id != uint32(id) {
-		return fmt.Errorf("invalid key '%s' or node id '%d'", key, nodeInfoValue.Id)
+	if vppNodeValue.Id != uint32(id) {
+		return fmt.Errorf("invalid key '%s' or node id '%d'", key, vppNodeValue.Id)
 	}
 
-	if nodeInfoValue.Id == 0 || nodeInfoValue.Name == "" || nodeInfoValue.IpAddress == "" {
-		return fmt.Errorf("invalid nodeInfo data: '%+v'", nodeInfoValue)
+	if vppNodeValue.Id == 0 || vppNodeValue.Name == "" || len(vppNodeValue.IpAddresses) == 0 {
+		return fmt.Errorf("invalid nodeInfo data: '%+v'", vppNodeValue)
 	}
 
-	err = ctc.VppCache.CreateNode(nodeInfoValue.Id, nodeInfoValue.Name,
-		nodeInfoValue.IpAddress, nodeInfoValue.ManagementIpAddress)
+	err = ctc.VppCache.CreateNode(vppNodeValue.Id, vppNodeValue.Name,
+		vppNodeValue.IpAddresses[0])
 	if err != nil {
 		return fmt.Errorf("failed to add vpp node, error: '%s'", err)
 	}

@@ -15,37 +15,47 @@
 package main
 
 import (
-	"github.com/contiv/vpp/plugins/contiv"
-	"github.com/contiv/vpp/plugins/ksr"
-	"github.com/contiv/vpp/plugins/kvdbproxy"
-	"github.com/contiv/vpp/plugins/policy"
-	"github.com/contiv/vpp/plugins/service"
-	"github.com/contiv/vpp/plugins/statscollector"
+	"os"
+	"time"
+
 	"github.com/ligato/cn-infra/agent"
 	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync/local"
-	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/health/probe"
 	"github.com/ligato/cn-infra/health/statuscheck"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logmanager"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/rpc/rest"
-	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
+
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	"github.com/ligato/vpp-agent/plugins/linux"
-	vpp_rest "github.com/ligato/vpp-agent/plugins/rest"
+	"github.com/ligato/vpp-agent/plugins/kvscheduler"
+	linux_ifplugin "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin"
+	linux_l3plugin "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin"
+	linux_nsplugin "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin"
+	rest_plugin "github.com/ligato/vpp-agent/plugins/restv2"
 	"github.com/ligato/vpp-agent/plugins/telemetry"
-	"github.com/ligato/vpp-agent/plugins/vpp"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/acl"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
-	"os"
-	"sync"
-	"time"
+	vpp_aclplugin "github.com/ligato/vpp-agent/plugins/vppv2/aclplugin"
+	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
+	vpp_l2plugin "github.com/ligato/vpp-agent/plugins/vppv2/l2plugin"
+	vpp_l3plugin "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin"
+	vpp_natplugin "github.com/ligato/vpp-agent/plugins/vppv2/natplugin"
+	vpp_puntplugin "github.com/ligato/vpp-agent/plugins/vppv2/puntplugin"
+
+	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/controller"
+	controller_api "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipam"
+	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/contiv/vpp/plugins/policy"
+	"github.com/contiv/vpp/plugins/service"
+	"github.com/contiv/vpp/plugins/statscollector"
 )
 
 const defaultStartupTimeout = 45 * time.Second
@@ -57,24 +67,31 @@ type ContivAgent struct {
 	HealthProbe *probe.Plugin
 	Prometheus  *prometheus.Plugin
 
-	ETCDDataSync    *kvdbsync.Plugin
-	NodeIDDataSync  *kvdbsync.Plugin
-	ServiceDataSync *kvdbsync.Plugin
-	PolicyDataSync  *kvdbsync.Plugin
+	KVScheduler *kvscheduler.Scheduler
+	Stats       *statscollector.Plugin
 
-	KVProxy *kvdbproxy.Plugin
-	Stats   *statscollector.Plugin
+	GoVPP         *govppmux.Plugin
+	LinuxIfPlugin *linux_ifplugin.IfPlugin
+	LinuxL3Plugin *linux_l3plugin.L3Plugin
+	VPPIfPlugin   *vpp_ifplugin.IfPlugin
+	VPPL2Plugin   *vpp_l2plugin.L2Plugin
+	VPPL3Plugin   *vpp_l3plugin.L3Plugin
+	VPPNATPlugin  *vpp_natplugin.NATPlugin
+	VPPACLPlugin  *vpp_aclplugin.ACLPlugin
+	VPPPuntPlugin *vpp_puntplugin.PuntPlugin
 
-	LinuxLocalClient *localclient.Plugin
-	GoVPP            *govppmux.Plugin
-	VPP              *vpp.Plugin
-	Linux            *linux.Plugin
-	VPPrest          *vpp_rest.Plugin
-	Telemetry        *telemetry.Plugin
-	GRPC             *grpc.Plugin
-	Contiv           *contiv.Plugin
-	Policy           *policy.Plugin
-	Service          *service.Plugin
+	Telemetry *telemetry.Plugin
+	GRPC      *grpc.Plugin
+	REST      *rest_plugin.Plugin
+
+	Controller *controller.Controller
+	ContivConf *contivconf.ContivConf
+	NodeSync   *nodesync.NodeSync
+	PodManager *podmanager.PodManager
+	IPAM       *ipam.IPAM
+	IPv4Net    *ipv4net.IPv4Net
+	Policy     *policy.Plugin
+	Service    *service.Plugin
 }
 
 func (c *ContivAgent) String() string {
@@ -86,119 +103,122 @@ func (c *ContivAgent) Init() error {
 	return nil
 }
 
-// AfterInit triggers the first resync.
-func (c *ContivAgent) AfterInit() error {
-	resync.DefaultPlugin.DoResync()
-	return nil
-}
-
 // Close is called in agent's cleanup phase. Method added in order to implement Plugin interface.
 func (c *ContivAgent) Close() error {
 	return nil
 }
 
 func main() {
-
-	ksrServicelabel := servicelabel.NewPlugin(servicelabel.UseLabel(ksr.MicroserviceLabel))
-	ksrServicelabel.SetName("ksrServiceLabel")
-
-	newKSRprefixSync := func(name string) *kvdbsync.Plugin {
-		return kvdbsync.NewPlugin(
-			kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
-				deps.KvPlugin = &etcd.DefaultPlugin
-				deps.ResyncOrch = &resync.DefaultPlugin
-				deps.ServiceLabel = ksrServicelabel
-				deps.SetName(name)
-			}))
-	}
-
-	etcdDataSync := kvdbsync.NewPlugin(kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
-		deps.KvPlugin = &etcd.DefaultPlugin
-		deps.ResyncOrch = &resync.DefaultPlugin
-	}))
-
-	nodeIDDataSync := newKSRprefixSync("nodeIdDataSync")
-	serviceDataSync := newKSRprefixSync("serviceDataSync")
-	policyDataSync := newKSRprefixSync("policyDataSync")
-
-	// disable status check for etcd
+	// disable status check for etcd - Controller monitors the etcd status now
 	etcd.DefaultPlugin.StatusCheck = nil
 
-	watcher := &datasync.KVProtoWatchers{&kvdbproxy.DefaultPlugin, local.Get()}
+	// set sources for VPP configuration
+	watcher := &datasync.KVProtoWatchers{local.Get()}
+	kvscheduler.DefaultPlugin.Watcher = watcher // not really used at the moment
 
-	var watchEventsMutex sync.Mutex
-
-	vppPlugin := vpp.NewPlugin(
-		vpp.UseDeps(func(deps *vpp.Deps) {
-			deps.GoVppmux = &govppmux.DefaultPlugin
-			deps.Watcher = watcher
-			deps.WatchEventsMutex = &watchEventsMutex
-		}),
-	)
-
-	linuxPlugin := linux.NewPlugin(
-		linux.UseDeps(func(deps *linux.Deps) {
-			deps.VPP = vppPlugin
-			deps.Watcher = watcher
-			deps.WatchEventsMutex = &watchEventsMutex
-		}),
-	)
-
-	vppPlugin.Linux = linuxPlugin
-	vppPlugin.DisableResync(acl.Prefix, nat.GlobalPrefix, nat.DNatPrefix)
-
-	vppRest := vpp_rest.NewPlugin(vpp_rest.UseDeps(func(deps *vpp_rest.Deps) {
-		deps.GoVppmux = &govppmux.DefaultPlugin
-		deps.VPP = vppPlugin
-		deps.Linux = linuxPlugin
-		deps.HTTPHandlers = &rest.DefaultPlugin
-	}))
+	// initialize vpp-agent plugins
+	linux_ifplugin.DefaultPlugin.VppIfPlugin = &vpp_ifplugin.DefaultPlugin
+	vpp_ifplugin.DefaultPlugin.LinuxIfPlugin = &linux_ifplugin.DefaultPlugin
+	vpp_ifplugin.DefaultPlugin.PublishStatistics = &statscollector.DefaultPlugin
+	vpp_aclplugin.DefaultPlugin.IfPlugin = &vpp_ifplugin.DefaultPlugin
+	linux_nsplugin.DefaultPlugin.Log.SetLevel(logging.InfoLevel)
 
 	// we don't want to publish status to etcd
 	statuscheck.DefaultPlugin.Transport = nil
 
-	kvdbproxy.DefaultPlugin.KVDB = etcdDataSync
+	// initialize GRPC
 	grpc.DefaultPlugin.HTTP = &rest.DefaultPlugin
 
-	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
-		deps.VPP = vppPlugin
-		deps.Watcher = nodeIDDataSync
+	// initialize Contiv plugins
+	contivConf := contivconf.NewPlugin(contivconf.UseDeps(func(deps *contivconf.Deps) {
+		deps.GoVPP = &govppmux.DefaultPlugin
 	}))
 
-	statscollector.DefaultPlugin.Contiv = contivPlugin
-	vppPlugin.PublishStatistics = &statscollector.DefaultPlugin
+	nodeSyncPlugin := &nodesync.DefaultPlugin
+
+	podManager := &podmanager.DefaultPlugin
+
+	ipamPlugin := ipam.NewPlugin(ipam.UseDeps(func(deps *ipam.Deps) {
+		deps.ContivConf = contivConf
+		deps.NodeSync = nodeSyncPlugin
+	}))
+
+	ipv4NetPlugin := ipv4net.NewPlugin(ipv4net.UseDeps(func(deps *ipv4net.Deps) {
+		deps.GoVPP = &govppmux.DefaultPlugin
+		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
+		deps.ContivConf = contivConf
+		deps.IPAM = ipamPlugin
+		deps.NodeSync = nodeSyncPlugin
+		deps.PodManager = podManager
+	}))
+
+	statsCollector := &statscollector.DefaultPlugin
+	statsCollector.IPv4Net = ipv4NetPlugin
 
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
-		deps.Watcher = policyDataSync
-		deps.Contiv = contivPlugin
-		deps.VPP = vppPlugin
+		deps.ContivConf = contivConf
+		deps.IPAM = ipamPlugin
+		deps.IPv4Net = ipv4NetPlugin
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
-		deps.Watcher = serviceDataSync
-		deps.Contiv = contivPlugin
-		deps.VPP = vppPlugin
+		deps.ContivConf = contivConf
+		deps.IPAM = ipamPlugin
+		deps.IPv4Net = ipv4NetPlugin
+		deps.NodeSync = nodeSyncPlugin
+		deps.PodManager = podManager
 	}))
 
+	controller := controller.NewPlugin(controller.UseDeps(func(deps *controller.Deps) {
+		deps.LocalDB = &bolt.DefaultPlugin
+		deps.RemoteDB = &etcd.DefaultPlugin
+		deps.EventHandlers = []controller_api.EventHandler{
+			contivConf,
+			nodeSyncPlugin,
+			podManager,
+			ipamPlugin,
+			ipv4NetPlugin,
+			servicePlugin,
+			policyPlugin,
+			statsCollector,
+		}
+	}))
+
+	contivConf.ContivAgentDeps = &contivconf.ContivAgentDeps{
+		EventLoop: controller,
+	}
+	nodeSyncPlugin.EventLoop = controller
+	podManager.EventLoop = controller
+	ipv4NetPlugin.EventLoop = controller
+
+	// initialize the agent
 	contivAgent := &ContivAgent{
-		LogManager:      &logmanager.DefaultPlugin,
-		HTTP:            &rest.DefaultPlugin,
-		HealthProbe:     &probe.DefaultPlugin,
-		Prometheus:      &prometheus.DefaultPlugin,
-		ETCDDataSync:    etcdDataSync,
-		NodeIDDataSync:  nodeIDDataSync,
-		ServiceDataSync: serviceDataSync,
-		PolicyDataSync:  policyDataSync,
-		GoVPP:           &govppmux.DefaultPlugin,
-		VPP:             vppPlugin,
-		VPPrest:         vppRest,
-		Telemetry:       &telemetry.DefaultPlugin,
-		Linux:           linuxPlugin,
-		KVProxy:         &kvdbproxy.DefaultPlugin,
-		Contiv:          contivPlugin,
-		Stats:           &statscollector.DefaultPlugin,
-		Policy:          policyPlugin,
-		Service:         servicePlugin,
+		LogManager:    &logmanager.DefaultPlugin,
+		HTTP:          &rest.DefaultPlugin,
+		HealthProbe:   &probe.DefaultPlugin,
+		Prometheus:    &prometheus.DefaultPlugin,
+		KVScheduler:   &kvscheduler.DefaultPlugin,
+		Stats:         statsCollector,
+		GoVPP:         &govppmux.DefaultPlugin,
+		LinuxIfPlugin: &linux_ifplugin.DefaultPlugin,
+		LinuxL3Plugin: &linux_l3plugin.DefaultPlugin,
+		VPPIfPlugin:   &vpp_ifplugin.DefaultPlugin,
+		VPPL2Plugin:   &vpp_l2plugin.DefaultPlugin,
+		VPPL3Plugin:   &vpp_l3plugin.DefaultPlugin,
+		VPPNATPlugin:  &vpp_natplugin.DefaultPlugin,
+		VPPACLPlugin:  &vpp_aclplugin.DefaultPlugin,
+		VPPPuntPlugin: &vpp_puntplugin.DefaultPlugin,
+		Telemetry:     &telemetry.DefaultPlugin,
+		GRPC:          &grpc.DefaultPlugin,
+		REST:          &rest_plugin.DefaultPlugin,
+		Controller:    controller,
+		ContivConf:    contivConf,
+		NodeSync:      nodeSyncPlugin,
+		PodManager:    podManager,
+		IPAM:          ipamPlugin,
+		IPv4Net:       ipv4NetPlugin,
+		Policy:        policyPlugin,
+		Service:       servicePlugin,
 	}
 
 	a := agent.NewAgent(agent.AllPlugins(contivAgent), agent.StartTimeout(getStartupTimeout()))

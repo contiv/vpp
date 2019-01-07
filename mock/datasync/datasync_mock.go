@@ -15,15 +15,20 @@
 package datasync
 
 import (
+	"strings"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
-	"strings"
+
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/dbresources"
 )
 
 // MockDataSync can be used to generate datasync events from provided data.
 type MockDataSync struct {
-	data     map[string]*ProtoData
-	anyError error
+	resyncCount int
+	data        map[string]*ProtoData
+	anyError    error
 }
 
 // ProtoData is used to store proto message with revision.
@@ -41,7 +46,12 @@ type MockKeyVal struct {
 
 // MockChangeEvent implements ChangeEvent interface.
 type MockChangeEvent struct {
-	mds       *MockDataSync
+	mds *MockDataSync
+	wr  *MockProtoWatchResp
+}
+
+// MockProtoWatchResp implements ProtoWatchResp interface.
+type MockProtoWatchResp struct {
 	eventType datasync.Op
 	MockKeyVal
 	prevVal proto.Message
@@ -70,15 +80,37 @@ func NewMockDataSync() *MockDataSync {
 	}
 }
 
+// RestartResyncCount is called after simulated restart to reset the resync counter
+// (next resync will be startup).
+func (mds *MockDataSync) RestartResyncCount() {
+	mds.resyncCount = 0
+}
+
 // Put allows to put a new value under the given key and to get the corresponding
 // data change event.
 func (mds *MockDataSync) Put(key string, value proto.Message) datasync.ChangeEvent {
-	var prevValue proto.Message
+	newVal, prevVal, rev := mds.put(key, value)
+	return &MockChangeEvent{
+		mds: mds,
+		wr: &MockProtoWatchResp{
+			eventType: datasync.Put,
+			MockKeyVal: MockKeyVal{
+				key: key,
+				val: newVal,
+				rev: rev,
+			},
+			prevVal: prevVal,
+		},
+	}
+}
+
+// put is internal implementation of the Put operation
+func (mds *MockDataSync) put(key string, value proto.Message) (newVal, prevVal proto.Message, rev int64) {
 	if value == nil {
-		return mds.Delete(key)
+		panic("Put nil value")
 	}
 	if _, modify := mds.data[key]; modify {
-		prevValue = mds.data[key].val
+		prevVal = mds.data[key].val
 		mds.data[key].val = value
 		mds.data[key].rev++
 	} else {
@@ -87,41 +119,81 @@ func (mds *MockDataSync) Put(key string, value proto.Message) datasync.ChangeEve
 			rev: 0,
 		}
 	}
-	return &MockChangeEvent{
-		mds:       mds,
-		eventType: datasync.Put,
-		MockKeyVal: MockKeyVal{
-			key: key,
-			val: value,
-			rev: mds.data[key].rev,
-		},
-		prevVal: prevValue,
+	return value, prevVal, mds.data[key].rev
+}
+
+// PutEvent executes Put() and returns the change as KubeStateChange event from Controller.
+func (mds *MockDataSync) PutEvent(key string, value proto.Message) (event *controller.KubeStateChange) {
+	newVal, prevVal, _ := mds.put(key, value)
+
+	return &controller.KubeStateChange{
+		Key:       key,
+		Resource:  mds.getResourceByKey(key),
+		PrevValue: prevVal,
+		NewValue:  newVal,
 	}
+}
+
+// getResourceByKey tries to find resource-keyword for the resource with the given key.
+func (mds *MockDataSync) getResourceByKey(key string) string {
+	for _, resource := range dbresources.GetDBResources() {
+		if strings.HasPrefix(key, resource.KeyPrefix) {
+			return resource.Keyword
+		}
+	}
+	return ""
 }
 
 // Delete allows to remove value under the given key and to get the corresponding
 // data change event.
 func (mds *MockDataSync) Delete(key string) datasync.ChangeEvent {
-	if _, found := mds.data[key]; !found {
+	prevVal, rev := mds.del(key)
+	if prevVal == nil {
 		return nil
 	}
-	mds.data[key].rev++
-	val := mds.data[key].val
-	mds.data[key].val = nil
 	return &MockChangeEvent{
-		mds:       mds,
-		eventType: datasync.Delete,
-		MockKeyVal: MockKeyVal{
-			key: key,
-			rev: mds.data[key].rev,
-			val: val,
+		mds: mds,
+		wr: &MockProtoWatchResp{
+			eventType: datasync.Delete,
+			MockKeyVal: MockKeyVal{
+				key: key,
+				rev: rev,
+				val: nil,
+			},
+			prevVal: prevVal,
 		},
+	}
+}
+
+// del is internal implementation of the Delete operation
+func (mds *MockDataSync) del(key string) (prevVal proto.Message, rev int64) {
+	if _, found := mds.data[key]; !found {
+		return nil, 0
+	}
+	mds.data[key].rev++
+	prevVal = mds.data[key].val
+	mds.data[key].val = nil
+	return prevVal, mds.data[key].rev
+}
+
+// DeleteEvent executes Delete() and returns the change as KubeStateChange event from Controller.
+func (mds *MockDataSync) DeleteEvent(key string) (event *controller.KubeStateChange) {
+	prevVal, _ := mds.del(key)
+	if prevVal == nil {
+		return nil
+	}
+	return &controller.KubeStateChange{
+		Key:       key,
+		Resource:  mds.getResourceByKey(key),
+		PrevValue: prevVal,
+		NewValue:  nil,
 	}
 }
 
 // Resync returns resync event corresponding to a given list of key prefixes
 // and the current state of the mocked data store.
 func (mds *MockDataSync) Resync(keyPrefix ...string) datasync.ResyncEvent {
+	mds.resyncCount++
 	mre := &MockResyncEvent{
 		keyPrefixes: keyPrefix,
 		data:        make(map[string]*ProtoData),
@@ -139,6 +211,21 @@ func (mds *MockDataSync) Resync(keyPrefix ...string) datasync.ResyncEvent {
 	return mre
 }
 
+// ResyncEvent returns the same data as Resync(), but formatted as DBResync event
+// from the controller.
+func (mds *MockDataSync) ResyncEvent(keyPrefix ...string) (event *controller.DBResync, resyncCount int) {
+	mds.resyncCount++
+	event = controller.NewDBResync()
+	for key, data := range mds.data {
+		if data.val == nil {
+			continue
+		}
+		resource := mds.getResourceByKey(key)
+		event.KubeState[resource][key] = data.val
+	}
+	return event, mds.resyncCount
+}
+
 // AnyError returns non-nil if any data change or resync event was processed
 // unsuccessfully.
 func (mds *MockDataSync) AnyError() error {
@@ -149,6 +236,9 @@ func (mds *MockDataSync) AnyError() error {
 
 // GetValue returns the associated value.
 func (mkv *MockKeyVal) GetValue(value proto.Message) error {
+	if mkv.val == nil {
+		return nil
+	}
 	tmp, err := proto.Marshal(mkv.val)
 	if err != nil {
 		return err
@@ -175,17 +265,21 @@ func (mche *MockChangeEvent) Done(err error) {
 	}
 }
 
+func (mche *MockChangeEvent) GetChanges() []datasync.ProtoWatchResp {
+	return []datasync.ProtoWatchResp{mche.wr}
+}
+
 // GetChangeType returns either "Put" or "Delete".
-func (mche *MockChangeEvent) GetChangeType() datasync.Op {
-	return mche.eventType
+func (mpw *MockProtoWatchResp) GetChangeType() datasync.Op {
+	return mpw.eventType
 }
 
 // GetPrevValue returns the previous value.
-func (mche *MockChangeEvent) GetPrevValue(prevValue proto.Message) (prevValueExist bool, err error) {
-	if mche.prevVal == nil {
+func (mpw *MockProtoWatchResp) GetPrevValue(prevValue proto.Message) (prevValueExist bool, err error) {
+	if mpw.prevVal == nil {
 		return false, nil
 	}
-	tmp, err := proto.Marshal(mche.prevVal)
+	tmp, err := proto.Marshal(mpw.prevVal)
 	if err != nil {
 		return true, err
 	}

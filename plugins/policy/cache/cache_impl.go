@@ -1,9 +1,9 @@
 package cache
 
 import (
-	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
@@ -37,33 +37,33 @@ type Deps struct {
 
 // Init initializes policy cache.
 func (pc *PolicyCache) Init() error {
-	pc.configuredPolicies = policyidx.NewConfigIndex(pc.Log, "policies")
-	pc.configuredPods = podidx.NewConfigIndex(pc.Log, "pods")
-	pc.configuredNamespaces = namespaceidx.NewConfigIndex(pc.Log, "namespaces")
+	pc.reset()
 
 	pc.watchers = []PolicyCacheWatcher{}
 	return nil
 }
 
-// Update processes a datasync change event associated with K8s State data.
+// reset resets the cache to empty content.
+func (pc *PolicyCache) reset() {
+	pc.configuredPolicies = policyidx.NewConfigIndex(pc.Log, "policies")
+	pc.configuredPods = podidx.NewConfigIndex(pc.Log, "pods")
+	pc.configuredNamespaces = namespaceidx.NewConfigIndex(pc.Log, "namespaces")
+}
+
+// Update processes a K8s state data change event.
 // The change is applied into the cache and all subscribed watchers are
 // notified.
 // The function will forward any error returned by a watcher.
-func (pc *PolicyCache) Update(dataChngEv datasync.ChangeEvent) error {
-	err := pc.changePropagateEvent(dataChngEv)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (pc *PolicyCache) Update(kubeStateChange *controller.KubeStateChange) error {
+	return pc.changePropagateEvent(kubeStateChange)
 }
 
-// Resync processes a datasync resync event associated with K8s State data.
+// Resync processes a K8s state data resync event.
 // The cache content is full replaced with the received data and all
 // subscribed watchers are notified.
 // The function will forward any error returned by a watcher.
-func (pc *PolicyCache) Resync(resyncEv datasync.ResyncEvent) error {
-	dataResyncEvent := pc.resyncParseEvent(resyncEv)
+func (pc *PolicyCache) Resync(kubeStateData controller.KubeStateData) error {
+	dataResyncEvent := pc.resyncParseEvent(kubeStateData)
 
 	for _, watcher := range pc.watchers {
 		watcher.Resync(dataResyncEvent)

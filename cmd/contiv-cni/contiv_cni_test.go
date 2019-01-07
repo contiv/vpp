@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/containernetworking/cni/pkg/skel"
-	"github.com/contiv/vpp/plugins/contiv/model/cni"
+	"github.com/contiv/vpp/plugins/podmanager/cni"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 

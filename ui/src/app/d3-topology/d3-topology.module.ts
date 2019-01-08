@@ -7,7 +7,6 @@ import { TopologyVizService } from './topology-viz/topology-viz.service';
 import { TopologyHighlightService } from './topology-viz/topology-highlight.service';
 
 import { TopologyVizComponent } from './topology-viz/topology-viz.component';
-import { TopologyComponent } from './topology/topology.component';
 
 @NgModule({
   imports: [
@@ -20,11 +19,9 @@ import { TopologyComponent } from './topology/topology.component';
     TopologyHighlightService
   ],
   declarations: [
-    TopologyComponent,
     TopologyVizComponent
   ],
   exports: [
-    TopologyComponent,
     TopologyVizComponent
   ]
 })

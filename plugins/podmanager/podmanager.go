@@ -89,6 +89,7 @@ var (
 	// PodManager.Add() will act by sending an event to remove the obsolete pod
 	// connectivity.
 	errObsoletePod = fmt.Errorf("obsolete pod configuration detected")
+	errMissingDep  = fmt.Errorf("missing mandatory dependency")
 )
 
 // Init connects to Docker server and also registers the plugin to serve
@@ -103,6 +104,9 @@ func (pm *PodManager) Init() (err error) {
 		return err
 	}
 
+	if pm.GRPC == nil || pm.GRPC.IsDisabled() {
+		return errMissingDep
+	}
 	cni.RegisterRemoteCNIServer(pm.GRPC.GetServer(), pm)
 	return nil
 }

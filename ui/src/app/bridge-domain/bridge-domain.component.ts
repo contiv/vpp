@@ -197,7 +197,7 @@ export class BridgeDomainComponent implements OnInit, OnDestroy {
     }
   }
 
-  private resetTables() {
+  public resetTables() {
     this.showedTables = [false, false, false];
     this.tableType = '';
   }

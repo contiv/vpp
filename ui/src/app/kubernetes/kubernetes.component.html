@@ -33,11 +33,10 @@
                     (nodeDblClicked)="onNodeDblClicked($event)"
                     (bviClicked)="onBviClicked($event)"
                     (linkClicked)="onLinkClicked($event)"
-                    (svgClicked)="onSvgClicked($event)"
+                    (svgClicked)="onSvgClicked()"
                     (transform)="onTransform($event)"
-                    (topologyRendered)="onRender($event)"
-                    (positionsChanged)="onPositionChange($event)"
-                    [ngClass]="{'dragging': isDragging}">
+                    (topologyRendered)="onRender()"
+                    (positionsChanged)="onPositionChange($event)">
   </app-topology-viz>
 
 

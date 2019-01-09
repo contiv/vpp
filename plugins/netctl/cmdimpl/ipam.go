@@ -82,19 +82,18 @@ func nodeIpamCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, w *tab
 		}
 	}
 
-	fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+	fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
 		ipam.NodeID,
 		ipam.NodeName,
 		ipam.NodeIP,
 		bviIP,
 		ipam.PodSubnetThisNode,
 		ipam.VppHostNetwork,
-		ipam.Config.PodVPPSubnetCIDR,
 		ipam.Config.PodSubnetCIDR)
 }
 
 func getTabWriterAndPrintHeader() *tabwriter.Writer {
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
-	fmt.Fprintf(w, "ID\tNODE-NAME\tVPP-IP\tBVI-IP\tPOD-CIDR\tVPP-2-HOST-CIDR\tPOD-VPP-CIDR\tPOD-CLUSTER-CIDR\n")
+	fmt.Fprintf(w, "ID\tNODE-NAME\tVPP-IP\tBVI-IP\tPOD-CIDR\tVPP-2-HOST-CIDR\tPOD-CLUSTER-CIDR\n")
 	return w
 }

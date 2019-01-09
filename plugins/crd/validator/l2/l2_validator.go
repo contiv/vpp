@@ -664,11 +664,11 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 
-		podIfIPAddr, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(vppNode.NodeIPam.Config.PodVPPSubnetCIDR)
+		podIfIPAddr, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(vppNode.NodeIPam.Config.PodSubnetCIDR)
 		if err != nil {
 			errCnt++
 			errString := fmt.Sprintf("pod '%s': invalid IPAM PodVPPSubnetCIDR %s",
-				pod.Name, vppNode.NodeIPam.Config.PodVPPSubnetCIDR)
+				pod.Name, vppNode.NodeIPam.Config.PodSubnetCIDR)
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
 			continue
 		}
@@ -735,7 +735,7 @@ func (v *Validator) ValidatePodInfo() {
 			if k8sMask != podIfIPMask {
 				errCnt++
 				errString := fmt.Sprintf("pod '%s': CIDR mask mismatch: K8s Pod CIDR: %s, Contiv PodVPPSubnetCIDR %s",
-					pod.Name, k8sNode.Pod_CIDR, vppNode.NodeIPam.Config.PodVPPSubnetCIDR)
+					pod.Name, k8sNode.Pod_CIDR, vppNode.NodeIPam.Config.PodSubnetCIDR)
 				v.Report.AppendToNodeReport(k8sNode.Name, errString)
 				continue
 			}
@@ -778,9 +778,9 @@ func (v *Validator) createTapMarkAndSweepDB() map[string]map[uint32]telemetrymod
 			continue
 		}
 
-		podIfIPAddress, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(node.NodeIPam.Config.PodVPPSubnetCIDR)
+		podIfIPAddress, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(node.NodeIPam.Config.PodSubnetCIDR)
 		if err != nil {
-			errString := fmt.Sprintf("invalid PodVPPSubnetCIDR - %s", node.NodeIPam.Config.PodVPPSubnetCIDR)
+			errString := fmt.Sprintf("invalid PodVPPSubnetCIDR - %s", node.NodeIPam.Config.PodSubnetCIDR)
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}

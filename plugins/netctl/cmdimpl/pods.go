@@ -25,15 +25,13 @@ import (
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	vppifdescr "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/remote"
+	vppifdescr "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
 )
 
 type nodeData struct {
@@ -219,31 +217,12 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (string, uint32, st
 		// Do not return - we can still continue if this error happens
 	}
 
-	podIfIPAddress, podIfIPMask, err := getIPAddressAndMask(pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodVPPSubnetCIDR)
-	if err != nil {
-		fmt.Printf("Host '%s', Pod '%s' - invalid PodVPPSubnetCIDR address %s, err %s\n",
-			podInfo.HostIpAddress, podInfo.Name, pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodVPPSubnetCIDR, err)
-		return "N/A", 0, "N/A"
-	}
-
-	if podMask != podIfIPMask {
-		fmt.Printf("Host '%s', Pod '%s' - vppHostSubnetOneNodePrefixLen mismatch: "+
-			"PodVPPSubnetCIDR '%s', podSubnetOneNodePrefixLen '%d'\n",
-			podInfo.HostIpAddress, podInfo.Name,
-			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodVPPSubnetCIDR,
-			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodSubnetOneNodePrefixLen)
-		// Do not return - we can still continue if this error happens
-	}
-
-	podIfIPPrefix := podIfIPAddress &^ podMask
 	podAddr, err := ip2uint32(podInfo.IpAddress)
 	if err != nil {
 		fmt.Printf("Host '%s', Pod '%s' - invalid podInfo.IpAddress %s, err %s",
 			podInfo.HostIpAddress, podInfo.Name, podInfo.IpAddress, err)
 		return "N/A", 0, "N/A"
 	}
-
-	podAddrSuffix := podAddr & podMask
 
 	if podAddr&^podMask != podNetwork {
 		fmt.Printf("Host '%s', Pod '%s' - pod IP address %s not from PodSubnetThisNode subnet %s\n",
@@ -252,26 +231,28 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (string, uint32, st
 		// Do not return - we can still continue if this error happens
 	}
 
-	for _, intf := range pg.ndCache[podInfo.HostIpAddress].ifcs {
-		if intf.Value.Type == interfaces.Interface_TAP {
-			for _, ip := range intf.Value.IpAddresses {
-				ifIPAddr, iffIPMask, err := getIPAddressAndMask(ip)
-				if err != nil {
-					continue
-				}
-				if iffIPMask != 0 {
-					// TODO: do some error handling
-					continue
-				}
+	// TODO: implement different POD - tap interface mapping (based on static routes)
 
-				ifIPAdrPrefix := ifIPAddr &^ podMask
-				ifIPAdrSuffix := ifIPAddr & podMask
-				if (podIfIPPrefix == ifIPAdrPrefix) && (ifIPAdrSuffix == podAddrSuffix) {
-					return ip, intf.Metadata.SwIfIndex, intf.Value.Name
-				}
-			}
-		}
-	}
+	//for _, intf := range pg.ndCache[podInfo.HostIpAddress].ifcs {
+	//	if intf.Value.Type == interfaces.Interface_TAP {
+	//		for _, ip := range intf.Value.IpAddresses {
+	//			ifIPAddr, iffIPMask, err := getIPAddressAndMask(ip)
+	//			if err != nil {
+	//				continue
+	//			}
+	//			if iffIPMask != 0 {
+	//				// TODO: do some error handling
+	//				continue
+	//			}
+	//
+	//			ifIPAdrPrefix := ifIPAddr &^ podMask
+	//			ifIPAdrSuffix := ifIPAddr & podMask
+	//			if (podIfIPPrefix == ifIPAdrPrefix) && (ifIPAdrSuffix == podAddrSuffix) {
+	//				return ip, intf.Metadata.SwIfIndex, intf.Value.Name
+	//			}
+	//		}
+	//	}
+	//}
 
 	return "N/A", 0, "N/A"
 }

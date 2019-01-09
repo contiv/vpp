@@ -56,8 +56,6 @@ type IPAM struct {
 	podSubnetThisNode *net.IPNet
 	// gateway IP address for PODs on this node (given by nodeID)
 	podSubnetGatewayIP net.IP
-	// IPv4 subnet from which individual VPP-side POD interfaces networks are allocated, this is subnet for all PODS within this node.
-	podVPPSubnet *net.IPNet
 
 	/********** maps to convert between Pod and the assigned IP **********/
 	// pool of assigned POD IP addresses
@@ -158,7 +156,6 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 	i.serviceCIDR = ipamConfig.ServiceCIDR
 	i.nodeInterconnectSubnet = subnets.NodeInterconnectCIDR
 	i.vxlanSubnet = subnets.VxlanCIDR
-	i.podVPPSubnet = subnets.PodVPPSubnetCIDR
 
 	// resync allocated IP addresses
 	networkPrefix, err := ipv4ToUint32(i.podSubnetThisNode.IP)
@@ -187,12 +184,12 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 
 	i.Log.Infof("IPAM state after startup RESYNC: "+
 		"excludedIPsfromNodeSubnet=%v, podSubnetAllNodes=%v, podSubnetThisNode=%v, "+
-		"podSubnetGatewayIP=%v, podVPPSubnet=%v, hostInterconnectSubnetAllNodes=%v, "+
+		"podSubnetGatewayIP=%v, hostInterconnectSubnetAllNodes=%v, "+
 		"hostInterconnectSubnetThisNode=%v, hostInterconnectIPInVpp=%v, hostInterconnectIPInLinux=%v, "+
 		"nodeInterconnectSubnet=%v, vxlanSubnet=%v, serviceCIDR=%v, "+
 		"assignedPodIPs=%+v, podToIP=%v, lastPodIPAssigned=%v",
 		i.excludedIPsfromNodeSubnet, i.podSubnetAllNodes, i.podSubnetThisNode,
-		i.podSubnetGatewayIP, i.podVPPSubnet, i.hostInterconnectSubnetAllNodes,
+		i.podSubnetGatewayIP, i.hostInterconnectSubnetAllNodes,
 		i.hostInterconnectSubnetThisNode, i.hostInterconnectIPInVpp, i.hostInterconnectIPInLinux,
 		i.nodeInterconnectSubnet, i.vxlanSubnet, i.serviceCIDR,
 		i.assignedPodIPs, i.podToIP, i.lastPodIPAssigned)
@@ -354,14 +351,6 @@ func (i *IPAM) PodSubnetOtherNode(nodeID uint32) (*net.IPNet, error) {
 		return nil, err
 	}
 	return newIPNet(podSubnetThisNode), nil
-}
-
-// PodVPPSubnet returns VPP-side interface IP address prefix
-// (reused by every node - not routed outside from the nodes).
-func (i *IPAM) PodVPPSubnet() *net.IPNet {
-	i.mutex.RLock()
-	defer i.mutex.RUnlock()
-	return newIPNet(i.podVPPSubnet)
 }
 
 // ServiceNetwork returns range allocated for services.

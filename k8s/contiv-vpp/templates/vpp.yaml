@@ -64,7 +64,6 @@ data:
       {{- end }}
       podSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       podSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.podSubnetOneNodePrefixLen }}
-      podVPPSubnetCIDR: {{ .Values.contiv.ipamConfig.podVPPSubnetCIDR }}
       vppHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
       vppHostSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.vppHostSubnetOneNodePrefixLen }}
       vxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}

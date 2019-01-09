@@ -48,12 +48,7 @@ func dissectContivCIDR(ipamConfig *contivconf.IPAMConfig) (subnets *contivconf.C
 	nodeInterconnectCIDR, _ := subnet(contivCIDR, nodePrefixLength, 256)
 	vxlanCIDR, _ := subnet(contivCIDR, nodePrefixLength, 257)
 
-	// podVPPSubnetCIDR uses a /25 network prefix length similar to vppHostSubnetOneNodePrefixLen
-	podIfSubnetPrefixLength := 25 - maskSize
-	podVPPSubnetCIDR, _ := subnet(contivCIDR, podIfSubnetPrefixLength, 1032)
-
 	subnets = &contivconf.CustomIPAMSubnets{
-		PodVPPSubnetCIDR:              podVPPSubnetCIDR,
 		PodSubnetCIDR:                 podSubnetCIDR,
 		PodSubnetOneNodePrefixLen:     podSubnetOneNodePrefixLen,
 		VPPHostSubnetCIDR:             vppHostSubnetCIDR,

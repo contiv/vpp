@@ -82,7 +82,6 @@ func testApplyIPAM(t *testing.T) {
 	gomega.Expect(subnets.VPPHostSubnetCIDR.String()).To(gomega.Equal("10.129.0.0/16"))
 	gomega.Expect(subnets.NodeInterconnectCIDR.String()).To(gomega.Equal("10.130.0.0/23"))
 	gomega.Expect(subnets.VxlanCIDR.String()).To(gomega.Equal("10.130.2.0/23"))
-	gomega.Expect(subnets.PodVPPSubnetCIDR.String()).To(gomega.Equal("10.130.4.0/25"))
 
 	subnets, err = dissectContivCIDR(configData2)
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
@@ -94,7 +93,6 @@ func testApplyIPAM(t *testing.T) {
 	gomega.Expect(subnets.VPPHostSubnetCIDR.String()).To(gomega.Equal("192.241.0.0/16"))
 	gomega.Expect(subnets.NodeInterconnectCIDR.String()).To(gomega.Equal("192.242.0.0/23"))
 	gomega.Expect(subnets.VxlanCIDR.String()).To(gomega.Equal("192.242.2.0/23"))
-	gomega.Expect(subnets.PodVPPSubnetCIDR.String()).To(gomega.Equal("192.242.4.0/25"))
 
 	subnets, err = dissectContivCIDR(configData4)
 	gomega.Expect(err).To(gomega.BeNil())
@@ -103,7 +101,6 @@ func testApplyIPAM(t *testing.T) {
 	gomega.Expect(subnets.VPPHostSubnetCIDR.String()).To(gomega.Equal("10.129.0.0/16"))
 	gomega.Expect(subnets.NodeInterconnectCIDR.String()).To(gomega.Equal("192.168.16.0/24"))
 	gomega.Expect(subnets.VxlanCIDR.String()).To(gomega.Equal("10.130.2.0/23"))
-	gomega.Expect(subnets.PodVPPSubnetCIDR.String()).To(gomega.Equal("10.130.4.0/25"))
 
 	subnets, err = dissectContivCIDR(configData5)
 	gomega.Expect(err).To(gomega.BeNil())
@@ -112,5 +109,4 @@ func testApplyIPAM(t *testing.T) {
 	gomega.Expect(subnets.VPPHostSubnetCIDR.String()).To(gomega.Equal("10.129.0.0/16"))
 	gomega.Expect(subnets.NodeInterconnectCIDR).To(gomega.BeNil())
 	gomega.Expect(subnets.VxlanCIDR.String()).To(gomega.Equal("10.130.2.0/23"))
-	gomega.Expect(subnets.PodVPPSubnetCIDR.String()).To(gomega.Equal("10.130.4.0/25"))
 }

@@ -481,10 +481,18 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 				} else {
 					local.Probability = 1
 				}
-				if rndr.isNodeLocalIP(backend.IP) {
+				if rndr.isThisNodeOrHostIP(backend.IP) {
 					local.VrfId = routingCfg.MainVRFID
 				} else {
-					local.VrfId = routingCfg.PodVRFID
+					if rndr.ContivConf.GetRoutingConfig().UseL2Interconnect &&
+						(!rndr.isLocalPodIP(backend.IP)) {
+						// L2 mode: use main VRF for non-local PODs and other node's IPs
+						local.VrfId = routingCfg.MainVRFID
+					} else {
+						// use POD VRF for local PODs (both L2 & VXLAN mode)
+						// and non-local PODs + non-local node IPs in VXLAN mode
+						local.VrfId = routingCfg.PodVRFID
+					}
 				}
 				mapping.LocalIps = append(mapping.LocalIps, local)
 			}
@@ -502,20 +510,23 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 	return mappings
 }
 
-// isNodeLocalIP returns true if the given IP is local to the current node, false otherwise.
-func (rndr *Renderer) isNodeLocalIP(ip net.IP) bool {
+// isThisNodeOrHostIP returns true if the given IP is current node's node (VPP) or host (mgmt) IP, false otherwise.
+func (rndr *Renderer) isThisNodeOrHostIP(ip net.IP) bool {
 	nodeIP, _ := rndr.IPv4Net.GetNodeIP()
 	if ip.Equal(nodeIP) {
 		return true
 	}
-
 	for _, hostIP := range rndr.IPv4Net.GetHostIPs() {
 		if hostIP.Equal(ip) {
 			return true
 		}
 	}
-
 	return false
+}
+
+// isLocalPodIP returns true if the given IP is this node's local POD IP.
+func (rndr *Renderer) isLocalPodIP(ip net.IP) bool {
+	return rndr.IPv4Net.GetPodSubnetThisNode().Contains(ip)
 }
 
 // exportIdentityMappings returns DNAT configuration with identities to exclude

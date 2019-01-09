@@ -375,8 +375,9 @@ func (n *IPv4Net) otherNodesResync(txn controller.ResyncOperations) error {
 		}
 	}
 
-	// bridge domain with VXLAN interfaces
 	if !n.ContivConf.GetRoutingConfig().UseL2Interconnect {
+		// bridge domain with VXLAN interfaces
+
 		// bridge domain
 		key, bd := n.vxlanBridgeDomain()
 		txn.Put(key, bd)
@@ -389,5 +390,10 @@ func (n *IPv4Net) otherNodesResync(txn controller.ResyncOperations) error {
 		}
 		txn.Put(key, vxlanBVI)
 	}
+
+	// loopback with the gateway IP address for PODs. Also used as the unnumbered IP for the POD facing interfaces.
+	key, lo := n.podGwLoopback()
+	txn.Put(key, lo)
+
 	return nil
 }

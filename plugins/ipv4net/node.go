@@ -50,6 +50,9 @@ const (
 	// VxlanBVIInterfaceName is the name of the VXLAN BVI interface.
 	VxlanBVIInterfaceName = "vxlanBVI"
 
+	// podGwLoopbackInterfaceName is the name of the POD gateway loopback interface.
+	podGwLoopbackInterfaceName = "podGwLoop"
+
 	// name of the VXLAN bridge domain
 	vxlanBDName = "vxlanBD"
 )
@@ -163,7 +166,7 @@ func (n *IPv4Net) routesToNode(node *nodesync.Node) (config controller.KeyValueP
 		config[key] = mgmtRoute1
 
 		// inter-VRF route for the management IP address
-		if !n.ContivConf.InSTNMode() {
+		if !n.ContivConf.InSTNMode() && !l2Interconnect {
 			key, mgmtRoute2 := n.routeToOtherNodeManagementIPViaPodVRF(mgmtIP)
 			config[key] = mgmtRoute2
 		}
@@ -342,15 +345,19 @@ func (n *IPv4Net) routesPodToMainVRF() map[string]*l3.StaticRoute {
 	r1Key := l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 	routes[r1Key] = r1
 
-	// host network (all nodes) routed from Pod VRF via Main VRF
-	r2 := &l3.StaticRoute{
-		Type:       l3.StaticRoute_INTER_VRF,
-		DstNetwork: n.IPAM.HostInterconnectSubnetThisNode().String(),
-		VrfId:      routingCfg.PodVRFID,
-		ViaVrfId:   routingCfg.MainVRFID,
+	if !routingCfg.UseL2Interconnect {
+		// host network (this node) routed from Pod VRF via Main VRF
+		// (only needed for VXLAN mode, to have better prefix match so that the drop route is not in effect)
+		r2 := &l3.StaticRoute{
+			Type:       l3.StaticRoute_INTER_VRF,
+			DstNetwork: n.IPAM.HostInterconnectSubnetThisNode().String(),
+			VrfId:      routingCfg.PodVRFID,
+			ViaVrfId:   routingCfg.MainVRFID,
+		}
+		r2Key := l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
+		routes[r2Key] = r2
 	}
-	r2Key := l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
-	routes[r2Key] = r2
+
 	return routes
 }
 
@@ -359,25 +366,38 @@ func (n *IPv4Net) routesMainToPodVRF() map[string]*l3.StaticRoute {
 	routes := make(map[string]*l3.StaticRoute)
 	routingCfg := n.ContivConf.GetRoutingConfig()
 
-	// pod subnet (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
-	r1 := &l3.StaticRoute{
-		Type:       l3.StaticRoute_INTER_VRF,
-		DstNetwork: n.IPAM.PodSubnetAllNodes().String(),
-		VrfId:      routingCfg.MainVRFID,
-		ViaVrfId:   routingCfg.PodVRFID,
-	}
-	r1Key := l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
-	routes[r1Key] = r1
+	if !routingCfg.UseL2Interconnect {
+		// pod subnet (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
+		r1 := &l3.StaticRoute{
+			Type:       l3.StaticRoute_INTER_VRF,
+			DstNetwork: n.IPAM.PodSubnetAllNodes().String(),
+			VrfId:      routingCfg.MainVRFID,
+			ViaVrfId:   routingCfg.PodVRFID,
+		}
+		r1Key := l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+		routes[r1Key] = r1
 
-	// host network (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
-	r2 := &l3.StaticRoute{
-		Type:       l3.StaticRoute_INTER_VRF,
-		DstNetwork: n.IPAM.HostInterconnectSubnetAllNodes().String(),
-		VrfId:      routingCfg.MainVRFID,
-		ViaVrfId:   routingCfg.PodVRFID,
+		// host network (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
+		r2 := &l3.StaticRoute{
+			Type:       l3.StaticRoute_INTER_VRF,
+			DstNetwork: n.IPAM.HostInterconnectSubnetAllNodes().String(),
+			VrfId:      routingCfg.MainVRFID,
+			ViaVrfId:   routingCfg.PodVRFID,
+		}
+		r2Key := l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
+		routes[r2Key] = r2
+	} else {
+		// pod subnet (this node only) routed from Main VRF to Pod VRF
+		r1 := &l3.StaticRoute{
+			Type:       l3.StaticRoute_INTER_VRF,
+			DstNetwork: n.IPAM.PodSubnetThisNode().String(),
+			VrfId:      routingCfg.MainVRFID,
+			ViaVrfId:   routingCfg.PodVRFID,
+		}
+		r1Key := l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+		routes[r1Key] = r1
 	}
-	r2Key := l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
-	routes[r2Key] = r2
+
 	return routes
 }
 
@@ -385,6 +405,11 @@ func (n *IPv4Net) routesMainToPodVRF() map[string]*l3.StaticRoute {
 func (n *IPv4Net) dropRoutesIntoPodVRF() map[string]*l3.StaticRoute {
 	routes := make(map[string]*l3.StaticRoute)
 	routingCfg := n.ContivConf.GetRoutingConfig()
+
+	if routingCfg.UseL2Interconnect {
+		// no drop routes needed
+		return routes
+	}
 
 	// drop packets destined to pods no longer deployed
 	r1 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.PodSubnetAllNodes())
@@ -406,6 +431,20 @@ func (n *IPv4Net) dropRoute(vrfID uint32, dstAddr *net.IPNet) *l3.StaticRoute {
 		DstNetwork: dstAddr.String(),
 		VrfId:      vrfID,
 	}
+}
+
+// podGwLoopback returns configuration of the loopback interface used in the POD VRF
+// to respond on POD gateway IP address.
+func (n *IPv4Net) podGwLoopback() (key string, config *interfaces.Interface) {
+	lo := &interfaces.Interface{
+		Name:        podGwLoopbackInterfaceName,
+		Type:        interfaces.Interface_SOFTWARE_LOOPBACK,
+		Enabled:     true,
+		IpAddresses: []string{ipNetToString(combineAddrWithNet(n.IPAM.PodGatewayIP(), n.IPAM.PodSubnetThisNode()))},
+		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
+	}
+	key = interfaces.InterfaceKey(lo.Name)
+	return key, lo
 }
 
 /************************** Bridge Domain with VXLANs **************************/

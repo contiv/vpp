@@ -28,6 +28,10 @@ type API interface {
 	// GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
 	GetHostIPs() []net.IP
 
+	// GetPodSubnetThisNode returns POD network for the current node
+	// (given by nodeID allocated for this node).
+	GetPodSubnetThisNode() *net.IPNet
+
 	// GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
 	// interconnecting VPP with the host stack.
 	GetHostInterconnectIfName() string

@@ -127,8 +127,10 @@ func (n *IPv4Net) podVPPTap(pod *podmanager.LocalPod) (key string, config *inter
 		Mtu:         interfaceCfg.MTUSize,
 		Enabled:     true,
 		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
-		IpAddresses: []string{n.ipAddrForPodVPPIf(pod)},
 		PhysAddress: n.hwAddrForPod(pod, true),
+		Unnumbered: &interfaces.Interface_Unnumbered{
+			InterfaceWithIp: podGwLoopbackInterfaceName,
+		},
 		Link: &interfaces.Interface_Tap{
 			Tap: &interfaces.TapLink{},
 		},
@@ -249,8 +251,10 @@ func (n *IPv4Net) podAfPacket(pod *podmanager.LocalPod) (key string, config *int
 		Mtu:         n.ContivConf.GetInterfaceConfig().MTUSize,
 		Enabled:     true,
 		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
-		IpAddresses: []string{n.ipAddrForPodVPPIf(pod)},
 		PhysAddress: n.hwAddrForPod(pod, true),
+		Unnumbered: &interfaces.Interface_Unnumbered{
+			InterfaceWithIp: podGwLoopbackInterfaceName,
+		},
 		Link: &interfaces.Interface_Afpacket{
 			Afpacket: &interfaces.AfpacketLink{
 				HostIfName: n.podVeth2HostIfName(pod),

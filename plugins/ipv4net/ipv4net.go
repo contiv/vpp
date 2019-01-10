@@ -261,12 +261,6 @@ func (n *IPv4Net) GetHostIPs() []net.IP {
 	return n.hostIPs
 }
 
-// GetPodSubnetThisNode returns POD network for the current node
-// (given by nodeID allocated for this node).
-func (n *IPv4Net) GetPodSubnetThisNode() *net.IPNet {
-	return n.IPAM.PodSubnetThisNode()
-}
-
 // GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
 // interconnecting VPP with the host stack.
 func (n *IPv4Net) GetHostInterconnectIfName() string {

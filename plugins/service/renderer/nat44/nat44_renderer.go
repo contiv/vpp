@@ -526,7 +526,7 @@ func (rndr *Renderer) isThisNodeOrHostIP(ip net.IP) bool {
 
 // isLocalPodIP returns true if the given IP is this node's local POD IP.
 func (rndr *Renderer) isLocalPodIP(ip net.IP) bool {
-	return rndr.IPv4Net.GetPodSubnetThisNode().Contains(ip)
+	return rndr.IPAM.PodSubnetThisNode().Contains(ip)
 }
 
 // exportIdentityMappings returns DNAT configuration with identities to exclude

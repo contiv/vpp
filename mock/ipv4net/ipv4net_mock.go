@@ -25,12 +25,11 @@ import (
 type MockIPv4Net struct {
 	sync.Mutex
 
-	podIf             map[podmodel.ID]string
-	hostIPs           []net.IP
-	nodeIP            *net.IPNet
-	podSubnetThisNode *net.IPNet
-	hostInterconnect  string
-	vxlanBVIIfName    string
+	podIf            map[podmodel.ID]string
+	hostIPs          []net.IP
+	nodeIP           *net.IPNet
+	hostInterconnect string
+	vxlanBVIIfName   string
 }
 
 // NewMockIPv4Net is a constructor for MockIPv4Net.
@@ -113,10 +112,4 @@ func (mn *MockIPv4Net) GetVxlanBVIIfName() string {
 // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
 func (mn *MockIPv4Net) GetHostIPs() []net.IP {
 	return mn.hostIPs
-}
-
-// GetPodSubnetThisNode returns POD network for the current node
-// (given by nodeID allocated for this node).
-func (mn *MockIPv4Net) GetPodSubnetThisNode() *net.IPNet {
-	return mn.podSubnetThisNode
 }

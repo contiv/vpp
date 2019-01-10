@@ -117,6 +117,10 @@ type ContivService struct {
 	// TrafficPolicy decides if traffic is routed cluster-wide or node-local only.
 	TrafficPolicy TrafficPolicyType
 
+	// SessionAffinityTimeout max session sticky time (in seconds) if client IP based session affinity
+	// is enabled, 0 if disabled
+	SessionAffinityTimeout uint32
+
 	// ClusterIPs is a set of all IP addresses on which the service
 	// should be exposed within the cluster (aside from node IPs for NodePorts, which
 	// are provided separately via the ServiceRendererAPI.UpdateNodePortServices()

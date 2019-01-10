@@ -95,6 +95,10 @@ func (s *Service) Refresh() {
 		s.contivSvc.TrafficPolicy = renderer.ClusterWide
 	}
 
+	if s.meta.SessionAffinity == "ClientIP" {
+		s.contivSvc.SessionAffinityTimeout = s.meta.SessionAffinityTimeout
+	}
+
 	// Collect all IP addresses on which the service should be exposed.
 	if s.meta.ClusterIp != "" && s.meta.ClusterIp != "None" {
 		clusterIP := net.ParseIP(s.meta.ClusterIp)

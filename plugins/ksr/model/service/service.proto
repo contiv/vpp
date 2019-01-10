@@ -169,4 +169,9 @@ message Service {
     // LoadBalancer and ExternalTrafficPolicy is set to Local.
     // +optional
     int32 health_check_node_port = 13;
+
+    // timeoutSeconds specifies the seconds of ClientIP type session sticky time.
+    // The value must be >0 && <=86400(for 1 day).
+    // Default value is 10800(for 3 hours). 0 - means that affinity is disabled.
+    uint32 session_affinity_timeout = 14;
 }

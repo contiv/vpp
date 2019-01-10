@@ -160,6 +160,15 @@ loop:
 		svcProto.LbIngressIps = append(svcProto.LbIngressIps, lbIngress.IP)
 	}
 	svcProto.SessionAffinity = string(svc.Spec.SessionAffinity)
+	if svc.Spec.SessionAffinity == coreV1.ServiceAffinityClientIP {
+		if svc.Spec.SessionAffinityConfig != nil && svc.Spec.SessionAffinityConfig.ClientIP != nil &&
+			svc.Spec.SessionAffinityConfig.ClientIP.TimeoutSeconds != nil {
+			svcProto.SessionAffinityTimeout = uint32(*svc.Spec.SessionAffinityConfig.ClientIP.TimeoutSeconds)
+		} else {
+			svcProto.SessionAffinityTimeout = uint32(coreV1.DefaultClientIPServiceAffinitySeconds)
+		}
+	}
+
 	svcProto.LoadbalancerIp = svc.Spec.LoadBalancerIP
 	svcProto.LoadbalancerSourceRanges = svc.Spec.LoadBalancerSourceRanges
 	svcProto.ExternalTrafficPolicy = string(svc.Spec.ExternalTrafficPolicy)

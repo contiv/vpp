@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package rpc;
+
+import "github.com/ligato/vpp-agent/plugins/vppv2/model/acl/acl.proto";
+import "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces/interface.proto";
+import "github.com/ligato/vpp-agent/plugins/vppv2/model/l2/bd.proto";
+import "github.com/ligato/vpp-agent/plugins/vppv2/model/l2/fib.proto";
+import "github.com/ligato/vpp-agent/plugins/vppv2/model/l2/xconnect.proto";
+import "github.com/ligato/vpp-agent/plugins/vppv2/model/l3/arp.proto";
+import "github.com/ligato/vpp-agent/plugins/vppv2/model/l3/static_route.proto";
+import "github.com/ligato/vpp-agent/plugins/vppv2/model/nat/nat.proto";
+import "github.com/ligato/vpp-agent/plugins/vppv2/model/punt/punt.proto";
+import "github.com/ligato/vpp-agent/plugins/vppv2/model/ipsec/ipsec.proto";
+import "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces/interfaces.proto";
+import "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3/l3.proto";
+
+
+// Data change service is a service which submits cumulative request consisting of all
+// configuration types supported in the vpp-agent
+service DataChangeService {
+    // Creates or updates one or multiple configuration items
+    rpc Put(DataRequest) returns (PutResponse);
+    // Removes one or multiple configuration items
+    rpc Del(DataRequest) returns (DelResponse);
+}
+
+// Data resync service is a service which submits data resync to the vpp-agent
+service DataResyncService {
+    // Calls vpp-agent resync
+    rpc Resync (DataRequest) returns (ResyncResponse);
+}
+
+// Data request is an inventory of supported data types with one or multiple
+// items of every type. Universal type for every data change/resync request
+message DataRequest {
+    repeated acl.Acl AccessLists = 10;
+    repeated interfaces.Interface Interfaces = 20;
+    repeated l2.BridgeDomain BridgeDomains = 40;
+    repeated l2.FIBEntry FIBs = 41;
+    repeated l2.XConnectPair XCons = 42;
+    repeated l3.StaticRoute StaticRoutes = 50;
+    repeated l3.ARPEntry ArpEntries = 51;
+    l3.ProxyARP ProxyArp = 52;
+    l3.IPScanNeighbor IPScanNeighbor = 53;
+    repeated ipsec.SecurityPolicyDatabase SPDs = 60;
+    repeated ipsec.SecurityAssociation SAs = 61;
+    repeated punt.IpRedirect IPRedirectPunts = 65;
+    repeated punt.ToHost ToHostPunts = 66;
+    nat.Nat44Global NatGlobal = 71;
+    repeated nat.DNat44 DNATs = 72;
+    repeated linux.interfaces.Interface LinuxInterfaces = 80;
+    repeated linux.l3.StaticARPEntry LinuxArpEntries = 90;
+    repeated linux.l3.StaticRoute LinuxRoutes = 91;
+}
+
+// Response to data change 'put'
+message PutResponse {
+}
+
+// Response to data change 'del'
+message DelResponse {
+}
+
+// Response to data resync
+message ResyncResponse {
+}

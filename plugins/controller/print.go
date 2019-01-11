@@ -77,11 +77,15 @@ func (c *Controller) printFinalizedEvent(eventRec *EventRecord) {
 	buf.WriteString(fmt.Sprintf("*   FINALIZED EVENT: %-96s %10s *\n",
 		evDesc, eventSeqNumToStr(eventRec.SeqNum)))
 
+	duration := fmt.Sprintf("took %v",
+		eventRec.ProcessingEnd.Sub(eventRec.ProcessingStart).Round(time.Millisecond))
 	if len(handledBy) > 0 {
-		duration := fmt.Sprintf("took %v",
-			eventRec.ProcessingEnd.Sub(eventRec.ProcessingStart).Round(time.Millisecond))
 		buf.WriteString(fmt.Sprintf("*   HANDLED BY: %-91s %20s *\n",
 			strings.Join(handledBy, ", "), duration))
+	}
+	if len(handledBy) == 0 && eventRec.Txn != nil {
+		buf.WriteString(fmt.Sprintf("*   HANDLED BY VPP-AGENT %103s *\n",
+			duration))
 	}
 
 	if hasErrors {

@@ -230,9 +230,21 @@ func protoToString(msg proto.Message) string {
 // ExternalConfigChange is an Update event that represents change for one key
 // from the external configuration (for vpp-agent).
 type ExternalConfigChange struct {
-	Key      string
-	Revision datasync.WithRevision
-	Value    datasync.LazyValue // nil if deleted
+	result     chan error
+	blocking   bool
+
+	Source     string
+	UpdatedKVs ExternalConfig
+}
+
+// NewExternalConfigChange is a constructor for ExternalConfigChange.
+func NewExternalConfigChange(source string, blocking bool) *ExternalConfigChange {
+	return &ExternalConfigChange{
+		result:     make(chan error, 1),
+		blocking:   blocking,
+		Source:     source,
+		UpdatedKVs: make(ExternalConfig),
+	}
 }
 
 // GetName returns name of the ExternalConfigChange event.
@@ -242,9 +254,47 @@ func (ev *ExternalConfigChange) GetName() string {
 
 // String describes ExternalConfigChange event.
 func (ev *ExternalConfigChange) String() string {
-	return fmt.Sprintf("%s\n"+
-		"* key: %s\n"+
-		"* revision: %d", ev.GetName(), ev.Key, ev.Revision.GetRevision())
+	const (
+		PutOpName = "PUT"
+		DelOpName = "DEL"
+	)
+	var hasPut, hasDelete bool
+	flags := []string{strings.ToUpper(ev.Source)}
+
+	for _, value := range ev.UpdatedKVs {
+		if value == nil {
+			hasDelete = true
+		} else {
+			hasPut = true
+		}
+	}
+	if hasPut != hasDelete {
+		if hasPut {
+			flags = append(flags, PutOpName)
+		} else {
+			flags = append(flags, DelOpName)
+		}
+	}
+	str := ev.GetName() + " " + flagsToString(flags, 0)
+	for key, value := range ev.UpdatedKVs {
+		var flags []string
+		if hasPut == hasDelete {
+			if value != nil {
+				flags = append(flags, PutOpName)
+			} else {
+				flags = append(flags, PutOpName)
+			}
+		}
+		str += fmt.Sprintf("\n* %skey: %s", flagsToString(flags, 1), key)
+	}
+	return str
+}
+
+func flagsToString(flags []string, trailingSpace int) string {
+	if len(flags) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(flags, ", ") + "]" + strings.Repeat(" ", trailingSpace)
 }
 
 // Method is Update.
@@ -262,12 +312,77 @@ func (ev *ExternalConfigChange) Direction() UpdateDirectionType {
 	return Forward
 }
 
-// IsBlocking returns false.
+// IsBlocking returns what is configured in the constructor.
 func (ev *ExternalConfigChange) IsBlocking() bool {
-	return false
+	return ev.blocking
 }
 
-// Done is NOOP.
-func (ev *ExternalConfigChange) Done(error) {
+// Done propagates error to the event producer.
+func (ev *ExternalConfigChange) Done(err error) {
+	ev.result <- err
 	return
+}
+
+// Wait waits for the result of the ExternalConfigChange event.
+func (ev *ExternalConfigChange) Wait() error {
+	return <-ev.result
+}
+
+
+/*************************** External Config Resync ***************************/
+
+// ExternalConfigResync is a Resync event triggered by external config source.
+// Note: External config from Remote DB uses DBResync instead.
+type ExternalConfigResync struct {
+	result   chan error
+	blocking bool
+
+	Source         string
+	ExternalConfig ExternalConfig
+}
+
+// NewExternalConfigResync is a constructor for ExternalConfigResync.
+func NewExternalConfigResync(source string, blocking bool) *ExternalConfigResync {
+	return &ExternalConfigResync{
+		result:         make(chan error, 1),
+		blocking:       blocking,
+		Source:         source,
+		ExternalConfig: make(ExternalConfig),
+	}
+}
+
+// GetName returns name of the ExternalConfigResync event.
+func (ev *ExternalConfigResync) GetName() string {
+	return "External Config Resync"
+}
+
+// String describes ExternalConfigResync event.
+func (ev *ExternalConfigResync) String() string {
+	flags := []string{strings.ToUpper(ev.Source)}
+	str := ev.GetName() + " " + flagsToString(flags, 0)
+	for key, _ := range ev.ExternalConfig {
+		str += fmt.Sprintf("\n* key: %s", key)
+	}
+	return str
+}
+
+// Method is Update.
+func (ev *ExternalConfigResync) Method() EventMethodType {
+	return UpstreamResync
+}
+
+// IsBlocking returns what is configured in the constructor.
+func (ev *ExternalConfigResync) IsBlocking() bool {
+	return ev.blocking
+}
+
+// Done propagates error to the event producer.
+func (ev *ExternalConfigResync) Done(err error) {
+	ev.result <- err
+	return
+}
+
+// Wait waits for the result of the ExternalConfigResync event.
+func (ev *ExternalConfigResync) Wait() error {
+	return <-ev.result
 }

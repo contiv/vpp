@@ -20,6 +20,7 @@ metadata:
   namespace: kube-system
 data:
   contiv.conf: |-
+    useL2Interconnect: {{ .Values.contiv.useL2Interconnect }}
     useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}
@@ -63,7 +64,6 @@ data:
       {{- end }}
       podSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       podSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.podSubnetOneNodePrefixLen }}
-      podVPPSubnetCIDR: {{ .Values.contiv.ipamConfig.podVPPSubnetCIDR }}
       vppHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
       vppHostSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.vppHostSubnetOneNodePrefixLen }}
       vxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}

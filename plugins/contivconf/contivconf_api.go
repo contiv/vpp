@@ -126,10 +126,6 @@ type IPAMConfig struct {
 // is undefined. Otherwise, the IPAM module is responsible for calculating the
 // subnets by dissecting ContivCIDR by its own algorithm.
 type CustomIPAMSubnets struct {
-	// Subnet from which individual VPP-side POD interface networks are allocated.
-	// This subnet is reused by every node - not routed outside of the nodes.
-	PodVPPSubnetCIDR *net.IPNet
-
 	// Subnet from which individual POD networks are allocated.
 	// This is subnet for all PODs across all nodes.
 	PodSubnetCIDR *net.IPNet

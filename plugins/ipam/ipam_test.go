@@ -68,7 +68,6 @@ var (
 func newDefaultConfig() *contivconf.Config {
 	return &contivconf.Config{
 		IPAMConfig: contivconf.IPAMConfigForJSON{
-			PodVPPSubnetCIDR:              "10.2.1.0/24",
 			PodSubnetCIDR:                 "1.2." + str(b10000000) + ".0/17",
 			PodSubnetOneNodePrefixLen:     29, // 3 bits left -> 4 free IP addresses (gateway IP + NAT-loopback IP + network addr + broadcast are reserved)
 			VPPHostSubnetCIDR:             "2.3." + str(b11000000) + ".0/18",

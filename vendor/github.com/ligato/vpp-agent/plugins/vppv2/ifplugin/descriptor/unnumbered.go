@@ -24,6 +24,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/cn-infra/utils/addrs"
 )
 
 const (
@@ -97,10 +98,35 @@ func (d *UnnumberedIfDescriptor) Add(key string, unIntf *interfaces.Interface_Un
 		return nil, err
 	}
 
+	// convert IP addresses to net.IPNet
+	ipAddresses, err := addrs.StrAddrsToStruct(ifWithIPMeta.IPAddresses)
+	if err != nil {
+		err = errors.Errorf("failed to convert %s IP address list to IPNet structures: %v", ifName, err)
+		d.log.Error(err)
+		return nil, err
+	}
+
+	isIPv4, isIPv6 := getIPAddressVersions(ipAddresses)
+	if isIPv4 {
+		if err = d.ifHandler.SetInterfaceVrf(ifMeta.SwIfIndex, ifMeta.Vrf); err != nil {
+			err = errors.Errorf("failed to set interface %s as IPv4 VRF %d: %v", ifName, ifMeta.Vrf, err)
+			d.log.Error(err)
+			return nil, err
+		}
+	}
+	if isIPv6 {
+		if err := d.ifHandler.SetInterfaceVrfIPv6(ifMeta.SwIfIndex, ifMeta.Vrf); err != nil {
+			err = errors.Errorf("failed to set interface %s as IPv6 VRF %d: %v", ifName, ifMeta.Vrf, err)
+			d.log.Error(err)
+			return nil, err
+		}
+	}
+
 	err = d.ifHandler.SetUnnumberedIP(ifMeta.SwIfIndex, ifWithIPMeta.SwIfIndex)
 	if err != nil {
 		d.log.Error(err)
 	}
+
 	return nil, err
 }
 

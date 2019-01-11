@@ -56,13 +56,13 @@ func (dsl *DataResyncDSL) LinuxInterface(val *linux_interfaces.Interface) linuxc
 	return dsl
 }
 
-// LinuxInterface adds Linux ARP entry to the RESYNC request.
+// LinuxArpEntry adds Linux ARP entry to the RESYNC request.
 func (dsl *DataResyncDSL) LinuxArpEntry(val *linux_l3.StaticARPEntry) linuxclient.DataResyncDSL {
 	dsl.req.LinuxArpEntries = append(dsl.req.LinuxArpEntries, val)
 	return dsl
 }
 
-// LinuxInterface adds Linux route to the RESYNC request.
+// LinuxRoute adds Linux route to the RESYNC request.
 func (dsl *DataResyncDSL) LinuxRoute(val *linux_l3.StaticRoute) linuxclient.DataResyncDSL {
 	dsl.req.LinuxRoutes = append(dsl.req.LinuxRoutes, val)
 	return dsl
@@ -83,21 +83,21 @@ func (dsl *DataResyncDSL) ACL(val *acl.Acl) linuxclient.DataResyncDSL {
 // BfdSession adds VPP bidirectional forwarding detection session
 // to the RESYNC request.
 func (dsl *DataResyncDSL) BfdSession(val *bfd.SingleHopBFD_Session) linuxclient.DataResyncDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
 // BfdAuthKeys adds VPP bidirectional forwarding detection key to the RESYNC
 // request.
 func (dsl *DataResyncDSL) BfdAuthKeys(val *bfd.SingleHopBFD_Key) linuxclient.DataResyncDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
 // BfdEchoFunction adds VPP bidirectional forwarding detection echo function
 // to the RESYNC request.
 func (dsl *DataResyncDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) linuxclient.DataResyncDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
@@ -145,19 +145,19 @@ func (dsl *DataResyncDSL) IPScanNeighbor(val *l3.IPScanNeighbor) linuxclient.Dat
 
 // L4Features adds L4 features to the RESYNC request
 func (dsl *DataResyncDSL) L4Features(val *l4.L4Features) linuxclient.DataResyncDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
 // AppNamespace adds VPP Application namespaces to the RESYNC request
 func (dsl *DataResyncDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) linuxclient.DataResyncDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
 // StnRule adds Stn rule to the RESYNC request.
 func (dsl *DataResyncDSL) StnRule(val *stn.STN_Rule) linuxclient.DataResyncDSL {
-	panic(deprecatedPanic)
+	defer func() { panic(deprecated) }()
 	return dsl
 }
 

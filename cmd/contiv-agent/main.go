@@ -62,7 +62,7 @@ import (
 const (
 	defaultStartupTimeout = 45 * time.Second
 
-	grpcDBPath = "/var/bolt/grpc.db"
+	grpcDBPath   = "/var/bolt/grpc.db"
 	grpcEndpoint = "localhost:9111"
 )
 

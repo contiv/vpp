@@ -230,8 +230,8 @@ func protoToString(msg proto.Message) string {
 // ExternalConfigChange is an Update event that represents change for one key
 // from the external configuration (for vpp-agent).
 type ExternalConfigChange struct {
-	result     chan error
-	blocking   bool
+	result   chan error
+	blocking bool
 
 	Source     string
 	UpdatedKVs ExternalConfig
@@ -328,7 +328,6 @@ func (ev *ExternalConfigChange) Wait() error {
 	return <-ev.result
 }
 
-
 /*************************** External Config Resync ***************************/
 
 // ExternalConfigResync is a Resync event triggered by external config source.
@@ -360,7 +359,7 @@ func (ev *ExternalConfigResync) GetName() string {
 func (ev *ExternalConfigResync) String() string {
 	flags := []string{strings.ToUpper(ev.Source)}
 	str := ev.GetName() + " " + flagsToString(flags, 0)
-	for key, _ := range ev.ExternalConfig {
+	for key := range ev.ExternalConfig {
 		str += fmt.Sprintf("\n* key: %s", key)
 	}
 	return str

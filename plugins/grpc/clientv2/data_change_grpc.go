@@ -36,8 +36,8 @@ import (
 )
 
 const (
-	notImplementedPanic = "not implemented in v.2 yet"
-	deprecatedPanic     = "deprecated in v.2"
+	notImplemented = "not implemented in v.2 yet"
+	deprecated     = "deprecated in v.2"
 )
 
 // NewDataChangeDSL is a constructor
@@ -117,21 +117,21 @@ func (dsl *PutDSL) ACL(val *acl.Acl) linuxclient.PutDSL {
 // BfdSession adds a request to create or update VPP bidirectional
 // forwarding detection session.
 func (dsl *PutDSL) BfdSession(val *bfd.SingleHopBFD_Session) linuxclient.PutDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
 // BfdAuthKeys adds a request to create or update VPP bidirectional
 // forwarding detection key.
 func (dsl *PutDSL) BfdAuthKeys(val *bfd.SingleHopBFD_Key) linuxclient.PutDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
 // BfdEchoFunction adds a request to create or update VPP bidirectional
 // forwarding detection echo function.
 func (dsl *PutDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) linuxclient.PutDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
@@ -186,19 +186,19 @@ func (dsl *PutDSL) IPScanNeighbor(val *l3.IPScanNeighbor) linuxclient.PutDSL {
 
 // L4Features adds a request to enable or disable L4 features
 func (dsl *PutDSL) L4Features(val *l4.L4Features) linuxclient.PutDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
 // AppNamespace adds a request to create or update VPP Application namespace
 func (dsl *PutDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) linuxclient.PutDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
 // StnRule adds a request to create or update VPP Stn rule.
 func (dsl *PutDSL) StnRule(val *stn.STN_Rule) linuxclient.PutDSL {
-	panic(deprecatedPanic)
+	defer func() { panic(deprecated) }()
 	return dsl
 }
 
@@ -310,21 +310,21 @@ func (dsl *DeleteDSL) ACL(aclName string) linuxclient.DeleteDSL {
 // BfdSession adds a request to delete an existing VPP bidirectional
 // forwarding detection session.
 func (dsl *DeleteDSL) BfdSession(bfdSessionIfaceName string) linuxclient.DeleteDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
 // BfdAuthKeys adds a request to delete an existing VPP bidirectional
 // forwarding detection key.
 func (dsl *DeleteDSL) BfdAuthKeys(bfdKey string) linuxclient.DeleteDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
 // BfdEchoFunction adds a request to delete an existing VPP bidirectional
 // forwarding detection echo function.
 func (dsl *DeleteDSL) BfdEchoFunction(bfdEchoName string) linuxclient.DeleteDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
@@ -338,7 +338,7 @@ func (dsl *DeleteDSL) BD(bdName string) linuxclient.DeleteDSL {
 	return dsl
 }
 
-// FIB adds a request to delete an existing VPP L2 Forwarding Information
+// BDFIB adds a request to delete an existing VPP L2 Forwarding Information
 // Base.
 func (dsl *DeleteDSL) BDFIB(bdName string, mac string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.FIBs = append(dsl.parent.delReq.FIBs,
@@ -399,19 +399,19 @@ func (dsl *DeleteDSL) IPScanNeighbor() linuxclient.DeleteDSL {
 
 // L4Features adds a request to enable or disable L4 features
 func (dsl *DeleteDSL) L4Features() linuxclient.DeleteDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
 // AppNamespace adds a request to delete VPP Application namespace
 func (dsl *DeleteDSL) AppNamespace(id string) linuxclient.DeleteDSL {
-	panic(notImplementedPanic)
+	defer func() { panic(notImplemented) }()
 	return dsl
 }
 
 // StnRule adds a request to delete an existing VPP Stn rule.
 func (dsl *DeleteDSL) StnRule(ruleName string) linuxclient.DeleteDSL {
-	panic(deprecatedPanic)
+	defer func() { panic(deprecated) }()
 	return dsl
 }
 

@@ -18,28 +18,27 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"golang.org/x/net/context"
 
+	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/db/keyval"
 
+	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/ipsec"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/ipsec"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/grpc/rpc"
 )
 
 //go:generate protoc --proto_path=rpc --proto_path=$GOPATH/src --gogo_out=plugins=grpc:rpc rpc/rpc.proto
-
 
 // Plugin implements GRPC access to Contiv's VPP-agent.
 type Plugin struct {

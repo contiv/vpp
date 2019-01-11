@@ -487,6 +487,7 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 					local.VrfId = routingCfg.PodVRFID
 				}
 				mapping.LocalIps = append(mapping.LocalIps, local)
+				mapping.SessionAffinity = service.SessionAffinityTimeout
 			}
 			if len(mapping.LocalIps) == 0 {
 				continue

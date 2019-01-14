@@ -773,50 +773,6 @@ ifcLoop:
 	// Restore data back to error free state
 	resetToInitialErrorFreeState()
 
-	// --------------------------------------------------------
-	// INJECT FAULT: Bad ip address on pod-facing tap interface
-	podIfIPAdr, podIfIPMask, err =
-		utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodSubnetCIDR)
-	gomega.Expect(err).To(gomega.BeNil())
-
-ifcLoop1:
-	for ifIdx, ifc := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
-		for _, ip := range ifc.Value.IpAddresses {
-			ipAddr, _, err := utils.Ipv4CidrToAddressAndMask(ip)
-			gomega.Expect(err).To(gomega.BeNil())
-
-			if (podIfIPAdr &^ podIfIPMask) == (ipAddr &^ podIfIPMask) {
-				ifc.Value.IpAddresses = []string{"1.2.3.4"}
-				vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[ifIdx] = ifc
-				break ifcLoop1
-			}
-		}
-	}
-
-	// Perform test
-	vtv.report.Clear()
-	vtv.l2Validator.ValidatePodInfo()
-
-	checkDataReport(1, 3, 0)
-
-	// Restore data back to error free state
-	resetToInitialErrorFreeState()
-
-	// --------------------------------------------------------
-	// INJECT FAULT: Bad ip address on pod-facing tap interface
-	ipam := vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam
-	oldPodVPPSubnetCIDR := ipam.Config.PodSubnetCIDR
-	addrParts := strings.Split(oldPodVPPSubnetCIDR, "/")
-	ipam.Config.PodSubnetCIDR = addrParts[0] + "/32"
-
-	// Perform test
-	vtv.report.Clear()
-	vtv.l2Validator.ValidatePodInfo()
-
-	checkDataReport(1, 4, 0)
-
-	// Restore data back to error free state
-	ipam.Config.PodSubnetCIDR = oldPodVPPSubnetCIDR
 }
 
 func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {
@@ -880,15 +836,14 @@ func resetToInitialErrorFreeState() {
 
 func checkDataReport(globalCnt int, nodeKeyCnt int, defaultCnt int) {
 	vtv.report.Print()
-	// TODO: re-enable
-	//for k := range vtv.report.Data {
-	//	switch k {
-	//	case api.GlobalMsg:
-	//		gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(globalCnt))
-	//	case vtv.nodeKey:
-	//		gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(nodeKeyCnt))
-	//	default:
-	//		gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(defaultCnt))
-	//	}
-	//}
+	for k := range vtv.report.Data {
+		switch k {
+		case api.GlobalMsg:
+			gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(globalCnt))
+		case vtv.nodeKey:
+			gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(nodeKeyCnt))
+		default:
+			gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(defaultCnt))
+		}
+	}
 }

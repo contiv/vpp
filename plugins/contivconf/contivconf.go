@@ -218,6 +218,7 @@ type Config struct {
 	StealFirstNIC  bool   `json:"stealFirstNIC,omitempty"`
 	StealInterface string `json:"stealInterface,omitempty"`
 	STNSocketFile  string `json:"stnSocketFile,omitempty"`
+	STNVersion     uint8  `json:"stnVersion,omitempty"`
 
 	NatExternalTraffic           bool `json:"natExternalTraffic,omitempty"`
 	EnablePacketTrace            bool `json:"enablePacketTrace,omitempty"`
@@ -615,6 +616,7 @@ func (c *ContivConf) GetSTNConfig() *STNConfig {
 		StealInterface: c.stnInterface,
 		STNSocketFile:  c.config.STNSocketFile,
 		STNRoutes:      c.stnRoutes,
+		STNVersion:     c.config.STNVersion,
 	}
 }
 

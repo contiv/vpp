@@ -188,6 +188,7 @@ type STNConfig struct {
 	StealInterface string // can be empty if the interface is already stolen
 	STNRoutes      []*stn_grpc.STNReply_Route
 	STNSocketFile  string
+	STNVersion     uint8
 }
 
 // Vmxnet3Config groups config options related to Vmxnet3 feature.

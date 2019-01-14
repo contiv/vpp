@@ -729,7 +729,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:ebae9c20ff4a407a02d73bc2d14dc2e2c29eb7b45e045f7d5cda1d4f9d2ac25d"
+  digest = "1:3e3b6f31427b0be0ab2ac07e6cd742dd69dc8d36c3fdf85f02fd8a6782202d10"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv2/linux",
@@ -802,6 +802,7 @@
     "plugins/vppv2/l3plugin/vppcalls",
     "plugins/vppv2/model/acl",
     "plugins/vppv2/model/interfaces",
+    "plugins/vppv2/model/ipsec",
     "plugins/vppv2/model/l2",
     "plugins/vppv2/model/l3",
     "plugins/vppv2/model/nat",
@@ -816,7 +817,7 @@
     "plugins/vppv2/puntplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "9ffe4f0b9c05265aef611fe5fef4d35fa850f905"
+  revision = "fb7f8cda15d3a3bd3a46a5215be2d13b89f2003a"
 
 [[projects]]
   branch = "master"

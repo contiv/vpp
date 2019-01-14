@@ -24,7 +24,7 @@ import (
 	"github.com/fsouza/go-dockerclient"
 
 	"github.com/ligato/cn-infra/infra"
-	grpcplugin "github.com/ligato/cn-infra/rpc/grpc"
+	"github.com/ligato/cn-infra/rpc/grpc"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -69,7 +69,7 @@ type PodManager struct {
 type Deps struct {
 	infra.PluginDeps
 	EventLoop controller.EventLoop
-	GRPC      grpcplugin.Server
+	GRPC      grpc.Server
 }
 
 // DockerClient defines API of a Docker client needed by PodManager.

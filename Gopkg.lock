@@ -729,7 +729,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:ebae9c20ff4a407a02d73bc2d14dc2e2c29eb7b45e045f7d5cda1d4f9d2ac25d"
+  digest = "1:656ab0a4b72f06e8fa1c27122d9f249baa84bbe93d17e2acdf6fe50e4285c786"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv2/linux",
@@ -779,7 +779,6 @@
     "plugins/vpp/binapi/vpe",
     "plugins/vpp/binapi/vxlan",
     "plugins/vpp/model/bfd",
-    "plugins/vpp/model/ipsec",
     "plugins/vpp/model/l4",
     "plugins/vpp/model/stn",
     "plugins/vppv2/aclplugin",
@@ -802,6 +801,7 @@
     "plugins/vppv2/l3plugin/vppcalls",
     "plugins/vppv2/model/acl",
     "plugins/vppv2/model/interfaces",
+    "plugins/vppv2/model/ipsec",
     "plugins/vppv2/model/l2",
     "plugins/vppv2/model/l3",
     "plugins/vppv2/model/nat",
@@ -816,7 +816,7 @@
     "plugins/vppv2/puntplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "9ffe4f0b9c05265aef611fe5fef4d35fa850f905"
+  revision = "f2500d9b16be5381c4da873b163c3cccfa735a3a"
 
 [[projects]]
   branch = "master"
@@ -1705,7 +1705,6 @@
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/stats",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/model/bfd",
-    "github.com/ligato/vpp-agent/plugins/vpp/model/ipsec",
     "github.com/ligato/vpp-agent/plugins/vpp/model/l4",
     "github.com/ligato/vpp-agent/plugins/vpp/model/stn",
     "github.com/ligato/vpp-agent/plugins/vppv2/aclplugin",
@@ -1719,6 +1718,7 @@
     "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/descriptor",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/acl",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces",
+    "github.com/ligato/vpp-agent/plugins/vppv2/model/ipsec",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/l2",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/l3",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/nat",

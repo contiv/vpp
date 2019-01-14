@@ -9,6 +9,7 @@ contiv:
   vmxnet3TxRingSize: 1024
   interfaceRxMode: "default"
   stealFirstNIC: false
+  stnVersion: 1
   natExternalTraffic: true
   mtuSize: 1450
   cleanupIdleNATSessions: true

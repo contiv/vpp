@@ -304,16 +304,23 @@ func (n *IPv4Net) configureVswitchHostConnectivity(txn controller.ResyncOperatio
 func (n *IPv4Net) configureSTNConnectivity(txn controller.ResyncOperations) {
 	if len(n.nodeIP) > 0 {
 		// STN rule
-		key, stnrule := n.stnRule()
-		txn.Put(key, stnrule)
+		if n.ContivConf.GetSTNConfig().STNVersion == 2 {
+			key, stnrule := n.ipRedirectRule()
+			txn.Put(key, stnrule)
+		} else {
+			key, stnrule := n.stnRule()
+			txn.Put(key, stnrule)
+		}
 
 		// proxy ARP for ARP requests from the host
 		key, proxyarp := n.proxyArpForSTNGateway()
 		txn.Put(key, proxyarp)
 
 		// VPP ARP entry for the host interface
-		key, arp := n.staticArpForSTNHostInterface()
-		txn.Put(key, arp)
+		if n.ContivConf.GetSTNConfig().STNVersion == 2 {
+			key, arp := n.staticArpForSTNHostInterface()
+			txn.Put(key, arp)
+		}
 	}
 
 	// STN routes

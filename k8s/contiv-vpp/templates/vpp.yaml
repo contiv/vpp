@@ -43,6 +43,7 @@ data:
     {{- if .Values.contiv.stealFirstNIC }}
     stealFirstNIC: True
     {{- end }}
+    STNVersion: {{ .Values.contiv.stnVersion }}
     natExternalTraffic: {{ .Values.contiv.natExternalTraffic }}
     mtuSize: {{ .Values.contiv.mtuSize }}
     scanIPNeighbors: {{ .Values.contiv.scanIPNeighbors }}

@@ -26,6 +26,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/stn"
 )
 
 /* VPP - Host interconnect */
@@ -67,7 +68,7 @@ const (
 	// MAC address of the TAP/veth interface connecting host stack with VPP - Linux side
 	// -required to be able to configure the static ARP towards linux on VPP in STN case
 	// (dynamic ARP for an IP that is also assigned on VPP does not work)
-	hostInterconnectMACinLinuxSTN = "02:fa:00:00:00:01"
+	hostInterconnectMACinLinuxSTN = "00:00:00:00:00:02"
 )
 
 // prefix for the hardware address of host interconnects
@@ -300,7 +301,19 @@ func (n *IPv4Net) routeServicesFromHost(nextHopIP net.IP) (key string, config *l
 // stnRule returns configuration for STN rule, used to forward all traffic not matched
 // in VPP to host via interconnect interface.
 // The method assumes that node has IP address allocated!
-func (n *IPv4Net) stnRule() (key string, config *punt.IpRedirect) {
+func (n *IPv4Net) stnRule() (key string, config *stn.Rule) {
+	rule := &stn.Rule{
+		IpAddress: n.nodeIP.String(),
+		Interface: n.hostInterconnectVPPIfName(),
+	}
+	key = stn.Key(rule.Interface, rule.IpAddress)
+	return key, rule
+}
+
+// ipRedirectRule returns configuration for ip_redirect flavor of STN rule, used to forward all traffic not matched
+// in VPP to host via interconnect interface. in is another alternative of the stnRule() functionality.
+// The method assumes that node has IP address allocated!
+func (n *IPv4Net) ipRedirectRule() (key string, config *punt.IpRedirect) {
 	rule := &punt.IpRedirect{
 		L3Protocol:  punt.L3Protocol_ALL,
 		TxInterface: n.hostInterconnectVPPIfName(),

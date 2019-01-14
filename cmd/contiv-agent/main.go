@@ -32,6 +32,16 @@ import (
 	"github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/rpc/rest"
 
+	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/controller"
+	controller_api "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipam"
+	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/contiv/vpp/plugins/policy"
+	"github.com/contiv/vpp/plugins/service"
+	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/ligato/vpp-agent/plugins/kvscheduler"
 	linux_ifplugin "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin"
@@ -45,17 +55,7 @@ import (
 	vpp_l3plugin "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin"
 	vpp_natplugin "github.com/ligato/vpp-agent/plugins/vppv2/natplugin"
 	vpp_puntplugin "github.com/ligato/vpp-agent/plugins/vppv2/puntplugin"
-
-	"github.com/contiv/vpp/plugins/contivconf"
-	"github.com/contiv/vpp/plugins/controller"
-	controller_api "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/ipam"
-	"github.com/contiv/vpp/plugins/ipv4net"
-	"github.com/contiv/vpp/plugins/nodesync"
-	"github.com/contiv/vpp/plugins/podmanager"
-	"github.com/contiv/vpp/plugins/policy"
-	"github.com/contiv/vpp/plugins/service"
-	"github.com/contiv/vpp/plugins/statscollector"
+	vpp_stnplugin "github.com/ligato/vpp-agent/plugins/vppv2/stnplugin"
 )
 
 const defaultStartupTimeout = 45 * time.Second
@@ -78,6 +78,7 @@ type ContivAgent struct {
 	VPPL3Plugin   *vpp_l3plugin.L3Plugin
 	VPPNATPlugin  *vpp_natplugin.NATPlugin
 	VPPACLPlugin  *vpp_aclplugin.ACLPlugin
+	VPPSTNPlugin  *vpp_stnplugin.STNPlugin
 	VPPPuntPlugin *vpp_puntplugin.PuntPlugin
 
 	Telemetry *telemetry.Plugin
@@ -207,6 +208,7 @@ func main() {
 		VPPL3Plugin:   &vpp_l3plugin.DefaultPlugin,
 		VPPNATPlugin:  &vpp_natplugin.DefaultPlugin,
 		VPPACLPlugin:  &vpp_aclplugin.DefaultPlugin,
+		VPPSTNPlugin:  &vpp_stnplugin.DefaultPlugin,
 		VPPPuntPlugin: &vpp_puntplugin.DefaultPlugin,
 		Telemetry:     &telemetry.DefaultPlugin,
 		GRPC:          &grpc.DefaultPlugin,

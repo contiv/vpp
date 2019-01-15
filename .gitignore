@@ -9,6 +9,9 @@ cmd/contiv-stn/contiv-stn
 cmd/contiv-crd/contiv-crd
 cmd/contiv-netctl/contiv-netctl
 cmd/tools/ldpreload-label-injector/ldpreload-label-injector
+docker/development/contiv-agent
+docker/development/contiv-init
+docker/development/supervisord.conf
 plugins/controller/example/example
 vagrant/images.tar
 .vagrant

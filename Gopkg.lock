@@ -729,7 +729,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:ccfcff08baad32ad0abf52559a66d215b5004b1a87c6fbb09f440ba9675362cb"
+  digest = "1:326fb869d92dac1806c4673afc0a9b2fdcb33bd41fc798ae876ffd0477a5cbf6"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv2/linux",
@@ -773,6 +773,7 @@
     "plugins/vpp/binapi/punt",
     "plugins/vpp/binapi/session",
     "plugins/vpp/binapi/stats",
+    "plugins/vpp/binapi/stn",
     "plugins/vpp/binapi/tap",
     "plugins/vpp/binapi/tapv2",
     "plugins/vpp/binapi/vmxnet3",
@@ -806,6 +807,7 @@
     "plugins/vppv2/model/l3",
     "plugins/vppv2/model/nat",
     "plugins/vppv2/model/punt",
+    "plugins/vppv2/model/stn",
     "plugins/vppv2/natplugin",
     "plugins/vppv2/natplugin/descriptor",
     "plugins/vppv2/natplugin/descriptor/adapter",
@@ -814,9 +816,13 @@
     "plugins/vppv2/puntplugin/descriptor",
     "plugins/vppv2/puntplugin/descriptor/adapter",
     "plugins/vppv2/puntplugin/vppcalls",
+    "plugins/vppv2/stnplugin",
+    "plugins/vppv2/stnplugin/descriptor",
+    "plugins/vppv2/stnplugin/descriptor/adapter",
+    "plugins/vppv2/stnplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "2dd1a7250d4775a3c8333035ea28e0906db83db7"
+  revision = "dd91c2e6d0102c7f5b40e31b81cb50430c9147b2"
 
 [[projects]]
   branch = "master"
@@ -1699,6 +1705,7 @@
     "github.com/ligato/vpp-agent/plugins/linuxv2/model/namespace",
     "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin",
     "github.com/ligato/vpp-agent/plugins/restv2",
+    "github.com/ligato/vpp-agent/plugins/restv2/resturl",
     "github.com/ligato/vpp-agent/plugins/telemetry",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/session",
@@ -1723,8 +1730,10 @@
     "github.com/ligato/vpp-agent/plugins/vppv2/model/l3",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/nat",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/punt",
+    "github.com/ligato/vpp-agent/plugins/vppv2/model/stn",
     "github.com/ligato/vpp-agent/plugins/vppv2/natplugin",
     "github.com/ligato/vpp-agent/plugins/vppv2/puntplugin",
+    "github.com/ligato/vpp-agent/plugins/vppv2/stnplugin",
     "github.com/namsral/flag",
     "github.com/nerdtakula/supervisor",
     "github.com/onsi/gomega",

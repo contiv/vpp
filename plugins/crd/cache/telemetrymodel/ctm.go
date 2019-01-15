@@ -108,19 +108,8 @@ type NodeInterfaces []NodeInterface
 // NodeInterface holds un-marshalled VPP Interface data.
 type NodeInterface struct {
 	Key      string
-	Value    VppInterface
+	Value    *interfaces.Interface
 	Metadata ifaceidx.IfaceMetadata
-}
-
-// VppInterface extends VPP interface proto model with JSON un-marshaller from jsonpb.
-type VppInterface struct {
-	*interfaces.Interface
-}
-
-// UnmarshalJSON uses un-marshaller from jsonpb.
-func (v *VppInterface) UnmarshalJSON(data []byte) error {
-	v.Interface = &interfaces.Interface{}
-	return jsonpb.UnmarshalString(string(data), v.Interface)
 }
 
 /******************************* Linux interface *******************************/
@@ -131,19 +120,8 @@ type LinuxInterfaces []LinuxInterface
 // LinuxInterface holds un-marshalled Linux Interface data.
 type LinuxInterface struct {
 	Key      string
-	Value    LinuxInterfaceVal
+	Value    *linux_interfaces.Interface
 	Metadata linux_ifaceidx.LinuxIfMetadata
-}
-
-// LinuxInterfaceVal extends Linux interface proto model with JSON un-marshaller from jsonpb.
-type LinuxInterfaceVal struct {
-	*linux_interfaces.Interface
-}
-
-// UnmarshalJSON uses un-marshaller from jsonpb.
-func (v *LinuxInterfaceVal) UnmarshalJSON(data []byte) error {
-	v.Interface = &linux_interfaces.Interface{}
-	return jsonpb.UnmarshalString(string(data), v.Interface)
 }
 
 /******************************** Bridge domain ********************************/

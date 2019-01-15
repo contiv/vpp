@@ -31,20 +31,13 @@ import (
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/remote"
-	//vppifdescr "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
-	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
+	vppif "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
 	arpdescr "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/descriptor"
 )
 
-// InterfaceDetails group interface related data
-type InterfaceDetails struct {
-	Interface *telemetrymodel.VppInterface `json:"interface"`
-	Meta      *vppcalls.InterfaceMeta      `json:"interface_meta"`
-}
-
 type nodeData struct {
 	ipam *ipv4net.IPAMData
-	ifcs map[uint32]*InterfaceDetails
+	ifcs map[uint32]*vppif.InterfaceDetails
 	arps telemetrymodel.NodeIPArpTable
 }
 type nodeDataCache map[string]*nodeData
@@ -192,7 +185,7 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (uint32, string) {
 		// Get interfaces data for the node where the pod is hosted
 		//ifaceDumpCmd := vppDumpCommand(vppifdescr.InterfaceDescriptorName)
 		b, err = getNodeInfo(pg.client, podInfo.HostIpAddress, "/vpp/dump/v2/interfaces")
-		intfs := make(map[uint32]*InterfaceDetails, 0)
+		intfs := make(map[uint32]*vppif.InterfaceDetails, 0)
 		if err := json.Unmarshal(b, &intfs); err != nil {
 			fmt.Printf("Host '%s', Pod '%s' - failed to get pod's interface, err %s\n",
 				podInfo.HostIpAddress, podInfo.Name, err)

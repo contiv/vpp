@@ -35,6 +35,9 @@ import (
 )
 
 const (
+	// label used for remote DB as a potential source of external database.
+	dbExtCfgSrc = "db"
+
 	// healthCheckProbeKey is a key used to probe Etcd state
 	healthCheckProbeKey = "/probe-etcd-connection"
 )
@@ -490,13 +493,12 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 		}
 	} else {
 		key = strings.TrimPrefix(key, w.agentPrefix)
-		extChangeEv := &api.ExternalConfigChange{
-			Key:      key,
-			Revision: change,
-		}
+		var value datasync.LazyValue
 		if change.GetChangeType() != datasync.Delete {
-			extChangeEv.Value = change
+			value = change
 		}
+		extChangeEv := api.NewExternalConfigChange(dbExtCfgSrc, false)
+		extChangeEv.UpdatedKVs[key] = value
 		event = extChangeEv
 	}
 	err := w.eventLoop.PushEvent(event)

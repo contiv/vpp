@@ -141,7 +141,7 @@ type Controller struct {
 
 	dbWatcher      *dbWatcher
 	kubeStateData  api.KubeStateData
-	externalConfig api.ExternalConfig
+	externalConfig map[string]api.ExternalConfig // ext. source label -> config snapshot
 	internalConfig api.KeyValuePairs
 
 	evLoopGID            string // ID of the go routine running the event loop
@@ -179,6 +179,8 @@ type Deps struct {
 
 	LocalDB  keyval.KvProtoPlugin
 	RemoteDB keyval.KvProtoPlugin
+
+	ExtSources []ExternalConfigSource
 }
 
 // Config holds the Controller configuration.
@@ -238,6 +240,18 @@ type QueuedEvent struct {
 	followUpToEvent uint64 // event sequence number
 }
 
+// ExternalConfigSource defines API that a source of external configuration
+// must implement.
+type ExternalConfigSource interface {
+	// String identifies the external config source for the Controller.
+	// Note: Plugins already implement Stringer.
+	String() string
+
+	// GetConfigSnapshot should return full configuration snapshot that is
+	// required by the external source to be applied at the given moment.
+	GetConfigSnapshot() (api.ExternalConfig, error)
+}
+
 var (
 	// ErrClosedController is returned when Controller is used when it is already closed.
 	ErrClosedController = errors.New("controller was closed")
@@ -258,6 +272,7 @@ func (c *Controller) Init() error {
 	c.startupResyncCheck = make(chan struct{}, 1)
 	c.eventHistoryTrimming = make(chan struct{}, 1)
 	c.internalConfig = make(api.KeyValuePairs)
+	c.externalConfig = make(map[string]api.ExternalConfig)
 	for i := len(c.EventHandlers) - 1; i >= 0; i-- {
 		c.revEventHandlers = append(c.revEventHandlers, c.EventHandlers[i])
 	}
@@ -551,7 +566,21 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		c.resyncCount++ // first resync has resyncCount == 1
 		if dbResync, isDBResync := event.(*api.DBResync); isDBResync {
 			c.kubeStateData = dbResync.KubeState
-			c.externalConfig = dbResync.ExternalConfig
+			c.externalConfig[dbExtCfgSrc] = dbResync.ExternalConfig
+			// reload other external config sources as well
+			for _, extSource := range c.ExtSources {
+				sourceName := extSource.String()
+				config, err := extSource.GetConfigSnapshot()
+				if err != nil {
+					c.Log.Errorf("Failed to re-load external config from source %s: %v",
+						sourceName, err)
+					continue
+				}
+				c.externalConfig[sourceName] = config
+			}
+		}
+		if extResyncEv, isExtResyncEv := event.(*api.ExternalConfigResync); isExtResyncEv {
+			c.externalConfig[extResyncEv.Source] = extResyncEv.ExternalConfig
 		}
 		if healingResync, isHealingResync := event.(*api.HealingResync); isHealingResync {
 			isHealing = true
@@ -581,10 +610,13 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 			}
 		}
 		if extChangeEv, isExtChangeEv := event.(*api.ExternalConfigChange); isExtChangeEv {
-			if extChangeEv.Value == nil {
-				delete(c.externalConfig, extChangeEv.Key)
-			} else {
-				c.externalConfig[extChangeEv.Key] = extChangeEv.Value
+			source := extChangeEv.Source
+			for key, value := range extChangeEv.UpdatedKVs {
+				if value == nil {
+					delete(c.externalConfig[source], key)
+				} else {
+					c.externalConfig[source][key] = value
+				}
 			}
 		}
 	}
@@ -677,39 +709,47 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 	// 8. merge internal (Contiv-generated) values with external configuration
 	if !fatalErr && !abortErr {
 		if isUpdate {
-			var extChangeKey string
+			merged := make(map[string]struct{}) // a set of keys with already merged values
 			if extChangeEv, isExtChangeEv := event.(*api.ExternalConfigChange); isExtChangeEv {
-				// merge external config change with txn or with cached internal config
-				extChangeKey = extChangeEv.Key
-				txnVal, hasTxnVal := txn.values[extChangeKey]
-				cachedVal, hasCachedVal := c.internalConfig[extChangeKey]
-				if hasTxnVal {
-					txn.merged[extChangeKey] = c.mergeLazyValIntoProto(extChangeKey, extChangeEv.Value, txnVal)
-				} else if hasCachedVal {
-					txn.merged[extChangeKey] = c.mergeLazyValIntoProto(extChangeKey, extChangeEv.Value, cachedVal)
-				} else {
-					txn.merged[extChangeKey] = extChangeEv.Value
+				for key, value := range extChangeEv.UpdatedKVs {
+					// merge external config change with txn or with cached internal config
+					txnVal, hasTxnVal := txn.values[key]
+					cachedVal, hasCachedVal := c.internalConfig[key]
+					if hasTxnVal {
+						txn.merged[key] = c.mergeLazyValIntoProto(key, value, txnVal)
+					} else if hasCachedVal {
+						txn.merged[key] = c.mergeLazyValIntoProto(key, value, cachedVal)
+					} else {
+						txn.merged[key] = value
+					}
+					merged[key] = struct{}{}
 				}
 			}
 
 			// merge internal config changes with the external config
 			for key, value := range txn.values {
-				if key == extChangeKey {
+				if _, alreadyMerged := merged[key]; alreadyMerged {
 					// already merged
 					continue
 				}
-				extVal, hasExtVal := c.externalConfig[key]
-				if hasExtVal {
-					txn.merged[key] = c.mergeLazyValIntoProto(key, extVal, value)
+				// merge with value from the first source with a match
+				for source := range c.externalConfig {
+					extVal, hasExtVal := c.externalConfig[source][key]
+					if hasExtVal {
+						txn.merged[key] = c.mergeLazyValIntoProto(key, extVal, value)
+						break
+					}
 				}
 			}
 		} else if event.Method() != api.DownstreamResync {
-			for key, lazyVal := range c.externalConfig {
-				txnVal, hasTxnVal := txn.values[key]
-				if hasTxnVal {
-					txn.merged[key] = c.mergeLazyValIntoProto(key, lazyVal, txnVal)
-				} else {
-					txn.merged[key] = lazyVal
+			for source := range c.externalConfig {
+				for key, lazyVal := range c.externalConfig[source] {
+					txnVal, hasTxnVal := txn.values[key]
+					if hasTxnVal {
+						txn.merged[key] = c.mergeLazyValIntoProto(key, lazyVal, txnVal)
+					} else {
+						txn.merged[key] = lazyVal
+					}
 				}
 			}
 		}

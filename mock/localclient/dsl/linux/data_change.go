@@ -180,6 +180,25 @@ func (d *MockPutDSL) DNAT44(val *nat.DNat44) linuxclient.PutDSL {
 	return d
 }
 
+// LinuxInterface adds a mock request to create or update Linux network interface.
+func (d *MockPutDSL) LinuxInterface(val *linux_interfaces.Interface) linuxclient.PutDSL {
+	key := linux_interfaces.InterfaceKey(val.Name)
+	d.parent.Values[key] = val
+	return d
+}
+
+func (d *MockPutDSL) LinuxArpEntry(val *linux_l3.StaticARPEntry) linuxclient.PutDSL {
+	key := linux_l3.StaticArpKey(val.Interface, val.IpAddress)
+	d.parent.Values[key] = val
+	return d
+}
+
+func (d *MockPutDSL) LinuxRoute(val *linux_l3.StaticRoute) linuxclient.PutDSL {
+	key := linux_l3.StaticRouteKey(val.DstNetwork, val.OutgoingInterface)
+	d.parent.Values[key] = val
+	return d
+}
+
 // IPSecSA adds request to create a new Security Association
 func (d *MockPutDSL) IPSecSA(val *ipsec.SecurityAssociation) linuxclient.PutDSL {
 	key := ipsec.SAKey(val.Index)
@@ -204,25 +223,6 @@ func (d *MockPutDSL) PuntIPRedirect(val *punt.IpRedirect) linuxclient.PutDSL {
 // PuntToHost adds request to create or update rule to punt L4 traffic to a host.
 func (d *MockPutDSL) PuntToHost(val *punt.ToHost) linuxclient.PutDSL {
 	key := punt.ToHostKey(val.L3Protocol, val.L4Protocol, val.Port)
-	d.parent.Values[key] = val
-	return d
-}
-
-// LinuxInterface adds a mock request to create or update Linux network interface.
-func (d *MockPutDSL) LinuxInterface(val *linux_interfaces.Interface) linuxclient.PutDSL {
-	key := linux_interfaces.InterfaceKey(val.Name)
-	d.parent.Values[key] = val
-	return d
-}
-
-func (d *MockPutDSL) LinuxArpEntry(val *linux_l3.StaticARPEntry) linuxclient.PutDSL {
-	key := linux_l3.StaticArpKey(val.Interface, val.IpAddress)
-	d.parent.Values[key] = val
-	return d
-}
-
-func (d *MockPutDSL) LinuxRoute(val *linux_l3.StaticRoute) linuxclient.PutDSL {
-	key := linux_l3.StaticRouteKey(val.DstNetwork, val.OutgoingInterface)
 	d.parent.Values[key] = val
 	return d
 }
@@ -360,34 +360,6 @@ func (d *MockDeleteDSL) DNAT44(label string) linuxclient.DeleteDSL {
 	return d
 }
 
-// IPSecSA adds request to create a new Security Association
-func (d *MockDeleteDSL) IPSecSA(saIndex string) linuxclient.DeleteDSL {
-	key := ipsec.SAKey(saIndex)
-	d.parent.Values[key] = nil
-	return d
-}
-
-// IPSecSPD adds request to create a new Security Policy Database
-func (d *MockDeleteDSL) IPSecSPD(spdIndex string) linuxclient.DeleteDSL {
-	key := ipsec.SPDKey(spdIndex)
-	d.parent.Values[key] = nil
-	return d
-}
-
-// PuntIPRedirect adds request to delete a rule used to punt L3 traffic via interface.
-func (d *MockDeleteDSL) PuntIPRedirect(l3Proto punt.L3Protocol, txInterface string) linuxclient.DeleteDSL {
-	key := punt.IPRedirectKey(l3Proto, txInterface)
-	d.parent.Values[key] = nil
-	return d
-}
-
-// PuntToHost adds request to delete a rule used to punt L4 traffic to a host.
-func (d *MockDeleteDSL) PuntToHost(l3Proto punt.L3Protocol, l4Proto punt.L4Protocol, port uint32) linuxclient.DeleteDSL {
-	key := punt.ToHostKey(l3Proto, l4Proto, port)
-	d.parent.Values[key] = nil
-	return d
-}
-
 // LinuxInterface adds a mock request to delete an existing Linux network
 // interface.
 func (d *MockDeleteDSL) LinuxInterface(ifName string) linuxclient.DeleteDSL {
@@ -404,6 +376,34 @@ func (d *MockDeleteDSL) LinuxArpEntry(ifaceName string, ipAddr string) linuxclie
 
 func (d *MockDeleteDSL) LinuxRoute(dstAddr, outIfaceName string) linuxclient.DeleteDSL {
 	key := linux_l3.StaticRouteKey(dstAddr, outIfaceName)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// IPSecSA adds request to delete a Security Association
+func (d *MockDeleteDSL) IPSecSA(saIndex string) linuxclient.DeleteDSL {
+	key := ipsec.SAKey(saIndex)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// IPSecSPD adds request to delete a Security Policy Database
+func (d *MockDeleteDSL) IPSecSPD(spdIndex string) linuxclient.DeleteDSL {
+	key := ipsec.SPDKey(spdIndex)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// PuntIPRedirect adds request to delete a rule used to punt L3 traffic via interface.
+func (d *MockDeleteDSL) PuntIPRedirect(l3Proto punt.L3Protocol, txInterface string) linuxclient.DeleteDSL {
+	key := punt.IPRedirectKey(l3Proto, txInterface)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// PuntToHost adds request to delete a rule used to punt L4 traffic to a host.
+func (d *MockDeleteDSL) PuntToHost(l3Proto punt.L3Protocol, l4Proto punt.L4Protocol, port uint32) linuxclient.DeleteDSL {
+	key := punt.ToHostKey(l3Proto, l4Proto, port)
 	d.parent.Values[key] = nil
 	return d
 }

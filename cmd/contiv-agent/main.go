@@ -35,6 +35,7 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	"github.com/contiv/vpp/plugins/controller"
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
+	contivgrpc "github.com/contiv/vpp/plugins/grpc"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/nodesync"
@@ -58,7 +59,12 @@ import (
 	vpp_stnplugin "github.com/ligato/vpp-agent/plugins/vppv2/stnplugin"
 )
 
-const defaultStartupTimeout = 45 * time.Second
+const (
+	defaultStartupTimeout = 45 * time.Second
+
+	grpcDBPath   = "/var/bolt/grpc.db"
+	grpcEndpoint = "localhost:9111"
+)
 
 // ContivAgent manages vswitch in contiv/vpp solution
 type ContivAgent struct {
@@ -87,6 +93,7 @@ type ContivAgent struct {
 
 	Controller *controller.Controller
 	ContivConf *contivconf.ContivConf
+	ContivGRPC *contivgrpc.Plugin
 	NodeSync   *nodesync.NodeSync
 	PodManager *podmanager.PodManager
 	IPAM       *ipam.IPAM
@@ -133,6 +140,22 @@ func main() {
 	// initialize Contiv plugins
 	contivConf := contivconf.NewPlugin(contivconf.UseDeps(func(deps *contivconf.Deps) {
 		deps.GoVPP = &govppmux.DefaultPlugin
+	}))
+
+	contivGRPC := contivgrpc.NewPlugin(contivgrpc.UseDeps(func(deps *contivgrpc.Deps) {
+		deps.LocalDB = bolt.NewPlugin(func(plugin *bolt.Plugin) {
+			plugin.PluginName = "bolt2"
+			plugin.Config = &bolt.Config{
+				DbPath:   grpcDBPath,
+				FileMode: 0660,
+			}
+		})
+		deps.GRPCServer = grpc.NewPlugin(func(plugin *grpc.Plugin) {
+			plugin.PluginName = "grpc2"
+			plugin.Config = &grpc.Config{
+				Endpoint: grpcEndpoint,
+			}
+		})
 	}))
 
 	nodeSyncPlugin := &nodesync.DefaultPlugin
@@ -183,6 +206,9 @@ func main() {
 			policyPlugin,
 			statsCollector,
 		}
+		deps.ExtSources = []controller.ExternalConfigSource{
+			contivGRPC,
+		}
 	}))
 
 	contivConf.ContivAgentDeps = &contivconf.ContivAgentDeps{
@@ -191,6 +217,7 @@ func main() {
 	nodeSyncPlugin.EventLoop = controller
 	podManager.EventLoop = controller
 	ipv4NetPlugin.EventLoop = controller
+	contivGRPC.EventLoop = controller
 
 	// initialize the agent
 	contivAgent := &ContivAgent{
@@ -215,6 +242,7 @@ func main() {
 		REST:          &rest_plugin.DefaultPlugin,
 		Controller:    controller,
 		ContivConf:    contivConf,
+		ContivGRPC:    contivGRPC,
 		NodeSync:      nodeSyncPlugin,
 		PodManager:    podManager,
 		IPAM:          ipamPlugin,

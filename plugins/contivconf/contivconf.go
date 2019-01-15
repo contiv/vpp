@@ -74,7 +74,6 @@ const (
 	defaultServiceCIDR                   = "10.96.0.0/12"
 	defaultPodSubnetCIDR                 = "10.1.0.0/16"
 	defaultPodSubnetOneNodePrefixLen     = 24
-	defaultPodVPPSubnetCIDR              = "10.2.1.0/24"
 	defaultVPPHostSubnetCIDR             = "172.30.0.0/16"
 	defaultVPPHostSubnetOneNodePrefixLen = 24
 	defaultVxlanCIDR                     = "192.168.30.0/24"
@@ -219,6 +218,7 @@ type Config struct {
 	StealFirstNIC  bool   `json:"stealFirstNIC,omitempty"`
 	StealInterface string `json:"stealInterface,omitempty"`
 	STNSocketFile  string `json:"stnSocketFile,omitempty"`
+	STNVersion     uint8  `json:"stnVersion,omitempty"`
 
 	NatExternalTraffic           bool `json:"natExternalTraffic,omitempty"`
 	EnablePacketTrace            bool `json:"enablePacketTrace,omitempty"`
@@ -236,7 +236,6 @@ type IPAMConfigForJSON struct {
 	ContivCIDR                    string `json:"contivCIDR,omitempty"`
 	ServiceCIDR                   string `json:"serviceCIDR,omitempty"`
 	NodeInterconnectDHCP          bool   `json:"nodeInterconnectDHCP,omitempty"`
-	PodVPPSubnetCIDR              string `json:"podVPPSubnetCIDR,omitempty"`
 	PodSubnetCIDR                 string `json:"podSubnetCIDR,omitempty"`
 	PodSubnetOneNodePrefixLen     uint8  `json:"podSubnetOneNodePrefixLen,omitempty"`
 	VPPHostSubnetCIDR             string `json:"vppHostSubnetCIDR,omitempty"`
@@ -324,7 +323,6 @@ func (c *ContivConf) Init() (err error) {
 			ServiceCIDR:                   defaultServiceCIDR,
 			PodSubnetCIDR:                 defaultPodSubnetCIDR,
 			PodSubnetOneNodePrefixLen:     defaultPodSubnetOneNodePrefixLen,
-			PodVPPSubnetCIDR:              defaultPodVPPSubnetCIDR,
 			VPPHostSubnetCIDR:             defaultVPPHostSubnetCIDR,
 			VPPHostSubnetOneNodePrefixLen: defaultVPPHostSubnetOneNodePrefixLen,
 			VxlanCIDR:                     defaultVxlanCIDR,
@@ -378,10 +376,6 @@ func (c *ContivConf) Init() (err error) {
 	_, c.ipamConfig.PodSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.PodSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse PodSubnetCIDR: %v", err)
-	}
-	_, c.ipamConfig.PodVPPSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.PodVPPSubnetCIDR)
-	if err != nil {
-		return fmt.Errorf("failed to parse PodVPPSubnetCIDR: %v", err)
 	}
 	_, c.ipamConfig.VPPHostSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.VPPHostSubnetCIDR)
 	if err != nil {
@@ -622,6 +616,7 @@ func (c *ContivConf) GetSTNConfig() *STNConfig {
 		StealInterface: c.stnInterface,
 		STNSocketFile:  c.config.STNSocketFile,
 		STNRoutes:      c.stnRoutes,
+		STNVersion:     c.config.STNVersion,
 	}
 }
 

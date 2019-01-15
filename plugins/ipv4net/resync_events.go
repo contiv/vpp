@@ -304,16 +304,23 @@ func (n *IPv4Net) configureVswitchHostConnectivity(txn controller.ResyncOperatio
 func (n *IPv4Net) configureSTNConnectivity(txn controller.ResyncOperations) {
 	if len(n.nodeIP) > 0 {
 		// STN rule
-		key, stnrule := n.stnRule()
-		txn.Put(key, stnrule)
+		if n.ContivConf.GetSTNConfig().STNVersion == 2 {
+			key, stnrule := n.ipRedirectRule()
+			txn.Put(key, stnrule)
+		} else {
+			key, stnrule := n.stnRule()
+			txn.Put(key, stnrule)
+		}
 
 		// proxy ARP for ARP requests from the host
 		key, proxyarp := n.proxyArpForSTNGateway()
 		txn.Put(key, proxyarp)
 
 		// VPP ARP entry for the host interface
-		key, arp := n.staticArpForSTNHostInterface()
-		txn.Put(key, arp)
+		if n.ContivConf.GetSTNConfig().STNVersion == 2 {
+			key, arp := n.staticArpForSTNHostInterface()
+			txn.Put(key, arp)
+		}
 	}
 
 	// STN routes
@@ -375,8 +382,9 @@ func (n *IPv4Net) otherNodesResync(txn controller.ResyncOperations) error {
 		}
 	}
 
-	// bridge domain with VXLAN interfaces
 	if !n.ContivConf.GetRoutingConfig().UseL2Interconnect {
+		// bridge domain with VXLAN interfaces
+
 		// bridge domain
 		key, bd := n.vxlanBridgeDomain()
 		txn.Put(key, bd)
@@ -389,5 +397,10 @@ func (n *IPv4Net) otherNodesResync(txn controller.ResyncOperations) error {
 		}
 		txn.Put(key, vxlanBVI)
 	}
+
+	// loopback with the gateway IP address for PODs. Also used as the unnumbered IP for the POD facing interfaces.
+	key, lo := n.podGwLoopback()
+	txn.Put(key, lo)
+
 	return nil
 }

@@ -20,6 +20,7 @@ metadata:
   namespace: kube-system
 data:
   contiv.conf: |-
+    useL2Interconnect: {{ .Values.contiv.useL2Interconnect }}
     useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}
@@ -42,6 +43,7 @@ data:
     {{- if .Values.contiv.stealFirstNIC }}
     stealFirstNIC: True
     {{- end }}
+    STNVersion: {{ .Values.contiv.stnVersion }}
     natExternalTraffic: {{ .Values.contiv.natExternalTraffic }}
     mtuSize: {{ .Values.contiv.mtuSize }}
     scanIPNeighbors: {{ .Values.contiv.scanIPNeighbors }}
@@ -63,7 +65,6 @@ data:
       {{- end }}
       podSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       podSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.podSubnetOneNodePrefixLen }}
-      podVPPSubnetCIDR: {{ .Values.contiv.ipamConfig.podVPPSubnetCIDR }}
       vppHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
       vppHostSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.vppHostSubnetOneNodePrefixLen }}
       vxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}

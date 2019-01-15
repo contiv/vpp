@@ -127,8 +127,10 @@ func (n *IPv4Net) podVPPTap(pod *podmanager.LocalPod) (key string, config *inter
 		Mtu:         interfaceCfg.MTUSize,
 		Enabled:     true,
 		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
-		IpAddresses: []string{n.ipAddrForPodVPPIf(pod)},
 		PhysAddress: n.hwAddrForPod(pod, true),
+		Unnumbered: &interfaces.Interface_Unnumbered{
+			InterfaceWithIp: podGwLoopbackInterfaceName,
+		},
 		Link: &interfaces.Interface_Tap{
 			Tap: &interfaces.TapLink{},
 		},
@@ -249,8 +251,10 @@ func (n *IPv4Net) podAfPacket(pod *podmanager.LocalPod) (key string, config *int
 		Mtu:         n.ContivConf.GetInterfaceConfig().MTUSize,
 		Enabled:     true,
 		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
-		IpAddresses: []string{n.ipAddrForPodVPPIf(pod)},
 		PhysAddress: n.hwAddrForPod(pod, true),
+		Unnumbered: &interfaces.Interface_Unnumbered{
+			InterfaceWithIp: podGwLoopbackInterfaceName,
+		},
 		Link: &interfaces.Interface_Afpacket{
 			Afpacket: &interfaces.AfpacketLink{
 				HostIfName: n.podVeth2HostIfName(pod),
@@ -340,19 +344,6 @@ func (n *IPv4Net) vppToPodRoute(pod *podmanager.LocalPod) (key string, config *l
 }
 
 /**************************** Address generators ******************************/
-
-// ipAddrForPodVPPIf returns the IP address of the interface connecting pod on the VPP side.
-func (n *IPv4Net) ipAddrForPodVPPIf(pod *podmanager.LocalPod) string {
-	prefix, _ := ipv4ToUint32(n.IPAM.PodVPPSubnet().IP)
-
-	podAddr, _ := ipv4ToUint32(n.IPAM.GetPodIP(pod.ID).IP)
-	podMask, _ := ipv4ToUint32(net.IP(n.IPAM.PodSubnetThisNode().Mask))
-	podSuffix := podAddr &^ podMask
-
-	address := uint32ToIpv4(prefix + podSuffix)
-
-	return net.IP.String(address) + "/32"
-}
 
 // generateHwAddrForPod generates hardware address for Pod interface on the VPP
 // side or on the host (Linux) side.

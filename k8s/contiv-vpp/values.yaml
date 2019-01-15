@@ -1,5 +1,6 @@
 ---
 contiv:
+  useL2Interconnect: false
   useTAPInterfaces: true
   tapInterfaceVersion: 2
   tapv2RxRingSize: 256
@@ -8,6 +9,7 @@ contiv:
   vmxnet3TxRingSize: 1024
   interfaceRxMode: "default"
   stealFirstNIC: false
+  stnVersion: 1
   natExternalTraffic: true
   mtuSize: 1450
   cleanupIdleNATSessions: true
@@ -24,7 +26,6 @@ contiv:
   ipamConfig:
     podSubnetCIDR: 10.1.0.0/16
     podSubnetOneNodePrefixLen: 24
-    podVPPSubnetCIDR: 10.2.1.0/24
     vppHostSubnetCIDR: 172.30.0.0/16
     vppHostSubnetOneNodePrefixLen: 24
     nodeInterconnectCIDR: 192.168.16.0/24

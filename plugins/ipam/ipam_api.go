@@ -60,10 +60,6 @@ type API interface {
 	// PodSubnetOtherNode returns the POD network of another node identified by nodeID.
 	PodSubnetOtherNode(nodeID uint32) (*net.IPNet, error)
 
-	// PodVPPSubnet returns VPP-side interface IP address prefix
-	// (reused by every node - not routed outside from the nodes).
-	PodVPPSubnet() *net.IPNet
-
 	// ServiceNetwork returns range allocated for services.
 	ServiceNetwork() *net.IPNet
 

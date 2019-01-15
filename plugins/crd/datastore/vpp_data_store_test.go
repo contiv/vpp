@@ -131,16 +131,14 @@ func TestVppDataStore_SetNodeInterfaces(t *testing.T) {
 
 	nodeIFs := make(telemetrymodel.NodeInterfaces, 1)
 	nodeIF := telemetrymodel.NodeInterface{
-		Value: telemetrymodel.VppInterface{
-			Interface: &interfaces.Interface{
-				Name:        "Testing",
-				Type:        interfaces.Interface_VXLAN_TUNNEL,
-				Enabled:     true,
-				PhysAddress: "",
-				Mtu:         1500,
-				Vrf:         0,
-				IpAddresses: []string{"192,168.20.1"},
-			},
+		Value: &interfaces.Interface{
+			Name:        "Testing",
+			Type:        interfaces.Interface_VXLAN_TUNNEL,
+			Enabled:     true,
+			PhysAddress: "",
+			Mtu:         1500,
+			Vrf:         0,
+			IpAddresses: []string{"192,168.20.1"},
 		},
 		Metadata: ifaceidx.IfaceMetadata{
 			SwIfIndex: 1,
@@ -461,16 +459,14 @@ func TestGetNodeLoopIFInfo(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 	loopif := telemetrymodel.NodeInterface{
-		Value: telemetrymodel.VppInterface{
-			Interface: &interfaces.Interface{
-				Name:        "vxlanBVI",
-				Type:        interfaces.Interface_SOFTWARE_LOOPBACK,
-				Enabled:     true,
-				PhysAddress: "aa:bb:cc:dd:ee:ff",
-				Mtu:         1500,
-				Vrf:         0,
-				IpAddresses: []string{"1.2.3.4"},
-			},
+		Value: &interfaces.Interface{
+			Name:        "vxlanBVI",
+			Type:        interfaces.Interface_SOFTWARE_LOOPBACK,
+			Enabled:     true,
+			PhysAddress: "aa:bb:cc:dd:ee:ff",
+			Mtu:         1500,
+			Vrf:         0,
+			IpAddresses: []string{"1.2.3.4"},
 		},
 		Metadata: ifaceidx.IfaceMetadata{
 			SwIfIndex: 10,

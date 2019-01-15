@@ -49,7 +49,11 @@ func NewPlugin(opts ...Option) *Plugin {
 	}
 
 	if p.Deps.KubeConfig == nil {
-		p.Deps.KubeConfig = config.ForPlugin(p.String(), config.WithCustomizedFlag(ConfigFlagName, KubeConfigAdmin, KubeConfigUsage))
+		p.Deps.KubeConfig = config.ForPlugin(p.String(), config.WithCustomizedFlag(ConfigFlagName, KubeConfigAdmin, KubeConfigUsage),
+			config.WithExtraFlags(func(flags *config.FlagSet) {
+				flags.Bool("verbose", false,
+					"output & logging verbosity; true = log debug, false = log error.")
+			}))
 	}
 
 	return p

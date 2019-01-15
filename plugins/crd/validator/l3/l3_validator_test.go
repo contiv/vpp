@@ -30,7 +30,6 @@ import (
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/contiv/vpp/plugins/crd/testdata"
 	"github.com/contiv/vpp/plugins/crd/validator/l2"
-	"github.com/contiv/vpp/plugins/crd/validator/utils"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -273,18 +272,9 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 			continue
 		}
 
-		podIfIPAddr, podIfIPMask, err :=
-			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodVPPSubnetCIDR)
-		gomega.Expect(err).To(gomega.BeNil())
-		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
-
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
-			rteIfIPAddr, _, err := utils.Ipv4CidrToAddressAndMask(rte.Value.DstNetwork)
-			gomega.Expect(err).To(gomega.BeNil())
-
-			rteIfIPPrefix := rteIfIPAddr &^ podIfIPMask
-			if rteIfIPPrefix == podIfIPPrefix {
+			if rte.Value.DstNetwork == pod.IPAddress+"/32" {
 				delete(vrfMap[1], rte.Value.DstNetwork)
 				break
 			}
@@ -312,18 +302,9 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 			continue
 		}
 
-		podIfIPAddr, podIfIPMask, err :=
-			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodVPPSubnetCIDR)
-		gomega.Expect(err).To(gomega.BeNil())
-		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
-
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
-			rteIfIPAddr, _, err := utils.Ipv4CidrToAddressAndMask(rte.Value.DstNetwork)
-			gomega.Expect(err).To(gomega.BeNil())
-
-			rteIfIPPrefix := rteIfIPAddr &^ podIfIPMask
-			if rteIfIPPrefix == podIfIPPrefix {
+			if rte.Value.DstNetwork == pod.IPAddress+"/32" {
 				rte = rte.DeepCopy()
 				rte.Value.NextHopAddr = "1.2.3.4"
 				rte.Value.OutgoingInterface = "someInterfaceName"

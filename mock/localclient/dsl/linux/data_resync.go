@@ -12,9 +12,11 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/model/stn"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/ipsec"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
 )
 
 // MockDataResyncDSL is mock for DataResyncDSL.
@@ -164,6 +166,34 @@ func (d *MockDataResyncDSL) NAT44Global(val *nat.Nat44Global) linuxclient.DataRe
 // DNAT44 adds a request to RESYNC a new DNAT configuration
 func (d *MockDataResyncDSL) DNAT44(val *nat.DNat44) linuxclient.DataResyncDSL {
 	key := nat.DNAT44Key(val.Label)
+	d.Values[key] = val
+	return d
+}
+
+// IPSecSA adds request to create a new Security Association
+func (d *MockDataResyncDSL) IPSecSA(val *ipsec.SecurityAssociation) linuxclient.DataResyncDSL {
+	key := ipsec.SAKey(val.Index)
+	d.Values[key] = val
+	return d
+}
+
+// IPSecSPD adds request to create a new Security Policy Database
+func (d *MockDataResyncDSL) IPSecSPD(val *ipsec.SecurityPolicyDatabase) linuxclient.DataResyncDSL {
+	key := ipsec.SPDKey(val.Index)
+	d.Values[key] = val
+	return d
+}
+
+// PuntIPRedirect adds request to create or update rule to punt L3 traffic via interface.
+func (d *MockDataResyncDSL) PuntIPRedirect(val *punt.IpRedirect) linuxclient.DataResyncDSL {
+	key := punt.IPRedirectKey(val.L3Protocol, val.TxInterface)
+	d.Values[key] = val
+	return d
+}
+
+// PuntToHost adds request to create or update rule to punt L4 traffic to a host.
+func (d *MockDataResyncDSL) PuntToHost(val *punt.ToHost) linuxclient.DataResyncDSL {
+	key := punt.ToHostKey(val.L3Protocol, val.L4Protocol, val.Port)
 	d.Values[key] = val
 	return d
 }

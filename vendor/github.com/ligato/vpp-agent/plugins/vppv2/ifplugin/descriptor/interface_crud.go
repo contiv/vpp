@@ -255,7 +255,6 @@ func (d *InterfaceDescriptor) Add(key string, intf *interfaces.Interface) (metad
 	// fill the metadata
 	metadata = &ifaceidx.IfaceMetadata{
 		SwIfIndex:     ifIdx,
-		Vrf:           intf.Vrf,
 		IPAddresses:   intf.GetIpAddresses(),
 		TAPHostIfName: tapHostIfName,
 	}

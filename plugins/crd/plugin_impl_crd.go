@@ -70,6 +70,7 @@ type Plugin struct {
 	nodeConfigController *nodeconfig.Controller
 	cache                *cache.ContivTelemetryCache
 	processor            api.ContivTelemetryProcessor
+	verbose              bool
 }
 
 // Deps defines dependencies of CRD plugin.
@@ -85,14 +86,11 @@ type Deps struct {
 	Publish *kvdbsync.Plugin // KeyProtoValWriter does not define Delete
 }
 
-var verbose = flag.Bool("verbose", false,
-	"output & logging verbosity; true = log debug, false = log error.")
-
 // Init initializes policy layers and caches and starts watching contiv-etcd for K8s configuration.
 func (p *Plugin) Init() error {
 	var err error
 	p.Log.SetLevel(logging.DebugLevel)
-
+	p.verbose = flag.Lookup("verbose").Value.String() == "true"
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
 
@@ -142,7 +140,7 @@ func (p *Plugin) Init() error {
 	}
 
 	// This where we initialize all layers
-	p.cache = cache.NewTelemetryCache(p.Log, collectionInterval, validateState, *verbose)
+	p.cache = cache.NewTelemetryCache(p.Log, collectionInterval, validateState, p.verbose)
 
 	p.cache.Init()
 
@@ -187,7 +185,7 @@ func (p *Plugin) Init() error {
 	p.telemetryController.Init()
 	p.nodeConfigController.Init()
 
-	if *verbose {
+	if p.verbose {
 		p.telemetryController.Log.SetLevel(logging.DebugLevel)
 		p.cache.Log.SetLevel(logging.DebugLevel)
 

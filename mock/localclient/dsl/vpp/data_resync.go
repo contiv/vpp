@@ -5,14 +5,15 @@ import (
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/ipsec"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/l4"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/stn"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/ipsec"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
 )
 
 // MockDataResyncDSL is mock for DataResyncDSL.
@@ -148,15 +149,29 @@ func (d *MockDataResyncDSL) DNAT44(val *nat.DNat44) vppclient.DataResyncDSL {
 }
 
 // IPSecSA adds request to create a new Security Association
-func (d *MockDataResyncDSL) IPSecSA(val *ipsec.SecurityAssociations_SA) vppclient.DataResyncDSL {
-	key := ipsec.SAKey(val.Name)
+func (d *MockDataResyncDSL) IPSecSA(val *ipsec.SecurityAssociation) vppclient.DataResyncDSL {
+	key := ipsec.SAKey(val.Index)
 	d.Values[key] = val
 	return d
 }
 
 // IPSecSPD adds request to create a new Security Policy Database
-func (d *MockDataResyncDSL) IPSecSPD(val *ipsec.SecurityPolicyDatabases_SPD) vppclient.DataResyncDSL {
-	key := ipsec.SPDKey(val.Name)
+func (d *MockDataResyncDSL) IPSecSPD(val *ipsec.SecurityPolicyDatabase) vppclient.DataResyncDSL {
+	key := ipsec.SPDKey(val.Index)
+	d.Values[key] = val
+	return d
+}
+
+// PuntIPRedirect adds request to create or update rule to punt L3 traffic via interface.
+func (d *MockDataResyncDSL) PuntIPRedirect(val *punt.IpRedirect) vppclient.DataResyncDSL {
+	key := punt.IPRedirectKey(val.L3Protocol, val.TxInterface)
+	d.Values[key] = val
+	return d
+}
+
+// PuntToHost adds request to create or update rule to punt L4 traffic to a host.
+func (d *MockDataResyncDSL) PuntToHost(val *punt.ToHost) vppclient.DataResyncDSL {
+	key := punt.ToHostKey(val.L3Protocol, val.L4Protocol, val.Port)
 	d.Values[key] = val
 	return d
 }

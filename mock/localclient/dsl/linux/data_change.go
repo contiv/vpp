@@ -12,9 +12,11 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/model/stn"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/ipsec"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
 )
 
 // MockDataChangeDSL is mock for DataChangeDSL.
@@ -178,6 +180,34 @@ func (d *MockPutDSL) DNAT44(val *nat.DNat44) linuxclient.PutDSL {
 	return d
 }
 
+// IPSecSA adds request to create a new Security Association
+func (d *MockPutDSL) IPSecSA(val *ipsec.SecurityAssociation) linuxclient.PutDSL {
+	key := ipsec.SAKey(val.Index)
+	d.parent.Values[key] = val
+	return d
+}
+
+// IPSecSPD adds request to create a new Security Policy Database
+func (d *MockPutDSL) IPSecSPD(val *ipsec.SecurityPolicyDatabase) linuxclient.PutDSL {
+	key := ipsec.SPDKey(val.Index)
+	d.parent.Values[key] = val
+	return d
+}
+
+// PuntIPRedirect adds request to create or update rule to punt L3 traffic via interface.
+func (d *MockPutDSL) PuntIPRedirect(val *punt.IpRedirect) linuxclient.PutDSL {
+	key := punt.IPRedirectKey(val.L3Protocol, val.TxInterface)
+	d.parent.Values[key] = val
+	return d
+}
+
+// PuntToHost adds request to create or update rule to punt L4 traffic to a host.
+func (d *MockPutDSL) PuntToHost(val *punt.ToHost) linuxclient.PutDSL {
+	key := punt.ToHostKey(val.L3Protocol, val.L4Protocol, val.Port)
+	d.parent.Values[key] = val
+	return d
+}
+
 // LinuxInterface adds a mock request to create or update Linux network interface.
 func (d *MockPutDSL) LinuxInterface(val *linux_interfaces.Interface) linuxclient.PutDSL {
 	key := linux_interfaces.InterfaceKey(val.Name)
@@ -326,6 +356,34 @@ func (d *MockDeleteDSL) NAT44Global() linuxclient.DeleteDSL {
 // DNAT44 adds a request to delete a DNAT configuration identified by label
 func (d *MockDeleteDSL) DNAT44(label string) linuxclient.DeleteDSL {
 	key := nat.DNAT44Key(label)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// IPSecSA adds request to create a new Security Association
+func (d *MockDeleteDSL) IPSecSA(saIndex string) linuxclient.DeleteDSL {
+	key := ipsec.SAKey(saIndex)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// IPSecSPD adds request to create a new Security Policy Database
+func (d *MockDeleteDSL) IPSecSPD(spdIndex string) linuxclient.DeleteDSL {
+	key := ipsec.SPDKey(spdIndex)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// PuntIPRedirect adds request to delete a rule used to punt L3 traffic via interface.
+func (d *MockDeleteDSL) PuntIPRedirect(l3Proto punt.L3Protocol, txInterface string) linuxclient.DeleteDSL {
+	key := punt.IPRedirectKey(l3Proto, txInterface)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// PuntToHost adds request to delete a rule used to punt L4 traffic to a host.
+func (d *MockDeleteDSL) PuntToHost(l3Proto punt.L3Protocol, l4Proto punt.L4Protocol, port uint32) linuxclient.DeleteDSL {
+	key := punt.ToHostKey(l3Proto, l4Proto, port)
 	d.parent.Values[key] = nil
 	return d
 }

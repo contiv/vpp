@@ -26,10 +26,10 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
+	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/contiv/vpp/plugins/crd/testdata"
 	"github.com/contiv/vpp/plugins/crd/validator/l2"
-	"github.com/contiv/vpp/plugins/crd/validator/utils"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -225,7 +225,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	numErrs := vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
 	checkDataReport(0, 1, 0)
-	//gomega.Expect(numErrs).To(gomega.Equal(1)) // TODO: re-enable
+	gomega.Expect(numErrs).To(gomega.Equal(1))
 
 	// Restore data back to error free state
 	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
@@ -259,7 +259,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
 	checkDataReport(0, 2, 0)
-	//gomega.Expect(numErrs).To(gomega.Equal(2)) // TODO: re-enable
+	gomega.Expect(numErrs).To(gomega.Equal(2))
 
 	// Restore data back to error free state
 	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
@@ -272,18 +272,9 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 			continue
 		}
 
-		podIfIPAddr, podIfIPMask, err :=
-			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodSubnetCIDR)
-		gomega.Expect(err).To(gomega.BeNil())
-		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
-
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
-			rteIfIPAddr, _, err := utils.Ipv4CidrToAddressAndMask(rte.Value.DstNetwork)
-			gomega.Expect(err).To(gomega.BeNil())
-
-			rteIfIPPrefix := rteIfIPAddr &^ podIfIPMask
-			if rteIfIPPrefix == podIfIPPrefix {
+			if rte.Value.DstNetwork == pod.IPAddress+"/32" {
 				delete(vrfMap[1], rte.Value.DstNetwork)
 				break
 			}
@@ -297,7 +288,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
 	checkDataReport(0, 1, 0)
-	//gomega.Expect(numErrs).To(gomega.Equal(1)) // TODO: re-enable
+	gomega.Expect(numErrs).To(gomega.Equal(1))
 
 	// Restore data back to error free state
 	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
@@ -311,18 +302,9 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 			continue
 		}
 
-		podIfIPAddr, podIfIPMask, err :=
-			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodSubnetCIDR)
-		gomega.Expect(err).To(gomega.BeNil())
-		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
-
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
-			rteIfIPAddr, _, err := utils.Ipv4CidrToAddressAndMask(rte.Value.DstNetwork)
-			gomega.Expect(err).To(gomega.BeNil())
-
-			rteIfIPPrefix := rteIfIPAddr &^ podIfIPMask
-			if rteIfIPPrefix == podIfIPPrefix {
+			if rte.Value.DstNetwork == pod.IPAddress+"/32" {
 				rte = rte.DeepCopy()
 				rte.Value.NextHopAddr = "1.2.3.4"
 				rte.Value.OutgoingInterface = "someInterfaceName"
@@ -591,15 +573,14 @@ func resetToInitialErrorFreeState() {
 
 func checkDataReport(globalCnt int, nodeKeyCnt int, defaultCnt int) {
 	vtv.report.Print()
-	// TODO: re-enable
-	//for k := range vtv.report.Data {
-	//	switch k {
-	//	case api.GlobalMsg:
-	//		gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(globalCnt))
-	//	case vtv.nodeKey:
-	//		gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(nodeKeyCnt))
-	//	default:
-	//		gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(defaultCnt))
-	//	}
-	//}
+	for k := range vtv.report.Data {
+		switch k {
+		case api.GlobalMsg:
+			gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(globalCnt))
+		case vtv.nodeKey:
+			gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(nodeKeyCnt))
+		default:
+			gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(defaultCnt))
+		}
+	}
 }

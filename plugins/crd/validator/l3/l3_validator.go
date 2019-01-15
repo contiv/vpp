@@ -181,8 +181,7 @@ func (v *Validator) createValidationMap(vm map[uint32]Vrf) RouteMap {
 }
 
 // validateVrf1PodRoutes validates routes from VRF1 to local Pods. There must
-// be a route to the Pod's IP address and a route to the IP address on the
-// VPP side of the Pod's tapv2 link.
+// be a route to the Pod's IP address.
 func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap VrfMap, routeMap RouteMap) int {
 	numErrs := 0
 	for _, pod := range node.PodMap {
@@ -204,17 +203,6 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap VrfM
 			v.Report.AppendToNodeReport(node.Name, errString)
 		}
 
-		// make sure pod that the route for the pod-facing tap interface in vpp
-		// exists and is valid
-		if pod.VppIfIPAddr != "" {
-			numErrs += v.validateRoute(pod.VppIfIPAddr, 1, vrfMap, routeMap, node.Name,
-				pod.VppIfName, strings.Split(pod.VppIfIPAddr, "/")[0], 0, l3.StaticRoute_INTRA_VRF)
-		} else {
-			numErrs++
-			errString := fmt.Sprintf("pod '%s': VppIfIPAddr empty, VppIfIPAddr route validation skipped",
-				pod.Name)
-			v.Report.AppendToNodeReport(node.Name, errString)
-		}
 	}
 
 	return numErrs

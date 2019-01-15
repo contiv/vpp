@@ -5,14 +5,15 @@ import (
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/ipsec"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/l4"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/stn"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/ipsec"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
 )
 
 // MockDataChangeDSL is mock for DataChangeDSL.
@@ -177,15 +178,29 @@ func (d *MockPutDSL) DNAT44(val *nat.DNat44) vppclient.PutDSL {
 }
 
 // IPSecSA adds request to create a new Security Association
-func (d *MockPutDSL) IPSecSA(val *ipsec.SecurityAssociations_SA) vppclient.PutDSL {
-	key := ipsec.SAKey(val.Name)
+func (d *MockPutDSL) IPSecSA(val *ipsec.SecurityAssociation) vppclient.PutDSL {
+	key := ipsec.SAKey(val.Index)
 	d.parent.Values[key] = val
 	return d
 }
 
 // IPSecSPD adds request to create a new Security Policy Database
-func (d *MockPutDSL) IPSecSPD(val *ipsec.SecurityPolicyDatabases_SPD) vppclient.PutDSL {
-	key := ipsec.SPDKey(val.Name)
+func (d *MockPutDSL) IPSecSPD(val *ipsec.SecurityPolicyDatabase) vppclient.PutDSL {
+	key := ipsec.SPDKey(val.Index)
+	d.parent.Values[key] = val
+	return d
+}
+
+// PuntIPRedirect adds request to create or update rule to punt L3 traffic via interface.
+func (d *MockPutDSL) PuntIPRedirect(val *punt.IpRedirect) vppclient.PutDSL {
+	key := punt.IPRedirectKey(val.L3Protocol, val.TxInterface)
+	d.parent.Values[key] = val
+	return d
+}
+
+// PuntToHost adds request to create or update rule to punt L4 traffic to a host.
+func (d *MockPutDSL) PuntToHost(val *punt.ToHost) vppclient.PutDSL {
+	key := punt.ToHostKey(val.L3Protocol, val.L4Protocol, val.Port)
 	d.parent.Values[key] = val
 	return d
 }
@@ -325,15 +340,29 @@ func (d *MockDeleteDSL) DNAT44(label string) vppclient.DeleteDSL {
 }
 
 // IPSecSA adds request to create a new Security Association
-func (d *MockDeleteDSL) IPSecSA(saName string) vppclient.DeleteDSL {
-	key := ipsec.SAKey(saName)
+func (d *MockDeleteDSL) IPSecSA(saIndex string) vppclient.DeleteDSL {
+	key := ipsec.SAKey(saIndex)
 	d.parent.Values[key] = nil
 	return d
 }
 
 // IPSecSPD adds request to create a new Security Policy Database
-func (d *MockDeleteDSL) IPSecSPD(spdName string) vppclient.DeleteDSL {
-	key := ipsec.SPDKey(spdName)
+func (d *MockDeleteDSL) IPSecSPD(spdIndex string) vppclient.DeleteDSL {
+	key := ipsec.SPDKey(spdIndex)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// PuntIPRedirect adds request to delete a rule used to punt L3 traffic via interface.
+func (d *MockDeleteDSL) PuntIPRedirect(l3Proto punt.L3Protocol, txInterface string) vppclient.DeleteDSL {
+	key := punt.IPRedirectKey(l3Proto, txInterface)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// PuntToHost adds request to delete a rule used to punt L4 traffic to a host.
+func (d *MockDeleteDSL) PuntToHost(l3Proto punt.L3Protocol, l4Proto punt.L4Protocol, port uint32) vppclient.DeleteDSL {
+	key := punt.ToHostKey(l3Proto, l4Proto, port)
 	d.parent.Values[key] = nil
 	return d
 }

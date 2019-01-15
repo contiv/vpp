@@ -31,6 +31,7 @@ import (
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/remote"
+	"github.com/ligato/vpp-agent/plugins/restv2/resturl"
 	vppif "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
 	arpdescr "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/descriptor"
 )
@@ -183,8 +184,7 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (uint32, string) {
 		}
 
 		// Get interfaces data for the node where the pod is hosted
-		//ifaceDumpCmd := vppDumpCommand(vppifdescr.InterfaceDescriptorName)
-		b, err = getNodeInfo(pg.client, podInfo.HostIpAddress, "/vpp/dump/v2/interfaces")
+		b, err = getNodeInfo(pg.client, podInfo.HostIpAddress, resturl.Interface)
 		intfs := make(map[uint32]*vppif.InterfaceDetails, 0)
 		if err := json.Unmarshal(b, &intfs); err != nil {
 			fmt.Printf("Host '%s', Pod '%s' - failed to get pod's interface, err %s\n",

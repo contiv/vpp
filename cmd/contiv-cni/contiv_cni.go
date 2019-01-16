@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc"
 
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
+	"github.com/containernetworking/plugins/pkg/ipam"
 	cninb "github.com/contiv/vpp/plugins/podmanager/cni"
 	log "github.com/sirupsen/logrus"
 )
@@ -138,6 +139,44 @@ func cmdAdd(args *skel.CmdArgs) error {
 		"Args":        args.Args,
 	}).Debug("CNI ADD request")
 
+	// prepare CNI request
+	cniRequest := &cninb.CNIRequest{
+		Version:          cfg.CNIVersion,
+		ContainerId:      args.ContainerID,
+		InterfaceName:    args.IfName,
+		NetworkNamespace: args.Netns,
+		ExtraArguments:   args.Args,
+		ExtraNwConfig:    string(args.StdinData),
+	}
+
+	// call external IPAM if provided
+	if cfg.IPAM.Type != "" {
+		log.Debugf("Calling external IPAM: %s", cfg.IPAM.Type)
+
+		r, err := ipam.ExecAdd(cfg.IPAM.Type, args.StdinData)
+		if err != nil {
+			log.Errorf("IPAM plugin %s: ADD returned an error: %v", cfg.IPAM.Type, err)
+			// non-fatal, will use Contiv IPAM
+		} else {
+			// Invoke IPAM del in case of error to avoid ip leak
+			defer func() {
+				if err != nil {
+					ipam.ExecDel(cfg.IPAM.Type, args.StdinData)
+				}
+			}()
+			// convert and store the result
+			ipamResult, err := cnisb.NewResultFromResult(r)
+			if err != nil {
+				log.Errorf("Cannot convert IPAM result: %v", err)
+				// non-fatal, will use Contiv IPAM
+			} else {
+				cniRequest.IpamPlugin = cfg.IPAM.Type
+				cniRequest.IpamResult = ipamResult.String()
+				log.Debugf("IPAM plugin %s: ADD result: %v", ipamResult)
+			}
+		}
+	}
+
 	// connect to the remote CNI handler over gRPC
 	conn, c, err := grpcConnect(cfg.GrpcServer)
 	if err != nil {
@@ -147,14 +186,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	defer conn.Close()
 
 	// execute the ADD request
-	r, err := c.Add(context.Background(), &cninb.CNIRequest{
-		Version:          cfg.CNIVersion,
-		ContainerId:      args.ContainerID,
-		InterfaceName:    args.IfName,
-		NetworkNamespace: args.Netns,
-		ExtraArguments:   args.Args,
-		ExtraNwConfig:    string(args.StdinData),
-	})
+	r, err := c.Add(context.Background(), cniRequest)
 	if err != nil {
 		log.Errorf("Error by executing remote CNI Add request: %v", err)
 		return err
@@ -276,6 +308,17 @@ func cmdDel(args *skel.CmdArgs) error {
 	if err != nil {
 		log.Errorf("Error by executing remote CNI Delete request: %v", err)
 		return err
+	}
+
+	// execute DELETE on external IPAM plugin, if provided
+	if cfg.IPAM.Type != "" {
+		log.Debugf("Calling external IPAM: %s", cfg.IPAM.Type)
+		if err := ipam.ExecDel(cfg.IPAM.Type, args.StdinData); err != nil {
+			log.Errorf("IPAM plugin %s: DEL returned an error: %v", cfg.IPAM.Type, err)
+			// non-fatal
+		} else {
+			log.Debugf("IPAM plugin %s: DEL OK", cfg.IPAM.Type)
+		}
 	}
 
 	log.Debugf("CNI DEL request OK, took %s", time.Since(start))

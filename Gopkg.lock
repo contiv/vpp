@@ -153,9 +153,10 @@
   revision = "c7c5070e6f6e090ab93b0a61eb921f2196fc3383"
 
 [[projects]]
-  digest = "1:fdd07ff1d3b56a4338688dca999e7a09eacab635d450ca9338bfdd81fd817d9e"
+  digest = "1:36f7c45919b24712f4969256c868b711b982605f2772a4c739da51a16533d17f"
   name = "github.com/containernetworking/cni"
   packages = [
+    "pkg/invoke",
     "pkg/skel",
     "pkg/types",
     "pkg/types/020",
@@ -165,6 +166,20 @@
   pruneopts = "UT"
   revision = "a7885cb6f8ab03fba07852ded351e4f5e7a112bf"
   version = "v0.6.0"
+
+[[projects]]
+  digest = "1:b4a474653ec1dc888bb6110f362cd62c4b8fdb21ff7ff70511aa2ddfa093977b"
+  name = "github.com/containernetworking/plugins"
+  packages = [
+    "pkg/ip",
+    "pkg/ipam",
+    "pkg/ns",
+    "pkg/utils/hwaddr",
+    "pkg/utils/sysctl",
+  ]
+  pruneopts = "UT"
+  revision = "9ebe139e77e82afb122e335328007bca86905ae4"
+  version = "v0.7.4"
 
 [[projects]]
   digest = "1:7ae4616edd396840ccc1506d287211ef883d3e93604dde0c9d1dd5721bb449d5"
@@ -182,6 +197,14 @@
   pruneopts = "UT"
   revision = "27fc7e2296f506182f58ce846e48f36b34fe6842"
   version = "v3.3.10"
+
+[[projects]]
+  digest = "1:536efb6849eb903912acbec0183e1b34e31cc75217b44988aedde59ad249c693"
+  name = "github.com/coreos/go-iptables"
+  packages = ["iptables"]
+  pruneopts = "UT"
+  revision = "47f22b0dd3355c0ba570ba12b0b8a36bf214c04b"
+  version = "v0.4.0"
 
 [[projects]]
   digest = "1:85968a9e07d94b5f3d15993b9884ab5fcc41c8b7b6418df8b6a3baa387bb8d68"
@@ -1654,6 +1677,7 @@
     "github.com/containernetworking/cni/pkg/types",
     "github.com/containernetworking/cni/pkg/types/current",
     "github.com/containernetworking/cni/pkg/version",
+    "github.com/containernetworking/plugins/pkg/ipam",
     "github.com/docker/distribution",
     "github.com/docker/docker/api",
     "github.com/docker/swarmkit",

@@ -38,6 +38,7 @@ import (
 	contivgrpc "github.com/contiv/vpp/plugins/grpc"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipam/contivipam"
+	"github.com/contiv/vpp/plugins/ipam/externalipam"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
@@ -163,10 +164,24 @@ func main() {
 
 	podManager := &podmanager.DefaultPlugin
 
-	ipamPlugin := contivipam.NewPlugin(contivipam.UseDeps(func(deps *contivipam.Deps) {
-		deps.ContivConf = contivConf
-		deps.NodeSync = nodeSyncPlugin
-	}))
+	// use contiv or external IPAM based on the IPAM env. variable
+	var ipamPlugin ipam.API
+	var ipamPluginEH controller_api.EventHandler
+	if os.Getenv("IPAM") == "external" {
+		extIPAM := externalipam.NewPlugin(externalipam.UseDeps(func(deps *externalipam.Deps) {
+			deps.ContivConf = contivConf
+			deps.NodeSync = nodeSyncPlugin
+		}))
+		ipamPlugin = extIPAM
+		ipamPluginEH = extIPAM
+	} else {
+		contivIPAM := contivipam.NewPlugin(contivipam.UseDeps(func(deps *contivipam.Deps) {
+			deps.ContivConf = contivConf
+			deps.NodeSync = nodeSyncPlugin
+		}))
+		ipamPlugin = contivIPAM
+		ipamPluginEH = contivIPAM
+	}
 
 	ipv4NetPlugin := ipv4net.NewPlugin(ipv4net.UseDeps(func(deps *ipv4net.Deps) {
 		deps.GoVPP = &govppmux.DefaultPlugin
@@ -201,7 +216,7 @@ func main() {
 			contivConf,
 			nodeSyncPlugin,
 			podManager,
-			ipamPlugin,
+			ipamPluginEH,
 			ipv4NetPlugin,
 			servicePlugin,
 			policyPlugin,

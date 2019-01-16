@@ -1,4 +1,4 @@
-# Release v2.1.0
+# Release v2.1.0 (16.1.2019)
 
 ### VPP
  - version **v18.10** (latest stable/1810)
@@ -37,6 +37,8 @@
    by submitting additional configuration via `etcd` or `gRPC` API, which then
    gets merged with Contiv's own internal configuration before it gets applied
    to VPP-Agent - more information are available [here](docs/dev-guide/EXTERNAL_CONFIG.md)
+ - L2 (no overlay) networking mode is again supported
+ - `podVPPSubnetCIDR` has been removed, POD-facing interfaces on VPP are now unnumbered
 
 ### Known Issues
  - load-balancing between backends of a service is limited to the first 256 PODs

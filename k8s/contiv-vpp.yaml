@@ -108,6 +108,40 @@ data:
 
 ---
 
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: contiv-cni-cfg
+  namespace: kube-system
+data:
+  # The CNI network configuration to install on each node. The special
+  # values in this config will be automatically populated.
+  10-contiv-vpp.conflist: |-
+    {
+      "name": "k8s-pod-network",
+      "cniVersion": "0.3.1",
+      "plugins": [
+        {
+          "type": "contiv-cni",
+          "grpcServer": "/var/run/contiv/cni.sock",
+          "logFile": "/var/run/contiv/cni.log",
+          "ipam": {
+            "type": "host-local",
+            "subnet": "192.168.53.0/24"
+          }
+        },
+        {
+          "type": "portmap",
+          "capabilities": {
+              "portMappings": true
+          },
+          "externalSetMarkChain": "KUBE-MARK-MASQ"
+        }
+      ]
+    }
+
+---
+
 ###########################################################
 #
 # !!! DO NOT EDIT THINGS BELOW THIS LINE !!!
@@ -306,6 +340,8 @@ spec:
               name: cni-net-dir
             - mountPath: /var/run/contiv
               name: contiv-run
+            - mountPath: /cni/cfg
+              name: contiv-cni-cfg
 
         # This init container extracts/copies default VPP config to the host and initializes VPP core dumps.
         - name: vpp-init
@@ -410,6 +446,8 @@ spec:
               value: "/etc/vpp-agent/linux-l3plugin.conf"
             - name: KVSCHEDULER_CONFIG
               value: "/etc/vpp-agent/kvscheduler.conf"
+            - name: IPAM
+              value: "external"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt
@@ -503,6 +541,9 @@ spec:
         - name: docker-socket
           hostPath:
             path: /var/run/docker.sock
+        - name: contiv-cni-cfg
+          configMap:
+            name: contiv-cni-cfg
 
 ---
 

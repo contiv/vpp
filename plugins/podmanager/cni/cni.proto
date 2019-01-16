@@ -48,11 +48,11 @@ message CNIRequest {
   // Extra arguments passed to CNI plugin. Optional.
   string extra_arguments = 6;
 
-  // IPAM plugin configured for the CNI (empty for Contiv-internal IPAM).
-  string ipam_plugin = 7;
+  // IPAM type (plugin name) configured for the CNI (empty for Contiv-internal IPAM).
+  string ipam_type = 7;
 
   // result of the IPAM plugin if it was configured for the CNI (empty for Contiv-internal IPAM).
-  string ipam_result = 8;
+  string ipam_data = 8;
 }
 
 // The response to the CNIRequest. Corresponds to the CNI specification

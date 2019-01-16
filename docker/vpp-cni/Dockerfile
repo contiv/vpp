@@ -27,20 +27,17 @@ WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-cni
 # we collect & store all files in one folder to make the resulting
 # image smaller when we copy them all in one single operation
 RUN export CGO_ENABLED=0 \
- && mkdir /output/ \
- && cp /cni/loopback /output/ \
- && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/10-contiv-vpp.conflist /output/ \
- && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/install.sh /output/ \
- && cp /portmap /output/ \
- && go build -ldflags '-s -w' -o /output/contiv-cni contiv_cni.go
+ && mkdir -p /output/cni/bin && mkdir -p /output/cni/cfg \
+ && cp /cni/loopback /output/cni/bin/ \
+ && cp /portmap /output/cni/bin/ \
+ && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/install.sh /output/cni/ \
+ && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/10-contiv-vpp.conflist /output/cni/cfg/ \
+ && go build -ldflags '-s -w' -o /output/cni/bin/contiv-cni contiv_cni.go
 
 
 FROM alpine:3.8
 
-# set work directory
-WORKDIR /root/
-
-COPY --from=builder /output/* /root/
+COPY --from=builder /output/cni /cni
 
 # run install script by default
-CMD ["/root/install.sh"]
+CMD ["/cni/install.sh"]

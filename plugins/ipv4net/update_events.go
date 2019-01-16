@@ -66,7 +66,7 @@ func (n *IPv4Net) addPod(event *podmanager.AddPod, txn controller.UpdateOperatio
 
 	// 1. try to allocate an IP address for this pod
 
-	_, err = n.IPAM.AllocatePodIP(pod.ID)
+	_, err = n.IPAM.AllocatePodIP(pod.ID, event.IPAMType, event.IPAMData)
 	if err != nil {
 		err = fmt.Errorf("failed to allocate new IP address for pod %v: %v", pod.ID, err)
 		n.Log.Error(err)

@@ -74,6 +74,8 @@ type AddPod struct {
 	Pod              podmodel.ID
 	ContainerID      string
 	NetworkNamespace string
+	IPAMType         string
+	IPAMData         string
 
 	// output arguments (edited by event handlers)
 	Interfaces []PodInterface
@@ -120,6 +122,8 @@ func NewAddPodEvent(request *cni.CNIRequest) *AddPod {
 		Pod:              podID,
 		ContainerID:      request.ContainerId,
 		NetworkNamespace: request.NetworkNamespace,
+		IPAMType:         request.IpamType,
+		IPAMData:         request.IpamData,
 		result:           make(chan error, 1),
 	}
 }

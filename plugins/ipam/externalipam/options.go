@@ -28,7 +28,7 @@ var DefaultPlugin = *NewPlugin()
 func NewPlugin(opts ...Option) *IPAM {
 	p := &IPAM{}
 
-	p.PluginName = "ipam"
+	p.PluginName = "externalipam"
 	p.NodeSync = &nodesync.DefaultPlugin
 	p.ContivConf = &contivconf.DefaultPlugin
 

@@ -380,7 +380,7 @@ func (i *IPAM) NatLoopbackIP() net.IP {
 }
 
 // AllocatePodIP tries to allocate IP address for the given pod.
-func (i *IPAM) AllocatePodIP(podID podmodel.ID) (net.IP, error) {
+func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string) (net.IP, error) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 

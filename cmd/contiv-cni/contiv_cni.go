@@ -155,7 +155,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 		r, err := ipam.ExecAdd(cfg.IPAM.Type, args.StdinData)
 		if err != nil {
-			log.Errorf("IPAM plugin %s: ADD returned an error: %v", cfg.IPAM.Type, err)
+			log.Errorf("IPAM plugin %s ADD returned an error: %v", cfg.IPAM.Type, err)
 			// non-fatal, will use Contiv IPAM
 		} else {
 			// Invoke IPAM del in case of error to avoid ip leak
@@ -170,9 +170,9 @@ func cmdAdd(args *skel.CmdArgs) error {
 				log.Errorf("Cannot convert IPAM result: %v", err)
 				// non-fatal, will use Contiv IPAM
 			} else {
-				cniRequest.IpamPlugin = cfg.IPAM.Type
-				cniRequest.IpamResult = ipamResult.String()
-				log.Debugf("IPAM plugin %s: ADD result: %v", cfg.IPAM.Type, ipamResult)
+				cniRequest.IpamType = cfg.IPAM.Type
+				cniRequest.IpamData = ipamResult.String()
+				log.Debugf("IPAM plugin %s ADD result: %v", cfg.IPAM.Type, ipamResult)
 			}
 		}
 	}
@@ -317,7 +317,7 @@ func cmdDel(args *skel.CmdArgs) error {
 			log.Errorf("IPAM plugin %s: DEL returned an error: %v", cfg.IPAM.Type, err)
 			// non-fatal
 		} else {
-			log.Debugf("IPAM plugin %s: DEL OK", cfg.IPAM.Type)
+			log.Debugf("IPAM plugin %s DEL OK", cfg.IPAM.Type)
 		}
 	}
 

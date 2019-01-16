@@ -72,7 +72,7 @@ type API interface {
 	NatLoopbackIP() net.IP
 
 	// AllocatePodIP tries to allocate IP address for the given pod.
-	AllocatePodIP(podID podmodel.ID) (net.IP, error)
+	AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string) (net.IP, error)
 
 	// GetPodIP returns the allocated pod IP, together with the mask.
 	// Returns nil if the pod does not have allocated IP address.

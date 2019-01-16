@@ -172,7 +172,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 			} else {
 				cniRequest.IpamPlugin = cfg.IPAM.Type
 				cniRequest.IpamResult = ipamResult.String()
-				log.Debugf("IPAM plugin %s: ADD result: %v", ipamResult)
+				log.Debugf("IPAM plugin %s: ADD result: %v", cfg.IPAM.Type, ipamResult)
 			}
 		}
 	}

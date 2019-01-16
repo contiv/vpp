@@ -37,6 +37,7 @@ import (
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
 	contivgrpc "github.com/contiv/vpp/plugins/grpc"
 	"github.com/contiv/vpp/plugins/ipam"
+	"github.com/contiv/vpp/plugins/ipam/contivipam"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
@@ -96,7 +97,7 @@ type ContivAgent struct {
 	ContivGRPC *contivgrpc.Plugin
 	NodeSync   *nodesync.NodeSync
 	PodManager *podmanager.PodManager
-	IPAM       *ipam.IPAM
+	IPAM       ipam.API
 	IPv4Net    *ipv4net.IPv4Net
 	Policy     *policy.Plugin
 	Service    *service.Plugin
@@ -162,7 +163,7 @@ func main() {
 
 	podManager := &podmanager.DefaultPlugin
 
-	ipamPlugin := ipam.NewPlugin(ipam.UseDeps(func(deps *ipam.Deps) {
+	ipamPlugin := contivipam.NewPlugin(contivipam.UseDeps(func(deps *contivipam.Deps) {
 		deps.ContivConf = contivConf
 		deps.NodeSync = nodeSyncPlugin
 	}))

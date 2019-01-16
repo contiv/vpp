@@ -43,7 +43,7 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
-	"github.com/contiv/vpp/plugins/ipam"
+	"github.com/contiv/vpp/plugins/ipam/contivipam"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
@@ -199,8 +199,8 @@ func TestBasicStuff(t *testing.T) {
 	Expect(contivConfPlugin.Init()).To(BeNil())
 
 	// IPAM plugin
-	ipamPlugin := &ipam.IPAM{
-		Deps: ipam.Deps{
+	ipamPlugin := &contivipam.IPAM{
+		Deps: contivipam.Deps{
 			PluginDeps: infra.PluginDeps{
 				Log: logging.ForPlugin("ipam"),
 			},

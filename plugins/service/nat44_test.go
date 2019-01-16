@@ -43,7 +43,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
-	"github.com/contiv/vpp/plugins/ipam"
+	"github.com/contiv/vpp/plugins/ipam/contivipam"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -198,7 +198,7 @@ type plugins struct {
 	serviceLabel *MockServiceLabel
 	nodeSync     *MockNodeSync
 	contivConf   *contivconf.ContivConf
-	ipam         *ipam.IPAM
+	ipam         *contivipam.IPAM
 	podManager   *MockPodManager
 	natPlugin    *MockNatPlugin
 	txnTracker   *localclient.TxnTracker
@@ -256,8 +256,8 @@ func initPlugins(testName string, config *contivconf.Config, localEndpointWeight
 	Expect(plugins.contivConf.Resync(resyncEv, resyncEv.KubeState, 1, nil)).To(BeNil())
 
 	// IPAM real plugin
-	plugins.ipam = &ipam.IPAM{
-		Deps: ipam.Deps{
+	plugins.ipam = &contivipam.IPAM{
+		Deps: contivipam.Deps{
 			PluginDeps: infra.PluginDeps{
 				Log: logging.ForPlugin("ipam"),
 			},

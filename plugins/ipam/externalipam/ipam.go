@@ -23,6 +23,7 @@ import (
 
 	"github.com/ligato/cn-infra/infra"
 
+	cnisb "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -386,56 +387,20 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 
 	i.Log.Debugf("IPAM type=%s data: %s", ipamType, ipamData)
 
-	// get network prefix as uint32
-	networkPrefix, err := ipv4ToUint32(i.podSubnetThisNode.IP)
+	// parse the external IPAM result
+	ipamResult := &cnisb.IPConfig{}
+	err := ipamResult.UnmarshalJSON([]byte(ipamData))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error by unmarshalling external IPAM result: %v", err)
 	}
 
-	last := i.lastPodIPAssigned + 1
-	// iterate over all possible IP addresses for pod network prefix
-	// start from the last assigned and take first available IP
-	prefixBits, totalBits := i.podSubnetThisNode.Mask.Size()
-	// get the maximum sequence ID available in the provided range; the last valid unicast IP is used as "NAT-loopback"
-	maxSeqID := (1 << uint(totalBits-prefixBits)) - 2
-	for j := last; j < maxSeqID; j++ {
-		ipForAssign, success := i.tryToAllocatePodIP(j, networkPrefix, podID)
-		if success {
-			i.lastPodIPAssigned = j
-			return ipForAssign, nil
-		}
-	}
+	// save allocated IP to POD mapping
+	ip := ipamResult.Address.IP
+	i.podToIP[podID] = ip
 
-	// iterate from the range start until lastPodIPAssigned
-	for j := 1; j < last; j++ { // zero ending IP is reserved for network => skip seqID=0
-		ipForAssign, success := i.tryToAllocatePodIP(j, networkPrefix, podID)
-		if success {
-			i.lastPodIPAssigned = j
-			return ipForAssign, nil
-		}
-	}
+	i.Log.Infof("Assigned new pod IP %v for POD ID %v", ip, podID)
 
-	return nil, fmt.Errorf("no IP address is free for allocation in the subnet %v", i.podSubnetThisNode)
-}
-
-// tryToAllocatePodIP checks whether the IP at the given index is available.
-func (i *IPAM) tryToAllocatePodIP(index int, networkPrefix uint32, podID podmodel.ID) (assignedIP net.IP, success bool) {
-	if index == podGatewaySeqID {
-		return nil, false // gateway IP address can't be assigned as pod
-	}
-	ip := networkPrefix + uint32(index)
-	if _, found := i.assignedPodIPs[ip]; found {
-		return nil, false // ignore already assigned IP addresses
-	}
-
-	i.assignedPodIPs[ip] = podID
-
-	ipForAssign := uint32ToIpv4(ip)
-	i.podToIP[podID] = ipForAssign
-	i.Log.Infof("Assigned new pod IP %s", ipForAssign)
-	i.logAssignedPodIPPool()
-
-	return ipForAssign, true
+	return ip, nil
 }
 
 // GetPodIP returns the allocated pod IP, together with the mask.
@@ -458,12 +423,9 @@ func (i *IPAM) ReleasePodIP(podID podmodel.ID) error {
 		i.Log.Warnf("Unable to find IP for pod %v", podID)
 		return nil
 	}
-	addrIndex, _ := ipv4ToUint32(addr)
-	delete(i.assignedPodIPs, addrIndex)
 	delete(i.podToIP, podID)
 
 	i.Log.Infof("Released IP %v for pod ID %v", addr, podID)
-	i.logAssignedPodIPPool()
 	return nil
 }
 

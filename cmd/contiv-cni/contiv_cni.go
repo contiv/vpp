@@ -148,6 +148,9 @@ func cmdAdd(args *skel.CmdArgs) error {
 		ExtraArguments:   args.Args,
 		ExtraNwConfig:    string(args.StdinData),
 	}
+	cniResult := &cnisb.Result{
+		CNIVersion: cfg.CNIVersion,
+	}
 
 	// call external IPAM if provided
 	if cfg.IPAM.Type != "" {
@@ -160,19 +163,24 @@ func cmdAdd(args *skel.CmdArgs) error {
 		} else {
 			// Invoke IPAM del in case of error to avoid ip leak
 			defer func() {
-				if err != nil {
+				if cniResult.Interfaces == nil {
 					ipam.ExecDel(cfg.IPAM.Type, args.StdinData)
 				}
 			}()
-			// convert and store the result
+			// convert and store the cniResult
 			ipamResult, err := cnisb.NewResultFromResult(r)
 			if err != nil {
-				log.Errorf("Cannot convert IPAM result: %v", err)
+				log.Errorf("Cannot convert IPAM cniResult: %v", err)
 				// non-fatal, will use Contiv IPAM
 			} else {
-				cniRequest.IpamType = cfg.IPAM.Type
-				cniRequest.IpamData = ipamResult.String()
-				log.Debugf("IPAM plugin %s ADD result: %v", cfg.IPAM.Type, ipamResult)
+				log.Debugf("IPAM plugin %s ADD cniResult: %v", cfg.IPAM.Type, ipamResult)
+				if len(ipamResult.IPs) > 0 {
+					json, err := ipamResult.IPs[0].MarshalJSON()
+					if err == nil {
+						cniRequest.IpamType = cfg.IPAM.Type
+						cniRequest.IpamData = string(json[:])
+					}
+				}
 			}
 		}
 	}
@@ -185,22 +193,17 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 	defer conn.Close()
 
-	// execute the ADD request
+	// execute the remote ADD request
 	r, err := c.Add(context.Background(), cniRequest)
 	if err != nil {
 		log.Errorf("Error by executing remote CNI Add request: %v", err)
 		return err
 	}
 
-	// process the reply from the remote CNI handler
-	result := &cnisb.Result{
-		CNIVersion: cfg.CNIVersion,
-	}
-
 	// process interfaces
 	for ifidx, iface := range r.Interfaces {
 		// append interface info
-		result.Interfaces = append(result.Interfaces, &cnisb.Interface{
+		cniResult.Interfaces = append(cniResult.Interfaces, &cnisb.Interface{
 			Name:    iface.Name,
 			Mac:     iface.Mac,
 			Sandbox: iface.Sandbox,
@@ -224,7 +227,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 			if ip.Version == cninb.CNIReply_Interface_IP_IPV6 {
 				ver = "6"
 			}
-			result.IPs = append(result.IPs, &cnisb.IPConfig{
+			cniResult.IPs = append(cniResult.IPs, &cnisb.IPConfig{
 				Address:   *ipAddr,
 				Version:   ver,
 				Interface: &ifidx,
@@ -245,7 +248,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 			log.Error(err)
 			return err
 		}
-		result.Routes = append(result.Routes, &types.Route{
+		cniResult.Routes = append(cniResult.Routes, &types.Route{
 			Dst: *dstIP,
 			GW:  gwAddr,
 		})
@@ -253,15 +256,15 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	// process DNS entry
 	for _, dns := range r.Dns {
-		result.DNS.Nameservers = dns.Nameservers
-		result.DNS.Domain = dns.Domain
-		result.DNS.Search = dns.Search
-		result.DNS.Options = dns.Options
+		cniResult.DNS.Nameservers = dns.Nameservers
+		cniResult.DNS.Domain = dns.Domain
+		cniResult.DNS.Search = dns.Search
+		cniResult.DNS.Options = dns.Options
 	}
 
-	log.WithFields(log.Fields{"Result": result}).Debugf("CNI ADD request OK, took %s", time.Since(start))
+	log.WithFields(log.Fields{"Result": cniResult}).Debugf("CNI ADD request OK, took %s", time.Since(start))
 
-	return result.Print()
+	return cniResult.Print()
 }
 
 // cmdDel implements the CNI request to delete a container from network.

@@ -1,0 +1,31 @@
+.header {
+  background: linear-gradient(to left, #00638e, #003655 70%) !important;
+}
+
+.subnav {
+  position: relative;
+}
+
+.nav-link {
+  cursor: pointer;
+}
+
+.btn-reload {
+  position: absolute;
+  right: 12px;
+  top: 6px;
+  cursor: pointer;
+}
+
+.terminal-modal {
+  display: none !important;
+}
+
+.terminal-modal.active {
+  display: block !important;
+}
+
+#terminal {
+  width: 100%;
+  height: 67vh;
+}

@@ -1,0 +1,48 @@
+<div id="wrap">
+  <h2 class="topo-heading text-center" [ngClass]="{'spClosed': !isSidepanelOpen}" *ngIf="domain">Bridge Domain: {{ domain.bd[0].name }}</h2>
+  <clr-dropdown [ngClass]="{'spClosed': !isSidepanelOpen}">
+      <button type="button" class="btn btn-link" clrDropdownTrigger>
+          vxlanBD
+          <clr-icon shape="caret down"></clr-icon>
+      </button>
+      <clr-dropdown-menu *clrIfOpen clrPosition="bottom-right">
+          <button type="button"
+                  clrDropdownItem>vxlanBD</button>
+      </clr-dropdown-menu>
+  </clr-dropdown>
+
+  <div id="bd-btn-group" [ngClass]="{'spOpened': isSidepanelOpen}">
+    <div>
+      <button class="btn" [ngClass]="{'btn-primary': showedTables[0]}" (click)="showSummary()">Summary</button>
+    </div>
+    <div>
+      <button class="btn" [ngClass]="{'btn-primary': showedTables[1]}" (click)="showPods()">Pods</button>
+    </div>
+    <div>
+      <button class="btn" [ngClass]="{'btn-primary': showedTables[2]}" (click)="showTunnels()">Tunnels</button>
+    </div>
+    <div>
+      <button class="btn" (click)="resetTables()">Exit</button>
+    </div>
+  </div>
+
+  <app-topology-viz [hasLayers]="true"
+                    [svgTransform]="svgTransform"
+                    (nodeClicked)="onNodeClicked($event)"
+                    (nodeDblClicked)="onNodeDblClicked($event)"
+                    (bviClicked)="onBviClicked($event)"
+                    (linkClicked)="onLinkClicked($event)"
+                    (svgClicked)="onSvgClicked()"
+                    (transform)="onTransform($event)"
+                    (topologyRendered)="onRender()"
+                    (positionsChanged)="onPositionChange($event)">
+  </app-topology-viz>
+
+  <div class="table-wrap" [ngClass]="{'opened': tableType !== ''}">
+    <app-bridge-domain-control [tableType]="tableType" (detailShowed)="showDetail($event)"></app-bridge-domain-control>
+  </div>
+
+  <div id="bridge-domain-sp" class="sidepanel" [ngClass]="{'opened': isSidepanelOpen}">
+    <app-sidepanel (toggled)="toggleSidepanel($event)"></app-sidepanel>
+  </div>
+</div>

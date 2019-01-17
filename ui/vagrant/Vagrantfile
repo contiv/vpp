@@ -74,14 +74,14 @@ Vagrant.configure("2") do |config|
 
     cat /vagrant/vagrant/nginx/default > /etc/nginx/sites-available/default
 
-    npm install npm -g
+    npm install npm@5.7.1 -g
 
     echo "Installing Angular ..."
 
     npm install --unsafe-perm -g @angular/cli@7.0.2
 
     cd /vagrant
-    npm install
+    npm install --no-bin-links
   SHELL
 
   config.vm.provision "shell", run: "always", inline: <<-SHELL

@@ -26,7 +26,6 @@ spec:
       labels:
         run: contiv-ui
     spec:
-      hostNetwork: true
       serviceAccountName: contiv-ui
       nodeSelector:
         node-role.kubernetes.io/master: ""
@@ -46,4 +45,17 @@ spec:
         - name: ui-cfg
           configMap:
              name: contiv-ui-cfg
-
+---
+apiVersion: v1
+kind: Service
+metadata:
+   name: contiv-ui-svc
+   namespace: kube-system
+spec:
+   type: NodePort
+   ports:
+   - port: 9500
+     nodePort: 32500
+     protocol: TCP
+   selector:
+     run: contiv-ui

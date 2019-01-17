@@ -154,7 +154,8 @@ func (p *proxy) contivHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	url := fmt.Sprintf("%v://%v:%v/%v", protocol, vswitch, p.ContivPort, strings.TrimPrefix(r.URL.Path, CONTIV_PREFIX))
 
-	req, err := http.NewRequest("GET", url, nil)
+
+	req, err := http.NewRequest(r.Method, url, r.Body)
 	if err != nil {
 		writeServerError(err, w, r)
 		return
@@ -172,6 +173,7 @@ func (p *proxy) contivHandler(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
 	w.Write(body)
 
 }

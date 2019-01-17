@@ -1,0 +1,116 @@
+#  Contiv-vpp-ui
+#
+#
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-ui-cfg
+  namespace: kube-system
+data:
+  contiv-ui.conf: |-
+    port: 9500
+    contivPort: {{ .Values.contiv.APIport }}
+    {{- if  .Values.contiv.useHTTPS }}
+    contivHTTPSEnabled: {{ .Values.contiv.useHTTPS }}
+    contivInsecureSkipVerify: {{ not .Values.contiv.validateServerCert }}
+    {{- end }}
+    {{- if .Values.contiv.useBasicAuth }}
+    contivBasicAuthUser: {{ .Values.contiv.basicAuthUser }}
+    contivBasicAuthPass: {{ .Values.contiv.basicAuthUser }}
+    {{- end }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contiv-ui
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      run: contiv-ui
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        run: contiv-ui
+    spec:
+      serviceAccountName: contiv-ui
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      containers:
+        - name: ui
+          image: contiv-ui
+          env:
+            - name: CONTIV_UI_CONF
+              value: "/etc/contiv-ui/contiv-ui.conf"
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 9500
+          volumeMounts:
+            - name: ui-cfg
+              mountPath: /etc/contiv-ui/
+      volumes:
+        - name: ui-cfg
+          configMap:
+            name: contiv-ui-cfg
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contiv-ui-svc
+  namespace: kube-system
+spec:
+  type: NodePort
+  ports:
+    - port: 9500
+      nodePort: {{ .Values.uiService.nodePort}}
+      protocol: TCP
+  selector:
+    run: contiv-ui
+
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: contiv-ui
+  namespace: kube-system
+rules:
+  - apiGroups:
+      - ""
+      - extensions
+    resources:
+      - pods
+      - namespaces
+      - networkpolicies
+      - services
+      - endpoints
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: contiv-ui
+  namespace: kube-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: contiv-ui
+subjects:
+  - kind: ServiceAccount
+    name: contiv-ui
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: contiv-ui
+  apiGroup: rbac.authorization.k8s.io

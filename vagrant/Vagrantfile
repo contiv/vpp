@@ -346,7 +346,7 @@ echo "Pulling k8s images..."
 echo "$(kubeadm config images pull --kubernetes-version=v"#{k8s_version}")"
 
 split_k8s_version="$(cut -d "." -f 2 <<< '#{k8s_version}')"
-if [ $split_k8s_version = '11' ] || [ $split_k8s_version = '12' ] ; then
+if [ $split_k8s_version -gt 10 ] ; then
   if [ "#{node_os_release}" == "16.04" ] ; then
     sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
   else
@@ -560,7 +560,7 @@ fi
 # Based on kubernetes version, disable hugepages in Kubelet
 # Join the kubernetes cluster
 split_k8s_version="$(cut -d "." -f 2 <<< "'#{k8s_version}'")"
-if [ $split_k8s_version = '11' ] || [ $split_k8s_version = '12' ] ; then
+if [ $split_k8s_version -gt 10 ] ; then
   if [ "#{node_os_release}" == "16.04" ] ; then
     sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
   else

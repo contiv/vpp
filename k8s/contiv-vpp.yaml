@@ -127,8 +127,9 @@ data:
           "logFile": "/var/run/contiv/cni.log",
           "ipam": {
             "type": "host-local",
-            "subnet": "192.168.53.0/24"
-          }
+            "subnet": "usePodCidr"
+          },
+          "etcd_endpoints" : "http://127.0.0.1:12379"
         },
         {
           "type": "portmap",

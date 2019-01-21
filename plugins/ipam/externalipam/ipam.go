@@ -26,9 +26,11 @@ import (
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/go-errors/errors"
+	"github.com/ligato/cn-infra/servicelabel"
 )
 
 const (
@@ -89,8 +91,10 @@ type IPAM struct {
 // Deps lists dependencies of the IPAM plugin.
 type Deps struct {
 	infra.PluginDeps
-	NodeSync   nodesync.API
-	ContivConf contivconf.API
+	NodeSync     nodesync.API
+	ContivConf   contivconf.API
+	ServiceLabel servicelabel.ReaderAPI
+	EventLoop    controller.EventLoop
 }
 
 type uintIP = uint32
@@ -100,9 +104,19 @@ func (i *IPAM) Init() (err error) {
 	return nil
 }
 
-// HandlesEvent selects any Resync event.
+// HandlesEvent selects:
+//   - any Resync event (extra action for PodCIDRChange)
+//   - NodeUpdate for the current node
 func (i *IPAM) HandlesEvent(event controller.Event) bool {
-	return event.Method() != controller.Update
+	if event.Method() != controller.Update {
+		return true
+	}
+	if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
+		return nodeUpdate.NodeName == i.ServiceLabel.GetAgentLabel()
+	}
+
+	// unhandled event
+	return false
 }
 
 // Resync resynchronizes IPAM against the configuration and Kubernetes state data.
@@ -117,15 +131,6 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 		}
 	}()
 
-	if resyncCount > 1 {
-		// No need to run resync for IPAM in run-time - the IPAM configuration
-		// cannot change and IP address will not be allocated to a local pod without
-		// the agent knowing about it. Also there is a risk of a race condition
-		//  - resync triggered shortly after Add/DelPod may work with K8s state
-		// data that do not yet reflect the freshly added/removed pod.
-		return nil
-	}
-
 	nodeID := i.NodeSync.GetNodeID()
 
 	// exclude gateway from the set of allocated node IPs
@@ -139,6 +144,19 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 		i.excludedIPsfromNodeSubnet = []uint32{excluded}
 	}
 
+	// TODO
+	thisNodePodCIDR := ""
+	nodeName := i.ServiceLabel.GetAgentLabel()
+	for _, k8sNodeProto := range kubeStateData[nodemodel.NodeKeyword] {
+		k8sNode := k8sNodeProto.(*nodemodel.Node)
+		if k8sNode.Name == nodeName {
+			thisNodePodCIDR = k8sNode.Pod_CIDR
+			break
+		}
+	}
+	i.Log.Infof("This node POD CIDR: %s", thisNodePodCIDR)
+	// TODO
+
 	// initialize subnets based on the configuration
 	ipamConfig := i.ContivConf.GetIPAMConfig()
 	subnets := &ipamConfig.CustomIPAMSubnets
@@ -148,7 +166,7 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 			return err
 		}
 	}
-	if err := i.initializePods(subnets, nodeID); err != nil {
+	if err := i.initializePods(subnets, nodeID, thisNodePodCIDR); err != nil {
 		return err
 	}
 	if err := i.initializeVPPHost(subnets, nodeID); err != nil {
@@ -198,12 +216,22 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 }
 
 // initializePodsIPAM initializes POD-related variables.
-func (i *IPAM) initializePods(config *contivconf.CustomIPAMSubnets, nodeID uint32) (err error) {
+func (i *IPAM) initializePods(config *contivconf.CustomIPAMSubnets, nodeID uint32, thisNodePodCIDR string) (err error) {
 	i.podSubnetAllNodes = config.PodSubnetCIDR
-	i.podSubnetThisNode, err = dissectSubnetForNode(
-		i.podSubnetAllNodes, config.PodSubnetOneNodePrefixLen, nodeID)
-	if err != nil {
-		return
+
+	if thisNodePodCIDR != "" {
+		// pod subnet as detected
+		_, i.podSubnetThisNode, err = net.ParseCIDR(thisNodePodCIDR)
+		if err != nil {
+			return
+		}
+	} else {
+		// pod subnet based on node ID
+		i.podSubnetThisNode, err = dissectSubnetForNode(
+			i.podSubnetAllNodes, config.PodSubnetOneNodePrefixLen, nodeID)
+		if err != nil {
+			return
+		}
 	}
 
 	podNetworkPrefixUint32, err := ipv4ToUint32(i.podSubnetThisNode.IP)
@@ -237,6 +265,15 @@ func (i *IPAM) initializeVPPHost(config *contivconf.CustomIPAMSubnets, nodeID ui
 
 // Update is NOOP - never called.
 func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
+
+	if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
+		if nodeUpdate.NodeName == i.ServiceLabel.GetAgentLabel() {
+			i.EventLoop.PushEvent(&PodCIDRChange{})
+			i.Log.Infof("Sent PodCIDRChange event to the event loop for PodCIDRChange")
+			// TODO: fill-in PodCIDRChange
+		}
+	}
+
 	return "", nil
 }
 

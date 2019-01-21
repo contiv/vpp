@@ -167,8 +167,9 @@ func main() {
 	// use contiv or external IPAM based on the IPAM env. variable
 	var ipamPlugin ipam.API
 	var ipamPluginEH controller_api.EventHandler
+	var extIPAM *externalipam.IPAM
 	if os.Getenv("IPAM") == "external" {
-		extIPAM := externalipam.NewPlugin(externalipam.UseDeps(func(deps *externalipam.Deps) {
+		extIPAM = externalipam.NewPlugin(externalipam.UseDeps(func(deps *externalipam.Deps) {
 			deps.ContivConf = contivConf
 			deps.NodeSync = nodeSyncPlugin
 		}))
@@ -234,6 +235,9 @@ func main() {
 	podManager.EventLoop = controller
 	ipv4NetPlugin.EventLoop = controller
 	contivGRPC.EventLoop = controller
+	if extIPAM != nil {
+		extIPAM.EventLoop = controller
+	}
 
 	// initialize the agent
 	contivAgent := &ContivAgent{

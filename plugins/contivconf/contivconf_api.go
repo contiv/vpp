@@ -98,6 +98,9 @@ type API interface {
 
 // IPAMConfig groups configuration options related to IP address allocation.
 type IPAMConfig struct {
+	// UseExternalIPAM is true if IPAM is provided by an external IPAM plugin instead of Contiv.
+	UseExternalIPAM bool
+
 	// CIDR to use for all IP address allocations.
 	// If defined (non-nil), the manually selected subnets (CustomIPAMSubnets, see below)
 	// should be ignored - i.e. this field takes precedence.

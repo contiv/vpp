@@ -354,6 +354,8 @@ func (i *IPAM) HostInterconnectSubnetOtherNode(nodeID uint32) (*net.IPNet, error
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 
+	// TODO
+
 	oneNodePrefixLen, _ := i.hostInterconnectSubnetThisNode.Mask.Size()
 	vSwitchNetworkIPPrefix, err := dissectSubnetForNode(
 		i.hostInterconnectSubnetAllNodes, uint8(oneNodePrefixLen), nodeID)

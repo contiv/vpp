@@ -32,6 +32,7 @@ import (
 	"github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/rpc/rest"
 
+	"github.com/contiv/vpp/plugins/bgpreflector"
 	"github.com/contiv/vpp/plugins/contivconf"
 	"github.com/contiv/vpp/plugins/controller"
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
@@ -93,15 +94,16 @@ type ContivAgent struct {
 	GRPC      *grpc.Plugin
 	REST      *rest_plugin.Plugin
 
-	Controller *controller.Controller
-	ContivConf *contivconf.ContivConf
-	ContivGRPC *contivgrpc.Plugin
-	NodeSync   *nodesync.NodeSync
-	PodManager *podmanager.PodManager
-	IPAM       ipam.API
-	IPv4Net    *ipv4net.IPv4Net
-	Policy     *policy.Plugin
-	Service    *service.Plugin
+	Controller   *controller.Controller
+	ContivConf   *contivconf.ContivConf
+	ContivGRPC   *contivgrpc.Plugin
+	NodeSync     *nodesync.NodeSync
+	PodManager   *podmanager.PodManager
+	IPAM         ipam.API
+	IPv4Net      *ipv4net.IPv4Net
+	Policy       *policy.Plugin
+	Service      *service.Plugin
+	BGPReflector *bgpreflector.BGPReflector
 }
 
 func (c *ContivAgent) String() string {
@@ -210,6 +212,10 @@ func main() {
 		deps.PodManager = podManager
 	}))
 
+	bgpReflector := bgpreflector.NewPlugin(bgpreflector.UseDeps(func(deps *bgpreflector.Deps) {
+		deps.ContivConf = contivConf
+	}))
+
 	controller := controller.NewPlugin(controller.UseDeps(func(deps *controller.Deps) {
 		deps.LocalDB = &bolt.DefaultPlugin
 		deps.RemoteDB = &etcd.DefaultPlugin
@@ -221,6 +227,7 @@ func main() {
 			ipv4NetPlugin,
 			servicePlugin,
 			policyPlugin,
+			bgpReflector,
 			statsCollector,
 		}
 		deps.ExtSources = []controller.ExternalConfigSource{
@@ -238,6 +245,7 @@ func main() {
 	if extIPAM != nil {
 		extIPAM.EventLoop = controller
 	}
+	bgpReflector.EventLoop = controller
 
 	// initialize the agent
 	contivAgent := &ContivAgent{
@@ -269,6 +277,7 @@ func main() {
 		IPv4Net:       ipv4NetPlugin,
 		Policy:        policyPlugin,
 		Service:       servicePlugin,
+		BGPReflector:  bgpReflector,
 	}
 
 	a := agent.NewAgent(agent.AllPlugins(contivAgent), agent.StartTimeout(getStartupTimeout()))

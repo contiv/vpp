@@ -144,12 +144,14 @@ func (n *IPv4Net) routesToNode(node *nodesync.Node) (config controller.KeyValueP
 	}
 
 	// route to pods of the other node
-	key, routeToPods, err := n.routeToOtherNodePods(node.ID, nextHop)
-	if err != nil {
-		n.Log.Error(err)
-		return config, err
+	if !n.ContivConf.GetIPAMConfig().UseExternalIPAM { // skip in case that external IPAM is in use
+		key, routeToPods, err := n.routeToOtherNodePods(node.ID, nextHop)
+		if err != nil {
+			n.Log.Error(err)
+			return config, err
+		}
+		config[key] = routeToPods
 	}
-	config[key] = routeToPods
 
 	// route to the host stack of the other node
 	key, routeToHostStack, err := n.routeToOtherNodeHostStack(node.ID, nextHop)
@@ -163,7 +165,9 @@ func (n *IPv4Net) routesToNode(node *nodesync.Node) (config controller.KeyValueP
 	for _, mgmtIP := range node.MgmtIPAddresses {
 		// route management IP address towards the destination node
 		key, mgmtRoute1 := n.routeToOtherNodeManagementIP(mgmtIP, nextHop)
-		config[key] = mgmtRoute1
+		if mgmtRoute1 != nil {
+			config[key] = mgmtRoute1
+		}
 
 		// inter-VRF route for the management IP address
 		if !n.ContivConf.InSTNMode() && !l2Interconnect {
@@ -610,6 +614,9 @@ func (n *IPv4Net) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net
 // routeToOtherNodeManagementIP returns configuration for route applied to traffic destined
 // to a management IP of another node.
 func (n *IPv4Net) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (key string, config *l3.StaticRoute) {
+	if managementIP.Equal(nextHopIP) {
+		return "", nil
+	}
 	route := &l3.StaticRoute{
 		DstNetwork:  managementIP.String() + "/32",
 		NextHopAddr: nextHopIP.String(),

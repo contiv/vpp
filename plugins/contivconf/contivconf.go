@@ -233,6 +233,7 @@ type Config struct {
 // The string fields are then parsed to *net.IPNet and returned as such in IPAMConfig
 // structure.
 type IPAMConfigForJSON struct {
+	UseExternalIPAM               bool   `json:"useExternalIPAM,omitempty"`
 	ContivCIDR                    string `json:"contivCIDR,omitempty"`
 	ServiceCIDR                   string `json:"serviceCIDR,omitempty"`
 	NodeInterconnectDHCP          bool   `json:"nodeInterconnectDHCP,omitempty"`
@@ -351,6 +352,7 @@ func (c *ContivConf) Init() (err error) {
 
 	// parse IPAM subnets
 	c.ipamConfig = &IPAMConfig{
+		UseExternalIPAM:      c.config.IPAMConfig.UseExternalIPAM,
 		NodeInterconnectDHCP: c.config.IPAMConfig.NodeInterconnectDHCP,
 		CustomIPAMSubnets: CustomIPAMSubnets{
 			PodSubnetOneNodePrefixLen:     c.config.IPAMConfig.PodSubnetOneNodePrefixLen,

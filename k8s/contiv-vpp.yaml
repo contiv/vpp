@@ -129,7 +129,7 @@ data:
             "type": "host-local",
             "subnet": "usePodCidr"
           },
-          "etcd_endpoints" : "http://127.0.0.1:12379"
+          "etcd_endpoints" : "http://127.0.0.1:32379"
         },
         {
           "type": "portmap",

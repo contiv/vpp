@@ -53,6 +53,9 @@ data:
     routeServiceCIDRToVPP: {{ .Values.contiv.routeServiceCIDRToVPP }}
     crdNodeConfigurationDisabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
     ipamConfig:
+      {{- if .Values.contiv.useExternalIPAM }}
+      useExternalIPAM: true
+      {{- end }}
       {{- if .Values.contiv.ipamConfig.contivCIDR }}
       contivCIDR: {{ .Values.contiv.ipamConfig.contivCIDR }}
       {{ else }}
@@ -195,7 +198,7 @@ data:
             "type": "host-local",
             "subnet": "usePodCidr"
           },
-          "etcd_endpoints" : "http://127.0.0.1:12379"
+          "etcd_endpoints" : "http://127.0.0.1:32379"
         },
         {
           "type": "portmap",
@@ -743,7 +746,7 @@ spec:
               value: "/etc/vpp-agent/linux-l3plugin.conf"
             - name: KVSCHEDULER_CONFIG
               value: "/etc/vpp-agent/kvscheduler.conf"
-            {{- if .Values.vswitch.useExternalIPAM }}
+            {{- if .Values.contiv.useExternalIPAM }}
             - name: IPAM
               value: "external"
             {{- end}}

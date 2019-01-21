@@ -53,7 +53,7 @@ data:
     routeServiceCIDRToVPP: {{ .Values.contiv.routeServiceCIDRToVPP }}
     crdNodeConfigurationDisabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
     ipamConfig:
-      {{- if .Values.contiv.useExternalIPAM }}
+      {{- if .Values.contiv.ipamConfig.useExternalIPAM }}
       useExternalIPAM: true
       {{- end }}
       {{- if .Values.contiv.ipamConfig.contivCIDR }}
@@ -746,7 +746,7 @@ spec:
               value: "/etc/vpp-agent/linux-l3plugin.conf"
             - name: KVSCHEDULER_CONFIG
               value: "/etc/vpp-agent/kvscheduler.conf"
-            {{- if .Values.contiv.useExternalIPAM }}
+            {{- if .Values.contiv.ipamConfig.useExternalIPAM }}
             - name: IPAM
               value: "external"
             {{- end}}

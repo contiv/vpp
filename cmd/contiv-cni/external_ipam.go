@@ -132,7 +132,7 @@ func getPodCIDR() string {
 func createEtcdClient() (*etcd.BytesConnectionEtcd, keyval.ProtoBroker, error) {
 
 	cfg := &etcd.Config{
-		Endpoints:         []string{"http://127.0.0.1:12379"},
+		Endpoints:         []string{"http://127.0.0.1:32379"},
 		InsecureTransport: true,
 		DialTimeout:       10000000000,
 	}

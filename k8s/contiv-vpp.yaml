@@ -140,7 +140,6 @@ data:
         }
       ]
     }
-
 ---
 
 ###########################################################
@@ -339,10 +338,10 @@ spec:
               name: cni-bin-dir
             - mountPath: /etc/cni/net.d
               name: cni-net-dir
-            - mountPath: /var/run/contiv
-              name: contiv-run
             - mountPath: /cni/cfg
               name: contiv-cni-cfg
+            - mountPath: /var/run/contiv
+              name: contiv-run
 
         # This init container extracts/copies default VPP config to the host and initializes VPP core dumps.
         - name: vpp-init
@@ -447,8 +446,6 @@ spec:
               value: "/etc/vpp-agent/linux-l3plugin.conf"
             - name: KVSCHEDULER_CONFIG
               value: "/etc/vpp-agent/kvscheduler.conf"
-            - name: IPAM
-              value: "external"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt
@@ -542,6 +539,7 @@ spec:
         - name: docker-socket
           hostPath:
             path: /var/run/docker.sock
+        # CNI config
         - name: contiv-cni-cfg
           configMap:
             name: contiv-cni-cfg

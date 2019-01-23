@@ -71,7 +71,7 @@ controller:
 etcd:
   image:
     repository: quay.io/coreos/etcd
-    tag: v3.3.10
+    tag: v3.3.11
     pullPolicy: IfNotPresent
   service:
     # nodePort where contiv-etcd can be reached on any node.

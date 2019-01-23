@@ -1,5 +1,48 @@
-# Release v2.1.0 (TBD)
-TBD
+# Release v2.1.0 (16.1.2019)
+
+### VPP
+ - version **v18.10** (latest stable/1810)
+
+### New Features & Enhancements
+ - both Contiv/VPP and the underlying ligato/VPP-Agent have underwent a major
+   **refactoring**
+ - VPP-Agent is now based on a newly implemented framework, called **kvscheduler**,
+   providing **transaction-based** configuration processing with a generic mechanism
+   for dependency resolution between configuration items, which in effect simplifies
+   and unifies the configurators
+ - for Contiv, the VPP-Agent refactor yields more **stability** and also
+   **visibility** to what changes are being made in the configuration in the form
+   of additional REST interfaces and with much more readable and compact logs
+ - Contiv/VPP itself has been refactored into a **synchronous event-driven**
+   control-flow model, further simplifying debugging and limiting potential
+   race conditions
+ - the previously bloated `contiv` plugin has been split into multiple smaller
+   plugins to improve readability and **modularity** - it will be substantially
+   easier in the future to add new features as separate plugins without
+   the need to change anything or too much of the existing code base, potentially
+   opening Contiv/VPP for external contributors
+ - the support for re-synchronization has been fine-tuned to ensure that the
+   system state gets properly recovered after a restart or any kind of failure/outage
+ - network **configuration is no longer persisted** in `etcd`, mitigating the load
+   onto the datastore, instead the agent is now able to re-calculate the full
+   configuration state on demand (only Kubernetes state remains reflected
+   into `etcd` by KSR)
+ - Kubernetes state data are also **mirrored** from `etcd` into local `bolt` DB
+   on every node, allowing the agent to restart and recover the state without
+   immediate connectivity to `etcd`
+ - run-time change of the DHPC-assigned main IP address is now supported
+ - run-time change of `NodeConfig` CRD is now also properly applied without
+   the need for a hard restart
+ - external applications are able to **extend/customize** the Contiv dataplane
+   by submitting additional configuration via `etcd` or `gRPC` API, which then
+   gets merged with Contiv's own internal configuration before it gets applied
+   to VPP-Agent - more information are available [here](docs/dev-guide/EXTERNAL_CONFIG.md)
+ - L2 (no overlay) networking mode is again supported
+ - `podVPPSubnetCIDR` has been removed, POD-facing interfaces on VPP are now unnumbered
+
+### Known Issues
+ - load-balancing between backends of a service is limited to the first 256 PODs
+   (the others will not receive any traffic until some of the first 256 PODs disappear)
 
 # Release v2.0.3 (10.12.2018)
 
@@ -109,13 +152,13 @@ TBD
 ### Bug Fixes
  - support for more than one IP on the management interface
  - concurrent map access fix in ligato/vpp-agent
- 
+
 ### New Features
  - option for simplified IPAM config (`ContivCIDR`)
  - ability to define IPAM via CRD
  - cluster state validator
  - `contiv-netctl` command line tool
- 
+
 ### Known Issues
  - fragmentation issues in STN setup (STN is still experimental)
 
@@ -140,7 +183,7 @@ nat {
 
 ### Bug Fixes
  - lots of bugfixes in both VPP and Contiv.
- 
+
 ### Known Issues
  - MTU-related issues in STN setup (STN is still experimental).
 
@@ -159,7 +202,7 @@ nat {
 ### Bug Fixes
  - most of NAT related issues fixed in STN setup.
  - lots of other bugfixes in both VPP and Contiv.
- 
+
 ### Known Issues
  - MTU-related issues in STN setup (STN is still experimental).
 
@@ -179,7 +222,7 @@ nat {
 ### Bug Fixes
  - fixed issues in some restart / upgrade scenarios,
  - Gratuitous ARP fix on VPP.
- 
+
 ### Known Issues
  - port names not fully supported in k8s policies,
  - NAT-related issues in STN setup (STN is still experimental).
@@ -196,9 +239,9 @@ nat {
  - full k8s policies support,
  - support for vSwitch / node restarts,
  - experimental STN (Steal The NIC) functionality.
- 
+
 ### Known Issues
  - connection to Contiv ETCD, HTTP services and internal GRPC connections (CNI, STN) are not secured,
  - port names not fully supported in k8s policies,
  - NAT-related issues in STN setup (STN is still experimental).
- 
+

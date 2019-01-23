@@ -93,6 +93,13 @@ func (n *IPv4Net) podConnectivityConfig(pod *podmanager.LocalPod) (config contro
 	// route to PodIP via AF_PACKET / TAP
 	key, vppRoute := n.vppToPodRoute(pod)
 	config[key] = vppRoute
+
+	// /32 route from the host to POD (only in external IPAM case)
+	if n.ContivConf.GetIPAMConfig().UseExternalIPAM {
+		key, route := n.hostToPodRoute(pod)
+		config[key] = route
+	}
+
 	return config
 }
 
@@ -340,6 +347,29 @@ func (n *IPv4Net) vppToPodRoute(pod *podmanager.LocalPod) (key string, config *l
 		VrfId:             n.ContivConf.GetRoutingConfig().PodVRFID,
 	}
 	key = l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	return key, route
+}
+
+/**************************** Host routes ******************************/
+
+// hostToPodRoute returns configuration for the route pointing to the pod IP from the linux host (main namespace).
+func (n *IPv4Net) hostToPodRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.StaticRoute) {
+	podIP := n.IPAM.GetPodIP(pod.ID)
+	route := &linux_l3.StaticRoute{
+		DstNetwork: fmt.Sprintf("%s/32", podIP.IP.String()),
+		Scope:      linux_l3.StaticRoute_GLOBAL,
+	}
+	if !n.ContivConf.InSTNMode() {
+		route.GwAddr = n.IPAM.HostInterconnectIPInVPP().String()
+	} else {
+		route.GwAddr = n.stnGwIPForHost().String()
+	}
+	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
+		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
+	} else {
+		route.OutgoingInterface = hostInterconnectVETH1LogicalName
+	}
+	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
 	return key, route
 }
 

@@ -1,3 +1,16 @@
+# Release v2.1.1 (TBD)
+
+### VPP
+ - version **v18.10** (latest stable/1810)
+
+### New Features & Enhancements
+ - default ETCD version update to 3.3.11
+ - enhanced `vppctl` script
+
+### Known Issues
+ - load-balancing between backends of a service is limited to the first 256 PODs
+   (the others will not receive any traffic until some of the first 256 PODs disappear)
+
 # Release v2.1.0 (16.1.2019)
 
 ### VPP

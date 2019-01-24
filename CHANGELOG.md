@@ -1,4 +1,4 @@
-# Release v2.1.1 (TBD)
+# Release v2.1.1 (24.1.2019)
 
 ### VPP
  - version **v18.10** (latest stable/1810)

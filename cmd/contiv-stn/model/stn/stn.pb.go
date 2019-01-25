@@ -40,7 +40,7 @@ func (m *STNRequest) Reset()         { *m = STNRequest{} }
 func (m *STNRequest) String() string { return proto.CompactTextString(m) }
 func (*STNRequest) ProtoMessage()    {}
 func (*STNRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stn_d63ea70b4f33f541, []int{0}
+	return fileDescriptor_stn_2aee956be88da58d, []int{0}
 }
 func (m *STNRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_STNRequest.Unmarshal(m, b)
@@ -97,7 +97,7 @@ func (m *STNReply) Reset()         { *m = STNReply{} }
 func (m *STNReply) String() string { return proto.CompactTextString(m) }
 func (*STNReply) ProtoMessage()    {}
 func (*STNReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stn_d63ea70b4f33f541, []int{1}
+	return fileDescriptor_stn_2aee956be88da58d, []int{1}
 }
 func (m *STNReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_STNReply.Unmarshal(m, b)
@@ -174,7 +174,7 @@ func (m *STNReply_Route) Reset()         { *m = STNReply_Route{} }
 func (m *STNReply_Route) String() string { return proto.CompactTextString(m) }
 func (*STNReply_Route) ProtoMessage()    {}
 func (*STNReply_Route) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stn_d63ea70b4f33f541, []int{1, 0}
+	return fileDescriptor_stn_2aee956be88da58d, []int{1, 0}
 }
 func (m *STNReply_Route) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_STNReply_Route.Unmarshal(m, b)
@@ -358,9 +358,9 @@ var _STN_serviceDesc = grpc.ServiceDesc{
 	Metadata: "stn.proto",
 }
 
-func init() { proto.RegisterFile("stn.proto", fileDescriptor_stn_d63ea70b4f33f541) }
+func init() { proto.RegisterFile("stn.proto", fileDescriptor_stn_2aee956be88da58d) }
 
-var fileDescriptor_stn_d63ea70b4f33f541 = []byte{
+var fileDescriptor_stn_2aee956be88da58d = []byte{
 	// 360 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x92, 0x41, 0x8f, 0xd3, 0x30,
 	0x10, 0x85, 0x49, 0x43, 0xa3, 0x66, 0xd2, 0x14, 0x70, 0x11, 0x8a, 0x7a, 0x80, 0x50, 0x84, 0x14,

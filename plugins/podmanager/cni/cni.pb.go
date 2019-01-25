@@ -46,7 +46,7 @@ func (x CNIReply_Interface_IP_Version) String() string {
 	return proto.EnumName(CNIReply_Interface_IP_Version_name, int32(x))
 }
 func (CNIReply_Interface_IP_Version) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_cni_5245710ff7b7a900, []int{1, 0, 0, 0}
+	return fileDescriptor_cni_6e070e18e4d11e04, []int{1, 0, 0, 0}
 }
 
 // The request to add a container to network. Corresponds to the CNI specification
@@ -73,7 +73,7 @@ func (m *CNIRequest) Reset()         { *m = CNIRequest{} }
 func (m *CNIRequest) String() string { return proto.CompactTextString(m) }
 func (*CNIRequest) ProtoMessage()    {}
 func (*CNIRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cni_5245710ff7b7a900, []int{0}
+	return fileDescriptor_cni_6e070e18e4d11e04, []int{0}
 }
 func (m *CNIRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CNIRequest.Unmarshal(m, b)
@@ -157,7 +157,7 @@ func (m *CNIReply) Reset()         { *m = CNIReply{} }
 func (m *CNIReply) String() string { return proto.CompactTextString(m) }
 func (*CNIReply) ProtoMessage()    {}
 func (*CNIReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cni_5245710ff7b7a900, []int{1}
+	return fileDescriptor_cni_6e070e18e4d11e04, []int{1}
 }
 func (m *CNIReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CNIReply.Unmarshal(m, b)
@@ -231,7 +231,7 @@ func (m *CNIReply_Interface) Reset()         { *m = CNIReply_Interface{} }
 func (m *CNIReply_Interface) String() string { return proto.CompactTextString(m) }
 func (*CNIReply_Interface) ProtoMessage()    {}
 func (*CNIReply_Interface) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cni_5245710ff7b7a900, []int{1, 0}
+	return fileDescriptor_cni_6e070e18e4d11e04, []int{1, 0}
 }
 func (m *CNIReply_Interface) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CNIReply_Interface.Unmarshal(m, b)
@@ -296,7 +296,7 @@ func (m *CNIReply_Interface_IP) Reset()         { *m = CNIReply_Interface_IP{} }
 func (m *CNIReply_Interface_IP) String() string { return proto.CompactTextString(m) }
 func (*CNIReply_Interface_IP) ProtoMessage()    {}
 func (*CNIReply_Interface_IP) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cni_5245710ff7b7a900, []int{1, 0, 0}
+	return fileDescriptor_cni_6e070e18e4d11e04, []int{1, 0, 0}
 }
 func (m *CNIReply_Interface_IP) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CNIReply_Interface_IP.Unmarshal(m, b)
@@ -352,7 +352,7 @@ func (m *CNIReply_Route) Reset()         { *m = CNIReply_Route{} }
 func (m *CNIReply_Route) String() string { return proto.CompactTextString(m) }
 func (*CNIReply_Route) ProtoMessage()    {}
 func (*CNIReply_Route) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cni_5245710ff7b7a900, []int{1, 1}
+	return fileDescriptor_cni_6e070e18e4d11e04, []int{1, 1}
 }
 func (m *CNIReply_Route) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CNIReply_Route.Unmarshal(m, b)
@@ -405,7 +405,7 @@ func (m *CNIReply_DNS) Reset()         { *m = CNIReply_DNS{} }
 func (m *CNIReply_DNS) String() string { return proto.CompactTextString(m) }
 func (*CNIReply_DNS) ProtoMessage()    {}
 func (*CNIReply_DNS) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cni_5245710ff7b7a900, []int{1, 2}
+	return fileDescriptor_cni_6e070e18e4d11e04, []int{1, 2}
 }
 func (m *CNIReply_DNS) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CNIReply_DNS.Unmarshal(m, b)
@@ -572,9 +572,9 @@ var _RemoteCNI_serviceDesc = grpc.ServiceDesc{
 	Metadata: "cni.proto",
 }
 
-func init() { proto.RegisterFile("cni.proto", fileDescriptor_cni_5245710ff7b7a900) }
+func init() { proto.RegisterFile("cni.proto", fileDescriptor_cni_6e070e18e4d11e04) }
 
-var fileDescriptor_cni_5245710ff7b7a900 = []byte{
+var fileDescriptor_cni_6e070e18e4d11e04 = []byte{
 	// 541 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x53, 0xcd, 0x6e, 0x13, 0x31,
 	0x10, 0x6e, 0x76, 0xf3, 0xd3, 0x4c, 0x9a, 0x34, 0x35, 0x08, 0xac, 0x95, 0x90, 0x42, 0x10, 0xb4,

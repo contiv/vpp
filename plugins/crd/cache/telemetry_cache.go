@@ -287,7 +287,7 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 	go ctc.getNodeInfo(client, node, url, &nodeiparps, ctc.databaseVersion)
 
 	nodestaticroutes := make(telemetrymodel.NodeStaticRoutes, 0)
-	url = ctc.kvSchedulerDumpURL(vppl3descr.StaticRouteDescriptorName)
+	url = ctc.kvSchedulerDumpURL(vppl3descr.RouteDescriptorName)
 	go ctc.getNodeInfo(client, node, url, &nodestaticroutes, ctc.databaseVersion)
 
 	nodeipam := ipv4net.IPAMData{}

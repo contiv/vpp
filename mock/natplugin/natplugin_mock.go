@@ -23,15 +23,17 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ligato/cn-infra/datasync/syncbase"
-	"github.com/ligato/cn-infra/logging"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/contiv/vpp/mock/localclient"
-
 	"github.com/contiv/vpp/plugins/service/renderer"
-	"github.com/gogo/protobuf/proto"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
+
+	"github.com/ligato/cn-infra/datasync/syncbase"
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/api/models/vpp/nat"
 )
+
+const dnat44Prefix = "config/vpp/nat/v2/dnat44/"
 
 // MockNatPlugin simulates the VPP/NAT plugin.
 type MockNatPlugin struct {
@@ -41,14 +43,14 @@ type MockNatPlugin struct {
 
 	/* NAT44 global */
 	defaultNat44Global bool
-	nat44Global        *nat.Nat44Global
+	nat44Global        *vpp_nat.Nat44Global
 	forwarding         bool
 	addressPool        []net.IP
 	twiceNatPool       []net.IP
 	interfaces         map[string]NatFeatures // ifname -> NAT features
 
 	/* NAT44 DNAT */
-	nat44Dnat        map[string]*nat.DNat44 // label -> DNAT config
+	nat44Dnat        map[string]*vpp_nat.DNat44 // label -> DNAT config
 	staticMappings   *StaticMappings
 	identityMappings *IdentityMappings
 }
@@ -62,7 +64,7 @@ func NewMockNatPlugin(log logging.Logger) *MockNatPlugin {
 
 func (mnt *MockNatPlugin) resetNat44Global() {
 	mnt.defaultNat44Global = true
-	mnt.nat44Global = &nat.Nat44Global{}
+	mnt.nat44Global = &vpp_nat.Nat44Global{}
 	mnt.forwarding = false
 	mnt.addressPool = []net.IP{}
 	mnt.twiceNatPool = []net.IP{}
@@ -70,7 +72,7 @@ func (mnt *MockNatPlugin) resetNat44Global() {
 }
 
 func (mnt *MockNatPlugin) resetNat44Dnat() {
-	mnt.nat44Dnat = make(map[string]*nat.DNat44)
+	mnt.nat44Dnat = make(map[string]*vpp_nat.DNat44)
 	mnt.staticMappings = &StaticMappings{}
 	mnt.identityMappings = &IdentityMappings{}
 }
@@ -100,15 +102,15 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 
 		mnt.Reset()
 		for key, value := range txn.LinuxDataResyncTxn.Values {
-			if key == nat.GlobalNAT44Key {
+			if key == vpp_nat.GlobalNAT44Key() {
 				// put global NAT config
 				if err := mnt.putGlobalConfig(value); err != nil {
 					return err
 				}
 
-			} else if strings.HasPrefix(key, nat.DNAT44Prefix) {
+			} else if strings.HasPrefix(key, dnat44Prefix) {
 				// put DNAT config
-				dnatConfig, isDnatConfig := value.(*nat.DNat44)
+				dnatConfig, isDnatConfig := value.(*vpp_nat.DNat44)
 				if !isDnatConfig {
 					return errors.New("failed to cast DNAT config value")
 				}
@@ -147,7 +149,7 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 	dataChange := txn.LinuxDataChangeTxn
 	for key, value := range dataChange.Values {
 		// foundRev, _ := latestRevs.Get(op.Key) TODO: uncomment/update after refactor
-		if key == nat.GlobalNAT44Key {
+		if key == vpp_nat.GlobalNAT44Key() {
 			if value != nil {
 				// put global NAT config
 				/*
@@ -171,10 +173,10 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 				mnt.resetNat44Global()
 			}
 
-		} else if strings.HasPrefix(key, nat.DNAT44Prefix) {
+		} else if strings.HasPrefix(key, dnat44Prefix) {
 			if value != nil {
 				// put DNAT config
-				dnatConfig, isDnatConfig := value.(*nat.DNat44)
+				dnatConfig, isDnatConfig := value.(*vpp_nat.DNat44)
 				if !isDnatConfig {
 					return errors.New("failed to cast DNAT config value")
 				}
@@ -224,7 +226,7 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 						return errors.New("cannot remove DNAT without latest value/revision")
 					}
 				*/
-				label := strings.TrimPrefix(key, nat.DNAT44Prefix)
+				label := strings.TrimPrefix(key, dnat44Prefix)
 				if prevDnatConfig, hasDnat := mnt.nat44Dnat[label]; hasDnat {
 					oldSms, err := mnt.dnatToStaticMappings(prevDnatConfig)
 					if err != nil {
@@ -246,7 +248,7 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 }
 
 func (mnt *MockNatPlugin) putGlobalConfig(message proto.Message) error {
-	natGlobal, isNatGlobal := message.(*nat.Nat44Global)
+	natGlobal, isNatGlobal := message.(*vpp_nat.Nat44Global)
 	if !isNatGlobal {
 		return errors.New("failed to cast NAT global value")
 	}
@@ -308,13 +310,13 @@ func (mnt *MockNatPlugin) putGlobalConfig(message proto.Message) error {
 	return nil
 }
 
-func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.DNat44) (*StaticMappings, error) {
+func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *vpp_nat.DNat44) (*StaticMappings, error) {
 	sms := &StaticMappings{}
 	for _, staticMapping := range dnat.StMappings {
 		sm := &StaticMapping{}
 
 		// fields set to a constant value
-		if staticMapping.ExternalPort != 0 && staticMapping.TwiceNat == nat.DNat44_StaticMapping_DISABLED {
+		if staticMapping.ExternalPort != 0 && staticMapping.TwiceNat == vpp_nat.DNat44_StaticMapping_DISABLED {
 			return nil, errors.New("self-twice-NAT/twice-NAT not enabled for static mapping")
 		}
 		if staticMapping.ExternalInterface != "" {
@@ -330,11 +332,11 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.DNat44) (*StaticMapping
 
 		// protocol
 		switch staticMapping.Protocol {
-		case nat.DNat44_TCP:
+		case vpp_nat.DNat44_TCP:
 			sm.Protocol = renderer.TCP
-		case nat.DNat44_UDP:
+		case vpp_nat.DNat44_UDP:
 			sm.Protocol = renderer.UDP
-		case nat.DNat44_ICMP:
+		case vpp_nat.DNat44_ICMP:
 			return nil, errors.New("unexpected static mapping for the ICMP protocol")
 		}
 
@@ -345,7 +347,7 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.DNat44) (*StaticMapping
 		sm.ExternalPort = uint16(staticMapping.ExternalPort)
 
 		// twice NAT
-		if staticMapping.TwiceNat == nat.DNat44_StaticMapping_ENABLED {
+		if staticMapping.TwiceNat == vpp_nat.DNat44_StaticMapping_ENABLED {
 			sm.TwiceNAT = true
 		}
 
@@ -378,7 +380,7 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.DNat44) (*StaticMapping
 	return sms, nil
 }
 
-func (mnt *MockNatPlugin) dnatToIdentityMappings(dnat *nat.DNat44) (*IdentityMappings, error) {
+func (mnt *MockNatPlugin) dnatToIdentityMappings(dnat *vpp_nat.DNat44) (*IdentityMappings, error) {
 	ims := &IdentityMappings{}
 	for _, identityMapping := range dnat.IdMappings {
 		im := &IdentityMapping{}
@@ -400,11 +402,11 @@ func (mnt *MockNatPlugin) dnatToIdentityMappings(dnat *nat.DNat44) (*IdentityMap
 
 		// protocol
 		switch identityMapping.Protocol {
-		case nat.DNat44_TCP:
+		case vpp_nat.DNat44_TCP:
 			im.Protocol = renderer.TCP
-		case nat.DNat44_UDP:
+		case vpp_nat.DNat44_UDP:
 			im.Protocol = renderer.UDP
-		case nat.DNat44_ICMP:
+		case vpp_nat.DNat44_ICMP:
 			return nil, errors.New("unexpected identity mapping for the ICMP protocol")
 		}
 
@@ -423,12 +425,12 @@ func (mnt *MockNatPlugin) dnatToIdentityMappings(dnat *nat.DNat44) (*IdentityMap
 }
 
 // DumpNat44Global returns the current NAT44 global config
-func (mnt *MockNatPlugin) DumpNat44Global() *nat.Nat44Global {
+func (mnt *MockNatPlugin) DumpNat44Global() *vpp_nat.Nat44Global {
 	return mnt.nat44Global
 }
 
 // DumpNat44DNat returns the current NAT44 DNAT config
-func (mnt *MockNatPlugin) DumpNat44DNat() (dnats []*nat.DNat44) {
+func (mnt *MockNatPlugin) DumpNat44DNat() (dnats []*vpp_nat.DNat44) {
 	for _, dnatCfg := range mnt.nat44Dnat {
 		dnats = append(dnats, dnatCfg)
 	}

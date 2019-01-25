@@ -15,19 +15,25 @@
 package bgpreflector
 
 import (
-	"sync"
-
-	"github.com/ligato/cn-infra/infra"
-
+	"fmt"
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/ligato/cn-infra/infra"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
+	"net"
 )
 
-// BGPReflector plugin implements IP address allocation for Contiv.
+const (
+	// protocol number for routes installed by bird
+	// from /etc/iproute2/rt_protos
+	birdRouteProtoNumber = 12
+)
+
+// BGPReflector plugin implements BGP route reflection from Linux host to VPP.
 type BGPReflector struct {
 	Deps
-
-	mutex sync.RWMutex
 }
 
 // Deps lists dependencies of the BGPReflector plugin.
@@ -44,8 +50,12 @@ func (br *BGPReflector) Init() (err error) {
 
 // HandlesEvent selects:
 //   - any Resync event
+//   - BGPRouteUpdate
 func (br *BGPReflector) HandlesEvent(event controller.Event) bool {
 	if event.Method() != controller.Update {
+		return true
+	}
+	if _, isBGPRouteChange := event.(*BGPRouteUpdate); isBGPRouteChange {
 		return true
 	}
 
@@ -53,7 +63,7 @@ func (br *BGPReflector) HandlesEvent(event controller.Event) bool {
 	return false
 }
 
-// Resync resynchronizes BGPReflector against the configuration and Kubernetes state data.
+// Resync resynchronizes BGPReflector against the BGP routes in the Linux host.
 // A set of already allocated pod IPs is updated.
 func (br *BGPReflector) Resync(event controller.Event, kubeStateData controller.KubeStateData,
 	resyncCount int, txn controller.ResyncOperations) (err error) {
@@ -65,12 +75,50 @@ func (br *BGPReflector) Resync(event controller.Event, kubeStateData controller.
 		}
 	}()
 
+	if resyncCount == 1 {
+		// initialize route watcher
+		err := br.watchRoutes()
+		if err != nil {
+			br.Log.Error(err)
+			return err
+		}
+	}
+
+	// dump routes
+	routes, err := netlink.RouteList(nil, netlink.FAMILY_V4)
+	if err != nil {
+		err := fmt.Errorf("error by listing BGP routes: %v", err)
+		br.Log.Error(err)
+		return err
+	}
+
+	// reflect bird routes
+	for _, r := range routes {
+		if r.Protocol == birdRouteProtoNumber {
+			key, route := br.vppRoute(r.Dst, r.Gw)
+			txn.Put(key, route)
+		}
+	}
+
 	return
 }
 
-// Update is NOOP - never called.
+// Update handles BGPRouteUpdate events.
 func (br *BGPReflector) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
-	return "", nil
+
+	if bgpRouteUpdate, isBGPRouteUpdate := event.(*BGPRouteUpdate); isBGPRouteUpdate {
+		br.Log.Debugf("BGP route update: %v", bgpRouteUpdate)
+
+		key, route := br.vppRoute(bgpRouteUpdate.DstNetwork, bgpRouteUpdate.GwAddr)
+		if bgpRouteUpdate.Type == RouteAdd {
+			txn.Put(key, route)
+			changeDescription = "BGP route Add"
+		} else {
+			txn.Delete(key)
+			changeDescription = "BGP route Delete"
+		}
+	}
+	return
 }
 
 // Revert is NOOP - never called.
@@ -81,4 +129,54 @@ func (br *BGPReflector) Revert(event controller.Event) error {
 // Close is NOOP.
 func (br *BGPReflector) Close() error {
 	return nil
+}
+
+// watchRoutes watches routing table for BGP routes and generates BGPRouteUpdate events upon each BGP route change.
+func (br *BGPReflector) watchRoutes() error {
+	ch := make(chan netlink.RouteUpdate)
+	done := make(chan struct{})
+
+	//defer close(done) // TODO handle nice close
+	if err := netlink.RouteSubscribe(ch, done); err != nil {
+		return fmt.Errorf("unable to subscribe the route watcher")
+	}
+
+	go func() {
+		for {
+			select {
+			case r := <-ch:
+				br.Log.Debugf("Route update: proto=%d %v", r.Protocol, r)
+				if r.Protocol == birdRouteProtoNumber {
+					ev := &BGPRouteUpdate{
+						DstNetwork: r.Dst,
+						GwAddr:     r.Gw,
+					}
+					if r.Type == unix.RTM_NEWROUTE {
+						br.Log.Debugf("New BGP route: %v", r)
+						ev.Type = RouteAdd
+
+					}
+					if r.Type == unix.RTM_DELROUTE {
+						br.Log.Debugf("Deleted BGP route: %v", r)
+						ev.Type = RouteDelete
+					}
+					br.EventLoop.PushEvent(ev)
+				}
+			}
+		}
+	}()
+
+	return nil
+}
+
+// vppRoute returns VPP route from given destination network and gateway IP.
+func (br *BGPReflector) vppRoute(dst *net.IPNet, gw net.IP) (key string, config *l3.StaticRoute) {
+	route := &l3.StaticRoute{
+		DstNetwork:        dst.String(),
+		NextHopAddr:       gw.String(),
+		OutgoingInterface: br.ContivConf.GetMainInterfaceName(),
+		VrfId:             br.ContivConf.GetRoutingConfig().MainVRFID,
+	}
+	key = l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	return key, route
 }

@@ -7,49 +7,68 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
-/********************************* Plugin API *********************************/
-
-// API defines methods provided by IPv4Net plugin for use by other plugins to query
-// IPv4 network-related information.
-// Apart from GetPodByIf, these methods should not be accessed from outside of the
-// main event loop!
-type API interface {
-}
-
 /*************************** Node IPv4 Change Event ***************************/
 
-// BGPRouteChange is triggered when DHCP-assigned IPv4 address of the node changes.
-type BGPRouteChange struct {
-	NodeIP    net.IP
-	NodeIPNet *net.IPNet
-	DefaultGw net.IP
+type BGPRouteUpdateType int
+
+const (
+	RouteAdd BGPRouteUpdateType = iota
+	RouteDelete
+)
+
+func (t BGPRouteUpdateType) String() string {
+	switch t {
+	case RouteAdd:
+		return "RouteAdd"
+	case RouteDelete:
+		return "RouteDelete"
+	default:
+		return fmt.Sprintf("%d", int(t))
+	}
 }
 
-// GetName returns name of the BGPRouteChange event.
-func (ev *BGPRouteChange) GetName() string {
+// BGPRouteUpdate is triggered when DHCP-assigned IPv4 address of the node changes.
+type BGPRouteUpdate struct {
+	Type       BGPRouteUpdateType
+	DstNetwork *net.IPNet
+	GwAddr     net.IP
+}
+
+// GetName returns name of the BGPRouteUpdate event.
+func (ev *BGPRouteUpdate) GetName() string {
 	return "BGP route Change"
 }
 
-// String describes BGPRouteChange event.
-func (ev *BGPRouteChange) String() string {
+// String describes BGPRouteUpdate event.
+func (ev *BGPRouteUpdate) String() string {
 	return fmt.Sprintf("%s\n"+
-		"* IP: %s\n"+
-		"* IP-net: %s\n"+
+		"* Type: %s\n"+
+		"* DstNetwork: %s\n"+
 		"* GW: %s",
-		ev.GetName(), ev.NodeIP.String(), ev.NodeIPNet.String(), ev.DefaultGw.String())
+		ev.GetName(), ev.Type.String(), ev.DstNetwork.String(), ev.GwAddr.String())
 }
 
-// Method is UpstreamResync.
-func (ev *BGPRouteChange) Method() controller.EventMethodType {
+// Method is Update.
+func (ev *BGPRouteUpdate) Method() controller.EventMethodType {
 	return controller.Update
 }
 
+// TransactionType is BestEffort.
+func (ev *BGPRouteUpdate) TransactionType() controller.UpdateTransactionType {
+	return controller.BestEffort
+}
+
+// Direction is Forward.
+func (ev *BGPRouteUpdate) Direction() controller.UpdateDirectionType {
+	return controller.Forward
+}
+
 // IsBlocking returns false.
-func (ev *BGPRouteChange) IsBlocking() bool {
+func (ev *BGPRouteUpdate) IsBlocking() bool {
 	return false
 }
 
 // Done is NOOP.
-func (ev *BGPRouteChange) Done(error) {
+func (ev *BGPRouteUpdate) Done(error) {
 	return
 }

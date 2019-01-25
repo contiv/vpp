@@ -24,6 +24,7 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stats"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 )
@@ -71,6 +72,25 @@ func (n *IPv4Net) executeDebugCLI(cmd string) (string, error) {
 		return "", err
 	}
 	return string(reply.Reply), err
+}
+
+// createVrf1 creates VRF 1 on VPP
+func (n *IPv4Net) createVrf1() error {
+	n.Log.Info("Creating VRF 1")
+
+	req := &ip.IPTableAddDel{
+		TableID: 1,
+		IsIPv6:  0,
+		IsAdd:   1,
+	}
+	reply := &ip.IPTableAddDelReply{}
+
+	err := n.govppCh.SendRequest(req).ReceiveReply(reply)
+
+	if err != nil {
+		n.Log.Error("Error by creating VRF 1:", err)
+	}
+	return err
 }
 
 func (n *IPv4Net) subscribeVnetFibCounters() error {

@@ -82,6 +82,8 @@ func (n *IPv4Net) Resync(event controller.Event, kubeStateData controller.KubeSt
 //  - inter-VRF routing
 //  - IP neighbor scanning
 func (n *IPv4Net) configureVswitchConnectivity(event controller.Event, txn controller.ResyncOperations) error {
+	n.createVrf1()
+
 	// configure physical NIC
 	err := n.configureVswitchNICs(event, txn)
 	if err != nil {

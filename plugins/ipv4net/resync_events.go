@@ -82,7 +82,12 @@ func (n *IPv4Net) Resync(event controller.Event, kubeStateData controller.KubeSt
 //  - inter-VRF routing
 //  - IP neighbor scanning
 func (n *IPv4Net) configureVswitchConnectivity(event controller.Event, txn controller.ResyncOperations) error {
-	n.createVrf1()
+	if !n.test {
+		// explicitly create POD VRF using binary API
+		// TODO: just temporary, until VRF will be a separate NB API entity of vpp-agent,
+		// so that all plugins can properly set their dependency on it
+		n.createVrf(n.ContivConf.GetRoutingConfig().PodVRFID)
+	}
 
 	// configure physical NIC
 	err := n.configureVswitchNICs(event, txn)

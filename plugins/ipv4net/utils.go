@@ -74,12 +74,12 @@ func (n *IPv4Net) executeDebugCLI(cmd string) (string, error) {
 	return string(reply.Reply), err
 }
 
-// createVrf1 creates VRF 1 on VPP
-func (n *IPv4Net) createVrf1() error {
+// createVrf creates provided VRF using binary API
+func (n *IPv4Net) createVrf(vrfID uint32) error {
 	n.Log.Info("Creating VRF 1")
 
 	req := &ip.IPTableAddDel{
-		TableID: 1,
+		TableID: vrfID,
 		IsIPv6:  0,
 		IsAdd:   1,
 	}

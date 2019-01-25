@@ -16,7 +16,7 @@ package statscollector
 
 import (
 	"fmt"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -26,6 +26,7 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"testing"
 )
 
@@ -102,10 +103,10 @@ func TestStatsCollector(t *testing.T) {
 }
 
 func testPutWithWrongArgumentType(t *testing.T) {
-	key := interfaces.StatePrefix + "stat1"
+	key := vpp_interfaces.StatePrefix + "stat1"
 
 	// test with wrong argument type
-	stat := &interfaces.InterfaceState_Statistics{}
+	stat := &vpp_interfaces.InterfaceState_Statistics{}
 	testVars.plugin.Put(key, stat)
 }
 
@@ -114,7 +115,7 @@ func testPutNewPodEntry(t *testing.T) {
 	key := interfaces.StatePrefix + testIfPodName
 
 	// test with wrong argument type
-	stat := &interfaces.InterfaceState_Statistics{
+	stat := &vpp_interfaces.InterfaceState_Statistics{
 		InPackets:       1,
 		InBytes:         2,
 		OutPackets:      3,
@@ -129,7 +130,7 @@ func testPutNewPodEntry(t *testing.T) {
 		OutErrorPackets: 12,
 	}
 
-	ifState := &interfaces.InterfaceState{
+	ifState := &vpp_interfaces.InterfaceState{
 		Name:       testIfPodName,
 		Statistics: stat,
 	}
@@ -147,7 +148,7 @@ func testPutExistingPodEntry(t *testing.T) {
 	key := interfaces.StatePrefix + testIfPodName
 
 	// test with wrong argument type
-	stat := &interfaces.InterfaceState_Statistics{
+	stat := &vpp_interfaces.InterfaceState_Statistics{
 		InPackets:       21,
 		InBytes:         22,
 		OutPackets:      23,
@@ -162,7 +163,7 @@ func testPutExistingPodEntry(t *testing.T) {
 		OutErrorPackets: 32,
 	}
 
-	ifState := &interfaces.InterfaceState{
+	ifState := &vpp_interfaces.InterfaceState{
 		Name:       testIfPodName,
 		Statistics: stat,
 	}
@@ -181,7 +182,7 @@ func testPutNewContivEntry(t *testing.T) {
 	key := interfaces.StatePrefix + testCntvIfName
 
 	// test with wrong argument type
-	stat := &interfaces.InterfaceState_Statistics{
+	stat := &vpp_interfaces.InterfaceState_Statistics{
 		InPackets:       1,
 		InBytes:         2,
 		OutPackets:      3,
@@ -196,7 +197,7 @@ func testPutNewContivEntry(t *testing.T) {
 		OutErrorPackets: 12,
 	}
 
-	ifState := &interfaces.InterfaceState{
+	ifState := &vpp_interfaces.InterfaceState{
 		Name:       testCntvIfName,
 		Statistics: stat,
 	}
@@ -253,7 +254,7 @@ func testIsContivSystemInterface(t *testing.T) {
 	gomega.Expect(tf).To(gomega.BeFalse())
 }
 
-func checkEntry(stat *interfaces.InterfaceState_Statistics, entry *stats) {
+func checkEntry(stat *vpp_interfaces.InterfaceState_Statistics, entry *stats) {
 	_, exists := entry.metrics[inPacketsMetric]
 	gomega.Expect(exists).To(gomega.BeTrue())
 	_, exists = entry.metrics[outPacketsMetric]

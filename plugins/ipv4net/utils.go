@@ -23,9 +23,9 @@ import (
 	"git.fd.io/govpp.git/api"
 	"github.com/vishvananda/netlink"
 
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stats"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 )
 
 // getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
@@ -145,15 +145,15 @@ func uint32ToIpv4(ip uint32) net.IP {
 }
 
 // interfaceRxModeType returns interface rx-mode type from provided string.
-func interfaceRxModeType(rxMode string) interfaces.Interface_RxModeSettings_RxModeType {
+func interfaceRxModeType(rxMode string) vpp_interfaces.Interface_RxModeSettings_RxModeType {
 	switch rxMode {
 	case "polling":
-		return interfaces.Interface_RxModeSettings_POLLING
+		return vpp_interfaces.Interface_RxModeSettings_POLLING
 	case "interrupt":
-		return interfaces.Interface_RxModeSettings_INTERRUPT
+		return vpp_interfaces.Interface_RxModeSettings_INTERRUPT
 	case "adaptive":
-		return interfaces.Interface_RxModeSettings_ADAPTIVE
+		return vpp_interfaces.Interface_RxModeSettings_ADAPTIVE
 	default:
-		return interfaces.Interface_RxModeSettings_DEFAULT
+		return vpp_interfaces.Interface_RxModeSettings_DEFAULT
 	}
 }

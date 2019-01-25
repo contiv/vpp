@@ -17,19 +17,17 @@ package telemetrymodel
 import (
 	"github.com/gogo/protobuf/jsonpb"
 
-	"github.com/ligato/cn-infra/health/statuscheck/model/status"
-
-	"github.com/ligato/vpp-agent/idxvpp2"
-	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
-
-	linux_ifaceidx "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/ifaceidx"
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
-
 	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/gogo/protobuf/proto"
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+	linux_ifaceidx "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/ifaceidx"
+	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
+
+	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/l2"
+	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"github.com/ligato/vpp-agent/pkg/idxvpp2"
 )
 
 /*********************************** Reports **********************************/
@@ -108,7 +106,7 @@ type NodeInterfaces []NodeInterface
 // NodeInterface holds un-marshalled VPP Interface data.
 type NodeInterface struct {
 	Key      string
-	Value    *interfaces.Interface
+	Value    *vpp_interfaces.Interface
 	Metadata ifaceidx.IfaceMetadata
 }
 
@@ -138,12 +136,12 @@ type NodeBridgeDomain struct {
 
 // VppBridgeDomain extends VPP BD proto model with JSON un-marshaller from jsonpb.
 type VppBridgeDomain struct {
-	*l2.BridgeDomain
+	*vpp_l2.BridgeDomain
 }
 
 // UnmarshalJSON uses un-marshaller from jsonpb.
 func (v *VppBridgeDomain) UnmarshalJSON(data []byte) error {
-	v.BridgeDomain = &l2.BridgeDomain{}
+	v.BridgeDomain = &vpp_l2.BridgeDomain{}
 	return jsonpb.UnmarshalString(string(data), v.BridgeDomain)
 }
 
@@ -160,12 +158,12 @@ type NodeL2FibEntry struct {
 
 // VppL2FIB extends VPP L2 FIB entry proto model with JSON un-marshaller from jsonpb.
 type VppL2FIB struct {
-	*l2.FIBEntry
+	*vpp_l2.FIBEntry
 }
 
 // UnmarshalJSON uses un-marshaller from jsonpb.
 func (v *VppL2FIB) UnmarshalJSON(data []byte) error {
-	v.FIBEntry = &l2.FIBEntry{}
+	v.FIBEntry = &vpp_l2.FIBEntry{}
 	return jsonpb.UnmarshalString(string(data), v.FIBEntry)
 }
 
@@ -182,12 +180,12 @@ type NodeIPArpEntry struct {
 
 // VppARP extends VPP ARP entry proto model with JSON un-marshaller from jsonpb.
 type VppARP struct {
-	*l3.ARPEntry
+	*vpp_l3.ARPEntry
 }
 
 // UnmarshalJSON uses un-marshaller from jsonpb.
 func (v *VppARP) UnmarshalJSON(data []byte) error {
-	v.ARPEntry = &l3.ARPEntry{}
+	v.ARPEntry = &vpp_l3.ARPEntry{}
 	return jsonpb.UnmarshalString(string(data), v.ARPEntry)
 }
 
@@ -207,7 +205,7 @@ func (r NodeIPRoute) DeepCopy() (out NodeIPRoute) {
 	out = NodeIPRoute{
 		Key: r.Key,
 		Value: VppL3Route{
-			StaticRoute: proto.Clone(r.Value.StaticRoute).(*l3.StaticRoute),
+			Route: proto.Clone(r.Value.Route).(*vpp_l3.Route),
 		},
 	}
 	return
@@ -215,13 +213,13 @@ func (r NodeIPRoute) DeepCopy() (out NodeIPRoute) {
 
 // VppL3Route extends VPP L3 route proto model with JSON un-marshaller from jsonpb.
 type VppL3Route struct {
-	*l3.StaticRoute
+	*vpp_l3.Route
 }
 
 // UnmarshalJSON uses un-marshaller from jsonpb.
 func (v *VppL3Route) UnmarshalJSON(data []byte) error {
-	v.StaticRoute = &l3.StaticRoute{}
-	return jsonpb.UnmarshalString(string(data), v.StaticRoute)
+	v.Route = &vpp_l3.Route{}
+	return jsonpb.UnmarshalString(string(data), v.Route)
 }
 
 /********************************** Telemetry **********************************/

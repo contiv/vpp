@@ -282,13 +282,12 @@ spec:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       tolerations:
-        # Make sure it gets scheduled on all nodes.
-        - effect: NoSchedule
+        # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+        - key: ''
           operator: Exists
-        # Mark the pod as a critical add-on for rescheduling.
+          effect: ''
+        # This likely isn't needed due to the above wildcard, but keep it in for now.
         - key: CriticalAddonsOnly
-          operator: Exists
-        - effect: NoExecute
           operator: Exists
       hostNetwork: true
       hostPID: true

@@ -13,7 +13,8 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	prometheusplugin "github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -56,7 +57,7 @@ type Plugin struct {
 type stats struct {
 	podName      string
 	podNamespace string
-	data         *interfaces.InterfaceState
+	data         *vpp_interfaces.InterfaceState
 	metrics      map[string]prometheus.Gauge
 }
 
@@ -223,7 +224,7 @@ func (p *Plugin) Put(key string, data proto.Message, opts ...datasync.PutOption)
 			entry *stats
 			found bool
 		)
-		if st, ok := data.(*interfaces.InterfaceState); ok {
+		if st, ok := data.(*vpp_interfaces.InterfaceState); ok {
 			entry, found = p.ifStats[key]
 			if found && entry.podName != "" {
 				// interface is associated with a pod and we're already streaming its statistics
@@ -263,7 +264,7 @@ func (p *Plugin) RegisterGaugeFunc(name string, help string, valueFunc func() fl
 	}
 }
 
-func (p *Plugin) addNewEntry(key string, data *interfaces.InterfaceState) (newEntry *stats, created bool) {
+func (p *Plugin) addNewEntry(key string, data *vpp_interfaces.InterfaceState) (newEntry *stats, created bool) {
 	var (
 		err            error
 		entry          *stats

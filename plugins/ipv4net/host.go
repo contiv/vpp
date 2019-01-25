@@ -21,12 +21,12 @@ import (
 
 	"github.com/apparentlymart/go-cidr/cidr"
 
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/stn"
+	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
+	"github.com/ligato/vpp-agent/api/models/linux/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/punt"
+	"github.com/ligato/vpp-agent/api/models/vpp/stn"
 )
 
 /* VPP - Host interconnect */
@@ -96,22 +96,22 @@ func (n *IPv4Net) hostInterconnectLinuxIfName() string {
 
 // interconnectTapVPP returns configuration for the VPP-side of the TAP interface
 // connecting VPP with the host stack.
-func (n *IPv4Net) interconnectTapVPP() (key string, config *interfaces.Interface) {
+func (n *IPv4Net) interconnectTapVPP() (key string, config *vpp_interfaces.Interface) {
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	size, _ := n.IPAM.HostInterconnectSubnetThisNode().Mask.Size()
-	tap := &interfaces.Interface{
+	tap := &vpp_interfaces.Interface{
 		Name:    HostInterconnectTAPinVPPLogicalName,
-		Type:    interfaces.Interface_TAP,
+		Type:    vpp_interfaces.Interface_TAP,
 		Mtu:     interfaceCfg.MTUSize,
 		Enabled: true,
 		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
-		Link: &interfaces.Interface_Tap{
-			Tap: &interfaces.TapLink{},
+		Link: &vpp_interfaces.Interface_Tap{
+			Tap: &vpp_interfaces.TapLink{},
 		},
 		PhysAddress: hwAddrForNodeInterface(n.NodeSync.GetNodeID(), hostInterconnectHwAddrPrefix),
 	}
 	if n.ContivConf.InSTNMode() {
-		tap.Unnumbered = &interfaces.Interface_Unnumbered{
+		tap.Unnumbered = &vpp_interfaces.Interface_Unnumbered{
 			InterfaceWithIp: n.ContivConf.GetMainInterfaceName(),
 		}
 	} else {
@@ -122,12 +122,12 @@ func (n *IPv4Net) interconnectTapVPP() (key string, config *interfaces.Interface
 		tap.GetTap().RxRingSize = uint32(interfaceCfg.TAPv2RxRingSize)
 		tap.GetTap().TxRingSize = uint32(interfaceCfg.TAPv2TxRingSize)
 	}
-	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != interfaces.Interface_RxModeSettings_DEFAULT {
-		tap.RxModeSettings = &interfaces.Interface_RxModeSettings{
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
+		tap.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
 			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
 		}
 	}
-	key = interfaces.InterfaceKey(tap.Name)
+	key = vpp_interfaces.InterfaceKey(tap.Name)
 	return key, tap
 }
 
@@ -163,14 +163,14 @@ func (n *IPv4Net) interconnectTapHost() (key string, config *linux_interfaces.In
 
 // interconnectAfpacket returns configuration for the AF-Packet interface attached
 // to interconnectVethVpp (see below)
-func (n *IPv4Net) interconnectAfpacket() (key string, config *interfaces.Interface) {
+func (n *IPv4Net) interconnectAfpacket() (key string, config *vpp_interfaces.Interface) {
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	size, _ := n.IPAM.HostInterconnectSubnetThisNode().Mask.Size()
-	afpacket := &interfaces.Interface{
+	afpacket := &vpp_interfaces.Interface{
 		Name: hostInterconnectAFPacketLogicalName,
-		Type: interfaces.Interface_AF_PACKET,
-		Link: &interfaces.Interface_Afpacket{
-			Afpacket: &interfaces.AfpacketLink{
+		Type: vpp_interfaces.Interface_AF_PACKET,
+		Link: &vpp_interfaces.Interface_Afpacket{
+			Afpacket: &vpp_interfaces.AfpacketLink{
 				HostIfName: hostInterconnectVETH2HostName,
 			},
 		},
@@ -180,18 +180,18 @@ func (n *IPv4Net) interconnectAfpacket() (key string, config *interfaces.Interfa
 		PhysAddress: hwAddrForNodeInterface(n.NodeSync.GetNodeID(), hostInterconnectHwAddrPrefix),
 	}
 	if n.ContivConf.InSTNMode() {
-		afpacket.Unnumbered = &interfaces.Interface_Unnumbered{
+		afpacket.Unnumbered = &vpp_interfaces.Interface_Unnumbered{
 			InterfaceWithIp: n.ContivConf.GetMainInterfaceName(),
 		}
 	} else {
 		afpacket.IpAddresses = []string{n.IPAM.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)}
 	}
-	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != interfaces.Interface_RxModeSettings_DEFAULT {
-		afpacket.RxModeSettings = &interfaces.Interface_RxModeSettings{
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
+		afpacket.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
 			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
 		}
 	}
-	key = interfaces.InterfaceKey(afpacket.Name)
+	key = vpp_interfaces.InterfaceKey(afpacket.Name)
 	return key, afpacket
 }
 
@@ -246,18 +246,18 @@ func (n *IPv4Net) interconnectVethHost() (key string, config *linux_interfaces.I
 }
 
 // routesToHost return one route to configure on VPP for every host interface.
-func (n *IPv4Net) routesToHost(nextHopIP net.IP) map[string]*l3.StaticRoute {
-	routes := make(map[string]*l3.StaticRoute)
+func (n *IPv4Net) routesToHost(nextHopIP net.IP) map[string]*vpp_l3.Route {
+	routes := make(map[string]*vpp_l3.Route)
 
 	// generate a /32 static route from VPP for each of the host's IPs
 	for _, ip := range n.hostIPs {
-		route := &l3.StaticRoute{
+		route := &vpp_l3.Route{
 			DstNetwork:        fmt.Sprintf("%s/32", ip.String()),
 			NextHopAddr:       nextHopIP.String(),
 			OutgoingInterface: n.hostInterconnectVPPIfName(),
 			VrfId:             n.ContivConf.GetRoutingConfig().MainVRFID,
 		}
-		key := l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+		key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 		routes[key] = route
 	}
 
@@ -266,33 +266,33 @@ func (n *IPv4Net) routesToHost(nextHopIP net.IP) map[string]*l3.StaticRoute {
 
 // routePODsFromHost returns configuration for route for the host stack to direct
 // traffic destined to pods via VPP.
-func (n *IPv4Net) routePODsFromHost(nextHopIP net.IP) (key string, config *linux_l3.StaticRoute) {
-	route := &linux_l3.StaticRoute{
+func (n *IPv4Net) routePODsFromHost(nextHopIP net.IP) (key string, config *linux_l3.Route) {
+	route := &linux_l3.Route{
 		OutgoingInterface: hostInterconnectVETH1LogicalName,
-		Scope:             linux_l3.StaticRoute_GLOBAL,
+		Scope:             linux_l3.Route_GLOBAL,
 		DstNetwork:        n.IPAM.PodSubnetAllNodes().String(),
 		GwAddr:            nextHopIP.String(),
 	}
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
 	}
-	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
+	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
 	return key, route
 }
 
 // routeServicesFromHost returns configuration for route for the host stack to direct
 // traffic destined to services via VPP.
-func (n *IPv4Net) routeServicesFromHost(nextHopIP net.IP) (key string, config *linux_l3.StaticRoute) {
-	route := &linux_l3.StaticRoute{
+func (n *IPv4Net) routeServicesFromHost(nextHopIP net.IP) (key string, config *linux_l3.Route) {
+	route := &linux_l3.Route{
 		OutgoingInterface: hostInterconnectVETH1LogicalName,
-		Scope:             linux_l3.StaticRoute_GLOBAL,
+		Scope:             linux_l3.Route_GLOBAL,
 		DstNetwork:        n.IPAM.ServiceNetwork().String(),
 		GwAddr:            nextHopIP.String(),
 	}
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
 	}
-	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
+	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
 	return key, route
 }
 
@@ -301,31 +301,31 @@ func (n *IPv4Net) routeServicesFromHost(nextHopIP net.IP) (key string, config *l
 // stnRule returns configuration for STN rule, used to forward all traffic not matched
 // in VPP to host via interconnect interface.
 // The method assumes that node has IP address allocated!
-func (n *IPv4Net) stnRule() (key string, config *stn.Rule) {
-	rule := &stn.Rule{
+func (n *IPv4Net) stnRule() (key string, config *vpp_stn.Rule) {
+	rule := &vpp_stn.Rule{
 		IpAddress: n.nodeIP.String(),
 		Interface: n.hostInterconnectVPPIfName(),
 	}
-	key = stn.Key(rule.Interface, rule.IpAddress)
+	key = vpp_stn.Key(rule.Interface, rule.IpAddress)
 	return key, rule
 }
 
 // ipRedirectRule returns configuration for ip_redirect flavor of STN rule, used to forward all traffic not matched
 // in VPP to host via interconnect interface. in is another alternative of the stnRule() functionality.
 // The method assumes that node has IP address allocated!
-func (n *IPv4Net) ipRedirectRule() (key string, config *punt.IpRedirect) {
-	rule := &punt.IpRedirect{
-		L3Protocol:  punt.L3Protocol_ALL,
+func (n *IPv4Net) ipRedirectRule() (key string, config *vpp_punt.IPRedirect) {
+	rule := &vpp_punt.IPRedirect{
+		L3Protocol:  vpp_punt.L3Protocol_ALL,
 		TxInterface: n.hostInterconnectVPPIfName(),
 		NextHop:     n.nodeIP.String(),
 	}
-	key = punt.IPRedirectKey(rule.L3Protocol, rule.TxInterface)
+	key = vpp_punt.IPRedirectKey(rule.L3Protocol, rule.TxInterface)
 	return key, rule
 }
 
 // proxyArpForSTNGateway configures proxy ARP used in the STN case to let VPP to answer
 // to ARP requests coming from the host stack.
-func (n *IPv4Net) proxyArpForSTNGateway() (key string, config *l3.ProxyARP) {
+func (n *IPv4Net) proxyArpForSTNGateway() (key string, config *vpp_l3.ProxyARP) {
 	firstIP, lastIP := cidr.AddressRange(n.nodeIPNet)
 
 	// If larger than a /31, remove network and broadcast addresses
@@ -335,30 +335,30 @@ func (n *IPv4Net) proxyArpForSTNGateway() (key string, config *l3.ProxyARP) {
 		lastIP = cidr.Dec(lastIP)
 	}
 
-	proxyarp := &l3.ProxyARP{
-		Interfaces: []*l3.ProxyARP_Interface{
+	proxyarp := &vpp_l3.ProxyARP{
+		Interfaces: []*vpp_l3.ProxyARP_Interface{
 			{Name: n.hostInterconnectVPPIfName()},
 		},
-		Ranges: []*l3.ProxyARP_Range{
+		Ranges: []*vpp_l3.ProxyARP_Range{
 			{
 				FirstIpAddr: firstIP.String(),
 				LastIpAddr:  lastIP.String(),
 			},
 		},
 	}
-	key = l3.ProxyARPKey
+	key = vpp_l3.ProxyARPKey()
 	return key, proxyarp
 }
 
 // staticArpForSTNHostInterface creates a static ARP entry for for the host stack interface on VPP.
-func (n *IPv4Net) staticArpForSTNHostInterface() (key string, config *l3.ARPEntry) {
-	arp := &l3.ARPEntry{
+func (n *IPv4Net) staticArpForSTNHostInterface() (key string, config *vpp_l3.ARPEntry) {
+	arp := &vpp_l3.ARPEntry{
 		Interface:   n.hostInterconnectVPPIfName(),
 		IpAddress:   n.nodeIP.String(),
 		PhysAddress: hostInterconnectMACinLinuxSTN,
 		Static:      true,
 	}
-	key = l3.ArpEntryKey(arp.Interface, arp.IpAddress)
+	key = vpp_l3.ArpEntryKey(arp.Interface, arp.IpAddress)
 	return key, arp
 }
 
@@ -380,14 +380,14 @@ func (n *IPv4Net) stnGwIPForHost() net.IP {
 
 // stnRoutesForVPP returns VPP routes mirroring Host routes that were associated
 // with the stolen interface.
-func (n *IPv4Net) stnRoutesForVPP() map[string]*l3.StaticRoute {
-	routes := make(map[string]*l3.StaticRoute)
+func (n *IPv4Net) stnRoutesForVPP() map[string]*vpp_l3.Route {
+	routes := make(map[string]*vpp_l3.Route)
 
 	for _, stnRoute := range n.ContivConf.GetSTNConfig().STNRoutes {
 		if stnRoute.NextHopIp == "" {
 			continue // skip routes with no next hop IP (link-local)
 		}
-		route := &l3.StaticRoute{
+		route := &vpp_l3.Route{
 			DstNetwork:        stnRoute.DestinationSubnet,
 			NextHopAddr:       stnRoute.NextHopIp,
 			OutgoingInterface: n.ContivConf.GetMainInterfaceName(),
@@ -396,7 +396,7 @@ func (n *IPv4Net) stnRoutesForVPP() map[string]*l3.StaticRoute {
 		if route.DstNetwork == "" {
 			route.DstNetwork = ipv4NetAny
 		}
-		key := l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+		key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 		routes[key] = route
 	}
 
@@ -405,23 +405,23 @@ func (n *IPv4Net) stnRoutesForVPP() map[string]*l3.StaticRoute {
 
 // stnRoutesForHost returns configuration of routes that were associated
 // with the stolen interface, now updated to route via host-interconnect.
-func (n *IPv4Net) stnRoutesForHost() map[string]*linux_l3.StaticRoute {
-	routes := make(map[string]*linux_l3.StaticRoute)
+func (n *IPv4Net) stnRoutesForHost() map[string]*linux_l3.Route {
+	routes := make(map[string]*linux_l3.Route)
 
 	for _, stnRoute := range n.ContivConf.GetSTNConfig().STNRoutes {
 		if stnRoute.NextHopIp == "" {
 			continue // skip routes with no next hop IP (link-local)
 		}
-		route := &linux_l3.StaticRoute{
+		route := &linux_l3.Route{
 			DstNetwork:        stnRoute.DestinationSubnet,
 			GwAddr:            stnRoute.NextHopIp,
-			Scope:             linux_l3.StaticRoute_GLOBAL,
+			Scope:             linux_l3.Route_GLOBAL,
 			OutgoingInterface: n.hostInterconnectLinuxIfName(),
 		}
 		if route.DstNetwork == "" {
 			route.DstNetwork = ipv4NetAny
 		}
-		key := linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
+		key := linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
 		routes[key] = route
 	}
 

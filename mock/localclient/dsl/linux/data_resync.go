@@ -5,18 +5,18 @@ import (
 	"github.com/ligato/vpp-agent/clientv2/vpp"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
+	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
+	"github.com/ligato/vpp-agent/api/models/linux/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/acl"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
+	"github.com/ligato/vpp-agent/api/models/vpp/l2"
+	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/nat"
+	"github.com/ligato/vpp-agent/api/models/vpp/punt"
+	"github.com/ligato/vpp-agent/api/models/vpp/stn"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/l4"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/stn"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/ipsec"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
 )
 
 // MockDataResyncDSL is mock for DataResyncDSL.
@@ -36,21 +36,21 @@ func (d *MockDataResyncDSL) LinuxInterface(val *linux_interfaces.Interface) linu
 	return d
 }
 
-func (d *MockDataResyncDSL) LinuxArpEntry(val *linux_l3.StaticARPEntry) linuxclient.DataResyncDSL {
-	key := linux_l3.StaticArpKey(val.Interface, val.IpAddress)
+func (d *MockDataResyncDSL) LinuxArpEntry(val *linux_l3.ARPEntry) linuxclient.DataResyncDSL {
+	key := linux_l3.ArpKey(val.Interface, val.IpAddress)
 	d.Values[key] = val
 	return d
 }
 
-func (d *MockDataResyncDSL) LinuxRoute(val *linux_l3.StaticRoute) linuxclient.DataResyncDSL {
-	key := linux_l3.StaticRouteKey(val.DstNetwork, val.OutgoingInterface)
+func (d *MockDataResyncDSL) LinuxRoute(val *linux_l3.Route) linuxclient.DataResyncDSL {
+	key := linux_l3.RouteKey(val.DstNetwork, val.OutgoingInterface)
 	d.Values[key] = val
 	return d
 }
 
 // VppInterface adds VPP interface to the mock RESYNC request.
-func (d *MockDataResyncDSL) VppInterface(val *interfaces.Interface) linuxclient.DataResyncDSL {
-	key := interfaces.InterfaceKey(val.Name)
+func (d *MockDataResyncDSL) VppInterface(val *vpp_interfaces.Interface) linuxclient.DataResyncDSL {
+	key := vpp_interfaces.InterfaceKey(val.Name)
 	d.Values[key] = val
 	return d
 }
@@ -80,36 +80,36 @@ func (d *MockDataResyncDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) 
 }
 
 // BD adds VPP Bridge Domain to the mock RESYNC request.
-func (d *MockDataResyncDSL) BD(val *l2.BridgeDomain) linuxclient.DataResyncDSL {
-	key := l2.BridgeDomainKey(val.Name)
+func (d *MockDataResyncDSL) BD(val *vpp_l2.BridgeDomain) linuxclient.DataResyncDSL {
+	key := vpp_l2.BridgeDomainKey(val.Name)
 	d.Values[key] = val
 	return d
 }
 
 // BDFIB adds VPP L2 FIB to the mock RESYNC request.
-func (d *MockDataResyncDSL) BDFIB(val *l2.FIBEntry) linuxclient.DataResyncDSL {
-	key := l2.FIBKey(val.BridgeDomain, val.PhysAddress)
+func (d *MockDataResyncDSL) BDFIB(val *vpp_l2.FIBEntry) linuxclient.DataResyncDSL {
+	key := vpp_l2.FIBKey(val.BridgeDomain, val.PhysAddress)
 	d.Values[key] = val
 	return d
 }
 
 // XConnect adds VPP Cross Connect to the mock RESYNC request.
-func (d *MockDataResyncDSL) XConnect(val *l2.XConnectPair) linuxclient.DataResyncDSL {
-	key := l2.XConnectKey(val.ReceiveInterface)
+func (d *MockDataResyncDSL) XConnect(val *vpp_l2.XConnectPair) linuxclient.DataResyncDSL {
+	key := vpp_l2.XConnectKey(val.ReceiveInterface)
 	d.Values[key] = val
 	return d
 }
 
 // StaticRoute adds VPP L3 Static Route to the mock RESYNC request.
-func (d *MockDataResyncDSL) StaticRoute(val *l3.StaticRoute) linuxclient.DataResyncDSL {
-	key := l3.RouteKey(val.VrfId, val.DstNetwork, val.NextHopAddr)
+func (d *MockDataResyncDSL) StaticRoute(val *vpp_l3.Route) linuxclient.DataResyncDSL {
+	key := vpp_l3.RouteKey(val.VrfId, val.DstNetwork, val.NextHopAddr)
 	d.Values[key] = val
 	return d
 }
 
 // ACL adds VPP Access Control List to the mock RESYNC request.
-func (d *MockDataResyncDSL) ACL(val *acl.Acl) linuxclient.DataResyncDSL {
-	key := acl.Key(val.Name)
+func (d *MockDataResyncDSL) ACL(val *vpp_acl.ACL) linuxclient.DataResyncDSL {
+	key := vpp_acl.Key(val.Name)
 	d.Values[key] = val
 	return d
 }
@@ -129,71 +129,71 @@ func (d *MockDataResyncDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) lin
 }
 
 // Arp adds L3 ARP entry to the RESYNC request.
-func (d *MockDataResyncDSL) Arp(val *l3.ARPEntry) linuxclient.DataResyncDSL {
-	key := l3.ArpEntryKey(val.Interface, val.IpAddress)
+func (d *MockDataResyncDSL) Arp(val *vpp_l3.ARPEntry) linuxclient.DataResyncDSL {
+	key := vpp_l3.ArpEntryKey(val.Interface, val.IpAddress)
 	d.Values[key] = val
 	return d
 }
 
 // ProxyArp adds L3 proxy ARP to the RESYNC request.
-func (d *MockDataResyncDSL) ProxyArp(val *l3.ProxyARP) linuxclient.DataResyncDSL {
-	key := l3.ProxyARPKey
+func (d *MockDataResyncDSL) ProxyArp(val *vpp_l3.ProxyARP) linuxclient.DataResyncDSL {
+	key := vpp_l3.ProxyARPKey()
 	d.Values[key] = val
 	return d
 }
 
 // IPScanNeighbor adds L3 IP Scan Neighbor to the RESYNC request.
-func (d *MockDataResyncDSL) IPScanNeighbor(val *l3.IPScanNeighbor) linuxclient.DataResyncDSL {
-	key := l3.IPScanNeighborKey
+func (d *MockDataResyncDSL) IPScanNeighbor(val *vpp_l3.IPScanNeighbor) linuxclient.DataResyncDSL {
+	key := vpp_l3.IPScanNeighborKey()
 	d.Values[key] = val
 	return d
 }
 
 // StnRule adds Stn rule to the RESYNC request.
-func (d *MockDataResyncDSL) StnRule(val *stn.STN_Rule) linuxclient.DataResyncDSL {
-	key := stn.Key(val.RuleName)
+func (d *MockDataResyncDSL) StnRule(val *vpp_stn.Rule) linuxclient.DataResyncDSL {
+	key := vpp_stn.Key(val.Interface, val.IpAddress)
 	d.Values[key] = val
 	return d
 }
 
 // NAT44Global adds a request to RESYNC global configuration for NAT44
-func (d *MockDataResyncDSL) NAT44Global(val *nat.Nat44Global) linuxclient.DataResyncDSL {
-	key := nat.GlobalNAT44Key
+func (d *MockDataResyncDSL) NAT44Global(val *vpp_nat.Nat44Global) linuxclient.DataResyncDSL {
+	key := vpp_nat.GlobalNAT44Key()
 	d.Values[key] = val
 	return d
 }
 
 // DNAT44 adds a request to RESYNC a new DNAT configuration
-func (d *MockDataResyncDSL) DNAT44(val *nat.DNat44) linuxclient.DataResyncDSL {
-	key := nat.DNAT44Key(val.Label)
+func (d *MockDataResyncDSL) DNAT44(val *vpp_nat.DNat44) linuxclient.DataResyncDSL {
+	key := vpp_nat.DNAT44Key(val.Label)
 	d.Values[key] = val
 	return d
 }
 
 // IPSecSA adds request to RESYNC a new Security Association
-func (d *MockDataResyncDSL) IPSecSA(val *ipsec.SecurityAssociation) linuxclient.DataResyncDSL {
-	key := ipsec.SAKey(val.Index)
+func (d *MockDataResyncDSL) IPSecSA(val *vpp_ipsec.SecurityAssociation) linuxclient.DataResyncDSL {
+	key := vpp_ipsec.SAKey(val.Index)
 	d.Values[key] = val
 	return d
 }
 
 // IPSecSPD adds request to RESYNC a new Security Policy Database
-func (d *MockDataResyncDSL) IPSecSPD(val *ipsec.SecurityPolicyDatabase) linuxclient.DataResyncDSL {
-	key := ipsec.SPDKey(val.Index)
+func (d *MockDataResyncDSL) IPSecSPD(val *vpp_ipsec.SecurityPolicyDatabase) linuxclient.DataResyncDSL {
+	key := vpp_ipsec.SPDKey(val.Index)
 	d.Values[key] = val
 	return d
 }
 
 // PuntIPRedirect adds request to RESYNC a rule used to punt L3 traffic via interface.
-func (d *MockDataResyncDSL) PuntIPRedirect(val *punt.IpRedirect) linuxclient.DataResyncDSL {
-	key := punt.IPRedirectKey(val.L3Protocol, val.TxInterface)
+func (d *MockDataResyncDSL) PuntIPRedirect(val *vpp_punt.IPRedirect) linuxclient.DataResyncDSL {
+	key := vpp_punt.IPRedirectKey(val.L3Protocol, val.TxInterface)
 	d.Values[key] = val
 	return d
 }
 
 // PuntToHost adds request to RESYNC a rule used to punt L4 traffic to a host.
-func (d *MockDataResyncDSL) PuntToHost(val *punt.ToHost) linuxclient.DataResyncDSL {
-	key := punt.ToHostKey(val.L3Protocol, val.L4Protocol, val.Port)
+func (d *MockDataResyncDSL) PuntToHost(val *vpp_punt.ToHost) linuxclient.DataResyncDSL {
+	key := vpp_punt.ToHostKey(val.L3Protocol, val.L4Protocol, val.Port)
 	d.Values[key] = val
 	return d
 }

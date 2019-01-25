@@ -21,11 +21,11 @@ import (
 
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 
-	"github.com/ligato/vpp-agent/idxvpp2"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/l2"
+	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"github.com/ligato/vpp-agent/pkg/idxvpp2"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 )
@@ -131,9 +131,9 @@ func TestVppDataStore_SetNodeInterfaces(t *testing.T) {
 
 	nodeIFs := make(telemetrymodel.NodeInterfaces, 1)
 	nodeIF := telemetrymodel.NodeInterface{
-		Value: &interfaces.Interface{
+		Value: &vpp_interfaces.Interface{
 			Name:        "Testing",
-			Type:        interfaces.Interface_VXLAN_TUNNEL,
+			Type:        vpp_interfaces.Interface_VXLAN_TUNNEL,
 			Enabled:     true,
 			PhysAddress: "",
 			Mtu:         1500,
@@ -167,8 +167,8 @@ func TestVppDataStore_SetNodeBridgeDomain(t *testing.T) {
 
 	nodeBD := telemetrymodel.NodeBridgeDomain{
 		Value: telemetrymodel.VppBridgeDomain{
-			BridgeDomain: &l2.BridgeDomain{
-				Interfaces: []*l2.BridgeDomain_Interface{
+			BridgeDomain: &vpp_l2.BridgeDomain{
+				Interfaces: []*vpp_l2.BridgeDomain_Interface{
 					{Name: "someInterface", BridgedVirtualInterface: true, SplitHorizonGroup: 1},
 				},
 			},
@@ -199,7 +199,7 @@ func TestVppDataStore_SetNodeIPARPs(t *testing.T) {
 	nodeiparps := make(telemetrymodel.NodeIPArpTable, 1)
 	nodeiparp := telemetrymodel.NodeIPArpEntry{
 		Value: telemetrymodel.VppARP{
-			ARPEntry: &l3.ARPEntry{
+			ARPEntry: &vpp_l3.ARPEntry{
 				IpAddress:   "1.2.3.4",
 				PhysAddress: "12:34:56:78",
 				Static:      true,
@@ -276,7 +276,7 @@ func TestVppDataStore_SetNodeL2Fibs(t *testing.T) {
 
 	nfib := telemetrymodel.NodeL2FibEntry{
 		Value: telemetrymodel.VppL2FIB{
-			FIBEntry: &l2.FIBEntry{
+			FIBEntry: &vpp_l2.FIBEntry{
 				BridgeDomain:            "someBdName",
 				OutgoingInterface:       "someOutgoingIfName",
 				PhysAddress:             "aa:bb:cc:dd:ee:ff",
@@ -459,9 +459,9 @@ func TestGetNodeLoopIFInfo(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAddr).To(gomega.BeEmpty())
 	loopif := telemetrymodel.NodeInterface{
-		Value: &interfaces.Interface{
+		Value: &vpp_interfaces.Interface{
 			Name:        "vxlanBVI",
-			Type:        interfaces.Interface_SOFTWARE_LOOPBACK,
+			Type:        vpp_interfaces.Interface_SOFTWARE_LOOPBACK,
 			Enabled:     true,
 			PhysAddress: "aa:bb:cc:dd:ee:ff",
 			Mtu:         1500,

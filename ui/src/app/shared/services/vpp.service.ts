@@ -122,7 +122,7 @@ export class VppService {
 
   public getNatRaw(vswitchIp: string) {
     const params = new HttpParams().set('vswitch', vswitchIp);
-    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V1_VPP + 'nat', {params});
+    return this.http.get(AppConfig.VPP_REST_URL + AppConfig.API_V2_VPP + 'nat/dnat', {params});
   }
 
   public getVersion(vswitchIp: string) {

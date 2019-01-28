@@ -23,8 +23,8 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
+	vpp_acl "github.com/ligato/vpp-agent/api/models/vpp/acl"
 	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
-	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 
 	. "github.com/contiv/vpp/mock/aclengine"
 	. "github.com/contiv/vpp/mock/ipv4net"
@@ -153,7 +153,7 @@ func verifyReflectiveACL(engine *MockACLEngine, ipv4Net ipv4net.API, contivConf 
 	gomega.Expect(acl.Interfaces.Egress).To(gomega.HaveLen(0))
 
 	// rule to match all traffic
-	gomega.Expect(rule.Action).To(gomega.BeEquivalentTo(vpp_acl.Acl_Rule_REFLECT))
+	gomega.Expect(rule.Action).To(gomega.BeEquivalentTo(vpp_acl.ACL_Rule_REFLECT))
 	gomega.Expect(rule.MacipRule).To(gomega.BeNil())
 	gomega.Expect(rule.IpRule).ToNot(gomega.BeNil())
 	ipRule := rule.IpRule

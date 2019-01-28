@@ -26,9 +26,9 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	"github.com/ligato/vpp-agent/idxvpp2"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/l2"
+	"github.com/ligato/vpp-agent/pkg/idxvpp2"
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
@@ -191,7 +191,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	bogusBd := telemetrymodel.NodeBridgeDomain{
 		Value: telemetrymodel.VppBridgeDomain{
-			BridgeDomain: &l2.BridgeDomain{
+			BridgeDomain: &vpp_l2.BridgeDomain{
 				Name: vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[0].Value.Name,
 			},
 		},
@@ -290,7 +290,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	// INJECT FAULT: Invalid interface type in a non-BVI interface
 	k, ifp = vtv.findFirstVxlanInterface(nodeKey)
 	gomega.Expect(ifp).To(gomega.Not(gomega.BeNil()))
-	ifp.Value.Type = interfaces.Interface_TAP
+	ifp.Value.Type = vpp_interfaces.Interface_TAP
 	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[uint32(k)] = *ifp
 
 	// Perform test
@@ -304,7 +304,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	gomega.Expect(len(vtv.report.Data[node.Name])).To(gomega.Equal(1))
 
 	// Restore data back to error free state
-	ifp.Value.Type = interfaces.Interface_VXLAN_TUNNEL
+	ifp.Value.Type = vpp_interfaces.Interface_VXLAN_TUNNEL
 	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[uint32(k)] = *ifp
 
 	// ------------------------------------------------
@@ -372,7 +372,7 @@ func testValidateL2FibEntries(t *testing.T) {
 
 	node.NodeL2Fibs = append(node.NodeL2Fibs, telemetrymodel.NodeL2FibEntry{
 		Value: telemetrymodel.VppL2FIB{
-			FIBEntry: &l2.FIBEntry{
+			FIBEntry: &vpp_l2.FIBEntry{
 				BridgeDomain:            "vxlanBD",
 				OutgoingInterface:       "vxlan10",
 				PhysAddress:             "90:87:65:43:21",
@@ -385,7 +385,7 @@ func testValidateL2FibEntries(t *testing.T) {
 	// Inject L2FIB entry for another BD  into L2FIB
 	node.NodeL2Fibs = append(node.NodeL2Fibs, telemetrymodel.NodeL2FibEntry{
 		Value: telemetrymodel.VppL2FIB{
-			FIBEntry: &l2.FIBEntry{
+			FIBEntry: &vpp_l2.FIBEntry{
 				BridgeDomain:            "anotherBd",
 				PhysAddress:             "90:87:65:43:22",
 				StaticConfig:            true,
@@ -397,7 +397,7 @@ func testValidateL2FibEntries(t *testing.T) {
 	// Inject non-static L2FIB entry into L2FIB
 	node.NodeL2Fibs = append(node.NodeL2Fibs, telemetrymodel.NodeL2FibEntry{
 		Value: telemetrymodel.VppL2FIB{
-			FIBEntry: &l2.FIBEntry{
+			FIBEntry: &vpp_l2.FIBEntry{
 				BridgeDomain:            "vxlanBD",
 				PhysAddress:             "90:87:65:43:23",
 				StaticConfig:            false,
@@ -521,7 +521,7 @@ func testValidateL2FibEntries(t *testing.T) {
 	// --------------------------------------------------------------------
 	// INJECT FAULT: Invalid VXLAN Destination IP address for a remote node
 	for k, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
-		if v.Value.Type == interfaces.Interface_VXLAN_TUNNEL {
+		if v.Value.Type == vpp_interfaces.Interface_VXLAN_TUNNEL {
 			v.Value.GetVxlan().DstAddress = "1.2.3.4"
 			vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[k] = v
 			break
@@ -777,7 +777,7 @@ ifcLoop:
 
 func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {
 	for k, ifc := range v.vppCache.NodeMap[nodeKey].NodeInterfaces {
-		if ifc.Value.Type == interfaces.Interface_VXLAN_TUNNEL {
+		if ifc.Value.Type == vpp_interfaces.Interface_VXLAN_TUNNEL {
 			return int(k), &ifc
 		}
 	}

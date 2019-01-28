@@ -29,8 +29,8 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
 	. "github.com/contiv/vpp/mock/datasync"
 	. "github.com/contiv/vpp/mock/eventloop"
@@ -255,7 +255,7 @@ func TestBasicStuff(t *testing.T) {
 	fmt.Println("Resync after DHCP event ----------------------------------")
 
 	// simulate DHCP event
-	dhcpIndexes.Put(Gbe8, &interfaces.DHCPLease{InterfaceName: Gbe8, HostIpAddress: Gbe8IP, RouterIpAddress: GwIPWithPrefix})
+	dhcpIndexes.Put(Gbe8, &vpp_interfaces.DHCPLease{InterfaceName: Gbe8, HostIpAddress: Gbe8IP, RouterIpAddress: GwIPWithPrefix})
 	Eventually(eventLoop.EventQueue).Should(HaveLen(1))
 	event := eventLoop.EventQueue[0]
 	nodeIPv4Change, isNodeIPv4Change := event.(*NodeIPv4Change)

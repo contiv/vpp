@@ -19,8 +19,6 @@ import (
 	"time"
 
 	"github.com/ligato/cn-infra/agent"
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/health/probe"
@@ -121,8 +119,8 @@ func main() {
 	etcd.DefaultPlugin.StatusCheck = nil
 
 	// set sources for VPP configuration
-	watcher := &datasync.KVProtoWatchers{local.Get()}
-	kvscheduler.DefaultPlugin.Watcher = watcher // not really used at the moment
+	//watcher := &datasync.KVProtoWatchers{local.Get()}
+	//kvscheduler.DefaultPlugin.Watcher = watcher // not really used at the moment
 
 	// initialize vpp-agent plugins
 	linux_ifplugin.DefaultPlugin.VppIfPlugin = &vpp_ifplugin.DefaultPlugin

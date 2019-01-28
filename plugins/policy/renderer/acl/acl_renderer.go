@@ -22,7 +22,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/ligato/cn-infra/logging"
-	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
+	"github.com/ligato/vpp-agent/api/models/vpp/acl"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -171,13 +171,13 @@ func (art *RendererTxn) Commit() error {
 			txn.Put(vpp_acl.Key(acl.Name), acl)
 		} else if len(change.Table.Pods) != 0 {
 			// Changed interfaces
-			aclPrivCopy := proto.Clone(change.Table.Private.(*vpp_acl.Acl))
-			acl := aclPrivCopy.(*vpp_acl.Acl)
+			aclPrivCopy := proto.Clone(change.Table.Private.(*vpp_acl.ACL))
+			acl := aclPrivCopy.(*vpp_acl.ACL)
 			acl.Interfaces = art.renderInterfaces(change.Table.Pods, false)
 			txn.Put(vpp_acl.Key(acl.Name), acl)
 		} else {
 			// Removed ACL
-			acl := change.Table.Private.(*vpp_acl.Acl)
+			acl := change.Table.Private.(*vpp_acl.ACL)
 			txn.Delete(vpp_acl.Key(acl.Name))
 		}
 	}
@@ -250,7 +250,7 @@ func (art *RendererTxn) commitResync() error {
 }
 
 // reflectiveACL returns the configuration of the reflective ACL.
-func (art *RendererTxn) reflectiveACL() *vpp_acl.Acl {
+func (art *RendererTxn) reflectiveACL() *vpp_acl.ACL {
 	// Prepare table to render the ACL from.
 	ruleAny := &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
@@ -292,9 +292,9 @@ func (art *RendererTxn) getNodeOutputInterfaces() []string {
 }
 
 // renderACL renders ContivRuleTable into the equivalent ACL configuration.
-func (art *RendererTxn) renderACL(table *cache.ContivRuleTable, isReflectiveACL bool) *vpp_acl.Acl {
+func (art *RendererTxn) renderACL(table *cache.ContivRuleTable, isReflectiveACL bool) *vpp_acl.ACL {
 	const maxPortNum = ^uint16(0)
-	acl := &vpp_acl.Acl{}
+	acl := &vpp_acl.ACL{}
 	if isReflectiveACL {
 		acl.Name = ACLNamePrefix + ReflectiveACLName
 	} else {
@@ -304,16 +304,16 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable, isReflectiveACL 
 
 	for i := 0; i < table.NumOfRules; i++ {
 		rule := table.Rules[i]
-		aclRule := &vpp_acl.Acl_Rule{}
+		aclRule := &vpp_acl.ACL_Rule{}
 		if rule.Action == renderer.ActionDeny {
-			aclRule.Action = vpp_acl.Acl_Rule_DENY
+			aclRule.Action = vpp_acl.ACL_Rule_DENY
 		} else if isReflectiveACL {
-			aclRule.Action = vpp_acl.Acl_Rule_REFLECT
+			aclRule.Action = vpp_acl.ACL_Rule_REFLECT
 		} else {
-			aclRule.Action = vpp_acl.Acl_Rule_PERMIT
+			aclRule.Action = vpp_acl.ACL_Rule_PERMIT
 		}
-		aclRule.IpRule = &vpp_acl.Acl_Rule_IpRule{}
-		aclRule.IpRule.Ip = &vpp_acl.Acl_Rule_IpRule_Ip{}
+		aclRule.IpRule = &vpp_acl.ACL_Rule_IpRule{}
+		aclRule.IpRule.Ip = &vpp_acl.ACL_Rule_IpRule_Ip{}
 		if len(rule.SrcNetwork.IP) > 0 {
 			aclRule.IpRule.Ip.SourceNetwork = rule.SrcNetwork.String()
 		}
@@ -321,15 +321,15 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable, isReflectiveACL 
 			aclRule.IpRule.Ip.DestinationNetwork = rule.DestNetwork.String()
 		}
 		if rule.Protocol == renderer.TCP {
-			aclRule.IpRule.Tcp = &vpp_acl.Acl_Rule_IpRule_Tcp{}
-			aclRule.IpRule.Tcp.SourcePortRange = &vpp_acl.Acl_Rule_IpRule_PortRange{}
+			aclRule.IpRule.Tcp = &vpp_acl.ACL_Rule_IpRule_Tcp{}
+			aclRule.IpRule.Tcp.SourcePortRange = &vpp_acl.ACL_Rule_IpRule_PortRange{}
 			aclRule.IpRule.Tcp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
 			if rule.SrcPort == 0 {
 				aclRule.IpRule.Tcp.SourcePortRange.UpperPort = uint32(maxPortNum)
 			} else {
 				aclRule.IpRule.Tcp.SourcePortRange.UpperPort = uint32(rule.SrcPort)
 			}
-			aclRule.IpRule.Tcp.DestinationPortRange = &vpp_acl.Acl_Rule_IpRule_PortRange{}
+			aclRule.IpRule.Tcp.DestinationPortRange = &vpp_acl.ACL_Rule_IpRule_PortRange{}
 			aclRule.IpRule.Tcp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
 			if rule.DestPort == 0 {
 				aclRule.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(maxPortNum)
@@ -338,15 +338,15 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable, isReflectiveACL 
 			}
 		}
 		if rule.Protocol == renderer.UDP {
-			aclRule.IpRule.Udp = &vpp_acl.Acl_Rule_IpRule_Udp{}
-			aclRule.IpRule.Udp.SourcePortRange = &vpp_acl.Acl_Rule_IpRule_PortRange{}
+			aclRule.IpRule.Udp = &vpp_acl.ACL_Rule_IpRule_Udp{}
+			aclRule.IpRule.Udp.SourcePortRange = &vpp_acl.ACL_Rule_IpRule_PortRange{}
 			aclRule.IpRule.Udp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
 			if rule.SrcPort == 0 {
 				aclRule.IpRule.Udp.SourcePortRange.UpperPort = uint32(maxPortNum)
 			} else {
 				aclRule.IpRule.Udp.SourcePortRange.UpperPort = uint32(rule.SrcPort)
 			}
-			aclRule.IpRule.Udp.DestinationPortRange = &vpp_acl.Acl_Rule_IpRule_PortRange{}
+			aclRule.IpRule.Udp.DestinationPortRange = &vpp_acl.ACL_Rule_IpRule_PortRange{}
 			aclRule.IpRule.Udp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
 			if rule.DestPort == 0 {
 				aclRule.IpRule.Udp.DestinationPortRange.UpperPort = uint32(maxPortNum)
@@ -363,8 +363,8 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable, isReflectiveACL 
 
 // renderInterfaces renders a set of Interface names into the corresponding
 // instance of AccessLists_Acl_Interfaces.
-func (art *RendererTxn) renderInterfaces(pods cache.PodSet, ingress bool) *vpp_acl.Acl_Interfaces {
-	aclIfs := &vpp_acl.Acl_Interfaces{}
+func (art *RendererTxn) renderInterfaces(pods cache.PodSet, ingress bool) *vpp_acl.ACL_Interfaces {
+	aclIfs := &vpp_acl.ACL_Interfaces{}
 	for podID := range pods {
 		// Get the interface associated with the pod.
 		ifName, found := art.renderer.podInterfaces[podID] // first query local cache

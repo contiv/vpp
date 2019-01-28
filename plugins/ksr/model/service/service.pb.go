@@ -59,7 +59,7 @@ type Service struct {
 	// Cannot be updated.
 	Namespace string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	// The list of ports that are exposed by this service.
-	Port []*Service_ServicePort `protobuf:"bytes,3,rep,name=port,proto3" json:"port,omitempty"`
+	Port []*Service_ServicePort `protobuf:"bytes,3,rep,name=port" json:"port,omitempty"`
 	// Route service traffic to pods with label keys and values matching this
 	// selector. If empty or not present, the service is assumed to have an
 	// external process managing its endpoints, which Kubernetes will not
@@ -67,7 +67,7 @@ type Service struct {
 	// Ignored if type is ExternalName.
 	// More info: https://kubernetes.io/docs/concepts/services-networking/service/
 	// +optional
-	Selector map[string]string `protobuf:"bytes,4,rep,name=selector,proto3" json:"selector,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Selector map[string]string `protobuf:"bytes,4,rep,name=selector" json:"selector,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// ClusterIP is the IP address of the service and is usually assigned
 	// randomly by the master. If an address is specified manually and is not in
 	// use by others, it will be allocated to the service; otherwise, creation
@@ -101,12 +101,12 @@ type Service struct {
 	// arrives at a node with this IP.  A common example is external
 	// load-balancers that are not part of the Kubernetes system.
 	// +optional
-	ExternalIps []string `protobuf:"bytes,7,rep,name=external_ips,json=externalIps,proto3" json:"external_ips,omitempty"`
+	ExternalIps []string `protobuf:"bytes,7,rep,name=external_ips,json=externalIps" json:"external_ips,omitempty"`
 	// A list of IP addresses set as ingress points for IP-based load-balancers
 	// (typically GCE, MetalLB or OpenStack load-balancers).
 	// Only applies to Service Type: LoadBalancer
 	// +optional
-	LbIngressIps []string `protobuf:"bytes,8,rep,name=lb_ingress_ips,json=lbIngressIps,proto3" json:"lb_ingress_ips,omitempty"`
+	LbIngressIps []string `protobuf:"bytes,8,rep,name=lb_ingress_ips,json=lbIngressIps" json:"lb_ingress_ips,omitempty"`
 	// Supports "ClientIP" and "None". Used to maintain session affinity.
 	// Enable client IP based session affinity.
 	// Must be ClientIP or None.
@@ -128,7 +128,7 @@ type Service struct {
 	// does not support the feature."
 	// More info: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/
 	// +optional
-	LoadbalancerSourceRanges []string `protobuf:"bytes,11,rep,name=loadbalancer_source_ranges,json=loadbalancerSourceRanges,proto3" json:"loadbalancer_source_ranges,omitempty"`
+	LoadbalancerSourceRanges []string `protobuf:"bytes,11,rep,name=loadbalancer_source_ranges,json=loadbalancerSourceRanges" json:"loadbalancer_source_ranges,omitempty"`
 	// externalTrafficPolicy denotes if this Service desires to route external
 	// traffic to node-local or cluster-wide endpoints. "Local" preserves the
 	// client source IP and avoids a second hop for LoadBalancer and Nodeport
@@ -289,7 +289,7 @@ type Service_ServicePort struct {
 	Protocol string `protobuf:"bytes,2,opt,name=protocol,proto3" json:"protocol,omitempty"`
 	// The port that will be exposed by this service.
 	Port       int32                            `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
-	TargetPort *Service_ServicePort_IntOrString `protobuf:"bytes,4,opt,name=target_port,json=targetPort,proto3" json:"target_port,omitempty"`
+	TargetPort *Service_ServicePort_IntOrString `protobuf:"bytes,4,opt,name=target_port,json=targetPort" json:"target_port,omitempty"`
 	// The port on each node on which this service is exposed when
 	// type=NodePort or LoadBalancer.
 	NodePort             int32    `protobuf:"varint,5,opt,name=node_port,json=nodePort,proto3" json:"node_port,omitempty"`

@@ -1,0 +1,112 @@
+#  Contiv-vpp-ui
+#
+#  1. Forward port from vagrant
+#    $vagrant ssh k8s-master -- -L 32500:127.0.0.1:32500
+#  (1a.) Forward from the machine where docker run
+#    ssh <machine-where-your-vagrants-run> -L 32500:127.0.0.1:32500
+#  2. Open http://localhost:32500 in your browser
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-ui-cfg
+  namespace: kube-system
+data:
+  contiv-ui.conf: |-
+    port: 9500
+    contivPort: 9999
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contiv-ui
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      run: contiv-ui
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        run: contiv-ui
+    spec:
+      serviceAccountName: contiv-ui
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      containers:
+        - name: ui
+          image: lmacko1992/contiv-vpp-ui:latest
+          env:
+            - name: CONTIV_UI_CONF
+              value: "/etc/contiv-ui/contiv-ui.conf"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9500
+          volumeMounts:
+            - name: ui-cfg
+              mountPath: /etc/contiv-ui/
+      volumes:
+        - name: ui-cfg
+          configMap:
+            name: contiv-ui-cfg
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contiv-ui-svc
+  namespace: kube-system
+spec:
+  type: NodePort
+  ports:
+    - port: 9500
+      nodePort: 32500
+      protocol: TCP
+  selector:
+    run: contiv-ui
+
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: contiv-ui
+  namespace: kube-system
+rules:
+  - apiGroups:
+      - ""
+      - extensions
+    resources:
+      - pods
+      - namespaces
+      - networkpolicies
+      - services
+      - endpoints
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: contiv-ui
+  namespace: kube-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: contiv-ui
+subjects:
+  - kind: ServiceAccount
+    name: contiv-ui
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: contiv-ui
+  apiGroup: rbac.authorization.k8s.io

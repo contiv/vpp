@@ -727,8 +727,7 @@ VAGRANTFILE_API_VERSION = "2"
         echo "Deploying backend ..."
         cd /vagrant/vpp-backend
         sudo make
-        kubectl apply -f /vagrant/vpp-backend/authorization.yaml
-        kubectl apply -f /vagrant/vpp-backend/deployment.yaml
+        kubectl apply -f /vagrant/contiv-vpp-ui.yaml
       SHELL
 
       k8smaster.vm.provision "shell",

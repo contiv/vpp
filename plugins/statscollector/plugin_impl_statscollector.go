@@ -14,7 +14,6 @@ import (
 	prometheusplugin "github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -219,7 +218,7 @@ func (p *Plugin) Put(key string, data proto.Message, opts ...datasync.PutOption)
 	defer p.Unlock()
 
 	p.Log.Debugf("Statistic data with key %v received", key)
-	if strings.HasPrefix(key, interfaces.StatePrefix) {
+	if strings.HasPrefix(key, vpp_interfaces.StatePrefix) {
 		var (
 			entry *stats
 			found bool

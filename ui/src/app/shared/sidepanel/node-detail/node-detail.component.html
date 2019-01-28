@@ -1,9 +1,0 @@
-<div class="spinner-wrap" *ngIf="!domain">
-  <span class="spinner">
-    Loading...
-  </span>
-</div>
-
-<div class="wrap" *ngIf="domain">
-  <app-form [data]="formData" [title]="domain.node.name" [buttons]="['Show IPAM']" (btnclick)="showIPAM()"></app-form>
-</div>

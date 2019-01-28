@@ -10,11 +10,11 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 
 - Google Chrome - running with [disabled web security](https://stackoverflow.com/questions/3102819/disable-same-origin-policy-in-chrome) (Important for accessing the APIs).
     ##### -Command in OSX:
-    Open -n -a "Google Chrome" --args --disable-web-security --user-data-dir=/tmp/chrome http://localhost:4300
+    Open -n -a "Google Chrome" --args --disable-web-security --user-data-dir=/tmp/chrome http://localhost:32500
     ##### -Command in Windows:
-    In the "Run" app, enter: chrome.exe --user-data-dir="C://Chrome dev session" --disable-web-security http://localhost:4300
+    In the "Run" app, enter: chrome.exe --user-data-dir="C://Chrome dev session" --disable-web-security http://localhost:32500
     ##### -Command in Linux:
-    google-chrome --user-data-dir="/var/tmp/Chrome" --disable-web-security "http://localhost:4300"
+    google-chrome --user-data-dir="/var/tmp/Chrome" --disable-web-security "http://localhost:32500"
 
 - Vagrant
 - VirtualBox
@@ -28,18 +28,15 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 3. cd into vpp/ui directory (`cd vpp/ui`)
 4. from this directory run one of these commands:
 - `./start.sh` for fully automated setup - run 2 workers in production enviroment without STN along with kubectl proxy
-- `./start-professional.sh` for manual settings - need to specify workers, enviroment, [set kubectl proxy](#set-kubectl-proxy)
+- `./start-professional.sh` for manual settings - need to specify workers and enviroment
 
-When everything is installed, navigate to `http://localhost:4300/` on Chrome with disabled web security - it should be automatically opened if installed.
+When everything is deployed, navigate to `http://localhost:32500/` on Chrome with disabled web security - it should be automatically opened if installed.
 
 ![contivpp-io-demo-setup-topology](img/contivpp-io-demo-setup.png)
 
 Here is a picture of the demo topology.
 
 ### Accessing APIs
-
-#### Set kubectl proxy
-In case you chose "manual settings", the kubectl proxy must be set in order to access APIs. Run `vagrant ssh k8s-master` from backend vagrant's folder for connecting to the-k8s master node. When connected, run `kubectl proxy --port=8080 &` in order to access APIs on k8s master's localhost. You can test the APIs by running `curl http://localhost:8080/api/` from k8s-master node - [more info](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/).
 
 #### Postman collection
 [Collection](./data/ContivVPP.postman_collection.json)

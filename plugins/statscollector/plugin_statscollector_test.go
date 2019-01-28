@@ -16,7 +16,6 @@ package statscollector
 
 import (
 	"fmt"
-	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -26,7 +25,7 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"testing"
 )
 
@@ -112,7 +111,7 @@ func testPutWithWrongArgumentType(t *testing.T) {
 
 func testPutNewPodEntry(t *testing.T) {
 
-	key := interfaces.StatePrefix + testIfPodName
+	key := vpp_interfaces.StatePrefix + testIfPodName
 
 	// test with wrong argument type
 	stat := &vpp_interfaces.InterfaceState_Statistics{
@@ -145,7 +144,7 @@ func testPutNewPodEntry(t *testing.T) {
 
 func testPutExistingPodEntry(t *testing.T) {
 
-	key := interfaces.StatePrefix + testIfPodName
+	key := vpp_interfaces.StatePrefix + testIfPodName
 
 	// test with wrong argument type
 	stat := &vpp_interfaces.InterfaceState_Statistics{
@@ -179,7 +178,7 @@ func testPutExistingPodEntry(t *testing.T) {
 
 func testPutNewContivEntry(t *testing.T) {
 
-	key := interfaces.StatePrefix + testCntvIfName
+	key := vpp_interfaces.StatePrefix + testCntvIfName
 
 	// test with wrong argument type
 	stat := &vpp_interfaces.InterfaceState_Statistics{

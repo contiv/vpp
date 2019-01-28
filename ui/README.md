@@ -19,16 +19,16 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 - Vagrant
 - VirtualBox
 - Laptop w/ 16GB of memory
+- Works only locally - no remote deploying supported!
 - [Postman](https://www.getpostman.com/) to look over [APIs](https://github.com/ligato/vpp-agent/tree/master/plugins/rest)
 
 ### Running
 
-1. pull this repository (`git pull https://github.com/contiv/vpp.git`)
+1. clone this repository (`git clone https://github.com/contiv/vpp.git`)
 2. checkout kubecon2018 branch (`git checkout kubecon2018`)
 3. cd into vpp/ui directory (`cd vpp/ui`)
 4. from this directory run one of these commands:
-- `./start.sh` for fully automated setup - run 2 workers in production enviroment without STN along with kubectl proxy
-- `./start-professional.sh` for manual settings - need to specify workers and enviroment
+- `./start.sh` for fully automated setup - run 2 workers in production enviroment without STN
 
 When everything is deployed, navigate to `http://localhost:32500/` on Chrome with disabled web security - it should be automatically opened if installed.
 
@@ -79,7 +79,7 @@ When you finished the work with the application, run `./stop.sh` from `vpp/ui` f
 
 ### Wiping all data/settings
 
-Run `./clear-all.sh` from vpp/ui directory for clearing all data and settings (destroy each Vagrant instance). After this command you need to follow [running steps](#running) from the 3rd point and build application again.
+Run `./clear.sh` from vpp/ui directory for clearing all data and settings (destroy each Vagrant instance). After this command you need to follow [running steps](#running) from the 3rd point and build application again.
 
 ## Contivpp UI Screenshots Using the Demo App Cluster
 

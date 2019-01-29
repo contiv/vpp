@@ -29,6 +29,8 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
 
+	"github.com/ligato/vpp-agent/pkg/models"
+
 	"github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/dbresources"
 	"github.com/contiv/vpp/plugins/ksr"
@@ -367,9 +369,18 @@ func (w *dbWatcher) runResyncFromRemoteDB() {
 		// record value for revision comparisons
 		values[kv.GetKey()] = kv
 
-		// add key-value pair into the event
+		// unmarshall proto message
 		key := strings.TrimPrefix(kv.GetKey(), w.agentPrefix)
-		event.ExternalConfig[key] = kv
+		protoVal, err := models.UnmarshalLazyValue(key, kv)
+		if err != nil {
+			w.log.Warnf("Attempt to unmarshall value for key=%s returned error: %v",
+				kv.GetKey(), err)
+			// just skip
+			continue
+		}
+
+		// add key-value pair into the event
+		event.ExternalConfig[key] = protoVal
 	}
 	iterator.Close()
 
@@ -422,9 +433,10 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 		return
 	}
 
-	// unamrshall resource value
+	// unamrshall the value
 	var (
-		resourceNewVal, resourcePrevVal proto.Message
+		err             error
+		newVal, prevVal proto.Message
 	)
 	if resourceMeta != nil {
 		// un-marshall the value
@@ -433,33 +445,32 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 			w.log.Warnf("Failed to instantiate proto message for resource: %s", resourceMeta.Keyword)
 		} else {
 			if change.GetChangeType() != datasync.Delete {
-				resourceNewVal = reflect.New(valueType.Elem()).Interface().(proto.Message)
+				newVal = reflect.New(valueType.Elem()).Interface().(proto.Message)
 			}
-			resourcePrevVal = reflect.New(valueType.Elem()).Interface().(proto.Message)
+			prevVal = reflect.New(valueType.Elem()).Interface().(proto.Message)
 
 			// try to deserialize the new value
 			if change.GetChangeType() != datasync.Delete {
-				err := change.GetValue(resourceNewVal)
+				err := change.GetValue(newVal)
 				if err != nil {
 					w.log.Warnf("Failed to de-serialize new value for key: %s", key)
-					resourceNewVal = nil
+					newVal = nil
 				}
 			}
 
 			// try to deserialize the previous value
-			var err error
 			if hasPrevRev {
 				// prioritize previous value known to dbwatcher over the one from the event
-				err = prevRev.GetValue(resourcePrevVal)
+				err = prevRev.GetValue(prevVal)
 			}
 			if err != nil {
 				w.log.Warnf("Failed to de-serialize previous value for key: %s", key)
 			}
 			if !hasPrevRev || err != nil {
-				resourcePrevVal = nil
+				prevVal = nil
 			}
 
-			if resourceNewVal == nil && resourcePrevVal == nil {
+			if newVal == nil && prevVal == nil {
 				// Delete that has been already processed - after resync, the revisions
 				// of deleted keys are not known, so the revision check above will not
 				// cause the change to be ignored.
@@ -467,17 +478,24 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 				return
 			}
 		}
+	} else {
+		keySuffix := strings.TrimPrefix(key, w.agentPrefix)
+		// unmarshal external configuration
+		if change.GetChangeType() != datasync.Delete {
+			newVal, err = models.UnmarshalLazyValue(keySuffix, change)
+			if err != nil {
+				w.log.Warnf("Failed to de-serialize new value for key: %s", key)
+			}
+		}
 	}
 
 	// update local DB
 	if resourceMeta != nil {
-		// FIXME: with the cn-infra framework it is not possible to mirror external
-		// configuration on the Contiv-level - marshalled data (i.e. bytes) are not
-		// available via public interfaces.
+		// TODO: reflect also external configuration into the local DB
 		if change.GetChangeType() == datasync.Delete {
 			w.localBroker.Delete(key)
-		} else if resourceNewVal != nil {
-			w.localBroker.Put(key, resourceNewVal)
+		} else if newVal != nil {
+			w.localBroker.Put(key, newVal)
 		}
 	}
 
@@ -488,20 +506,16 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 		event = &api.KubeStateChange{
 			Key:       key,
 			Resource:  resourceMeta.Keyword,
-			PrevValue: resourcePrevVal,
-			NewValue:  resourceNewVal,
+			PrevValue: prevVal,
+			NewValue:  newVal,
 		}
 	} else {
 		key = strings.TrimPrefix(key, w.agentPrefix)
-		var value datasync.LazyValue
-		if change.GetChangeType() != datasync.Delete {
-			value = change
-		}
 		extChangeEv := api.NewExternalConfigChange(dbExtCfgSrc, false)
-		extChangeEv.UpdatedKVs[key] = value
+		extChangeEv.UpdatedKVs[key] = newVal
 		event = extChangeEv
 	}
-	err := w.eventLoop.PushEvent(event)
+	err = w.eventLoop.PushEvent(event)
 	if err != nil {
 		w.log.Errorf("Failed to push data change event: %v, requesting resync", err)
 		if err := w.requestResync(false); err != nil {

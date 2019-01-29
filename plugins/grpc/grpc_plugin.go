@@ -15,13 +15,11 @@
 package rpc
 
 import (
-	"github.com/gogo/protobuf/proto"
 	"golang.org/x/net/context"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/grpc/rpc"
 
-	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
@@ -36,6 +34,7 @@ import (
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
 	"github.com/ligato/vpp-agent/api/models/vpp/nat"
 	"github.com/ligato/vpp-agent/api/models/vpp/punt"
+	"github.com/ligato/vpp-agent/pkg/models"
 )
 
 //go:generate protoc --proto_path=rpc --proto_path=$GOPATH/src --gogo_out=plugins=grpc:rpc rpc/rpc.proto
@@ -71,13 +70,6 @@ type ResyncSvc struct {
 	plugin *Plugin
 }
 
-// lazyValue implements datasync.LazyValue interface.
-type lazyValue struct {
-	value proto.Message
-}
-
-type config map[string]proto.Message
-
 // Init registers GRPC services.
 func (p *Plugin) Init() error {
 	// create broker to local DB for config persisting
@@ -102,8 +94,8 @@ func (p *Plugin) Init() error {
 
 // GetConfigSnapshot returns full configuration snapshot that is currently
 // required by the GRPC client to be applied.
-func (p *Plugin) GetConfigSnapshot() (controller.ExternalConfig, error) {
-	extConfig := make(controller.ExternalConfig)
+func (p *Plugin) GetConfigSnapshot() (controller.KeyValuePairs, error) {
+	extConfig := make(controller.KeyValuePairs)
 	iterator, err := p.localBroker.ListValues("")
 	if err != nil {
 		return extConfig, err
@@ -113,7 +105,13 @@ func (p *Plugin) GetConfigSnapshot() (controller.ExternalConfig, error) {
 		if stop {
 			break
 		}
-		extConfig[kv.GetKey()] = kv
+		key := kv.GetKey()
+		value, err := models.UnmarshalLazyValue(key, kv)
+		if err != nil {
+			p.Log.Warnf("Failed to de-serialize value received from GRPC for key: %s", key)
+			continue
+		}
+		extConfig[key] = value
 	}
 	iterator.Close()
 	return extConfig, nil
@@ -148,7 +146,7 @@ func (svc *ChangeSvc) Put(ctx context.Context, data *rpc.DataRequest) (*rpc.PutR
 
 	// execute changes
 	event := controller.NewExternalConfigChange(svc.plugin.String(), true)
-	event.UpdatedKVs = convertToExternalConfig(config)
+	event.UpdatedKVs = config
 	err := svc.plugin.EventLoop.PushEvent(event)
 	if err == nil {
 		err = event.Wait()
@@ -172,7 +170,7 @@ func (svc *ChangeSvc) Del(ctx context.Context, data *rpc.DataRequest) (*rpc.DelR
 
 	// execute changes
 	event := controller.NewExternalConfigChange(svc.plugin.String(), true)
-	event.UpdatedKVs = convertToExternalConfig(config)
+	event.UpdatedKVs = config
 	err := svc.plugin.EventLoop.PushEvent(event)
 	if err == nil {
 		err = event.Wait()
@@ -194,7 +192,7 @@ func (svc *ResyncSvc) Resync(ctx context.Context, data *rpc.DataRequest) (*rpc.R
 
 	// execute changes
 	event := controller.NewExternalConfigResync(svc.plugin.String(), true)
-	event.ExternalConfig = convertToExternalConfig(config)
+	event.ExternalConfig = config
 	err = svc.plugin.EventLoop.PushEvent(event)
 	if err == nil {
 		err = event.Wait()
@@ -203,7 +201,7 @@ func (svc *ResyncSvc) Resync(ctx context.Context, data *rpc.DataRequest) (*rpc.R
 	return &rpc.ResyncResponse{}, err
 }
 
-func (svc *ResyncSvc) resyncDB(resyncCfg config) error {
+func (svc *ResyncSvc) resyncDB(resyncCfg controller.KeyValuePairs) error {
 	keys := make(map[string]struct{})
 
 	// update database with values present in resyncCfg
@@ -231,8 +229,8 @@ func (svc *ResyncSvc) resyncDB(resyncCfg config) error {
 	return nil
 }
 
-func buildConfig(data *rpc.DataRequest, delete bool) config {
-	extConfig := make(config)
+func buildConfig(data *rpc.DataRequest, delete bool) controller.KeyValuePairs {
+	extConfig := make(controller.KeyValuePairs)
 	for _, item := range data.AccessLists {
 		key := vpp_acl.Key(item.Name)
 		extConfig[key] = item
@@ -312,29 +310,4 @@ func buildConfig(data *rpc.DataRequest, delete bool) config {
 		}
 	}
 	return extConfig
-}
-
-func convertToExternalConfig(cfg config) controller.ExternalConfig {
-	extConfig := make(controller.ExternalConfig)
-	for key, value := range cfg {
-		if value == nil {
-			extConfig[key] = nil
-		} else {
-			extConfig[key] = newLazyValue(value)
-		}
-	}
-	return extConfig
-}
-
-func newLazyValue(value proto.Message) datasync.LazyValue {
-	return &lazyValue{value: value}
-}
-
-// GetValue places the value into the provided proto message.
-func (lv *lazyValue) GetValue(value proto.Message) error {
-	tmp, err := proto.Marshal(lv.value)
-	if err != nil {
-		return err
-	}
-	return proto.Unmarshal(tmp, value)
 }

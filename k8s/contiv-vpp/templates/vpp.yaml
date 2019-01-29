@@ -100,9 +100,16 @@ data:
     {{- end }}
     {{- end }}
   controller.conf: |
+    enableRetry: {{ .Values.controller.enableRetry }}
+    delayRetry: {{ .Values.controller.delayRetry | int64 }}
+    maxRetryAttempts: {{ .Values.controller.maxRetryAttempts }}
+    enableExpBackoffRetry: {{ .Values.controller.enableExpBackoffRetry }}
     delayLocalResync: {{ .Values.controller.delayLocalResync | int64 }}
+    startupResyncDeadline: {{ .Values.controller.startupResyncDeadline | int64 }}
     enablePeriodicHealing: {{ .Values.controller.enablePeriodicHealing }}
     periodicHealingInterval: {{ .Values.controller.periodicHealingInterval | int64 }}
+    delayAfterErrorHealing: {{ .Values.controller.delayAfterErrorHealing | int64 }}
+    remoteDBProbingInterval: {{ .Values.controller.remoteDBProbingInterval | int64 }}
     recordEventHistory: {{ .Values.controller.recordEventHistory }}
     eventHistoryAgeLimit: {{ .Values.controller.eventHistoryAgeLimit }}
     permanentlyRecordedInitPeriod: {{ .Values.controller.permanentlyRecordedInitPeriod }}

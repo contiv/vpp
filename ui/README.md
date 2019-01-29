@@ -15,26 +15,61 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
     In the "Run" app, enter: chrome.exe --user-data-dir="C://Chrome dev session" --disable-web-security http://localhost:32500
     ##### -Command in Linux:
     google-chrome --user-data-dir="/var/tmp/Chrome" --disable-web-security "http://localhost:32500"
-
 - Vagrant
 - VirtualBox
 - Laptop w/ 16GB of memory
-- Works only locally - no remote deploying supported!
-- [Postman](https://www.getpostman.com/) to look over [APIs](https://github.com/ligato/vpp-agent/tree/master/plugins/rest)
+- Only runs on a laptop at this time. It does not support nor can it be deployed on a remote server.
+- [Postman](https://www.getpostman.com/) to look over [APIs](https://github.com/ligato/vpp-agent/tree/dev/plugins/restv2)
 
 ### Running
 
+Shutdown all extraneous apps. You need as much memory as possible on your laptop to run the k8s cluster.
+
 1. clone this repository (`git clone https://github.com/contiv/vpp.git`)
-2. checkout kubecon2018 branch (`git checkout kubecon2018`)
-3. cd into vpp/ui directory (`cd vpp/ui`)
-4. from this directory run one of these commands:
+2. change directory to vpp (`cd vpp`)
+3. checkout kubecon2018 branch (`git checkout kubecon2018`). 
+4. cd into vpp/ui directory (`cd ui`)
+5. from this directory run one of these commands:
 - `./start.sh` for fully automated setup - run 2 workers in production enviroment without STN
 
-When everything is deployed, navigate to `http://localhost:32500/` on Chrome with disabled web security - it should be automatically opened if installed.
+You should then see this:
 
-![contivpp-io-demo-setup-topology](img/contivpp-io-demo-setup.png)
+	CHMETZ-M-72TZ:vpp chrismetz$ cd ui
+	CHMETZ-M-72TZ:ui chrismetz$ ./start.sh
+	Starting Contiv VPP ...
 
-Here is a picture of the demo topology.
+	Creating a production environment, without STN and 2 worker nodes
+
+	Creating VirtualBox DHCP server...
+	Bringing machine 'k8s-gateway' up with 'virtualbox' provider...
+	Bringing machine 'k8s-master' up with 'virtualbox' provider...
+	Bringing machine 'k8s-worker1' up with 'virtualbox' provider...
+	Bringing machine 'k8s-worker2' up with 'virtualbox' provider...
+	==> k8s-gateway: Cloning VM...
+	etc ... etc ...
+
+Get a cup of coffee. It will be a few minutes. 
+
+When you return, this message indicates the UI is ready.
+
+	For accessing k8s nodes via 'vagrant ssh', cd into vpp/vagrant directory.
+
+	Application has been deployed on http://localhost:32500 
+
+When everything is deployed, navigate to `http://localhost:32500/` on Chrome with disabled web security - it should be automatically open if installed. If for some reason it does not automatically open, go to the CLI and type in one of the disable web security commands. This is the one for a mac:
+
+	Open -n -a "Google Chrome" --args --disable-web-security --user-data-dir=/tmp/chrome http://localhost:32500
+
+![](img/contivpp-io-v2-blank-screen.png)
+
+What you will see next is the UI with no topology. We need to wait a few moments (could be a couple of minutes) until k8s has completed its work and all systems are ready to go. 
+
+Hit the refresh button at the red arrow to have the UI query the system for a topology. In fact you should hit the refresh button any time the topology has changed.
+
+Once the UI can successfully query the system for the topology/etc. you will be greated with the initial 3 - node demo topology as shown.
+
+![contivpp-io-demo-setup-topology](img/contivpp-io-v2-demo-ready.png)
+
 
 ### Accessing APIs
 
@@ -84,14 +119,14 @@ Run `./clear.sh` from vpp/ui directory for clearing all data and settings (destr
 ## Contivpp UI Screenshots Using the Demo App Cluster
 
 
-![contivpp topology](img/contivpp-io-k8s-topology.png)
+![contivpp topology](img/contivvp-io-v2-topo.png)
 
 View of 3 x node K8s cluster topology. Note the presence of contiv vSwitches in each node.
 
 
 
 
-![contiv vswitch](img/contivpp-io-contiv-vswitch.png)
+![contiv vswitch](img/contivpp-io-v2-dblclk.png)
 
 Assigned IP addresses and interfaces
 

@@ -1,0 +1,9 @@
+<div class="spinner-wrap" *ngIf="!pod">
+  <span class="spinner">
+    Loading...
+  </span>
+</div>
+
+<div class="wrap" *ngIf="pod">
+  <app-form [data]="formData" [title]="pod.name" [buttons]="['Show Containers']" (btnclick)="showContainers()"></app-form>
+</div>

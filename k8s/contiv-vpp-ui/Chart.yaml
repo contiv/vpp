@@ -1,0 +1,4 @@
+---
+apiVersion: v1
+name: contiv-vpp-ui
+version: 0.0.1

@@ -7,5 +7,7 @@ rules:
 
 ignore: |
   k8s/contiv-vpp/templates/vpp.yaml
+  k8s/contiv-vpp-ui/templates/ui.yaml
   tests/
   vendor/
+  ui/node_modules/

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { map, switchMap, catchError } from 'rxjs/operators';
+import { map, switchMap } from 'rxjs/operators';
 import { Observable, forkJoin, of, BehaviorSubject, Subject } from 'rxjs';
 import { KubernetesService } from './kubernetes.service';
 import { VppService } from './vpp.service';
@@ -198,8 +198,7 @@ export class DataService {
                 node: n,
                 ipam: ipam
               };
-            }),
-            catchError(() => of(null))
+            })
           );
         });
         return forkJoin(observables);

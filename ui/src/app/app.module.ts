@@ -3,7 +3,7 @@ import { NgModule } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
+import { HttpClientModule } from '@angular/common/http';
 
 import { ClarityModule, ClrFormsNextModule } from '@clr/angular';
 import { D3TopologyModule } from './d3-topology/d3-topology.module';
@@ -48,7 +48,6 @@ import { CodeModalComponent } from './shared/modals/code-modal/code-modal.compon
 import { BridgeDomainService } from './bridge-domain/bridge-domain.service';
 import { ContainersModalComponent } from './shared/modals/containers-modal/containers-modal.component';
 import { ServicesTopologyService } from './shared/sidepanel/services/services-topology.service';
-import { ErrorCatchInterceptor } from './interceptors/error-catch-interceptor';
 
 @NgModule({
   declarations: [
@@ -91,7 +90,6 @@ import { ErrorCatchInterceptor } from './interceptors/error-catch-interceptor';
     AppRoutingModule
   ],
   providers: [
-    { provide: HTTP_INTERCEPTORS, useClass: ErrorCatchInterceptor, multi: true },
     KubernetesService,
     SidepanelService,
     VppService,

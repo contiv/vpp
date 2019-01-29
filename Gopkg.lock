@@ -729,7 +729,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:cee722bd403e30aa7fee2c0604b828a7d08cd93e6a31aa0c93c8ccfe39d51221"
+  digest = "1:12d9bf4cf72f676cabe45ba6c5113385e95b7e89be6f967fa5e03b01580dbbb4"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -792,7 +792,6 @@
     "plugins/vpp/binapi/vpe",
     "plugins/vpp/binapi/vxlan",
     "plugins/vpp/model/bfd",
-    "plugins/vpp/model/interfaces",
     "plugins/vpp/model/l2",
     "plugins/vpp/model/l4",
     "plugins/vppv2/aclplugin",
@@ -827,7 +826,7 @@
     "plugins/vppv2/stnplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "79be8f0a7ba00cd9e69b4a86e13822bdcff5d2ee"
+  revision = "9d40216009cbabe35407ec559514be6bb9825b30"
 
 [[projects]]
   branch = "master"
@@ -1709,6 +1708,7 @@
     "github.com/ligato/vpp-agent/clientv2/linux",
     "github.com/ligato/vpp-agent/clientv2/vpp",
     "github.com/ligato/vpp-agent/pkg/idxvpp2",
+    "github.com/ligato/vpp-agent/pkg/models",
     "github.com/ligato/vpp-agent/plugins/govppmux",
     "github.com/ligato/vpp-agent/plugins/kvscheduler",
     "github.com/ligato/vpp-agent/plugins/kvscheduler/api",
@@ -1720,12 +1720,12 @@
     "github.com/ligato/vpp-agent/plugins/restv2",
     "github.com/ligato/vpp-agent/plugins/restv2/resturl",
     "github.com/ligato/vpp-agent/plugins/telemetry",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/ip",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/session",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/stats",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/model/bfd",
-    "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces",
     "github.com/ligato/vpp-agent/plugins/vpp/model/l2",
     "github.com/ligato/vpp-agent/plugins/vpp/model/l4",
     "github.com/ligato/vpp-agent/plugins/vppv2/aclplugin",

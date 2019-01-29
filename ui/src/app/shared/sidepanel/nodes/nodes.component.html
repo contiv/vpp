@@ -1,0 +1,14 @@
+<div class="spinner-wrap" *ngIf="!nodes.length">
+  <span class="spinner">
+    Loading...
+  </span>
+</div>
+<clr-datagrid *ngIf="nodes.length">
+  <clr-dg-column [clrDgSortBy]="'name'">Name</clr-dg-column>
+  <clr-dg-column [clrDgSortBy]="'ip'">IP</clr-dg-column>
+
+  <clr-dg-row *clrDgItems="let node of nodes" (mouseenter)="highlighNode(node.name)" (mouseleave)="clearHighlight()" (dblclick)="showDetail(node.name)">
+    <clr-dg-cell>{{node.name}}</clr-dg-cell>
+    <clr-dg-cell>{{node.ip}}</clr-dg-cell>
+  </clr-dg-row>
+</clr-datagrid>

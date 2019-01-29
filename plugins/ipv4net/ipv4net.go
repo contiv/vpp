@@ -47,7 +47,7 @@ const (
 
 	// any IPv4 address
 	ipv4AddrAny = "0.0.0.0"
-	ipv4NetAny = ipv4AddrAny + "/0"
+	ipv4NetAny  = ipv4AddrAny + "/0"
 )
 
 // IPv4Net plugin builds configuration to be applied by ligato/VPP-agent for VPP-based

@@ -94,7 +94,7 @@ func (br *BGPReflector) Resync(event controller.Event, kubeStateData controller.
 
 	// reflect bird routes
 	for _, r := range routes {
-		if r.Protocol == birdRouteProtoNumber {
+		if r.Protocol == birdRouteProtoNumber && r.Gw != nil {
 			key, route := br.vppRoute(r.Dst, r.Gw)
 			txn.Put(key, route)
 		}
@@ -145,8 +145,8 @@ func (br *BGPReflector) watchRoutes() error {
 		for {
 			select {
 			case r := <-ch:
-				br.Log.Debugf("Route update: proto=%d %v", r.Protocol, r)
-				if r.Protocol == birdRouteProtoNumber {
+				if r.Protocol == birdRouteProtoNumber && r.Gw != nil {
+					br.Log.Debugf("BGP route update: proto=%d %v", r.Protocol, r)
 					ev := &BGPRouteUpdate{
 						DstNetwork: r.Dst,
 						GwAddr:     r.Gw,

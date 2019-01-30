@@ -121,7 +121,7 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 	// the agent knowing about it. But if we are healing after an error, reload
 	// the state of IPAM just in case.
 	_, isHealingResync := event.(*controller.HealingResync)
-	if resyncCount > 1 && !isHealingResync{
+	if resyncCount > 1 && !isHealingResync {
 		return nil
 	}
 

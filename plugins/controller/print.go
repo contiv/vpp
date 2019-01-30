@@ -176,7 +176,7 @@ func splitLongLines(lines []string, limit int, indent int) (splited []string) {
 			if newLine == "" {
 				if len(newLines) > 0 {
 					// indent added to newly introduced lines
-					newLine += strings.Repeat(" ", origIndent + indent)
+					newLine += strings.Repeat(" ", origIndent+indent)
 				} else {
 					newLine += strings.Repeat(" ", origIndent)
 				}

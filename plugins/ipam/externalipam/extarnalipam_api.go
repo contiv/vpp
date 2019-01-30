@@ -7,7 +7,7 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
-// NodeIPv4Change is triggered when DHCP-assigned IPv4 address of the node changes.
+// PodCIDRChange is triggered when CIDR for PODs on current node changes.
 type PodCIDRChange struct {
 	PodNetworkCIDR *net.IPNet
 	LocalPodCIDR   *net.IPNet

@@ -122,7 +122,7 @@ func getPodCIDR() string {
 	}
 
 	if !found {
-		log.Errorf("ETCD key %s not found: %s", key)
+		log.Errorf("ETCD key not found: %s", key)
 		return ""
 	}
 

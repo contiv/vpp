@@ -9,10 +9,13 @@ import (
 
 /*************************** Node IPv4 Change Event ***************************/
 
+// BGPRouteUpdateType represents type of the BGP update.
 type BGPRouteUpdateType int
 
 const (
+	// RouteAdd represents addition of a BGP route.
 	RouteAdd BGPRouteUpdateType = iota
+	// RouteDelete represents deletion of a BGP route.
 	RouteDelete
 )
 

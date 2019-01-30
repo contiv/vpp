@@ -117,12 +117,6 @@ func (n *IPv4Net) configureVswitchConnectivity(event controller.Event, txn contr
 		txn.Put(key, ipneigh)
 	}
 
-	// subscribe to VnetFibCounters to get rid of the not wanted notifications and errors from GoVPP
-	// TODO: this is just a workaround until non-subscribed notifications are properly ignored by GoVPP
-	if !n.test {
-		n.subscribeVnetFibCounters()
-	}
-
 	// enable packet trace if requested (should be used for debugging only)
 	if !n.test && n.ContivConf.EnablePacketTrace() {
 		n.executeDebugCLI("trace add dpdk-input 100000")

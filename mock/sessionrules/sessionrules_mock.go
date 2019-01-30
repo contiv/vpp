@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"git.fd.io/govpp.git/codec"
 	vpptcprule "github.com/contiv/vpp/plugins/policy/renderer/vpptcp/rule"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/session"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
+	"github.com/ligato/vpp-binapi/binapi/session"
+	"github.com/ligato/vpp-binapi/binapi/vpe"
 )
 
 // MockSessionRules simulates session rules from VPPTCP stack.

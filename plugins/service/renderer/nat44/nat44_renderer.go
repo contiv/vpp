@@ -28,7 +28,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
+	nat_api "github.com/ligato/vpp-binapi/binapi/nat"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"

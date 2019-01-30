@@ -5,7 +5,7 @@ RUN apt-get update \
         # vpp-agent & vpp process manager
         python supervisor \
         # vpp requirements
-        openssl libapr1 libnuma1 libmbedcrypto1 libmbedtls10 libmbedx509-0 \
+        openssl libapr1 libnuma1 libmbedcrypto1 libmbedtls10 libmbedx509-0 libboost-system1.65.1 \
         # required for disabling TCP checksum offload in containers
         ethtool \
         # network tools

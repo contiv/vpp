@@ -20,13 +20,11 @@ import (
 	"net"
 	"strings"
 
-	"git.fd.io/govpp.git/api"
 	"github.com/vishvananda/netlink"
 
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stats"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
+	"github.com/ligato/vpp-binapi/binapi/ip"
+	"github.com/ligato/vpp-binapi/binapi/vpe"
 )
 
 // getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
@@ -61,7 +59,7 @@ func (n *IPv4Net) executeDebugCLI(cmd string) (string, error) {
 	n.Log.Infof("Executing debug CLI: %s", cmd)
 
 	req := &vpe.CliInband{
-		Cmd: []byte(cmd),
+		Cmd: cmd,
 	}
 	reply := &vpe.CliInbandReply{}
 
@@ -90,24 +88,6 @@ func (n *IPv4Net) createVrf(vrfID uint32) error {
 	if err != nil {
 		n.Log.Error("Error by creating VRF 1:", err)
 	}
-	return err
-}
-
-func (n *IPv4Net) subscribeVnetFibCounters() error {
-	notifChan := make(chan api.Message, 1)
-	_, err := n.govppCh.SubscribeNotification(notifChan, &stats.VnetIP4FibCounters{})
-
-	if err != nil {
-		n.Log.Error("Error by subscribing to NewVnetIP4FibCounters:", err)
-	}
-
-	// read from the notif channel in a go routine to not block once the channel is full
-	go func() {
-		for {
-			<-notifChan
-		}
-	}()
-
 	return err
 }
 

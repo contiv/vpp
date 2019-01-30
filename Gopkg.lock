@@ -728,8 +728,8 @@
   revision = "70b53374283d0bc70cbd9573826830f5a1d69ad1"
 
 [[projects]]
-  branch = "dev"
-  digest = "1:12d9bf4cf72f676cabe45ba6c5113385e95b7e89be6f967fa5e03b01580dbbb4"
+  branch = "dev-vpp1901"
+  digest = "1:df7878b1ffb212f52d329e4f90e23539c32eebb2980e1a1a811e3ff9b0fbb6fd"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -772,25 +772,6 @@
     "plugins/restv2",
     "plugins/restv2/resturl",
     "plugins/telemetry",
-    "plugins/vpp/binapi/acl",
-    "plugins/vpp/binapi/af_packet",
-    "plugins/vpp/binapi/dhcp",
-    "plugins/vpp/binapi/interfaces",
-    "plugins/vpp/binapi/ip",
-    "plugins/vpp/binapi/ipsec",
-    "plugins/vpp/binapi/l2",
-    "plugins/vpp/binapi/memclnt",
-    "plugins/vpp/binapi/memif",
-    "plugins/vpp/binapi/nat",
-    "plugins/vpp/binapi/punt",
-    "plugins/vpp/binapi/session",
-    "plugins/vpp/binapi/stats",
-    "plugins/vpp/binapi/stn",
-    "plugins/vpp/binapi/tap",
-    "plugins/vpp/binapi/tapv2",
-    "plugins/vpp/binapi/vmxnet3",
-    "plugins/vpp/binapi/vpe",
-    "plugins/vpp/binapi/vxlan",
     "plugins/vpp/model/bfd",
     "plugins/vpp/model/l2",
     "plugins/vpp/model/l4",
@@ -826,7 +807,34 @@
     "plugins/vppv2/stnplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "9d40216009cbabe35407ec559514be6bb9825b30"
+  revision = "c863c3a05f6edb653ca65f6d2ea56df283101509"
+
+[[projects]]
+  branch = "stable/1901"
+  digest = "1:f98dcdccfbb08895d58e8c6f43fcc9c93eb7ce9133d9d4f46ecbb784f0370395"
+  name = "github.com/ligato/vpp-binapi"
+  packages = [
+    "binapi/acl",
+    "binapi/af_packet",
+    "binapi/dhcp",
+    "binapi/interfaces",
+    "binapi/ip",
+    "binapi/ipsec",
+    "binapi/l2",
+    "binapi/memclnt",
+    "binapi/memif",
+    "binapi/nat",
+    "binapi/punt",
+    "binapi/session",
+    "binapi/stn",
+    "binapi/tap",
+    "binapi/tapv2",
+    "binapi/vmxnet3",
+    "binapi/vpe",
+    "binapi/vxlan",
+  ]
+  pruneopts = "UT"
+  revision = "4ed8652a9a577f276ba93e29bdf3b769fec851c2"
 
 [[projects]]
   branch = "master"
@@ -1720,11 +1728,6 @@
     "github.com/ligato/vpp-agent/plugins/restv2",
     "github.com/ligato/vpp-agent/plugins/restv2/resturl",
     "github.com/ligato/vpp-agent/plugins/telemetry",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/ip",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/session",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/stats",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/model/bfd",
     "github.com/ligato/vpp-agent/plugins/vpp/model/l2",
     "github.com/ligato/vpp-agent/plugins/vpp/model/l4",
@@ -1740,6 +1743,10 @@
     "github.com/ligato/vpp-agent/plugins/vppv2/natplugin",
     "github.com/ligato/vpp-agent/plugins/vppv2/puntplugin",
     "github.com/ligato/vpp-agent/plugins/vppv2/stnplugin",
+    "github.com/ligato/vpp-binapi/binapi/ip",
+    "github.com/ligato/vpp-binapi/binapi/nat",
+    "github.com/ligato/vpp-binapi/binapi/session",
+    "github.com/ligato/vpp-binapi/binapi/vpe",
     "github.com/namsral/flag",
     "github.com/nerdtakula/supervisor",
     "github.com/onsi/gomega",

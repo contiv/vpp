@@ -22,7 +22,11 @@ import (
 
 // AddStaticRoute creates the new static route
 func (h *NetLinkHandler) AddStaticRoute(route *netlink.Route) error {
-	return netlink.RouteAdd(route)
+	err := netlink.RouteAdd(route)
+	if err != nil && err.Error() == "file exists" {
+		return nil
+	}
+	return err
 }
 
 // ReplaceStaticRoute removes the static route

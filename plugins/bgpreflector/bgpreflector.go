@@ -94,7 +94,7 @@ func (br *BGPReflector) Resync(event controller.Event, kubeStateData controller.
 
 	// reflect bird routes
 	for _, r := range routes {
-		if r.Protocol == birdRouteProtoNumber && r.Gw != nil {
+		if r.Protocol == birdRouteProtoNumber && isValidRoute(r.Dst, r.Gw) {
 			key, route := br.vppRoute(r.Dst, r.Gw)
 			txn.Put(key, route)
 		}
@@ -145,7 +145,7 @@ func (br *BGPReflector) watchRoutes() error {
 		for {
 			select {
 			case r := <-ch:
-				if r.Protocol == birdRouteProtoNumber && r.Gw != nil {
+				if r.Protocol == birdRouteProtoNumber && isValidRoute(r.Dst, r.Gw) {
 					br.Log.Debugf("BGP route update: proto=%d %v", r.Protocol, r)
 					ev := &BGPRouteUpdate{
 						DstNetwork: r.Dst,
@@ -179,4 +179,15 @@ func (br *BGPReflector) vppRoute(dst *net.IPNet, gw net.IP) (key string, config 
 	}
 	key = l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	return key, route
+}
+
+// isValidRoute returns true if the route is valid and should be reflected, false otherwise.
+func isValidRoute(dst *net.IPNet, gw net.IP) bool {
+	if dst == nil || gw == nil {
+		return false
+	}
+	if gw.IsUnspecified() {
+		return false
+	}
+	return true
 }

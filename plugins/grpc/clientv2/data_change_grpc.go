@@ -410,7 +410,7 @@ func (dsl *DeleteDSL) AppNamespace(id string) linuxclient.DeleteDSL {
 }
 
 // StnRule adds a request to delete an existing VPP Stn rule.
-func (dsl *DeleteDSL) StnRule(ruleName string) linuxclient.DeleteDSL {
+func (dsl *DeleteDSL) StnRule(iface, addr string) linuxclient.DeleteDSL {
 	defer func() { panic(deprecated) }()
 	return dsl
 }

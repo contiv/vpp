@@ -116,12 +116,12 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 		}
 	}()
 
-	if resyncCount > 1 {
-		// No need to run resync for IPAM in run-time - the IPAM configuration
-		// cannot change and IP address will not be allocated to a local pod without
-		// the agent knowing about it. Also there is a risk of a race condition
-		//  - resync triggered shortly after Add/DelPod may work with K8s state
-		// data that do not yet reflect the freshly added/removed pod.
+	// Normally it should not be needed to resync the set of allocated pod IP
+	// addresses in the run-time - local pod should not be added/deleted without
+	// the agent knowing about it. But if we are healing after an error, reload
+	// the state of IPAM just in case.
+	_, isHealingResync := event.(*controller.HealingResync)
+	if resyncCount > 1 && !isHealingResync{
 		return nil
 	}
 

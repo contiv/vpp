@@ -28,7 +28,7 @@ data:
     tapv2RxRingSize: 256
     tapv2TxRingSize: 256
     tcpChecksumOffloadDisabled: true
-    STNVersion: 1
+    STNVersion: 2
     natExternalTraffic: true
     mtuSize: 1450
     scanIPNeighbors: true

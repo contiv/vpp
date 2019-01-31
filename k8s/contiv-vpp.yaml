@@ -154,7 +154,7 @@ data:
 apiVersion: apps/v1beta2
 kind: StatefulSet
 metadata:
-  name: contiv-etcd
+  name: cvpp-etcd
   namespace: kube-system
   labels:
     k8s-app: contiv-etcd
@@ -290,7 +290,7 @@ data:
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
-  name: contiv-vswitch
+  name: cvpp-vswitch
   namespace: kube-system
   labels:
     k8s-app: contiv-vswitch
@@ -545,7 +545,7 @@ spec:
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
-  name: contiv-ksr
+  name: cvpp-ksr
   namespace: kube-system
   labels:
     k8s-app: contiv-ksr
@@ -681,7 +681,7 @@ subjects:
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
-  name: contiv-crd
+  name: cvpp-crd
   namespace: kube-system
   labels:
     k8s-app: contiv-crd

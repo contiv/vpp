@@ -31,6 +31,7 @@ contiv:
     nodeInterconnectCIDR: 192.168.16.0/24
     vxlanCIDR: 192.168.30.0/24
     nodeInterconnectDHCP: false
+    # defaultGateway: 192.168.16.100
     # serviceCIDR: "10.96.0.0/12"
     # example of node configuration for VPP interfaces
     # nodeConfig:

@@ -60,6 +60,9 @@ data:
       {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
       nodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
       {{- end }}
+      {{- if .Values.contiv.ipamConfig.defaultGateway }}
+      defaultGateway: {{ .Values.contiv.ipamConfig.defaultGateway }}
+      {{- end }}
       {{- if .Values.contiv.ipamConfig.serviceCIDR }}
       serviceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
       {{- end }}

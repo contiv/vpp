@@ -48,6 +48,9 @@ const (
 	// listens for client connections by default
 	defaultSTNSocketFile = "/var/run/contiv/stn.sock"
 
+	// by default, use the IPx_redirect punt instead of STN plugin
+	defaultSTNVersion = 2
+
 	// by default, NodeConfig CRD is disabled (and ignored if applied)
 	defaultCRDNodeConfigurationDisabled = true
 
@@ -304,6 +307,7 @@ func (c *ContivConf) Init() (err error) {
 	// default configuration
 	c.config = &Config{
 		STNSocketFile:                defaultSTNSocketFile,
+		STNVersion:                   defaultSTNVersion,
 		CRDNodeConfigurationDisabled: defaultCRDNodeConfigurationDisabled,
 		InterfaceConfig: InterfaceConfig{
 			UseTAPInterfaces:           defaultUseTAPInterfaces,

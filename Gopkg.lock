@@ -729,7 +729,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:e54dc964b88cdaba505ce00336b676e1b3612b4ccc6a9cba44855e676127b267"
+  digest = "1:c9dd3842c98a66979108f539fa6be8a305d55a3137cd7de97f1383182bbb326c"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -826,7 +826,7 @@
     "plugins/vppv2/stnplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "5a925e801bb0b1ed9aa81d5767e1d43f53f9f0f3"
+  revision = "56d627480d89d83d1febd9dc705f77bce405fcc1"
 
 [[projects]]
   branch = "master"

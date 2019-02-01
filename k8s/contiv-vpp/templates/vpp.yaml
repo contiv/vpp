@@ -699,10 +699,10 @@ spec:
               value: "/etc/vpp-agent/bolt.conf"
             # Uncomment to log graph traversal (very verbose):
             # - name: KVSCHED_LOG_GRAPH_WALK
-            #   value: true
+            #   value: "true"
             # Uncomment to verify effect of every transaction:
             # - name: KVSCHED_VERIFY_MODE
-            #   value: true
+            #   value: "true"
             {{- if .Values.bolt.debug }}
             - name: DEBUG_BOLT_CLIENT
               value: "true"

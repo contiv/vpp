@@ -31,8 +31,8 @@ import (
 
 	"github.com/ligato/vpp-agent/pkg/models"
 
+	"github.com/contiv/vpp/dbresources"
 	"github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/dbresources"
 	"github.com/contiv/vpp/plugins/ksr"
 )
 

@@ -21,7 +21,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/contiv/vpp/plugins/dbresources"
+	"github.com/contiv/vpp/dbresources"
 )
 
 // KeyValuePairs is a set of key-value pairs.

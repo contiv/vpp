@@ -112,13 +112,18 @@ func (s *Scheduler) refreshGraph(graphW graph.RWAccess, keys utils.KeySet, resyn
 				plural = ""
 			}
 
-			var log string
-			for _, value := range retrieved {
-				log += fmt.Sprintf("\n - %+v", value)
+			var list strings.Builder
+			for i, d := range retrieved {
+				num := fmt.Sprintf("%d.", i+1)
+				list.WriteString(fmt.Sprintf("\n - %3s %q -> %v [%s]",
+					num, d.Key, utils.ProtoToString(d.Value), d.Origin))
+				if d.Metadata != nil {
+					list.WriteString(fmt.Sprintf(" Metadata: %+v", d.Metadata))
+				}
 			}
 
-			s.Log.Debugf("Descriptor %s retrieved %d item%s: %v",
-				descriptor.Name, len(retrieved), plural, log)
+			s.Log.Debugf("%s descriptor retrieved %d item%s: %v",
+				descriptor.Name, len(retrieved), plural, list.String())
 
 		}
 
@@ -260,7 +265,11 @@ func (s *Scheduler) refreshAvailNode(graphW graph.RWAccess, node graph.NodeRW,
 	origin kvs.ValueOrigin, derived bool, baseKey string, refreshed utils.KeySet, indent int) {
 	if s.logGraphWalk {
 		indentStr := strings.Repeat(" ", indent)
-		msg := fmt.Sprintf("refreshAvailNode (key=%s, isDerived=%t)", node.GetKey(), derived)
+		var derivedMark string
+		if derived {
+			derivedMark = ", is-derived"
+		}
+		msg := fmt.Sprintf("refreshAvailNode (key=%s%s)", node.GetKey(), derivedMark)
 		fmt.Printf("%s%s %s\n", indentStr, nodeVisitBeginMark, msg)
 		defer fmt.Printf("%s%s %s\n", indentStr, nodeVisitEndMark, msg)
 	}
@@ -283,9 +292,9 @@ func (s *Scheduler) refreshAvailNode(graphW graph.RWAccess, node graph.NodeRW,
 	if getNodeState(node) == kvs.ValueState_NONEXISTENT {
 		// newly found node
 		if origin == kvs.FromSB {
-			s.refreshNodeState(node, kvs.ValueState_RETRIEVED, indent)
+			s.refreshNodeState(node, kvs.ValueState_OBTAINED, indent)
 		} else {
-			s.refreshNodeState(node, kvs.ValueState_FOUND, indent)
+			s.refreshNodeState(node, kvs.ValueState_DISCOVERED, indent)
 		}
 	}
 	if getNodeState(node) == kvs.ValueState_PENDING {
@@ -322,7 +331,7 @@ func (s *Scheduler) refreshUnavailNode(graphW graph.RWAccess, node graph.Node, r
 		s.updatedStates.Add(getNodeBaseKey(node))
 	}
 	state := getNodeState(node)
-	if getNodeOrigin(node) == kvs.FromSB || state == kvs.ValueState_FOUND {
+	if getNodeOrigin(node) == kvs.FromSB || state == kvs.ValueState_DISCOVERED {
 		// just remove from the graph
 		graphW.DeleteNode(node.GetKey())
 		return

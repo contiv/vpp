@@ -169,7 +169,7 @@ func (txn *RecordedTxn) StringWithOpts(resultOnly, verbose bool, indent int) str
 				continue
 			}
 			str += indent3 + fmt.Sprintf("- key: %s\n", kv.Key)
-			str += indent3 + fmt.Sprintf("  value: %s\n", utils.ProtoToString(kv.Value))
+			str += indent3 + fmt.Sprintf("  val: %s\n", utils.ProtoToString(kv.Value))
 		}
 
 	printOps:
@@ -182,8 +182,10 @@ func (txn *RecordedTxn) StringWithOpts(resultOnly, verbose bool, indent int) str
 		if len(txn.Executed) == 0 {
 			str += indent1 + "* executed operations:\n"
 		} else {
-			str += indent1 + fmt.Sprintf("* executed operations (%s - %s, duration = %s):\n",
-				txn.Start.String(), txn.Stop.String(), txn.Stop.Sub(txn.Start).String())
+			str += indent1 + fmt.Sprintf("* executed operations (%s -> %s, dur: %s):\n",
+				txn.Start.Round(time.Millisecond),
+				txn.Stop.Round(time.Millisecond),
+				txn.Stop.Sub(txn.Start).Round(time.Millisecond))
 		}
 		str += txn.Executed.StringWithOpts(verbose, indent+4)
 	}
@@ -224,12 +226,12 @@ func (op *RecordedTxnOp) StringWithOpts(index int, verbose bool, indent int) str
 		flags = append(flags, "RECREATE")
 	}
 	// value state transition
-	//  -> RETRIEVED
-	if op.NewState == ValueState_RETRIEVED {
-		flags = append(flags, "RETRIEVED")
+	//  -> OBTAINED
+	if op.NewState == ValueState_OBTAINED {
+		flags = append(flags, "OBTAINED")
 	}
-	if op.PrevState == ValueState_RETRIEVED && op.PrevState != op.NewState {
-		flags = append(flags, "WAS-RETRIEVED")
+	if op.PrevState == ValueState_OBTAINED && op.PrevState != op.NewState {
+		flags = append(flags, "WAS-OBTAINED")
 	}
 	//  -> UNIMPLEMENTED
 	if op.NewState == ValueState_UNIMPLEMENTED {
@@ -249,9 +251,9 @@ func (op *RecordedTxnOp) StringWithOpts(index int, verbose bool, indent int) str
 			flags = append(flags, "WAS-MISSING")
 		}
 	}
-	//  -> FOUND
-	if op.PrevState == ValueState_FOUND {
-		flags = append(flags, "FOUND")
+	//  -> DISCOVERED
+	if op.PrevState == ValueState_DISCOVERED {
+		flags = append(flags, "DISCOVERED")
 	}
 	//  -> PENDING
 	if op.PrevState == ValueState_PENDING {

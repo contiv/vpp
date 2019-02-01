@@ -242,6 +242,7 @@ type IPAMConfigForJSON struct {
 	VPPHostSubnetOneNodePrefixLen uint8  `json:"vppHostSubnetOneNodePrefixLen,omitempty"`
 	NodeInterconnectCIDR          string `json:"nodeInterconnectCIDR,omitempty"`
 	VxlanCIDR                     string `json:"vxlanCIDR,omitempty"`
+	DefaultGateway                string `json:"defaultGateway,omitempty"`
 }
 
 // NodeConfig represents configuration specific to a given node.
@@ -384,6 +385,12 @@ func (c *ContivConf) Init() (err error) {
 	_, c.ipamConfig.VxlanCIDR, err = net.ParseCIDR(c.config.IPAMConfig.VxlanCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse VxlanCIDR: %v", err)
+	}
+	if c.config.IPAMConfig.DefaultGateway != "" {
+		c.ipamConfig.DefaultGateway = net.ParseIP(c.config.IPAMConfig.DefaultGateway)
+		if c.ipamConfig.DefaultGateway == nil {
+			return fmt.Errorf("failed to parse default gateway %v", c.config.IPAMConfig.DefaultGateway)
+		}
 	}
 
 	// create GoVPP channel for contiv-agent
@@ -751,6 +758,8 @@ func (c *ContivConf) reloadNodeInterfaces() error {
 					nodeConfig.Gateway)
 				return err
 			}
+		} else if c.ipamConfig.DefaultGateway != nil {
+			c.defaultGw = c.ipamConfig.DefaultGateway
 		}
 	}
 

@@ -17,8 +17,9 @@ package api
 import (
 	"errors"
 	"fmt"
-	"github.com/gogo/protobuf/proto"
 	"strings"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 var (
@@ -37,26 +38,22 @@ var (
 	// ErrTxnQueueFull is returned when the queue of pending transactions is full.
 	ErrTxnQueueFull = errors.New("transaction queue is full")
 
-	// ErrUnimplementedAdd is returned when NB transaction attempts to Add value
-	// for which there is a descriptor, but Add operation is not implemented.
-	ErrUnimplementedAdd = errors.New("Add operation is not implemented")
+	// ErrUnimplementedCreate is returned when NB transaction attempts to Create value
+	// for which there is a descriptor, but Create operation is not implemented.
+	ErrUnimplementedCreate = errors.New("operation Create is not implemented")
 
 	// ErrUnimplementedDelete is returned when NB transaction attempts to Delete value
 	// for which there is a descriptor, but Delete operation is not implemented.
-	ErrUnimplementedDelete = errors.New("Delete operation is not implemented")
-
-	// ErrUnimplementedModify is returned when NB transaction attempts to Modify value
-	// for which there is a descriptor, but Modify operation is not implemented.
-	ErrUnimplementedModify = errors.New("Modify operation is not implemented")
+	ErrUnimplementedDelete = errors.New("operation Delete is not implemented")
 )
 
 // ErrInvalidValueType is returned to scheduler by auto-generated descriptor adapter
 // when value does not match expected type.
 func ErrInvalidValueType(key string, value proto.Message) error {
 	if key == "" {
-		return fmt.Errorf("value (%s) has invalid type", value.String())
+		return fmt.Errorf("value (%v) has invalid type", value)
 	}
-	return fmt.Errorf("value (%s) has invalid type for key: %s", value.String(), key)
+	return fmt.Errorf("value (%v) has invalid type for key: %s", value, key)
 }
 
 // ErrInvalidMetadataType is returned to scheduler by auto-generated descriptor adapter
@@ -132,7 +129,7 @@ type InvalidValueError struct {
 }
 
 // NewInvalidValueError is a constructor for invalid-value error.
-func NewInvalidValueError(err error, invalidFields... string) *InvalidValueError {
+func NewInvalidValueError(err error, invalidFields ...string) *InvalidValueError {
 	return &InvalidValueError{err: err, invalidFields: invalidFields}
 }
 

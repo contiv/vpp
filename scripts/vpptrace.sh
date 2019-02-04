@@ -96,6 +96,16 @@ function get_vpp_input_node {
     if [[ "$1" == "dpdk" ]] || [[ "$1" == "gbe" ]] || [[ "$1" == "phys"* ]]; then
         echo "dpdk-input"
     fi
+
+    # ipsec aliases
+    if [[ "$1" == "ipsec" ]] || [[ "$1" == "encrypt"* ]]; then
+        echo "dpdk-crypto-input"
+        echo "dpdk-esp-encrypt"
+    fi
+    if [[ "$1" == "ipsec" ]] || [[ "$1" == "decrypt"* ]]; then
+        echo "dpdk-esp-decrypt"
+        echo "dpdk-esp-decrypt-post"
+    fi
 }
 
 function print_help_and_exit {
@@ -106,6 +116,8 @@ function print_help_and_exit {
     echo '                         - virtio-input: tap (version determined from the VPP runtime config), tap2, tapv2'
     echo '                         - tapcli-rx: tap (version determined from the VPP config), tap1, tapv1'
     echo '                         - dpdk-input: dpdk, gbe, phys*'
+    echo '                         - ipsec encryption: ipsec, encrypt*'
+    echo '                         - ipsec decryption: ipsec, decrypt*'
     echo '                       - multiple interfaces can be watched at the same time - the option can be repeated with'
     echo '                         different values'
     echo '                       - default = dpdk + tap'
@@ -162,7 +174,9 @@ function trace {
 
     INPUT_NODES=()
     for INTERFACE in "${INTERFACES[@]}"; do
-        INPUT_NODES+=($(get_vpp_input_node "$INTERFACE"))
+        for NODE in $(get_vpp_input_node "$INTERFACE"); do
+            INPUT_NODES+=($NODE)
+        done
     done
 
     COUNT=0

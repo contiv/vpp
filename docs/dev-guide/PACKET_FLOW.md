@@ -3,6 +3,8 @@
 This guide provides a detailed description of paths traversed by request and
 response packets inside Contiv/VPP Kubernetes cluster under different situations.
 
+**NOTE: THIS GUIDE IS OUT-OF-DATE. IT DOES NOT INCLUDE SEPARATE VRF FOR PODS WHICH WAS ADDED MORE RECENTLY.** 
+
 ## Index
 
 1. [Pod to Pod on the same node][pod-to-pod-on-the-same-node]

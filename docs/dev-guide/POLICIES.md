@@ -51,27 +51,29 @@ source code.
 The [Policy Plugin Skeleton][policy-plugin] implements the [Ligato plugin API][plugin-intf],
 which makes it pluggable with the Ligato CN-Infra framework.
 
-The Resync procedure of the policy plugin waits until the Resync procedure
-in the [Contiv plugin][contiv-plugin] has finished. This ensures that connectivity
-between pods and the VPP is established before any rules are installed.
-
 Inside the Policy Plugin's `Init()` method all the layers are initialized and
 dependency injection is performed - at the very minimum, every layer must depend
 on at least the layer below so that it can pass transformed data further down
 the stack.
 
-The Policy plugin subscribes to Etcd in `subscribeWatcher()` to watch for
-changes related to [network policies][policy-model], [pods][pod-model] and
-[namespaces][ns-model], as reflected from the K8s API into the data store by
-the KSR. Apart from policies, the pod and namespace state data must also be
+Additionally, the plugin itself is an [event handler][event-handler], registered
+into the main [event loop][event-loop-guide] of the Contiv agent *after* the
+[ipv4net plugin][ipv4net-plugin]. This ensures that connectivity between pods
+and the VPP is established before any rules are installed.
+
+The Policy plugin reads the state of 3 Kubernetes [resources][db-resources]
+reflected into `etcd` by KSR: [network policies][policy-model], [pods][pod-model]
+and [namespaces][ns-model], to build the set of policy rules for rendering.
+Apart from policies, the pod and namespace state data must also be
 watched to learn their current attachment of labels that may be referenced by
-policies. Once subscribed, state data arrives as datasync events, which are
-propagated by the plugin without any processing into the policy Cache.
+policies. Snapshot of Kubernetes state data received with resync events
+and changes delegated by `KubeStateChange` event are just propagated further
+into the policy Cache without any processing.
 
 ### Cache
 
-Unpacks datasync [update][cache-data-change] and [resync][cache-data-resync]
-events and stores the current full snapshot of policy-related K8s state data
+Unpacks [update][cache-data-change] and [resync][cache-data-resync] events and
+stores the current full snapshot of policy-related K8s state data
 in-memory using [Index Maps (idxmap)][idxmap] from the Ligato CN-infra framework.
 The cache provides an [API][cache-api] to be notified whenever a policy, pod or
 namespace state data changes. The notifications are propagated via callbacks,
@@ -400,7 +402,7 @@ for each application namespace.
 #### ACL Renderer
 
 [ACL Renderer][acl-renderer] installs `ContivRule`s into VPP as ACLs from
-[VPP/ACP plugin][acl-plugin]. The renderer uses the [cache](#renderer-cache)
+[VPP/ACP plugin][acl-plugin-vpp]. The renderer uses the [cache](#renderer-cache)
 to convert ingress and egress rules into per-pod egress ACLs (local tables),
 each assigned to a TAP interface connecting the VPP with the corresponding pod,
 and a single egress ACL (global table) assigned to interfaces connecting the
@@ -413,10 +415,14 @@ an instance of `ContivRuleTable` into the [protobuf-based representation of ACL]
 used in the northbound API of the [ligato/vpp-agent][ligato-vpp-agent]. Every
 ContivRule is mapped into a single `Acl.Rule`. `Match.IpRule` is filled with
 values from the 6-tuple - port ranges always include either all ports or a single
-one (the rules are not compacted together). Generated ACL are sent to the
-[ligato/vpp-agent][ligato-vpp-agent] via the [local client][local-client],
-which installs them into VPP through binary APIs. For each transaction, the
-cache is used to determine the minimal set of ACLs that need to be sent to
+one (the rules are not compacted together). Generated ACLs are appended to the
+[transaction][transaction-api] prepared for the given event by the
+[Controller plugin][controller-plugin]. The controller then commits the
+transaction with ACLs (and potentially also with some more changes from other
+plugins) into the [ligato/vpp-agent][ligato-vpp-agent] via the [local client][local-client].
+At the end of the pipe is [ACL plugin][acl-plugin-agent] from the VPP-Agent,
+which applies ACL changes into VPP through binary APIs. For each transaction,
+the cache is used to determine the minimal set of ACLs that need to be sent to
 vpp-agent to be added/updated or deleted.
 
 By splitting the rules into ingress and egress, K8s network policies allow to
@@ -462,15 +468,21 @@ the configuration of K8s policies.
 [acl-rendering-diagram]: policies/acl-rendering.png "ACL rendering"
 [session-rules-rendering-diagram]: policies/session-rules-rendering.png "Rendering of VPPTCP session rules"
 [services-dev-guide]: SERVICES.md
+[event-loop-guide]: EVENT_LOOP.md
+[event-handler]: EVENT_LOOP.md#event-handler
 [ligato-vpp-agent]: http://github.com/ligato/vpp-agent
-[local-client]: http://github.com/ligato/vpp-agent/tree/pantheon-dev/clientv1
-[acl-plugin]: http://github.com/vpp-dev/vpp/tree/stable-1801-contiv/src/plugins/acl
+[local-client]: https://github.com/ligato/vpp-agent/tree/dev/clientv2
+[acl-plugin-vpp]: http://github.com/vpp-dev/vpp/tree/stable-1801-contiv/src/plugins/acl
+[acl-plugin-agent]: https://github.com/ligato/vpp-agent/tree/dev/plugins/vppv2/aclplugin
 [vpptcp]: http://github.com/vpp-dev/vpp/tree/stable-1801-contiv/src/vnet/session
 [govpp]: https://wiki.fd.io/view/GoVPP
 [policy-plugin]: http://github.com/contiv/vpp/tree/master/plugins/policy/plugin_impl_policy.go
-[contiv-plugin]: http://github.com/contiv/vpp/tree/master/plugins/contiv
+[controller-plugin]: https://github.com/contiv/vpp/blob/master/plugins/controller/plugin_controller.go
+[transaction-api]: https://github.com/contiv/vpp/blob/master/plugins/controller/api/txn.go
+[ipv4net-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipv4net
 [plugin-intf]: http://github.com/ligato/cn-infra/tree/master/core/plugin_spi.go
 [policy-model]: http://github.com/contiv/vpp/blob/master/plugins/ksr/model/policy/policy.proto
+[db-resources]: https://github.com/contiv/vpp/tree/master/dbresources
 [pod-model]: http://github.com/contiv/vpp/blob/master/plugins/ksr/model/pod/pod.proto
 [ns-model]: http://github.com/contiv/vpp/blob/master/plugins/ksr/model/namespace/namespace.proto
 [idxmap]: http://github.com/ligato/cn-infra/tree/master/idxmap
@@ -481,7 +493,7 @@ the configuration of K8s policies.
 [renderer-api]: http://github.com/contiv/vpp/blob/master/plugins/policy/renderer/api.go
 [renderer-cache]: http://github.com/contiv/vpp/blob/master/plugins/policy/renderer/cache/cache_api.go
 [acl-renderer]: http://github.com/contiv/vpp/blob/master/plugins/policy/renderer/acl/acl_renderer.go
-[acl-model]: http://github.com/ligato/vpp-agent/blob/pantheon-dev/plugins/vpp/model/acl/acl.proto
+[acl-model]: https://github.com/ligato/vpp-agent/blob/dev/api/models/vpp/acl/acl.proto
 [vpptcp-renderer]: http://github.com/contiv/vpp/tree/master/plugins/policy/renderer/vpptcp
 [session-rule]: http://github.com/contiv/vpp/blob/master/plugins/policy/renderer/vpptcp/rule/session_rule.go
 [network-policy]: https://kubernetes.io/docs/concepts/services-networking/network-policies

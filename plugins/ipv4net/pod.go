@@ -353,11 +353,11 @@ func (n *IPv4Net) vppToPodRoute(pod *podmanager.LocalPod) (key string, config *v
 /**************************** Host routes ******************************/
 
 // hostToPodRoute returns configuration for the route pointing to the pod IP from the linux host (main namespace).
-func (n *IPv4Net) hostToPodRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.StaticRoute) {
+func (n *IPv4Net) hostToPodRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.Route) {
 	podIP := n.IPAM.GetPodIP(pod.ID)
-	route := &linux_l3.StaticRoute{
+	route := &linux_l3.Route{
 		DstNetwork: fmt.Sprintf("%s/32", podIP.IP.String()),
-		Scope:      linux_l3.StaticRoute_GLOBAL,
+		Scope:      linux_l3.Route_GLOBAL,
 	}
 	if !n.ContivConf.InSTNMode() {
 		route.GwAddr = n.IPAM.HostInterconnectIPInVPP().String()
@@ -369,7 +369,7 @@ func (n *IPv4Net) hostToPodRoute(pod *podmanager.LocalPod) (key string, config *
 	} else {
 		route.OutgoingInterface = hostInterconnectVETH1LogicalName
 	}
-	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
+	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
 	return key, route
 }
 

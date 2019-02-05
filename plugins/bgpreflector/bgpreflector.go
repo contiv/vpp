@@ -19,7 +19,8 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/l3"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	"net"
@@ -170,8 +171,8 @@ func (br *BGPReflector) watchRoutes() error {
 }
 
 // vppRoute returns VPP route from given destination network and gateway IP.
-func (br *BGPReflector) vppRoute(dst *net.IPNet, gw net.IP) (key string, config *l3.StaticRoute) {
-	route := &l3.StaticRoute{
+func (br *BGPReflector) vppRoute(dst *net.IPNet, gw net.IP) (key string, config *vpp_l3.Route) {
+	route := &vpp_l3.Route{
 		DstNetwork:        dst.String(),
 		NextHopAddr:       gw.String(),
 		OutgoingInterface: br.ContivConf.GetMainInterfaceName(),

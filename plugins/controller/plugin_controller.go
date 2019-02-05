@@ -19,14 +19,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"runtime"
 	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/health/statuscheck"
 	"github.com/ligato/cn-infra/infra"
@@ -62,6 +60,10 @@ const (
 
 	// by default, retry is executed just 1sec after the failed operation
 	defaultDelayRetry = time.Second
+
+	// by defauly, kvscheduler will attempt to retry failed operations at most
+	// 3 times
+	defaultMaxRetryAttempts = 3
 
 	// by default, retry delay grows exponentially with each failed attempt
 	defaultEnableExpBackoffRetry = true
@@ -141,7 +143,7 @@ type Controller struct {
 
 	dbWatcher      *dbWatcher
 	kubeStateData  api.KubeStateData
-	externalConfig map[string]api.ExternalConfig // ext. source label -> config snapshot
+	externalConfig map[string]api.KeyValuePairs // ext. source label -> config snapshot
 	internalConfig api.KeyValuePairs
 
 	evLoopGID            string // ID of the go routine running the event loop
@@ -188,6 +190,7 @@ type Config struct {
 	// retry
 	EnableRetry           bool          `json:"enableRetry"`
 	DelayRetry            time.Duration `json:"delayRetry"`
+	MaxRetryAttempts      int           `json:"maxRetryAttempts"`
 	EnableExpBackoffRetry bool          `json:"enableExpBackoffRetry"`
 
 	// startup resync
@@ -249,7 +252,7 @@ type ExternalConfigSource interface {
 
 	// GetConfigSnapshot should return full configuration snapshot that is
 	// required by the external source to be applied at the given moment.
-	GetConfigSnapshot() (api.ExternalConfig, error)
+	GetConfigSnapshot() (api.KeyValuePairs, error)
 }
 
 var (
@@ -272,7 +275,7 @@ func (c *Controller) Init() error {
 	c.startupResyncCheck = make(chan struct{}, 1)
 	c.eventHistoryTrimming = make(chan struct{}, 1)
 	c.internalConfig = make(api.KeyValuePairs)
-	c.externalConfig = make(map[string]api.ExternalConfig)
+	c.externalConfig = make(map[string]api.KeyValuePairs)
 	for i := len(c.EventHandlers) - 1; i >= 0; i-- {
 		c.revEventHandlers = append(c.revEventHandlers, c.EventHandlers[i])
 	}
@@ -284,6 +287,7 @@ func (c *Controller) Init() error {
 		RemoteDBProbingInterval:       defaultRemoteDBProbingInterval,
 		EnableRetry:                   defaultEnableRetry,
 		DelayRetry:                    defaultDelayRetry,
+		MaxRetryAttempts:              defaultMaxRetryAttempts,
 		EnableExpBackoffRetry:         defaultEnableExpBackoffRetry,
 		EnablePeriodicHealing:         defaultEnablePeriodicHealing,
 		PeriodicHealingInterval:       defaultPeriodicHealingInterval,
@@ -711,23 +715,23 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		if isUpdate {
 			merged := make(map[string]struct{}) // a set of keys with already merged values
 			if extChangeEv, isExtChangeEv := event.(*api.ExternalConfigChange); isExtChangeEv {
-				for key, value := range extChangeEv.UpdatedKVs {
+				for key, extVal := range extChangeEv.UpdatedKVs {
 					// merge external config change with txn or with cached internal config
 					txnVal, hasTxnVal := txn.values[key]
 					cachedVal, hasCachedVal := c.internalConfig[key]
 					if hasTxnVal {
-						txn.merged[key] = c.mergeLazyValIntoProto(key, value, txnVal)
+						txn.merged[key] = c.mergeValues(txnVal, extVal)
 					} else if hasCachedVal {
-						txn.merged[key] = c.mergeLazyValIntoProto(key, value, cachedVal)
+						txn.merged[key] = c.mergeValues(cachedVal, extVal)
 					} else {
-						txn.merged[key] = value
+						txn.merged[key] = extVal
 					}
 					merged[key] = struct{}{}
 				}
 			}
 
 			// merge internal config changes with the external config
-			for key, value := range txn.values {
+			for key, txnVal := range txn.values {
 				if _, alreadyMerged := merged[key]; alreadyMerged {
 					// already merged
 					continue
@@ -736,19 +740,19 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 				for source := range c.externalConfig {
 					extVal, hasExtVal := c.externalConfig[source][key]
 					if hasExtVal {
-						txn.merged[key] = c.mergeLazyValIntoProto(key, extVal, value)
+						txn.merged[key] = c.mergeValues(txnVal, extVal)
 						break
 					}
 				}
 			}
 		} else if event.Method() != api.DownstreamResync {
 			for source := range c.externalConfig {
-				for key, lazyVal := range c.externalConfig[source] {
+				for key, extVal := range c.externalConfig[source] {
 					txnVal, hasTxnVal := txn.values[key]
 					if hasTxnVal {
-						txn.merged[key] = c.mergeLazyValIntoProto(key, lazyVal, txnVal)
+						txn.merged[key] = c.mergeValues(txnVal, extVal)
 					} else {
-						txn.merged[key] = lazyVal
+						txn.merged[key] = extVal
 					}
 				}
 			}
@@ -770,7 +774,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		ctx := context.Background()
 		ctx = scheduler.WithDescription(ctx, description)
 		if c.config.EnableRetry {
-			ctx = scheduler.WithRetry(ctx, c.config.DelayRetry, c.config.EnableExpBackoffRetry)
+			ctx = scheduler.WithRetry(ctx, c.config.DelayRetry, c.config.MaxRetryAttempts, c.config.EnableExpBackoffRetry)
 		}
 		if withRevert {
 			ctx = scheduler.WithRevert(ctx)
@@ -978,37 +982,18 @@ func (c *Controller) scheduleHealing(afterErr error) {
 	}
 }
 
-// mergeLazyValIntoProto merges content of lazy value into a proto message.
-func (c *Controller) mergeLazyValIntoProto(key string, value datasync.LazyValue, msg proto.Message) datasync.LazyValue {
-	var err error
-	defer func() {
-		if err != nil {
-			c.Log.Warnf("Failed to merge external with internal configuration for key: %s (%v)", key, err)
-		}
-	}()
-
-	if msg == nil {
-		return value
+// mergeValues merges two proto messages into one.
+func (c *Controller) mergeValues(dst, src proto.Message) proto.Message {
+	if dst == nil {
+		return src
 	}
-	if value == nil {
-		return &lazyValue{value: msg}
+	if src == nil {
+		return dst
 	}
 
-	merge := proto.Clone(msg)
-	output := &lazyValue{value: merge}
-
-	valueType := proto.MessageType(proto.MessageName(merge))
-	if valueType == nil {
-		err = errors.New("invalid type")
-		return output
-	}
-	protoVal := reflect.New(valueType.Elem()).Interface().(proto.Message)
-	err = value.GetValue(protoVal)
-	if err != nil {
-		return output
-	}
-	proto.Merge(merge, protoVal)
-	return output
+	merge := proto.Clone(dst)
+	proto.Merge(merge, src)
+	return merge
 }
 
 // getGID returns the current go routine ID as string.

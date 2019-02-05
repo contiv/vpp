@@ -21,14 +21,14 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/namespace"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
-
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/podmanager"
+
+	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
+	"github.com/ligato/vpp-agent/api/models/linux/l3"
+	"github.com/ligato/vpp-agent/api/models/linux/namespace"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/l3"
 )
 
 const (
@@ -126,20 +126,20 @@ func (n *IPv4Net) podLinuxSideTAPName(pod *podmanager.LocalPod) string {
 
 // podVPPTap returns the configuration for TAP interface on the VPP side
 // connecting a given Pod.
-func (n *IPv4Net) podVPPTap(pod *podmanager.LocalPod) (key string, config *interfaces.Interface) {
+func (n *IPv4Net) podVPPTap(pod *podmanager.LocalPod) (key string, config *vpp_interfaces.Interface) {
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
-	tap := &interfaces.Interface{
+	tap := &vpp_interfaces.Interface{
 		Name:        n.podVPPSideTAPName(pod),
-		Type:        interfaces.Interface_TAP,
+		Type:        vpp_interfaces.Interface_TAP,
 		Mtu:         interfaceCfg.MTUSize,
 		Enabled:     true,
 		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
 		PhysAddress: n.hwAddrForPod(pod, true),
-		Unnumbered: &interfaces.Interface_Unnumbered{
+		Unnumbered: &vpp_interfaces.Interface_Unnumbered{
 			InterfaceWithIp: podGwLoopbackInterfaceName,
 		},
-		Link: &interfaces.Interface_Tap{
-			Tap: &interfaces.TapLink{},
+		Link: &vpp_interfaces.Interface_Tap{
+			Tap: &vpp_interfaces.TapLink{},
 		},
 	}
 	if interfaceCfg.TAPInterfaceVersion == 2 {
@@ -147,12 +147,12 @@ func (n *IPv4Net) podVPPTap(pod *podmanager.LocalPod) (key string, config *inter
 		tap.GetTap().RxRingSize = uint32(interfaceCfg.TAPv2RxRingSize)
 		tap.GetTap().TxRingSize = uint32(interfaceCfg.TAPv2TxRingSize)
 	}
-	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != interfaces.Interface_RxModeSettings_DEFAULT {
-		tap.RxModeSettings = &interfaces.Interface_RxModeSettings{
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
+		tap.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
 			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
 		}
 	}
-	key = interfaces.InterfaceKey(tap.Name)
+	key = vpp_interfaces.InterfaceKey(tap.Name)
 	return key, tap
 }
 
@@ -173,7 +173,7 @@ func (n *IPv4Net) podLinuxTAP(pod *podmanager.LocalPod) (key string, config *lin
 			},
 		},
 		Namespace: &linux_namespace.NetNamespace{
-			Type:      linux_namespace.NetNamespace_NETNS_REF_FD,
+			Type:      linux_namespace.NetNamespace_FD,
 			Reference: pod.NetworkNamespace,
 		},
 	}
@@ -221,7 +221,7 @@ func (n *IPv4Net) podVeth1(pod *podmanager.LocalPod) (key string, config *linux_
 			Veth: &linux_interfaces.VethLink{PeerIfName: n.podVeth2Name(pod)},
 		},
 		Namespace: &linux_namespace.NetNamespace{
-			Type:      linux_namespace.NetNamespace_NETNS_REF_FD,
+			Type:      linux_namespace.NetNamespace_FD,
 			Reference: pod.NetworkNamespace,
 		},
 	}
@@ -250,30 +250,30 @@ func (n *IPv4Net) podVeth2(pod *podmanager.LocalPod) (key string, config *linux_
 	return key, veth
 }
 
-func (n *IPv4Net) podAfPacket(pod *podmanager.LocalPod) (key string, config *interfaces.Interface) {
+func (n *IPv4Net) podAfPacket(pod *podmanager.LocalPod) (key string, config *vpp_interfaces.Interface) {
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
-	afpacket := &interfaces.Interface{
+	afpacket := &vpp_interfaces.Interface{
 		Name:        n.podAFPacketName(pod),
-		Type:        interfaces.Interface_AF_PACKET,
+		Type:        vpp_interfaces.Interface_AF_PACKET,
 		Mtu:         n.ContivConf.GetInterfaceConfig().MTUSize,
 		Enabled:     true,
 		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
 		PhysAddress: n.hwAddrForPod(pod, true),
-		Unnumbered: &interfaces.Interface_Unnumbered{
+		Unnumbered: &vpp_interfaces.Interface_Unnumbered{
 			InterfaceWithIp: podGwLoopbackInterfaceName,
 		},
-		Link: &interfaces.Interface_Afpacket{
-			Afpacket: &interfaces.AfpacketLink{
+		Link: &vpp_interfaces.Interface_Afpacket{
+			Afpacket: &vpp_interfaces.AfpacketLink{
 				HostIfName: n.podVeth2HostIfName(pod),
 			},
 		},
 	}
-	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != interfaces.Interface_RxModeSettings_DEFAULT {
-		afpacket.RxModeSettings = &interfaces.Interface_RxModeSettings{
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
+		afpacket.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
 			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
 		}
 	}
-	key = interfaces.InterfaceKey(afpacket.Name)
+	key = vpp_interfaces.InterfaceKey(afpacket.Name)
 	return key, afpacket
 }
 
@@ -281,41 +281,41 @@ func (n *IPv4Net) podAfPacket(pod *podmanager.LocalPod) (key string, config *int
 
 // podToVPPArpEntry returns configuration for ARP entry resolving hardware address
 // for pod gateway IP from VPP.
-func (n *IPv4Net) podToVPPArpEntry(pod *podmanager.LocalPod) (key string, config *linux_l3.StaticARPEntry) {
+func (n *IPv4Net) podToVPPArpEntry(pod *podmanager.LocalPod) (key string, config *linux_l3.ARPEntry) {
 	_, linuxIfName := n.podInterfaceName(pod)
-	arp := &linux_l3.StaticARPEntry{
+	arp := &linux_l3.ARPEntry{
 		Interface: linuxIfName,
 		IpAddress: n.IPAM.PodGatewayIP().String(),
 		HwAddress: n.hwAddrForPod(pod, true),
 	}
-	key = linux_l3.StaticArpKey(arp.Interface, arp.IpAddress)
+	key = linux_l3.ArpKey(arp.Interface, arp.IpAddress)
 	return key, arp
 }
 
 // podToVPPLinkRoute returns configuration for route that puts pod's default GW behind
 // the interface connecting pod with VPP (even though the GW IP does not fall into
 // the pod IP address network).
-func (n *IPv4Net) podToVPPLinkRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.StaticRoute) {
+func (n *IPv4Net) podToVPPLinkRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.Route) {
 	_, linuxIfName := n.podInterfaceName(pod)
-	route := &linux_l3.StaticRoute{
+	route := &linux_l3.Route{
 		OutgoingInterface: linuxIfName,
-		Scope:             linux_l3.StaticRoute_LINK,
+		Scope:             linux_l3.Route_LINK,
 		DstNetwork:        n.IPAM.PodGatewayIP().String() + "/32",
 	}
-	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
+	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
 	return key, route
 }
 
 // podToVPPLinkRoute returns configuration for the default route of the given pod.
-func (n *IPv4Net) podToVPPDefaultRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.StaticRoute) {
+func (n *IPv4Net) podToVPPDefaultRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.Route) {
 	_, linuxIfName := n.podInterfaceName(pod)
-	route := &linux_l3.StaticRoute{
+	route := &linux_l3.Route{
 		OutgoingInterface: linuxIfName,
 		DstNetwork:        ipv4NetAny,
-		Scope:             linux_l3.StaticRoute_GLOBAL,
+		Scope:             linux_l3.Route_GLOBAL,
 		GwAddr:            n.IPAM.PodGatewayIP().String(),
 	}
-	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
+	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
 	return key, route
 }
 
@@ -323,30 +323,30 @@ func (n *IPv4Net) podToVPPDefaultRoute(pod *podmanager.LocalPod) (key string, co
 
 // vppToPodArpEntry return configuration for ARP entry used in VPP to resolve
 // hardware address from the IP address of the given pod.
-func (n *IPv4Net) vppToPodArpEntry(pod *podmanager.LocalPod) (key string, config *l3.ARPEntry) {
+func (n *IPv4Net) vppToPodArpEntry(pod *podmanager.LocalPod) (key string, config *vpp_l3.ARPEntry) {
 	vppIfName, _ := n.podInterfaceName(pod)
-	arp := &l3.ARPEntry{
+	arp := &vpp_l3.ARPEntry{
 		Interface:   vppIfName,
 		IpAddress:   n.IPAM.GetPodIP(pod.ID).IP.String(),
 		PhysAddress: n.hwAddrForPod(pod, false),
 		Static:      true,
 	}
-	key = l3.ArpEntryKey(arp.Interface, arp.IpAddress)
+	key = vpp_l3.ArpEntryKey(arp.Interface, arp.IpAddress)
 	return key, arp
 }
 
 // vppToPodRoute return configuration for route used in VPP to direct traffic destinated
 // to the IP address of the given pod.
-func (n *IPv4Net) vppToPodRoute(pod *podmanager.LocalPod) (key string, config *l3.StaticRoute) {
+func (n *IPv4Net) vppToPodRoute(pod *podmanager.LocalPod) (key string, config *vpp_l3.Route) {
 	podVPPIfName, _ := n.podInterfaceName(pod)
 	podIP := n.IPAM.GetPodIP(pod.ID)
-	route := &l3.StaticRoute{
+	route := &vpp_l3.Route{
 		OutgoingInterface: podVPPIfName,
 		DstNetwork:        podIP.String(),
 		NextHopAddr:       podIP.IP.String(),
 		VrfId:             n.ContivConf.GetRoutingConfig().PodVRFID,
 	}
-	key = l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	return key, route
 }
 

@@ -32,8 +32,8 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/servicelabel"
 
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
@@ -243,6 +243,7 @@ type IPAMConfigForJSON struct {
 	VPPHostSubnetOneNodePrefixLen uint8  `json:"vppHostSubnetOneNodePrefixLen,omitempty"`
 	NodeInterconnectCIDR          string `json:"nodeInterconnectCIDR,omitempty"`
 	VxlanCIDR                     string `json:"vxlanCIDR,omitempty"`
+	DefaultGateway                string `json:"defaultGateway,omitempty"`
 }
 
 // NodeConfig represents configuration specific to a given node.
@@ -386,6 +387,12 @@ func (c *ContivConf) Init() (err error) {
 	_, c.ipamConfig.VxlanCIDR, err = net.ParseCIDR(c.config.IPAMConfig.VxlanCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse VxlanCIDR: %v", err)
+	}
+	if c.config.IPAMConfig.DefaultGateway != "" {
+		c.ipamConfig.DefaultGateway = net.ParseIP(c.config.IPAMConfig.DefaultGateway)
+		if c.ipamConfig.DefaultGateway == nil {
+			return fmt.Errorf("failed to parse default gateway %v", c.config.IPAMConfig.DefaultGateway)
+		}
 	}
 
 	// create GoVPP channel for contiv-agent
@@ -753,6 +760,8 @@ func (c *ContivConf) reloadNodeInterfaces() error {
 					nodeConfig.Gateway)
 				return err
 			}
+		} else if c.ipamConfig.DefaultGateway != nil {
+			c.defaultGw = c.ipamConfig.DefaultGateway
 		}
 	}
 
@@ -846,7 +855,7 @@ func (c *ContivConf) getFirstHostInterfaceName() string {
 func (c *ContivConf) dumpDPDKInterfaces() (ifaces []string, err error) {
 	ifHandler := intf_vppcalls.NewIfVppHandler(c.govppCh, c.Log)
 
-	dump, err := ifHandler.DumpInterfacesByType(interfaces.Interface_DPDK)
+	dump, err := ifHandler.DumpInterfacesByType(vpp_interfaces.Interface_DPDK)
 	if err != nil {
 		return ifaces, err
 	}

@@ -16,11 +16,12 @@ package vppcalls
 
 import (
 	"net"
+	"strings"
 
 	"github.com/go-errors/errors"
+	punt "github.com/ligato/vpp-agent/api/models/vpp/punt"
 	api_ip "github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
 	api_punt "github.com/ligato/vpp-agent/plugins/vpp/binapi/punt"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
 )
 
 // AddPunt configures new punt entry
@@ -64,7 +65,7 @@ func (h *PuntVppHandler) DeregisterPuntSocket(puntCfg *punt.ToHost) error {
 }
 
 // AddPuntRedirect adds new redirect entry
-func (h *PuntVppHandler) AddPuntRedirect(puntCfg *punt.IpRedirect) error {
+func (h *PuntVppHandler) AddPuntRedirect(puntCfg *punt.IPRedirect) error {
 	if puntCfg.L3Protocol == punt.L3Protocol_IPv4 {
 		return h.handlePuntRedirectIPv4(puntCfg, true)
 	} else if puntCfg.L3Protocol == punt.L3Protocol_IPv6 {
@@ -79,7 +80,7 @@ func (h *PuntVppHandler) AddPuntRedirect(puntCfg *punt.IpRedirect) error {
 }
 
 // DeletePuntRedirect removes existing redirect entry
-func (h *PuntVppHandler) DeletePuntRedirect(puntCfg *punt.IpRedirect) error {
+func (h *PuntVppHandler) DeletePuntRedirect(puntCfg *punt.IPRedirect) error {
 	if puntCfg.L3Protocol == punt.L3Protocol_IPv4 {
 		return h.handlePuntRedirectIPv4(puntCfg, false)
 	} else if puntCfg.L3Protocol == punt.L3Protocol_IPv6 {
@@ -137,6 +138,14 @@ func (h *PuntVppHandler) registerPuntWithSocket(punt *punt.ToHost, isIPv4 bool) 
 		return err
 	}
 
+	p := *punt
+	p.SocketPath = strings.SplitN(string(reply.Pathname), "\x00", 2)[0]
+	socketPathMap[punt.Port] = &p
+
+	if h.RegisterSocketFn != nil {
+		h.RegisterSocketFn(true, punt, p.SocketPath)
+	}
+
 	return nil
 }
 
@@ -160,18 +169,25 @@ func (h *PuntVppHandler) unregisterPuntWithSocket(punt *punt.ToHost, isIPv4 bool
 		return err
 	}
 
+	if h.RegisterSocketFn != nil {
+		if p, ok := socketPathMap[punt.Port]; ok {
+			h.RegisterSocketFn(false, punt, p.SocketPath)
+		}
+	}
+	delete(socketPathMap, punt.Port)
+
 	return nil
 }
 
-func (h *PuntVppHandler) handlePuntRedirectIPv4(punt *punt.IpRedirect, isAdd bool) error {
+func (h *PuntVppHandler) handlePuntRedirectIPv4(punt *punt.IPRedirect, isAdd bool) error {
 	return h.handlePuntRedirect(punt, true, isAdd)
 }
 
-func (h *PuntVppHandler) handlePuntRedirectIPv6(punt *punt.IpRedirect, isAdd bool) error {
+func (h *PuntVppHandler) handlePuntRedirectIPv6(punt *punt.IPRedirect, isAdd bool) error {
 	return h.handlePuntRedirect(punt, false, isAdd)
 }
 
-func (h *PuntVppHandler) handlePuntRedirect(punt *punt.IpRedirect, isIPv4, isAdd bool) error {
+func (h *PuntVppHandler) handlePuntRedirect(punt *punt.IPRedirect, isIPv4, isAdd bool) error {
 	// rx interface
 	var rxIfIdx uint32
 	if punt.RxInterface == "" {
@@ -191,11 +207,18 @@ func (h *PuntVppHandler) handlePuntRedirect(punt *punt.IpRedirect, isIPv4, isAdd
 	}
 
 	// next hop address
+	//  - remove mask from IP address if necessary
+	nextHopStr := punt.NextHop
+	ipParts := strings.Split(punt.NextHop, "/")
+	if len(ipParts) > 1 {
+		h.log.Debugf("IP punt redirect next hop IP address %s is defined with mask, removing it")
+		nextHopStr = ipParts[0]
+	}
 	var nextHop []byte
 	if isIPv4 {
-		nextHop = net.ParseIP(punt.NextHop).To4()
+		nextHop = net.ParseIP(nextHopStr).To4()
 	} else {
-		nextHop = net.ParseIP(punt.NextHop).To16()
+		nextHop = net.ParseIP(nextHopStr).To16()
 	}
 
 	req := &api_ip.IPPuntRedirect{

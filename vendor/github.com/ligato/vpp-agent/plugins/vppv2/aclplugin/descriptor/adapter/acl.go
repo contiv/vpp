@@ -6,14 +6,14 @@ import (
 	"github.com/gogo/protobuf/proto"
 	. "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	"github.com/ligato/vpp-agent/plugins/vppv2/aclplugin/aclidx"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
+	"github.com/ligato/vpp-agent/api/models/vpp/acl"
 )
 
 ////////// type-safe key-value pair with metadata //////////
 
 type ACLKVWithMetadata struct {
 	Key      string
-	Value    *acl.Acl
+	Value    *vpp_acl.ACL
 	Metadata *aclidx.ACLMetadata
 	Origin   ValueOrigin
 }
@@ -21,24 +21,24 @@ type ACLKVWithMetadata struct {
 ////////// type-safe Descriptor structure //////////
 
 type ACLDescriptor struct {
-	Name               string
-	KeySelector        KeySelector
-	ValueTypeName      string
-	KeyLabel           func(key string) string
-	ValueComparator    func(key string, oldValue, newValue *acl.Acl) bool
-	NBKeyPrefix        string
-	WithMetadata       bool
-	MetadataMapFactory MetadataMapFactory
-	Add                func(key string, value *acl.Acl) (metadata *aclidx.ACLMetadata, err error)
-	Delete             func(key string, value *acl.Acl, metadata *aclidx.ACLMetadata) error
-	Modify             func(key string, oldValue, newValue *acl.Acl, oldMetadata *aclidx.ACLMetadata) (newMetadata *aclidx.ACLMetadata, err error)
-	ModifyWithRecreate func(key string, oldValue, newValue *acl.Acl, metadata *aclidx.ACLMetadata) bool
-	Update             func(key string, value *acl.Acl, metadata *aclidx.ACLMetadata) error
-	IsRetriableFailure func(err error) bool
-	Dependencies       func(key string, value *acl.Acl) []Dependency
-	DerivedValues      func(key string, value *acl.Acl) []KeyValuePair
-	Dump               func(correlate []ACLKVWithMetadata) ([]ACLKVWithMetadata, error)
-	DumpDependencies   []string /* descriptor name */
+	Name                 string
+	KeySelector          KeySelector
+	ValueTypeName        string
+	KeyLabel             func(key string) string
+	ValueComparator      func(key string, oldValue, newValue *vpp_acl.ACL) bool
+	NBKeyPrefix          string
+	WithMetadata         bool
+	MetadataMapFactory   MetadataMapFactory
+	Validate             func(key string, value *vpp_acl.ACL) error
+	Create               func(key string, value *vpp_acl.ACL) (metadata *aclidx.ACLMetadata, err error)
+	Delete               func(key string, value *vpp_acl.ACL, metadata *aclidx.ACLMetadata) error
+	Update               func(key string, oldValue, newValue *vpp_acl.ACL, oldMetadata *aclidx.ACLMetadata) (newMetadata *aclidx.ACLMetadata, err error)
+	UpdateWithRecreate   func(key string, oldValue, newValue *vpp_acl.ACL, metadata *aclidx.ACLMetadata) bool
+	Retrieve             func(correlate []ACLKVWithMetadata) ([]ACLKVWithMetadata, error)
+	IsRetriableFailure   func(err error) bool
+	DerivedValues        func(key string, value *vpp_acl.ACL) []KeyValuePair
+	Dependencies         func(key string, value *vpp_acl.ACL) []Dependency
+	RetrieveDependencies []string /* descriptor name */
 }
 
 ////////// Descriptor adapter //////////
@@ -50,42 +50,42 @@ type ACLDescriptorAdapter struct {
 func NewACLDescriptor(typedDescriptor *ACLDescriptor) *KVDescriptor {
 	adapter := &ACLDescriptorAdapter{descriptor: typedDescriptor}
 	descriptor := &KVDescriptor{
-		Name:               typedDescriptor.Name,
-		KeySelector:        typedDescriptor.KeySelector,
-		ValueTypeName:      typedDescriptor.ValueTypeName,
-		KeyLabel:           typedDescriptor.KeyLabel,
-		NBKeyPrefix:        typedDescriptor.NBKeyPrefix,
-		WithMetadata:       typedDescriptor.WithMetadata,
-		MetadataMapFactory: typedDescriptor.MetadataMapFactory,
-		IsRetriableFailure: typedDescriptor.IsRetriableFailure,
-		DumpDependencies:   typedDescriptor.DumpDependencies,
+		Name:                 typedDescriptor.Name,
+		KeySelector:          typedDescriptor.KeySelector,
+		ValueTypeName:        typedDescriptor.ValueTypeName,
+		KeyLabel:             typedDescriptor.KeyLabel,
+		NBKeyPrefix:          typedDescriptor.NBKeyPrefix,
+		WithMetadata:         typedDescriptor.WithMetadata,
+		MetadataMapFactory:   typedDescriptor.MetadataMapFactory,
+		IsRetriableFailure:   typedDescriptor.IsRetriableFailure,
+		RetrieveDependencies: typedDescriptor.RetrieveDependencies,
 	}
 	if typedDescriptor.ValueComparator != nil {
 		descriptor.ValueComparator = adapter.ValueComparator
 	}
-	if typedDescriptor.Add != nil {
-		descriptor.Add = adapter.Add
+	if typedDescriptor.Validate != nil {
+		descriptor.Validate = adapter.Validate
+	}
+	if typedDescriptor.Create != nil {
+		descriptor.Create = adapter.Create
 	}
 	if typedDescriptor.Delete != nil {
 		descriptor.Delete = adapter.Delete
 	}
-	if typedDescriptor.Modify != nil {
-		descriptor.Modify = adapter.Modify
-	}
-	if typedDescriptor.ModifyWithRecreate != nil {
-		descriptor.ModifyWithRecreate = adapter.ModifyWithRecreate
-	}
 	if typedDescriptor.Update != nil {
 		descriptor.Update = adapter.Update
+	}
+	if typedDescriptor.UpdateWithRecreate != nil {
+		descriptor.UpdateWithRecreate = adapter.UpdateWithRecreate
+	}
+	if typedDescriptor.Retrieve != nil {
+		descriptor.Retrieve = adapter.Retrieve
 	}
 	if typedDescriptor.Dependencies != nil {
 		descriptor.Dependencies = adapter.Dependencies
 	}
 	if typedDescriptor.DerivedValues != nil {
 		descriptor.DerivedValues = adapter.DerivedValues
-	}
-	if typedDescriptor.Dump != nil {
-		descriptor.Dump = adapter.Dump
 	}
 	return descriptor
 }
@@ -99,15 +99,23 @@ func (da *ACLDescriptorAdapter) ValueComparator(key string, oldValue, newValue p
 	return da.descriptor.ValueComparator(key, typedOldValue, typedNewValue)
 }
 
-func (da *ACLDescriptorAdapter) Add(key string, value proto.Message) (metadata Metadata, err error) {
+func (da *ACLDescriptorAdapter) Validate(key string, value proto.Message) (err error) {
+	typedValue, err := castACLValue(key, value)
+	if err != nil {
+		return err
+	}
+	return da.descriptor.Validate(key, typedValue)
+}
+
+func (da *ACLDescriptorAdapter) Create(key string, value proto.Message) (metadata Metadata, err error) {
 	typedValue, err := castACLValue(key, value)
 	if err != nil {
 		return nil, err
 	}
-	return da.descriptor.Add(key, typedValue)
+	return da.descriptor.Create(key, typedValue)
 }
 
-func (da *ACLDescriptorAdapter) Modify(key string, oldValue, newValue proto.Message, oldMetadata Metadata) (newMetadata Metadata, err error) {
+func (da *ACLDescriptorAdapter) Update(key string, oldValue, newValue proto.Message, oldMetadata Metadata) (newMetadata Metadata, err error) {
 	oldTypedValue, err := castACLValue(key, oldValue)
 	if err != nil {
 		return nil, err
@@ -120,7 +128,7 @@ func (da *ACLDescriptorAdapter) Modify(key string, oldValue, newValue proto.Mess
 	if err != nil {
 		return nil, err
 	}
-	return da.descriptor.Modify(key, oldTypedValue, newTypedValue, typedOldMetadata)
+	return da.descriptor.Update(key, oldTypedValue, newTypedValue, typedOldMetadata)
 }
 
 func (da *ACLDescriptorAdapter) Delete(key string, value proto.Message, metadata Metadata) error {
@@ -135,7 +143,7 @@ func (da *ACLDescriptorAdapter) Delete(key string, value proto.Message, metadata
 	return da.descriptor.Delete(key, typedValue, typedMetadata)
 }
 
-func (da *ACLDescriptorAdapter) ModifyWithRecreate(key string, oldValue, newValue proto.Message, metadata Metadata) bool {
+func (da *ACLDescriptorAdapter) UpdateWithRecreate(key string, oldValue, newValue proto.Message, metadata Metadata) bool {
 	oldTypedValue, err := castACLValue(key, oldValue)
 	if err != nil {
 		return true
@@ -148,38 +156,10 @@ func (da *ACLDescriptorAdapter) ModifyWithRecreate(key string, oldValue, newValu
 	if err != nil {
 		return true
 	}
-	return da.descriptor.ModifyWithRecreate(key, oldTypedValue, newTypedValue, typedMetadata)
+	return da.descriptor.UpdateWithRecreate(key, oldTypedValue, newTypedValue, typedMetadata)
 }
 
-func (da *ACLDescriptorAdapter) Update(key string, value proto.Message, metadata Metadata) error {
-	typedValue, err := castACLValue(key, value)
-	if err != nil {
-		return err
-	}
-	typedMetadata, err := castACLMetadata(key, metadata)
-	if err != nil {
-		return err
-	}
-	return da.descriptor.Update(key, typedValue, typedMetadata)
-}
-
-func (da *ACLDescriptorAdapter) Dependencies(key string, value proto.Message) []Dependency {
-	typedValue, err := castACLValue(key, value)
-	if err != nil {
-		return nil
-	}
-	return da.descriptor.Dependencies(key, typedValue)
-}
-
-func (da *ACLDescriptorAdapter) DerivedValues(key string, value proto.Message) []KeyValuePair {
-	typedValue, err := castACLValue(key, value)
-	if err != nil {
-		return nil
-	}
-	return da.descriptor.DerivedValues(key, typedValue)
-}
-
-func (da *ACLDescriptorAdapter) Dump(correlate []KVWithMetadata) ([]KVWithMetadata, error) {
+func (da *ACLDescriptorAdapter) Retrieve(correlate []KVWithMetadata) ([]KVWithMetadata, error) {
 	var correlateWithType []ACLKVWithMetadata
 	for _, kvpair := range correlate {
 		typedValue, err := castACLValue(kvpair.Key, kvpair.Value)
@@ -199,27 +179,43 @@ func (da *ACLDescriptorAdapter) Dump(correlate []KVWithMetadata) ([]KVWithMetada
 			})
 	}
 
-	typedDump, err := da.descriptor.Dump(correlateWithType)
+	typedValues, err := da.descriptor.Retrieve(correlateWithType)
 	if err != nil {
 		return nil, err
 	}
-	var dump []KVWithMetadata
-	for _, typedKVWithMetadata := range typedDump {
+	var values []KVWithMetadata
+	for _, typedKVWithMetadata := range typedValues {
 		kvWithMetadata := KVWithMetadata{
 			Key:      typedKVWithMetadata.Key,
 			Metadata: typedKVWithMetadata.Metadata,
 			Origin:   typedKVWithMetadata.Origin,
 		}
 		kvWithMetadata.Value = typedKVWithMetadata.Value
-		dump = append(dump, kvWithMetadata)
+		values = append(values, kvWithMetadata)
 	}
-	return dump, err
+	return values, err
+}
+
+func (da *ACLDescriptorAdapter) DerivedValues(key string, value proto.Message) []KeyValuePair {
+	typedValue, err := castACLValue(key, value)
+	if err != nil {
+		return nil
+	}
+	return da.descriptor.DerivedValues(key, typedValue)
+}
+
+func (da *ACLDescriptorAdapter) Dependencies(key string, value proto.Message) []Dependency {
+	typedValue, err := castACLValue(key, value)
+	if err != nil {
+		return nil
+	}
+	return da.descriptor.Dependencies(key, typedValue)
 }
 
 ////////// Helper methods //////////
 
-func castACLValue(key string, value proto.Message) (*acl.Acl, error) {
-	typedValue, ok := value.(*acl.Acl)
+func castACLValue(key string, value proto.Message) (*vpp_acl.ACL, error) {
+	typedValue, ok := value.(*vpp_acl.ACL)
 	if !ok {
 		return nil, ErrInvalidValueType(key, value)
 	}

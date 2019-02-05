@@ -119,6 +119,10 @@ type IPAMConfig struct {
 	// (NodeInterconnectCIDR does not have to be allocated in that case)
 	NodeInterconnectDHCP bool
 
+	// DefaultGateway is global option to set default gateway for nodes. Alternatively,
+	// nodeConfig can be used
+	DefaultGateway net.IP
+
 	// Manually selected subnets (if ContivCIDR is defined, this is overridden
 	// by IPAM's own allocation algorithm).
 	CustomIPAMSubnets

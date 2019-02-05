@@ -63,6 +63,9 @@ data:
       {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
       nodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
       {{- end }}
+      {{- if .Values.contiv.ipamConfig.defaultGateway }}
+      defaultGateway: {{ .Values.contiv.ipamConfig.defaultGateway }}
+      {{- end }}
       {{- if .Values.contiv.ipamConfig.serviceCIDR }}
       serviceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
       {{- end }}
@@ -103,9 +106,16 @@ data:
     {{- end }}
     {{- end }}
   controller.conf: |
+    enableRetry: {{ .Values.controller.enableRetry }}
+    delayRetry: {{ .Values.controller.delayRetry | int64 }}
+    maxRetryAttempts: {{ .Values.controller.maxRetryAttempts }}
+    enableExpBackoffRetry: {{ .Values.controller.enableExpBackoffRetry }}
     delayLocalResync: {{ .Values.controller.delayLocalResync | int64 }}
+    startupResyncDeadline: {{ .Values.controller.startupResyncDeadline | int64 }}
     enablePeriodicHealing: {{ .Values.controller.enablePeriodicHealing }}
     periodicHealingInterval: {{ .Values.controller.periodicHealingInterval | int64 }}
+    delayAfterErrorHealing: {{ .Values.controller.delayAfterErrorHealing | int64 }}
+    remoteDBProbingInterval: {{ .Values.controller.remoteDBProbingInterval | int64 }}
     recordEventHistory: {{ .Values.controller.recordEventHistory }}
     eventHistoryAgeLimit: {{ .Values.controller.eventHistoryAgeLimit }}
     permanentlyRecordedInitPeriod: {{ .Values.controller.permanentlyRecordedInitPeriod }}
@@ -739,6 +749,12 @@ spec:
               value: "/etc/etcd/etcd.conf"
             - name: BOLT_CONFIG
               value: "/etc/vpp-agent/bolt.conf"
+            # Uncomment to log graph traversal (very verbose):
+            # - name: KVSCHED_LOG_GRAPH_WALK
+            #   value: "true"
+            # Uncomment to verify effect of every transaction:
+            # - name: KVSCHED_VERIFY_MODE
+            #   value: "true"
             {{- if .Values.bolt.debug }}
             - name: DEBUG_BOLT_CLIENT
               value: "true"

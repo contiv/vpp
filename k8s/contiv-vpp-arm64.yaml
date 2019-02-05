@@ -46,9 +46,16 @@ data:
       vppHostSubnetOneNodePrefixLen: 24
       vxlanCIDR: 192.168.30.0/24
   controller.conf: |
+    enableRetry: true
+    delayRetry: 1000000000
+    maxRetryAttempts: 3
+    enableExpBackoffRetry: true
     delayLocalResync: 5000000000
+    startupResyncDeadline: 30000000000
     enablePeriodicHealing: false
     periodicHealingInterval: 30000000000
+    delayAfterErrorHealing: 5000000000
+    remoteDBProbingInterval: 3000000000
     recordEventHistory: true
     eventHistoryAgeLimit: 1440
     permanentlyRecordedInitPeriod: 60
@@ -427,6 +434,12 @@ spec:
               value: "/etc/etcd/etcd.conf"
             - name: BOLT_CONFIG
               value: "/etc/vpp-agent/bolt.conf"
+            # Uncomment to log graph traversal (very verbose):
+            # - name: KVSCHED_LOG_GRAPH_WALK
+            #   value: "true"
+            # Uncomment to verify effect of every transaction:
+            # - name: KVSCHED_VERIFY_MODE
+            #   value: "true"
             - name: TELEMETRY_CONFIG
               value: "/etc/vpp-agent/telemetry.conf"
             - name: GOVPP_CONFIG

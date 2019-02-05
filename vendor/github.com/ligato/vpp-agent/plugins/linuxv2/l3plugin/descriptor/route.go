@@ -19,20 +19,20 @@ import (
 	"net"
 	"strings"
 
-	"github.com/gogo/protobuf/proto"
 	prototypes "github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	"github.com/vishvananda/netlink"
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/addrs"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+
+	ifmodel "github.com/ligato/vpp-agent/api/models/linux/interfaces"
+	"github.com/ligato/vpp-agent/api/models/linux/l3"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	"github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin"
 	ifdescriptor "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/descriptor"
 	"github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin/descriptor/adapter"
 	l3linuxcalls "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin/linuxcalls"
-	ifmodel "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
-	l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin"
 	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin/linuxcalls"
 )
@@ -46,8 +46,8 @@ const (
 	ipv6AddrAny = "::"
 
 	// dependency labels
-	routeOutInterfaceDep   = "interface"
-	routeGwReachabilityDep = "gw-reachability"
+	routeOutInterfaceDep   = "outgoing-interface-exists"
+	routeGwReachabilityDep = "gw-reachable"
 )
 
 // A list of non-retriable errors:
@@ -81,24 +81,24 @@ type RouteDescriptor struct {
 	l3Handler l3linuxcalls.NetlinkAPI
 	ifPlugin  ifplugin.API
 	nsPlugin  nsplugin.API
-	scheduler scheduler.KVScheduler
+	scheduler kvs.KVScheduler
 
-	// parallelization of the Dump operation
-	dumpGoRoutinesCnt int
+	// parallelization of the Retrieve operation
+	goRoutinesCnt int
 }
 
 // NewRouteDescriptor creates a new instance of the Route descriptor.
 func NewRouteDescriptor(
-	scheduler scheduler.KVScheduler, ifPlugin ifplugin.API, nsPlugin nsplugin.API,
-	l3Handler l3linuxcalls.NetlinkAPI, log logging.PluginLogger, dumpGoRoutinesCnt int) *RouteDescriptor {
+	scheduler kvs.KVScheduler, ifPlugin ifplugin.API, nsPlugin nsplugin.API,
+	l3Handler l3linuxcalls.NetlinkAPI, log logging.PluginLogger, goRoutinesCnt int) *RouteDescriptor {
 
 	return &RouteDescriptor{
-		scheduler:         scheduler,
-		l3Handler:         l3Handler,
-		ifPlugin:          ifPlugin,
-		nsPlugin:          nsPlugin,
-		dumpGoRoutinesCnt: dumpGoRoutinesCnt,
-		log:               log.NewLogger("route-descriptor"),
+		scheduler:     scheduler,
+		l3Handler:     l3Handler,
+		ifPlugin:      ifPlugin,
+		nsPlugin:      nsPlugin,
+		goRoutinesCnt: goRoutinesCnt,
+		log:           log.NewLogger("route-descriptor"),
 	}
 }
 
@@ -106,29 +106,25 @@ func NewRouteDescriptor(
 // the KVScheduler.
 func (d *RouteDescriptor) GetDescriptor() *adapter.RouteDescriptor {
 	return &adapter.RouteDescriptor{
-		Name:               RouteDescriptorName,
-		KeySelector:        d.IsRouteKey,
-		ValueTypeName:      proto.MessageName(&l3.StaticRoute{}),
-		ValueComparator:    d.EquivalentRoutes,
-		NBKeyPrefix:        l3.StaticRouteKeyPrefix,
-		Add:                d.Add,
-		Delete:             d.Delete,
-		Modify:             d.Modify,
-		IsRetriableFailure: d.IsRetriableFailure,
-		Dependencies:       d.Dependencies,
-		DerivedValues:      d.DerivedValues,
-		Dump:               d.Dump,
-		DumpDependencies:   []string{ifdescriptor.InterfaceDescriptorName},
+		Name:                 RouteDescriptorName,
+		NBKeyPrefix:          linux_l3.ModelRoute.KeyPrefix(),
+		ValueTypeName:        linux_l3.ModelRoute.ProtoName(),
+		KeySelector:          linux_l3.ModelRoute.IsKeyValid,
+		KeyLabel:             linux_l3.ModelRoute.StripKeyPrefix,
+		ValueComparator:      d.EquivalentRoutes,
+		Validate:             d.Validate,
+		Create:               d.Create,
+		Delete:               d.Delete,
+		Update:               d.Update,
+		Retrieve:             d.Retrieve,
+		DerivedValues:        d.DerivedValues,
+		Dependencies:         d.Dependencies,
+		RetrieveDependencies: []string{ifdescriptor.InterfaceDescriptorName},
 	}
 }
 
-// IsRouteKey returns <true> if the key identifies a Linux Route configuration.
-func (d *RouteDescriptor) IsRouteKey(key string) bool {
-	return strings.HasPrefix(key, l3.StaticRouteKeyPrefix)
-}
-
-// EquivalentRoutes is case-insensitive comparison function for l3.LinuxStaticRoute.
-func (d *RouteDescriptor) EquivalentRoutes(key string, oldRoute, newRoute *l3.StaticRoute) bool {
+// EquivalentRoutes is case-insensitive comparison function for l3.LinuxRoute.
+func (d *RouteDescriptor) EquivalentRoutes(key string, oldRoute, newRoute *linux_l3.Route) bool {
 	// attributes compared as usually:
 	if oldRoute.OutgoingInterface != newRoute.OutgoingInterface ||
 		oldRoute.Scope != newRoute.Scope ||
@@ -143,62 +139,40 @@ func (d *RouteDescriptor) EquivalentRoutes(key string, oldRoute, newRoute *l3.St
 	return equalAddrs(getGwAddr(oldRoute), getGwAddr(newRoute))
 }
 
-var nonRetriableErrs = []error{
-	ErrRouteWithoutInterface,
-	ErrRouteWithoutDestination,
-	ErrRouteWithUndefinedScope,
-	ErrRouteWithInvalidDst,
-	ErrRouteWithInvalidGw,
-	ErrRouteLinkWithGw,
-}
-
-// IsRetriableFailure returns <false> for errors related to invalid configuration.
-func (d *RouteDescriptor) IsRetriableFailure(err error) bool {
-	for _, nonRetriableErr := range nonRetriableErrs {
-		if err == nonRetriableErr {
-			return false
-		}
+// Validate validates static route configuration.
+func (d *RouteDescriptor) Validate(key string, route *linux_l3.Route) (err error) {
+	if route.OutgoingInterface == "" {
+		return kvs.NewInvalidValueError(ErrRouteWithoutInterface, "outgoing_interface")
 	}
-	return true
+	if route.DstNetwork == "" {
+		return kvs.NewInvalidValueError(ErrRouteWithoutDestination, "dst_network")
+	}
+	if route.Scope == linux_l3.Route_LINK && route.GwAddr != "" {
+		return kvs.NewInvalidValueError(ErrRouteLinkWithGw, "scope", "gw_addr")
+	}
+	return nil
 }
 
-// Add adds Linux route.
-func (d *RouteDescriptor) Add(key string, route *l3.StaticRoute) (metadata interface{}, err error) {
-	err = d.updateRoute(route, "add", d.l3Handler.AddStaticRoute)
+// Create adds Linux route.
+func (d *RouteDescriptor) Create(key string, route *linux_l3.Route) (metadata interface{}, err error) {
+	err = d.updateRoute(route, "add", d.l3Handler.AddRoute)
 	return nil, err
 }
 
 // Delete removes Linux route.
-func (d *RouteDescriptor) Delete(key string, route *l3.StaticRoute, metadata interface{}) error {
-	return d.updateRoute(route, "delete", d.l3Handler.DelStaticRoute)
+func (d *RouteDescriptor) Delete(key string, route *linux_l3.Route, metadata interface{}) error {
+	return d.updateRoute(route, "delete", d.l3Handler.DelRoute)
 }
 
-// Modify is able to change route scope, metric and GW address.
-func (d *RouteDescriptor) Modify(key string, oldRoute, newRoute *l3.StaticRoute, oldMetadata interface{}) (newMetadata interface{}, err error) {
-	err = d.updateRoute(newRoute, "modify", d.l3Handler.ReplaceStaticRoute)
+// Update is able to change route scope, metric and GW address.
+func (d *RouteDescriptor) Update(key string, oldRoute, newRoute *linux_l3.Route, oldMetadata interface{}) (newMetadata interface{}, err error) {
+	err = d.updateRoute(newRoute, "modify", d.l3Handler.ReplaceRoute)
 	return nil, err
 }
 
 // updateRoute adds, modifies or deletes a Linux route.
-func (d *RouteDescriptor) updateRoute(route *l3.StaticRoute, actionName string, actionClb func(route *netlink.Route) error) error {
+func (d *RouteDescriptor) updateRoute(route *linux_l3.Route, actionName string, actionClb func(route *netlink.Route) error) error {
 	var err error
-
-	// validate the configuration first
-	if route.OutgoingInterface == "" {
-		err = ErrRouteWithoutInterface
-		d.log.Error(err)
-		return err
-	}
-	if route.DstNetwork == "" {
-		err = ErrRouteWithoutDestination
-		d.log.Error(err)
-		return err
-	}
-	if route.Scope == l3.StaticRoute_LINK && route.GwAddr != "" {
-		err = ErrRouteLinkWithGw
-		d.log.Error(err)
-		return err
-	}
 
 	// Prepare Netlink Route object
 	netlinkRoute := &netlink.Route{}
@@ -267,11 +241,11 @@ func (d *RouteDescriptor) updateRoute(route *l3.StaticRoute, actionName string, 
 }
 
 // Dependencies lists dependencies for a Linux route.
-func (d *RouteDescriptor) Dependencies(key string, route *l3.StaticRoute) []scheduler.Dependency {
-	var dependencies []scheduler.Dependency
+func (d *RouteDescriptor) Dependencies(key string, route *linux_l3.Route) []kvs.Dependency {
+	var dependencies []kvs.Dependency
 	// the outgoing interface must exist and be UP
 	if route.OutgoingInterface != "" {
-		dependencies = append(dependencies, scheduler.Dependency{
+		dependencies = append(dependencies, kvs.Dependency{
 			Label: routeOutInterfaceDep,
 			Key:   ifmodel.InterfaceStateKey(route.OutgoingInterface, true),
 		})
@@ -279,10 +253,10 @@ func (d *RouteDescriptor) Dependencies(key string, route *l3.StaticRoute) []sche
 	// GW must be routable
 	gwAddr := net.ParseIP(getGwAddr(route))
 	if gwAddr != nil && !gwAddr.IsUnspecified() {
-		dependencies = append(dependencies, scheduler.Dependency{
+		dependencies = append(dependencies, kvs.Dependency{
 			Label: routeGwReachabilityDep,
 			AnyOf: func(key string) bool {
-				dstAddr, ifName, isRouteKey := l3.ParseStaticLinkLocalRouteKey(key)
+				dstAddr, ifName, isRouteKey := linux_l3.ParseStaticLinkLocalRouteKey(key)
 				if isRouteKey && ifName == route.OutgoingInterface && dstAddr.Contains(gwAddr) {
 					// GW address is neighbour as told by another link-local route
 					return true
@@ -302,60 +276,60 @@ func (d *RouteDescriptor) Dependencies(key string, route *l3.StaticRoute) []sche
 
 // DerivedValues derives empty value under StaticLinkLocalRouteKey if route is link-local.
 // It is used in dependencies for network reachability of a route gateway (see above).
-func (d *RouteDescriptor) DerivedValues(key string, route *l3.StaticRoute) (derValues []scheduler.KeyValuePair) {
-	if route.Scope == l3.StaticRoute_LINK {
-		derValues = append(derValues, scheduler.KeyValuePair{
-			Key:   l3.StaticLinkLocalRouteKey(route.DstNetwork, route.OutgoingInterface),
+func (d *RouteDescriptor) DerivedValues(key string, route *linux_l3.Route) (derValues []kvs.KeyValuePair) {
+	if route.Scope == linux_l3.Route_LINK {
+		derValues = append(derValues, kvs.KeyValuePair{
+			Key:   linux_l3.StaticLinkLocalRouteKey(route.DstNetwork, route.OutgoingInterface),
 			Value: &prototypes.Empty{},
 		})
 	}
 	return derValues
 }
 
-// routeDump is used as the return value sent via channel by dumpRoutes().
-type routeDump struct {
+// retrievedRoutes is used as the return value sent via channel by retrieveRoutes().
+type retrievedRoutes struct {
 	routes []adapter.RouteKVWithMetadata
 	err    error
 }
 
-// Dump returns all routes associated with interfaces managed by this agent.
-func (d *RouteDescriptor) Dump(correlate []adapter.RouteKVWithMetadata) ([]adapter.RouteKVWithMetadata, error) {
-	var dump []adapter.RouteKVWithMetadata
+// Retrieve returns all routes associated with interfaces managed by this agent.
+func (d *RouteDescriptor) Retrieve(correlate []adapter.RouteKVWithMetadata) ([]adapter.RouteKVWithMetadata, error) {
+	var values []adapter.RouteKVWithMetadata
 	interfaces := d.ifPlugin.GetInterfaceIndex().ListAllInterfaces()
 	goRoutinesCnt := len(interfaces) / minWorkForGoRoutine
 	if goRoutinesCnt == 0 {
 		goRoutinesCnt = 1
 	}
-	if goRoutinesCnt > d.dumpGoRoutinesCnt {
-		goRoutinesCnt = d.dumpGoRoutinesCnt
+	if goRoutinesCnt > d.goRoutinesCnt {
+		goRoutinesCnt = d.goRoutinesCnt
 	}
-	dumpCh := make(chan routeDump, goRoutinesCnt)
+	ch := make(chan retrievedRoutes, goRoutinesCnt)
 
-	// invoke multiple go routines for more efficient parallel dumping
+	// invoke multiple go routines for more efficient parallel route retrieval
 	for idx := 0; idx < goRoutinesCnt; idx++ {
 		if goRoutinesCnt > 1 {
-			go d.dumpRoutes(interfaces, idx, goRoutinesCnt, dumpCh)
+			go d.retrieveRoutes(interfaces, idx, goRoutinesCnt, ch)
 		} else {
-			d.dumpRoutes(interfaces, idx, goRoutinesCnt, dumpCh)
+			d.retrieveRoutes(interfaces, idx, goRoutinesCnt, ch)
 		}
 	}
 
 	// collect results from the go routines
 	for idx := 0; idx < goRoutinesCnt; idx++ {
-		routeDump := <-dumpCh
-		if routeDump.err != nil {
-			return dump, routeDump.err
+		retrieved := <-ch
+		if retrieved.err != nil {
+			return values, retrieved.err
 		}
-		dump = append(dump, routeDump.routes...)
+		values = append(values, retrieved.routes...)
 	}
 
-	return dump, nil
+	return values, nil
 }
 
-// dumpRoutes is run by a separate go routine to dump all routes entries associated
-// with every <goRoutineIdx>-th interface.
-func (d *RouteDescriptor) dumpRoutes(interfaces []string, goRoutineIdx, goRoutinesCnt int, dumpCh chan<- routeDump) {
-	var dump routeDump
+// retrieveRoutes is run by a separate go routine to retrieve all routes entries
+// associated with every <goRoutineIdx>-th interface.
+func (d *RouteDescriptor) retrieveRoutes(interfaces []string, goRoutineIdx, goRoutinesCnt int, ch chan<- retrievedRoutes) {
+	var retrieved retrievedRoutes
 	ifMetaIdx := d.ifPlugin.GetInterfaceIndex()
 	nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
 
@@ -364,8 +338,8 @@ func (d *RouteDescriptor) dumpRoutes(interfaces []string, goRoutineIdx, goRoutin
 		// get interface metadata
 		ifMeta, found := ifMetaIdx.LookupByName(ifName)
 		if !found || ifMeta == nil {
-			dump.err = errors.Errorf("failed to obtain metadata for interface %s", ifName)
-			d.log.Error(dump.err)
+			retrieved.err = errors.Errorf("failed to obtain metadata for interface %s", ifName)
+			d.log.Error(retrieved.err)
 			break
 		}
 
@@ -376,16 +350,16 @@ func (d *RouteDescriptor) dumpRoutes(interfaces []string, goRoutineIdx, goRoutin
 			d.log.WithFields(logging.Fields{
 				"err":       err,
 				"namespace": ifMeta.Namespace,
-			}).Warn("Failed to dump namespace")
+			}).Warn("Failed to retrieve routes from the namespace")
 			continue
 		}
 
 		// get routes assigned to this interface
-		v4Routes, v6Routes, err := d.l3Handler.GetStaticRoutes(ifMeta.LinuxIfIndex)
+		v4Routes, v6Routes, err := d.l3Handler.GetRoutes(ifMeta.LinuxIfIndex)
 		revertNs()
 		if err != nil {
-			dump.err = err
-			d.log.Error(dump.err)
+			retrieved.err = err
+			d.log.Error(retrieved.err)
 			break
 		}
 
@@ -413,34 +387,34 @@ func (d *RouteDescriptor) dumpRoutes(interfaces []string, goRoutineIdx, goRoutin
 				// route not configured by the agent
 				continue
 			}
-			dump.routes = append(dump.routes, adapter.RouteKVWithMetadata{
-				Key: l3.StaticRouteKey(dstNet, ifName),
-				Value: &l3.StaticRoute{
+			retrieved.routes = append(retrieved.routes, adapter.RouteKVWithMetadata{
+				Key: linux_l3.RouteKey(dstNet, ifName),
+				Value: &linux_l3.Route{
 					OutgoingInterface: ifName,
 					Scope:             scope,
 					DstNetwork:        dstNet,
 					GwAddr:            gwAddr,
 					Metric:            uint32(route.Priority),
 				},
-				Origin: scheduler.UnknownOrigin, // let the scheduler to determine the origin
+				Origin: kvs.UnknownOrigin, // let the scheduler to determine the origin
 			})
 		}
 	}
 
-	dumpCh <- dump
+	ch <- retrieved
 }
 
 // rtScopeFromNBToNetlink convert Route scope from NB configuration
 // to the corresponding Netlink constant.
-func rtScopeFromNBToNetlink(scope l3.StaticRoute_Scope) (netlink.Scope, error) {
+func rtScopeFromNBToNetlink(scope linux_l3.Route_Scope) (netlink.Scope, error) {
 	switch scope {
-	case l3.StaticRoute_GLOBAL:
+	case linux_l3.Route_GLOBAL:
 		return netlink.SCOPE_UNIVERSE, nil
-	case l3.StaticRoute_HOST:
+	case linux_l3.Route_HOST:
 		return netlink.SCOPE_HOST, nil
-	case l3.StaticRoute_LINK:
+	case linux_l3.Route_LINK:
 		return netlink.SCOPE_LINK, nil
-	case l3.StaticRoute_SITE:
+	case linux_l3.Route_SITE:
 		return netlink.SCOPE_SITE, nil
 	}
 	return 0, ErrRouteWithUndefinedScope
@@ -448,16 +422,16 @@ func rtScopeFromNBToNetlink(scope l3.StaticRoute_Scope) (netlink.Scope, error) {
 
 // rtScopeFromNetlinkToNB converts Route scope from Netlink constant
 // to the corresponding NB constant.
-func rtScopeFromNetlinkToNB(scope netlink.Scope) (l3.StaticRoute_Scope, error) {
+func rtScopeFromNetlinkToNB(scope netlink.Scope) (linux_l3.Route_Scope, error) {
 	switch scope {
 	case netlink.SCOPE_UNIVERSE:
-		return l3.StaticRoute_GLOBAL, nil
+		return linux_l3.Route_GLOBAL, nil
 	case netlink.SCOPE_HOST:
-		return l3.StaticRoute_HOST, nil
+		return linux_l3.Route_HOST, nil
 	case netlink.SCOPE_LINK:
-		return l3.StaticRoute_LINK, nil
+		return linux_l3.Route_LINK, nil
 	case netlink.SCOPE_SITE:
-		return l3.StaticRoute_SITE, nil
+		return linux_l3.Route_SITE, nil
 	}
 	return 0, ErrRouteWithUndefinedScope
 }
@@ -486,7 +460,7 @@ func equalNetworks(net1, net2 string) bool {
 
 // getGwAddr returns the GW address chosen in the given route, handling the cases
 // when it is left undefined.
-func getGwAddr(route *l3.StaticRoute) string {
+func getGwAddr(route *linux_l3.Route) string {
 	if route.GwAddr == "" {
 		if ipv6, _ := addrs.IsIPv6(route.DstNetwork); ipv6 {
 			return ipv6AddrAny

@@ -20,8 +20,8 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/l2"
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
@@ -95,7 +95,7 @@ func (v *Validator) ValidateArpTables() {
 			}
 
 			// skip over ARP entries for all interfaces other than Vxlan BVI
-			if arpIf.Value.Type != interfaces.Interface_SOFTWARE_LOOPBACK || arpIf.Value.Name != "vxlanBVI" {
+			if arpIf.Value.Type != vpp_interfaces.Interface_SOFTWARE_LOOPBACK || arpIf.Value.Name != "vxlanBVI" {
 				continue
 			}
 
@@ -210,7 +210,7 @@ validateNodeBD:
 				}
 
 				// BVI must be a software loopback interface
-				if nodeIfc.Value.Type != interfaces.Interface_SOFTWARE_LOOPBACK {
+				if nodeIfc.Value.Type != vpp_interfaces.Interface_SOFTWARE_LOOPBACK {
 					errCnt++
 					errString := fmt.Sprintf("invalid BVI type %+v, BVI %s (ifIndex %d, ifName %s)",
 						nodeIfc.Value.Type, bdIfc.Name, ifIndex, nodeIfc.Value.Name)
@@ -233,7 +233,7 @@ validateNodeBD:
 				}
 			} else {
 				// Make sure that the type of a regular BD interface is VXLAN_tunnel interface
-				if nodeIfc.Value.Type != interfaces.Interface_VXLAN_TUNNEL {
+				if nodeIfc.Value.Type != vpp_interfaces.Interface_VXLAN_TUNNEL {
 					errCnt++
 					errString := fmt.Sprintf("invalid BD interface type %+v, BVI %s (ifIndex %d, ifName %s)",
 						nodeIfc.Value.Type, bdIfc.Name, ifIndex, nodeIfc.Value.Name)
@@ -380,7 +380,7 @@ func (v *Validator) ValidateL2FibEntries() {
 		// Used to mark all L2Fib entries for which there exists a node
 		fibNodeMap := make(map[string]bool)
 		for _, feVal := range node.NodeL2Fibs {
-			feKey := l2.FIBKey(feVal.Value.BridgeDomain, feVal.Value.PhysAddress)
+			feKey := vpp_l2.FIBKey(feVal.Value.BridgeDomain, feVal.Value.PhysAddress)
 			if feVal.Value.BridgeDomain != vxlanDBName {
 				// Skip over entries in other BDs
 				continue
@@ -393,7 +393,7 @@ func (v *Validator) ValidateL2FibEntries() {
 		}
 
 		for _, feVal := range node.NodeL2Fibs {
-			feKey := l2.FIBKey(feVal.Value.BridgeDomain, feVal.Value.PhysAddress)
+			feKey := vpp_l2.FIBKey(feVal.Value.BridgeDomain, feVal.Value.PhysAddress)
 			if feVal.Value.BridgeDomain != vxlanDBName {
 				// Skip over entries in other BDs
 				continue
@@ -729,7 +729,7 @@ func (v *Validator) createTapMarkAndSweepDB() map[string]map[uint32]telemetrymod
 		}
 
 		for _, intf := range node.NodeInterfaces {
-			if intf.Value.Type == interfaces.Interface_TAP {
+			if intf.Value.Type == vpp_interfaces.Interface_TAP {
 				if strings.HasPrefix(intf.Value.PhysAddress, "02:fe") {
 					tapMap[node.Name][intf.Metadata.SwIfIndex] = intf
 				}

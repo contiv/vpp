@@ -84,6 +84,7 @@ Parameter | Description | Default
 `contiv.ipamConfig.vxlanCIDR` | VXLAN CIDR | `192.168.30.0/24`
 `contiv.ipamConfig.nodeInterconnectCIDR` | Node interconnect CIDR, uses DHCP if empty | `""`
 `contiv.ipamConfig.serviceCIDR` | Service CIDR | `""`
+`contiv.ipamConfig.defaultGateway` | Default gateway for all nodes (can be overridden by a nodeconfig)| `""`
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
 `contiv.vswitch.defineMemoryLimits` | define limits for vswitch container | `false`
 `contiv.vswitch.hugePages2miLimit` | limit of memory allocated by 2048Kb hugepages for vswitch container| `1024Mi`
@@ -91,9 +92,16 @@ Parameter | Description | Default
 `contiv.vswitch.memoryLimit` | memory limit for vswitch container | `1024Mi`
 `contiv.vswitch.enableCoreDumps` | enable core dumps of VPP into coreDumpsDir | `false`
 `contiv.vswitch.coreDumpsDir` | location of the VPP core dumps | `/var/contiv/dumps`
-`controller.delayLocalResync` | how long to wait for etcd connection before using bolt DB as a fallback for startup resync | `5000000000`
-`controller.enablePeriodicHealing` | enable periodic resync | `False`
-`controller.periodicHealingInterval` | periodic resync time interval in nanoseconds | `30000000000`
+`controller.enableRetry` | Enable retry of failed CRUD operations | `true`
+`controller.delayRetry` | Delay retry of failed CRUD operations by the given time interval in nanoseconds | `1000000000`
+`controller.maxRetryAttempts` | Maximum number of retries to be performed for failed CRUD operations | `3`
+`controller.enableExpBackoffRetry` | Every next retry of failed CRUD operations is delayed by twice as long time interval as the previous one | `true`
+`controller.delayLocalResync` | How long to wait for etcd connection before using bolt DB as a fallback for startup resync | `5000000000`
+`controller.startupResyncDeadline` | Deadline for the first resync to execute (in nanoseconds after startup) until the agent is restarted | `30000000000`
+`controller.enablePeriodicHealing` | Enable periodic resync | `False`
+`controller.periodicHealingInterval` | Periodic resync time interval in nanoseconds | `30000000000`
+`controller.delayAfterErrorHealing` | How much to delay healing resync after a failure (in nanoseconds) | `5000000000`
+`controller.remoteDBProbingInterval` | Time interval between probes triggered to test connectivity with the remote DB (in nanoseconds) | `3000000000`
 `controller.recordEventHistory` | enable recording of processed events | `True`
 `controller.eventHistoryAgeLimit` | event records older than the given age limit (in minutes) are periodically trimmed from the history | `1440`
 `controller.permanentlyRecordedInitPeriod` | time period (in minutes) from the start of the application with events permanently recorded | `60`

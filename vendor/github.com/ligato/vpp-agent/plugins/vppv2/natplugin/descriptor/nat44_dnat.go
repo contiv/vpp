@@ -15,16 +15,14 @@
 package descriptor
 
 import (
-	"strings"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/pkg/errors"
 
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	nat "github.com/ligato/vpp-agent/api/models/vpp/nat"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	vpp_ifdescriptor "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
 	"github.com/ligato/vpp-agent/plugins/vppv2/natplugin/descriptor/adapter"
 	"github.com/ligato/vpp-agent/plugins/vppv2/natplugin/vppcalls"
 )
@@ -68,25 +66,21 @@ func NewDNAT44Descriptor(natHandler vppcalls.NatVppAPI, log logging.PluginLogger
 // the KVScheduler.
 func (d *DNAT44Descriptor) GetDescriptor() *adapter.DNAT44Descriptor {
 	return &adapter.DNAT44Descriptor{
-		Name:               DNAT44DescriptorName,
-		KeySelector:        d.IsDNAT44Key,
-		ValueComparator:    d.EquivalentDNAT44,
-		ValueTypeName:      proto.MessageName(&nat.DNat44{}),
-		NBKeyPrefix:        nat.PrefixNAT44,
-		Add:                d.Add,
-		Delete:             d.Delete,
-		Modify:             d.Modify,
-		IsRetriableFailure: d.IsRetriableFailure,
-		Dependencies:       d.Dependencies,
-		Dump:               d.Dump,
-		// dump interfaces and allocated IP addresses first
-		DumpDependencies: []string{vpp_ifdescriptor.InterfaceDescriptorName, vpp_ifdescriptor.DHCPDescriptorName},
+		Name:            DNAT44DescriptorName,
+		NBKeyPrefix:     nat.ModelDNat44.KeyPrefix(),
+		ValueTypeName:   nat.ModelDNat44.ProtoName(),
+		KeySelector:     nat.ModelDNat44.IsKeyValid,
+		KeyLabel:        nat.ModelDNat44.StripKeyPrefix,
+		ValueComparator: d.EquivalentDNAT44,
+		Validate:        d.Validate,
+		Create:          d.Create,
+		Delete:          d.Delete,
+		Update:          d.Update,
+		Retrieve:        d.Retrieve,
+		Dependencies:    d.Dependencies,
+		// retrieve interfaces and allocated IP addresses first
+		RetrieveDependencies: []string{vpp_ifdescriptor.InterfaceDescriptorName, vpp_ifdescriptor.DHCPDescriptorName},
 	}
-}
-
-// IsDNAT44Key returns true if the key is identifying VPP destination-NAT44.
-func (d *DNAT44Descriptor) IsDNAT44Key(key string) bool {
-	return strings.HasPrefix(key, nat.DNAT44Prefix)
 }
 
 // EquivalentDNAT44 compares two instances of DNAT44 for equality.
@@ -107,28 +101,29 @@ func (d *DNAT44Descriptor) IsRetriableFailure(err error) bool {
 	return err != ErrDNAT44WithEmptyLabel
 }
 
-// Add adds new destination-NAT44 configuration.
-func (d *DNAT44Descriptor) Add(key string, dnat *nat.DNat44) (metadata interface{}, err error) {
+// Validate validates VPP destination-NAT44 configuration.
+func (d *DNAT44Descriptor) Validate(key string, dnat *nat.DNat44) error {
+	if dnat.Label == "" {
+		return kvs.NewInvalidValueError(ErrDNAT44WithEmptyLabel, "label")
+	}
+	return nil
+}
+
+// Create adds new destination-NAT44 configuration.
+func (d *DNAT44Descriptor) Create(key string, dnat *nat.DNat44) (metadata interface{}, err error) {
 	// Add = Modify from empty DNAT
-	return d.Modify(key, &nat.DNat44{Label: dnat.Label}, dnat, nil)
+	return d.Update(key, &nat.DNat44{Label: dnat.Label}, dnat, nil)
 }
 
 // Delete removes existing destination-NAT44 configuration.
 func (d *DNAT44Descriptor) Delete(key string, dnat *nat.DNat44, metadata interface{}) error {
 	// Delete = Modify into empty DNAT
-	_, err := d.Modify(key, dnat, &nat.DNat44{Label: dnat.Label}, metadata)
+	_, err := d.Update(key, dnat, &nat.DNat44{Label: dnat.Label}, metadata)
 	return err
 }
 
-// Modify updates destination-NAT44 configuration.
-func (d *DNAT44Descriptor) Modify(key string, oldDNAT, newDNAT *nat.DNat44, oldMetadata interface{}) (newMetadata interface{}, err error) {
-	// validate configuration first
-	err = d.validateDNAT44Config(newDNAT)
-	if err != nil {
-		d.log.Error(err)
-		return nil, err
-	}
-
+// Update updates destination-NAT44 configuration.
+func (d *DNAT44Descriptor) Update(key string, oldDNAT, newDNAT *nat.DNat44, oldMetadata interface{}) (newMetadata interface{}, err error) {
 	obsoleteIDMappings, newIDMappings := diffIdentityMappings(oldDNAT.IdMappings, newDNAT.IdMappings)
 	obsoleteStMappings, newStMappings := diffStaticMappings(oldDNAT.StMappings, newDNAT.StMappings)
 
@@ -171,8 +166,57 @@ func (d *DNAT44Descriptor) Modify(key string, oldDNAT, newDNAT *nat.DNat44, oldM
 	return nil, nil
 }
 
+// Retrieve returns the current NAT44 global configuration.
+func (d *DNAT44Descriptor) Retrieve(correlate []adapter.DNAT44KVWithMetadata) (
+	retrieved []adapter.DNAT44KVWithMetadata, err error,
+) {
+	// collect DNATs which are expected to be empty
+	corrEmptyDNATs := make(map[string]*nat.DNat44)
+	for _, kv := range correlate {
+		if len(kv.Value.IdMappings) == 0 && len(kv.Value.StMappings) == 0 {
+			corrEmptyDNATs[kv.Value.Label] = kv.Value
+		}
+	}
+
+	// dump (non-empty) DNATs
+	dnatDump, err := d.natHandler.DNat44Dump()
+	if err != nil {
+		d.log.Error(err)
+		return retrieved, err
+	}
+
+	// process DNAT dump
+	for _, dnat := range dnatDump {
+		if dnat.Label == "" {
+			// all untagged mappings are grouped under one DNAT with label <untaggedDNAT>
+			// - they will get removed by resync (not configured by agent, or tagging has failed)
+			dnat.Label = untaggedDNAT
+		}
+		if _, expectedToBeEmpty := corrEmptyDNATs[dnat.Label]; expectedToBeEmpty {
+			// a DNAT mapping which is expected to be empty, but actually is not
+			delete(corrEmptyDNATs, dnat.Label)
+		}
+		retrieved = append(retrieved, adapter.DNAT44KVWithMetadata{
+			Key:    nat.DNAT44Key(dnat.Label),
+			Value:  dnat,
+			Origin: kvs.FromNB,
+		})
+	}
+
+	// add empty DNATs (nothing from them is dumped)
+	for dnatLabel, dnat := range corrEmptyDNATs {
+		retrieved = append(retrieved, adapter.DNAT44KVWithMetadata{
+			Key:    nat.DNAT44Key(dnatLabel),
+			Value:  dnat,
+			Origin: kvs.FromNB,
+		})
+	}
+
+	return retrieved, nil
+}
+
 // Dependencies lists external interfaces from mappings as dependencies.
-func (d *DNAT44Descriptor) Dependencies(key string, dnat *nat.DNat44) (dependencies []scheduler.Dependency) {
+func (d *DNAT44Descriptor) Dependencies(key string, dnat *nat.DNat44) (dependencies []kvs.Dependency) {
 	// collect referenced external interfaces
 	externalIfaces := make(map[string]struct{})
 	for _, mapping := range dnat.StMappings {
@@ -188,69 +232,12 @@ func (d *DNAT44Descriptor) Dependencies(key string, dnat *nat.DNat44) (dependenc
 
 	// for every external interface add one dependency
 	for externalIface := range externalIfaces {
-		dependencies = append(dependencies, scheduler.Dependency{
+		dependencies = append(dependencies, kvs.Dependency{
 			Label: mappingInterfaceDep + "-" + externalIface,
 			Key:   interfaces.InterfaceKey(externalIface),
 		})
 	}
 	return dependencies
-}
-
-// Dump returns the current NAT44 global configuration.
-func (d *DNAT44Descriptor) Dump(correlate []adapter.DNAT44KVWithMetadata) (
-	dump []adapter.DNAT44KVWithMetadata, err error,
-) {
-	// collect DNATs which are expected to be empty
-	corrEmptyDNATs := make(map[string]*nat.DNat44)
-	for _, kv := range correlate {
-		if len(kv.Value.IdMappings) == 0 && len(kv.Value.StMappings) == 0 {
-			corrEmptyDNATs[kv.Value.Label] = kv.Value
-		}
-	}
-
-	// dump (non-empty) DNATs
-	dnatDump, err := d.natHandler.DNat44Dump()
-	if err != nil {
-		d.log.Error(err)
-		return dump, err
-	}
-
-	// process DNAT dump
-	for _, dnat := range dnatDump {
-		if dnat.Label == "" {
-			// all untagged mappings are grouped under one DNAT with label <untaggedDNAT>
-			// - they will get removed by resync (not configured by agent, or tagging has failed)
-			dnat.Label = untaggedDNAT
-		}
-		if _, expectedToBeEmpty := corrEmptyDNATs[dnat.Label]; expectedToBeEmpty {
-			// a DNAT mapping which is expected to be empty, but actually is not
-			delete(corrEmptyDNATs, dnat.Label)
-		}
-		dump = append(dump, adapter.DNAT44KVWithMetadata{
-			Key:    nat.DNAT44Key(dnat.Label),
-			Value:  dnat,
-			Origin: scheduler.FromNB,
-		})
-	}
-
-	// add empty DNATs (nothing from them is dumped)
-	for dnatLabel, dnat := range corrEmptyDNATs {
-		dump = append(dump, adapter.DNAT44KVWithMetadata{
-			Key:    nat.DNAT44Key(dnatLabel),
-			Value:  dnat,
-			Origin: scheduler.FromNB,
-		})
-	}
-
-	return dump, nil
-}
-
-// validateDNAT44Config validates VPP destination-NAT44 configuration.
-func (d *DNAT44Descriptor) validateDNAT44Config(dnat *nat.DNat44) error {
-	if dnat.Label == "" {
-		return ErrDNAT44WithEmptyLabel
-	}
-	return nil
 }
 
 // diffIdentityMappings compares two *sets* of identity mappings.

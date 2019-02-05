@@ -15,27 +15,26 @@
 package rpc
 
 import (
-	"github.com/gogo/protobuf/proto"
 	"golang.org/x/net/context"
 
-	"github.com/ligato/cn-infra/datasync"
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/grpc/rpc"
+
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
 
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/ipsec"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
-
-	controller "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/grpc/rpc"
+	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
+	"github.com/ligato/vpp-agent/api/models/linux/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/acl"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
+	"github.com/ligato/vpp-agent/api/models/vpp/l2"
+	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/nat"
+	"github.com/ligato/vpp-agent/api/models/vpp/punt"
+	"github.com/ligato/vpp-agent/pkg/models"
 )
 
 //go:generate protoc --proto_path=rpc --proto_path=$GOPATH/src --gogo_out=plugins=grpc:rpc rpc/rpc.proto
@@ -71,13 +70,6 @@ type ResyncSvc struct {
 	plugin *Plugin
 }
 
-// lazyValue implements datasync.LazyValue interface.
-type lazyValue struct {
-	value proto.Message
-}
-
-type config map[string]proto.Message
-
 // Init registers GRPC services.
 func (p *Plugin) Init() error {
 	// create broker to local DB for config persisting
@@ -102,8 +94,8 @@ func (p *Plugin) Init() error {
 
 // GetConfigSnapshot returns full configuration snapshot that is currently
 // required by the GRPC client to be applied.
-func (p *Plugin) GetConfigSnapshot() (controller.ExternalConfig, error) {
-	extConfig := make(controller.ExternalConfig)
+func (p *Plugin) GetConfigSnapshot() (controller.KeyValuePairs, error) {
+	extConfig := make(controller.KeyValuePairs)
 	iterator, err := p.localBroker.ListValues("")
 	if err != nil {
 		return extConfig, err
@@ -113,7 +105,13 @@ func (p *Plugin) GetConfigSnapshot() (controller.ExternalConfig, error) {
 		if stop {
 			break
 		}
-		extConfig[kv.GetKey()] = kv
+		key := kv.GetKey()
+		value, err := models.UnmarshalLazyValue(key, kv)
+		if err != nil {
+			p.Log.Warnf("Failed to de-serialize value received from GRPC for key: %s", key)
+			continue
+		}
+		extConfig[key] = value
 	}
 	iterator.Close()
 	return extConfig, nil
@@ -148,7 +146,7 @@ func (svc *ChangeSvc) Put(ctx context.Context, data *rpc.DataRequest) (*rpc.PutR
 
 	// execute changes
 	event := controller.NewExternalConfigChange(svc.plugin.String(), true)
-	event.UpdatedKVs = convertToExternalConfig(config)
+	event.UpdatedKVs = config
 	err := svc.plugin.EventLoop.PushEvent(event)
 	if err == nil {
 		err = event.Wait()
@@ -172,7 +170,7 @@ func (svc *ChangeSvc) Del(ctx context.Context, data *rpc.DataRequest) (*rpc.DelR
 
 	// execute changes
 	event := controller.NewExternalConfigChange(svc.plugin.String(), true)
-	event.UpdatedKVs = convertToExternalConfig(config)
+	event.UpdatedKVs = config
 	err := svc.plugin.EventLoop.PushEvent(event)
 	if err == nil {
 		err = event.Wait()
@@ -194,7 +192,7 @@ func (svc *ResyncSvc) Resync(ctx context.Context, data *rpc.DataRequest) (*rpc.R
 
 	// execute changes
 	event := controller.NewExternalConfigResync(svc.plugin.String(), true)
-	event.ExternalConfig = convertToExternalConfig(config)
+	event.ExternalConfig = config
 	err = svc.plugin.EventLoop.PushEvent(event)
 	if err == nil {
 		err = event.Wait()
@@ -203,7 +201,7 @@ func (svc *ResyncSvc) Resync(ctx context.Context, data *rpc.DataRequest) (*rpc.R
 	return &rpc.ResyncResponse{}, err
 }
 
-func (svc *ResyncSvc) resyncDB(resyncCfg config) error {
+func (svc *ResyncSvc) resyncDB(resyncCfg controller.KeyValuePairs) error {
 	keys := make(map[string]struct{})
 
 	// update database with values present in resyncCfg
@@ -231,66 +229,66 @@ func (svc *ResyncSvc) resyncDB(resyncCfg config) error {
 	return nil
 }
 
-func buildConfig(data *rpc.DataRequest, delete bool) config {
-	extConfig := make(config)
+func buildConfig(data *rpc.DataRequest, delete bool) controller.KeyValuePairs {
+	extConfig := make(controller.KeyValuePairs)
 	for _, item := range data.AccessLists {
-		key := acl.Key(item.Name)
+		key := vpp_acl.Key(item.Name)
 		extConfig[key] = item
 	}
 	for _, item := range data.Interfaces {
-		key := interfaces.InterfaceKey(item.Name)
+		key := vpp_interfaces.InterfaceKey(item.Name)
 		extConfig[key] = item
 	}
 	for _, item := range data.BridgeDomains {
-		key := l2.BridgeDomainKey(item.Name)
+		key := vpp_l2.BridgeDomainKey(item.Name)
 		extConfig[key] = item
 	}
 	for _, item := range data.FIBs {
-		key := l2.FIBKey(item.BridgeDomain, item.PhysAddress)
+		key := vpp_l2.FIBKey(item.BridgeDomain, item.PhysAddress)
 		extConfig[key] = item
 	}
 	for _, item := range data.XCons {
-		key := l2.XConnectKey(item.ReceiveInterface)
+		key := vpp_l2.XConnectKey(item.ReceiveInterface)
 		extConfig[key] = item
 	}
 	for _, item := range data.StaticRoutes {
-		key := l3.RouteKey(item.VrfId, item.DstNetwork, item.NextHopAddr)
+		key := vpp_l3.RouteKey(item.VrfId, item.DstNetwork, item.NextHopAddr)
 		extConfig[key] = item
 	}
 	for _, item := range data.ArpEntries {
-		key := l3.ArpEntryKey(item.Interface, item.IpAddress)
+		key := vpp_l3.ArpEntryKey(item.Interface, item.IpAddress)
 		extConfig[key] = item
 	}
 	if data.ProxyArp != nil {
-		key := l3.ProxyARPKey
+		key := vpp_l3.ProxyARPKey()
 		extConfig[key] = data.ProxyArp
 	}
 	if data.IPScanNeighbor != nil {
-		key := l3.IPScanNeighborKey
+		key := vpp_l3.IPScanNeighborKey()
 		extConfig[key] = data.IPScanNeighbor
 	}
 	for _, item := range data.SAs {
-		key := ipsec.SAKey(item.Index)
+		key := vpp_ipsec.SAKey(item.Index)
 		extConfig[key] = item
 	}
 	for _, item := range data.SPDs {
-		key := ipsec.SPDKey(item.Index)
+		key := vpp_ipsec.SPDKey(item.Index)
 		extConfig[key] = item
 	}
 	for _, item := range data.IPRedirectPunts {
-		key := punt.IPRedirectKey(item.L3Protocol, item.TxInterface)
+		key := vpp_punt.IPRedirectKey(item.L3Protocol, item.TxInterface)
 		extConfig[key] = item
 	}
 	for _, item := range data.ToHostPunts {
-		key := punt.ToHostKey(item.L3Protocol, item.L4Protocol, item.Port)
+		key := vpp_punt.ToHostKey(item.L3Protocol, item.L4Protocol, item.Port)
 		extConfig[key] = item
 	}
 	if data.NatGlobal != nil {
-		key := nat.GlobalNAT44Key
+		key := vpp_nat.GlobalNAT44Key()
 		extConfig[key] = data.NatGlobal
 	}
 	for _, item := range data.DNATs {
-		key := nat.DNAT44Key(item.Label)
+		key := vpp_nat.DNAT44Key(item.Label)
 		extConfig[key] = item
 	}
 	for _, item := range data.LinuxInterfaces {
@@ -298,11 +296,11 @@ func buildConfig(data *rpc.DataRequest, delete bool) config {
 		extConfig[key] = item
 	}
 	for _, item := range data.LinuxArpEntries {
-		key := linux_l3.StaticArpKey(item.Interface, item.IpAddress)
+		key := linux_l3.ArpKey(item.Interface, item.IpAddress)
 		extConfig[key] = item
 	}
 	for _, item := range data.LinuxRoutes {
-		key := linux_l3.StaticRouteKey(item.DstNetwork, item.OutgoingInterface)
+		key := linux_l3.RouteKey(item.DstNetwork, item.OutgoingInterface)
 		extConfig[key] = item
 	}
 
@@ -312,29 +310,4 @@ func buildConfig(data *rpc.DataRequest, delete bool) config {
 		}
 	}
 	return extConfig
-}
-
-func convertToExternalConfig(cfg config) controller.ExternalConfig {
-	extConfig := make(controller.ExternalConfig)
-	for key, value := range cfg {
-		if value == nil {
-			extConfig[key] = nil
-		} else {
-			extConfig[key] = newLazyValue(value)
-		}
-	}
-	return extConfig
-}
-
-func newLazyValue(value proto.Message) datasync.LazyValue {
-	return &lazyValue{value: value}
-}
-
-// GetValue places the value into the provided proto message.
-func (lv *lazyValue) GetValue(value proto.Message) error {
-	tmp, err := proto.Marshal(lv.value)
-	if err != nil {
-		return err
-	}
-	return proto.Unmarshal(tmp, value)
 }

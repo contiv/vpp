@@ -152,6 +152,15 @@ func splitLongLines(lines []string, limit int, indent int) (splited []string) {
 			continue
 		}
 
+		// keep the original whitespace prefix
+		origIndent := 0
+		for i := 0; i < len(line); i++ {
+			if string(line[i]) != " " {
+				break
+			}
+			origIndent++
+		}
+
 		words := strings.Split(line, " ")
 		var (
 			newLine  string
@@ -159,12 +168,17 @@ func splitLongLines(lines []string, limit int, indent int) (splited []string) {
 		)
 		for i := 0; i < len(words); i++ {
 			word := words[i]
+			if word == "" {
+				continue
+			}
 
 			// first word is added regardless of its length
 			if newLine == "" {
 				if len(newLines) > 0 {
 					// indent added to newly introduced lines
-					newLine += strings.Repeat(" ", indent)
+					newLine += strings.Repeat(" ", origIndent+indent)
+				} else {
+					newLine += strings.Repeat(" ", origIndent)
 				}
 				newLine += word
 				continue
@@ -172,7 +186,7 @@ func splitLongLines(lines []string, limit int, indent int) (splited []string) {
 
 			// it newLine+word would overflow the limit -> start a new line
 			wordLen := len(word) + 1 // + preceding space
-			if len(newLine)+wordLen > limit {
+			if len(newLine)+wordLen > (limit - origIndent) {
 				newLines = append(newLines, newLine)
 				newLine = ""
 				i-- // replay the word

@@ -134,12 +134,15 @@ func (pm *PodManager) HandlesEvent(event controller.Event) bool {
 
 // Resync re-synchronizes the map of local pods using information provided
 // by Docker server.
-func (pm *PodManager) Resync(_ controller.Event, _ controller.KubeStateData,
+func (pm *PodManager) Resync(event controller.Event, _ controller.KubeStateData,
 	resyncCount int, _ controller.ResyncOperations) error {
 
-	// No need to resync the state of running pods in the run-time - local pod
-	// will not be added/deleted without the agent knowing about it.
-	if resyncCount > 1 {
+	// Normally it should not be needed to resync the state of running pods
+	// in the run-time - local pod should not be added/deleted without the agent
+	// knowing about it. But if we are healing after an error, reload the state
+	// of running pods.
+	_, isHealingResync := event.(*controller.HealingResync)
+	if resyncCount > 1 && !isHealingResync {
 		return nil
 	}
 

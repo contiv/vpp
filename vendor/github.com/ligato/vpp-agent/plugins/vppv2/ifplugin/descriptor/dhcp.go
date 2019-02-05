@@ -25,15 +25,15 @@ import (
 
 	govppapi "git.fd.io/govpp.git/api"
 	"github.com/ligato/cn-infra/logging"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 
 	"bytes"
 
 	"github.com/gogo/protobuf/proto"
+	interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	"github.com/pkg/errors"
 )
 
@@ -47,10 +47,10 @@ const (
 // new DHCP leases.
 type DHCPDescriptor struct {
 	// provided by the plugin
-	log       logging.Logger
-	ifHandler vppcalls.IfVppAPI
-	scheduler scheduler.KVScheduler
-	ifIndex   ifaceidx.IfaceMetadataIndex
+	log         logging.Logger
+	ifHandler   vppcalls.IfVppAPI
+	kvscheduler kvs.KVScheduler
+	ifIndex     ifaceidx.IfaceMetadataIndex
 
 	// DHCP notification watching
 	cancel context.CancelFunc
@@ -58,27 +58,27 @@ type DHCPDescriptor struct {
 }
 
 // NewDHCPDescriptor creates a new instance of DHCPDescriptor.
-func NewDHCPDescriptor(scheduler scheduler.KVScheduler, ifHandler vppcalls.IfVppAPI, log logging.PluginLogger) *DHCPDescriptor {
+func NewDHCPDescriptor(kvscheduler kvs.KVScheduler, ifHandler vppcalls.IfVppAPI, log logging.PluginLogger) *DHCPDescriptor {
 	descriptor := &DHCPDescriptor{
-		scheduler: scheduler,
-		ifHandler: ifHandler,
-		log:       log.NewLogger("dhcp-descriptor"),
+		kvscheduler: kvscheduler,
+		ifHandler:   ifHandler,
+		log:         log.NewLogger("dhcp-descriptor"),
 	}
 	return descriptor
 }
 
 // GetDescriptor returns descriptor suitable for registration with the KVScheduler.
-func (d *DHCPDescriptor) GetDescriptor() *scheduler.KVDescriptor {
-	return &scheduler.KVDescriptor{
-		Name:             DHCPDescriptorName,
-		KeySelector:      d.IsDHCPRelatedKey,
-		KeyLabel:         d.InterfaceNameFromKey,
-		WithMetadata:     true,            // DHCP leases
-		Add:              d.Add,           // DHCP client
-		Delete:           d.Delete,        // DHCP client
-		DerivedValues:    d.DerivedValues, // IP address from DHCP lease
-		Dump:             d.Dump,          // DHCP leases
-		DumpDependencies: []string{InterfaceDescriptorName},
+func (d *DHCPDescriptor) GetDescriptor() *kvs.KVDescriptor {
+	return &kvs.KVDescriptor{
+		Name:                 DHCPDescriptorName,
+		KeySelector:          d.IsDHCPRelatedKey,
+		KeyLabel:             d.InterfaceNameFromKey,
+		WithMetadata:         true,            // DHCP leases
+		Create:               d.Create,        // DHCP client
+		Delete:               d.Delete,        // DHCP client
+		Retrieve:             d.Retrieve,      // DHCP leases
+		DerivedValues:        d.DerivedValues, // IP address from DHCP lease
+		RetrieveDependencies: []string{InterfaceDescriptorName},
 	}
 }
 
@@ -128,8 +128,8 @@ func (d *DHCPDescriptor) InterfaceNameFromKey(key string) string {
 	return key
 }
 
-// Add enables DHCP client.
-func (d *DHCPDescriptor) Add(key string, emptyVal proto.Message) (metadata scheduler.Metadata, err error) {
+// Create enables DHCP client.
+func (d *DHCPDescriptor) Create(key string, emptyVal proto.Message) (metadata kvs.Metadata, err error) {
 	ifName, _ := interfaces.ParseNameFromDHCPClientKey(key)
 	ifMeta, found := d.ifIndex.LookupByName(ifName)
 	if !found {
@@ -148,7 +148,7 @@ func (d *DHCPDescriptor) Add(key string, emptyVal proto.Message) (metadata sched
 }
 
 // Delete disables DHCP client.
-func (d *DHCPDescriptor) Delete(key string, emptyVal proto.Message, metadata scheduler.Metadata) error {
+func (d *DHCPDescriptor) Delete(key string, emptyVal proto.Message, metadata kvs.Metadata) error {
 	ifName, _ := interfaces.ParseNameFromDHCPClientKey(key)
 	ifMeta, found := d.ifIndex.LookupByName(ifName)
 	if !found {
@@ -164,42 +164,26 @@ func (d *DHCPDescriptor) Delete(key string, emptyVal proto.Message, metadata sch
 	}
 
 	// notify about the unconfigured client by removing the lease notification
-	return d.scheduler.PushSBNotification(
+	return d.kvscheduler.PushSBNotification(
 		interfaces.DHCPLeaseKey(ifName), nil, nil)
 }
 
-// DerivedValues derives empty value for leased IP address.
-func (d *DHCPDescriptor) DerivedValues(key string, dhcpData proto.Message) (derValues []scheduler.KeyValuePair) {
-	if strings.HasPrefix(key, interfaces.DHCPLeaseKeyPrefix) {
-		dhcpLease, ok := dhcpData.(*interfaces.DHCPLease)
-		if ok && dhcpLease.HostIpAddress != "" {
-			return []scheduler.KeyValuePair{
-				{
-					Key:   interfaces.InterfaceAddressKey(dhcpLease.InterfaceName, dhcpLease.HostIpAddress),
-					Value: &prototypes.Empty{},
-				},
-			}
-		}
-	}
-	return derValues
-}
-
-// Dump returns all existing DHCP leases.
-func (d *DHCPDescriptor) Dump(correlate []scheduler.KVWithMetadata) (
-	dump []scheduler.KVWithMetadata, err error,
+// Retrieve returns all existing DHCP leases.
+func (d *DHCPDescriptor) Retrieve(correlate []kvs.KVWithMetadata) (
+	leases []kvs.KVWithMetadata, err error,
 ) {
 	// Retrieve VPP configuration.
 	dhcpDump, err := d.ifHandler.DumpDhcpClients()
 	if err != nil {
 		d.log.Error(err)
-		return dump, err
+		return leases, err
 	}
 
 	for ifIdx, dhcpData := range dhcpDump {
 		ifName, _, found := d.ifIndex.LookupBySwIfIndex(ifIdx)
 		if !found {
 			d.log.Warnf("failed to find interface sw_if_index=%d with DHCP lease", ifIdx)
-			return dump, err
+			return leases, err
 		}
 		// Store lease under both value (for visibility & to derive interface IP address)
 		// and metadata (for watching).
@@ -211,15 +195,31 @@ func (d *DHCPDescriptor) Dump(correlate []scheduler.KVWithMetadata) (
 			HostIpAddress:   dhcpData.Lease.HostAddress,
 			RouterIpAddress: dhcpData.Lease.RouterAddress,
 		}
-		dump = append(dump, scheduler.KVWithMetadata{
+		leases = append(leases, kvs.KVWithMetadata{
 			Key:      interfaces.DHCPLeaseKey(ifName),
 			Value:    lease,
 			Metadata: lease,
-			Origin:   scheduler.FromSB,
+			Origin:   kvs.FromSB,
 		})
 	}
 
-	return dump, nil
+	return leases, nil
+}
+
+// DerivedValues derives empty value for leased IP address.
+func (d *DHCPDescriptor) DerivedValues(key string, dhcpData proto.Message) (derValues []kvs.KeyValuePair) {
+	if strings.HasPrefix(key, interfaces.DHCPLeaseKeyPrefix) {
+		dhcpLease, ok := dhcpData.(*interfaces.DHCPLease)
+		if ok && dhcpLease.HostIpAddress != "" {
+			return []kvs.KeyValuePair{
+				{
+					Key:   interfaces.InterfaceAddressKey(dhcpLease.InterfaceName, dhcpLease.HostIpAddress),
+					Value: &prototypes.Empty{},
+				},
+			}
+		}
+	}
+	return derValues
 }
 
 // watchDHCPNotifications watches and processes DHCP notifications.
@@ -268,7 +268,7 @@ func (d *DHCPDescriptor) watchDHCPNotifications(ctx context.Context, dhcpChan ch
 					HostIpAddress:   hostIPAddr,
 					RouterIpAddress: routerIPAddr,
 				}
-				if err := d.scheduler.PushSBNotification(
+				if err := d.kvscheduler.PushSBNotification(
 					interfaces.DHCPLeaseKey(ifName),
 					dhcpLease,
 					dhcpLease); err != nil {

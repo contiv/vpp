@@ -26,9 +26,9 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 
-	nsmodel "github.com/ligato/vpp-agent/plugins/linuxv2/model/namespace"
+	nsmodel "github.com/ligato/vpp-agent/api/models/linux/namespace"
 )
 
 const (
@@ -44,8 +44,8 @@ const (
 // started and stopped microservices.
 type MicroserviceDescriptor struct {
 	// input arguments
-	log       logging.Logger
-	scheduler scheduler.KVScheduler
+	log         logging.Logger
+	kvscheduler kvs.KVScheduler
 
 	// map microservice label -> time of the last creation
 	createTime map[string]time.Time
@@ -88,12 +88,12 @@ type microserviceCtx struct {
 }
 
 // NewMicroserviceDescriptor creates a new instance of the descriptor for microservices.
-func NewMicroserviceDescriptor(scheduler scheduler.KVScheduler, log logging.PluginLogger) (*MicroserviceDescriptor, error) {
+func NewMicroserviceDescriptor(kvscheduler kvs.KVScheduler, log logging.PluginLogger) (*MicroserviceDescriptor, error) {
 	var err error
 
 	descriptor := &MicroserviceDescriptor{
 		log:                 log.NewLogger("ms-descriptor"),
-		scheduler:           scheduler,
+		kvscheduler:         kvscheduler,
 		createTime:          make(map[string]time.Time),
 		microServiceByLabel: make(map[string]*Microservice),
 		microServiceByID:    make(map[string]*Microservice),
@@ -112,11 +112,11 @@ func NewMicroserviceDescriptor(scheduler scheduler.KVScheduler, log logging.Plug
 }
 
 // GetDescriptor returns descriptor suitable for registration with the KVScheduler.
-func (d *MicroserviceDescriptor) GetDescriptor() *scheduler.KVDescriptor {
-	return &scheduler.KVDescriptor{
+func (d *MicroserviceDescriptor) GetDescriptor() *kvs.KVDescriptor {
+	return &kvs.KVDescriptor{
 		Name:        MicroserviceDescriptorName,
 		KeySelector: d.IsMicroserviceKey,
-		Dump:        d.Dump,
+		Retrieve:    d.Retrieve,
 	}
 }
 
@@ -125,8 +125,8 @@ func (d *MicroserviceDescriptor) IsMicroserviceKey(key string) bool {
 	return strings.HasPrefix(key, nsmodel.MicroserviceKeyPrefix)
 }
 
-// Dump returns key with empty value for every currently existing microservice.
-func (d *MicroserviceDescriptor) Dump(correlate []scheduler.KVWithMetadata) (dump []scheduler.KVWithMetadata, err error) {
+// Retrieve returns key with empty value for every currently existing microservice.
+func (d *MicroserviceDescriptor) Retrieve(correlate []kvs.KVWithMetadata) (values []kvs.KVWithMetadata, err error) {
 	// wait until microservice state data are in-sync with the docker
 	d.msStateLock.Lock()
 	if !d.msStateInSync {
@@ -135,14 +135,14 @@ func (d *MicroserviceDescriptor) Dump(correlate []scheduler.KVWithMetadata) (dum
 	defer d.msStateLock.Unlock()
 
 	for msLabel := range d.microServiceByLabel {
-		dump = append(dump, scheduler.KVWithMetadata{
+		values = append(values, kvs.KVWithMetadata{
 			Key:    nsmodel.MicroserviceKey(msLabel),
 			Value:  &prototypes.Empty{},
-			Origin: scheduler.FromSB,
+			Origin: kvs.FromSB,
 		})
 	}
 
-	return dump, nil
+	return values, nil
 }
 
 // StartTracker starts microservice tracker,
@@ -295,7 +295,7 @@ func (d *MicroserviceDescriptor) processNewMicroservice(microserviceLabel string
 
 	// Notify scheduler about new microservice
 	if d.msStateInSync {
-		d.scheduler.PushSBNotification(
+		d.kvscheduler.PushSBNotification(
 			nsmodel.MicroserviceKey(ms.Label),
 			&prototypes.Empty{},
 			nil)
@@ -319,7 +319,7 @@ func (d *MicroserviceDescriptor) processTerminatedMicroservice(id string) {
 
 	// Notify scheduler about terminated microservice
 	if d.msStateInSync {
-		d.scheduler.PushSBNotification(
+		d.kvscheduler.PushSBNotification(
 			nsmodel.MicroserviceKey(ms.Label),
 			nil,
 			nil)

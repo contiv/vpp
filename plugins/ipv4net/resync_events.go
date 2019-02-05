@@ -15,8 +15,8 @@
 package ipv4net
 
 import (
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+	"github.com/ligato/vpp-agent/api/models/linux/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/l3"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -82,6 +82,13 @@ func (n *IPv4Net) Resync(event controller.Event, kubeStateData controller.KubeSt
 //  - inter-VRF routing
 //  - IP neighbor scanning
 func (n *IPv4Net) configureVswitchConnectivity(event controller.Event, txn controller.ResyncOperations) error {
+	if !n.test {
+		// explicitly create POD VRF using binary API
+		// TODO: just temporary, until VRF will be a separate NB API entity of vpp-agent,
+		// so that all plugins can properly set their dependency on it
+		n.createVrf(n.ContivConf.GetRoutingConfig().PodVRFID)
+	}
+
 	// configure physical NIC
 	err := n.configureVswitchNICs(event, txn)
 	if err != nil {
@@ -267,7 +274,7 @@ func (n *IPv4Net) configureVswitchHostConnectivity(txn controller.ResyncOperatio
 	}
 
 	// configure routes from VPP to the host
-	var routesToHost map[string]*l3.StaticRoute
+	var routesToHost map[string]*vpp_l3.Route
 	if !n.ContivConf.InSTNMode() {
 		routesToHost = n.routesToHost(n.IPAM.HostInterconnectIPInLinux())
 	} else {
@@ -278,7 +285,7 @@ func (n *IPv4Net) configureVswitchHostConnectivity(txn controller.ResyncOperatio
 	}
 
 	// configure the route from the host to PODs
-	var routeToPods *linux_l3.StaticRoute
+	var routeToPods *linux_l3.Route
 	if !n.ContivConf.InSTNMode() {
 		key, routeToPods = n.routePODsFromHost(n.IPAM.HostInterconnectIPInVPP())
 	} else {
@@ -288,7 +295,7 @@ func (n *IPv4Net) configureVswitchHostConnectivity(txn controller.ResyncOperatio
 
 	// route from the host to k8s service range from the host
 	if n.ContivConf.GetRoutingConfig().RouteServiceCIDRToVPP {
-		var routeToServices *linux_l3.StaticRoute
+		var routeToServices *linux_l3.Route
 		if !n.ContivConf.InSTNMode() {
 			key, routeToServices = n.routeServicesFromHost(n.IPAM.HostInterconnectIPInVPP())
 		} else {

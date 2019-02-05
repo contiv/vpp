@@ -17,22 +17,22 @@ package clientv2
 import (
 	"golang.org/x/net/context"
 
+	"github.com/contiv/vpp/plugins/grpc/rpc"
 	"github.com/ligato/vpp-agent/clientv2/linux"
 	"github.com/ligato/vpp-agent/clientv2/vpp"
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
+
+	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
+	"github.com/ligato/vpp-agent/api/models/linux/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/acl"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
+	"github.com/ligato/vpp-agent/api/models/vpp/l2"
+	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/nat"
+	"github.com/ligato/vpp-agent/api/models/vpp/punt"
+	"github.com/ligato/vpp-agent/api/models/vpp/stn"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/l4"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/stn"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/ipsec"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/punt"
-
-	"github.com/contiv/vpp/plugins/grpc/rpc"
 )
 
 const (
@@ -87,28 +87,28 @@ func (dsl *PutDSL) LinuxInterface(val *linux_interfaces.Interface) linuxclient.P
 }
 
 // LinuxArpEntry adds a request to crete or update Linux ARP entry
-func (dsl *PutDSL) LinuxArpEntry(val *linux_l3.StaticARPEntry) linuxclient.PutDSL {
+func (dsl *PutDSL) LinuxArpEntry(val *linux_l3.ARPEntry) linuxclient.PutDSL {
 	dsl.parent.putReq.LinuxArpEntries = append(dsl.parent.putReq.LinuxArpEntries, val)
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // LinuxRoute adds a request to crete or update Linux route
-func (dsl *PutDSL) LinuxRoute(val *linux_l3.StaticRoute) linuxclient.PutDSL {
+func (dsl *PutDSL) LinuxRoute(val *linux_l3.Route) linuxclient.PutDSL {
 	dsl.parent.putReq.LinuxRoutes = append(dsl.parent.putReq.LinuxRoutes, val)
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // VppInterface adds a request to create or update VPP network interface.
-func (dsl *PutDSL) VppInterface(val *interfaces.Interface) linuxclient.PutDSL {
+func (dsl *PutDSL) VppInterface(val *vpp_interfaces.Interface) linuxclient.PutDSL {
 	dsl.parent.putReq.Interfaces = append(dsl.parent.putReq.Interfaces, val)
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // ACL adds a request to create or update VPP Access Control List.
-func (dsl *PutDSL) ACL(val *acl.Acl) linuxclient.PutDSL {
+func (dsl *PutDSL) ACL(val *vpp_acl.ACL) linuxclient.PutDSL {
 	dsl.parent.putReq.AccessLists = append(dsl.parent.putReq.AccessLists, val)
 	dsl.parent.withPut = true
 	return dsl
@@ -136,49 +136,49 @@ func (dsl *PutDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) linuxclie
 }
 
 // BD adds a request to create or update VPP Bridge Domain.
-func (dsl *PutDSL) BD(val *l2.BridgeDomain) linuxclient.PutDSL {
+func (dsl *PutDSL) BD(val *vpp_l2.BridgeDomain) linuxclient.PutDSL {
 	dsl.parent.putReq.BridgeDomains = append(dsl.parent.putReq.BridgeDomains, val)
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // BDFIB adds a request to create or update VPP L2 Forwarding Information Base.
-func (dsl *PutDSL) BDFIB(val *l2.FIBEntry) linuxclient.PutDSL {
+func (dsl *PutDSL) BDFIB(val *vpp_l2.FIBEntry) linuxclient.PutDSL {
 	dsl.parent.putReq.FIBs = append(dsl.parent.putReq.FIBs, val)
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // XConnect adds a request to create or update VPP Cross Connect.
-func (dsl *PutDSL) XConnect(val *l2.XConnectPair) linuxclient.PutDSL {
+func (dsl *PutDSL) XConnect(val *vpp_l2.XConnectPair) linuxclient.PutDSL {
 	dsl.parent.putReq.XCons = append(dsl.parent.putReq.XCons, val)
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // StaticRoute adds a request to create or update VPP L3 Static Route.
-func (dsl *PutDSL) StaticRoute(val *l3.StaticRoute) linuxclient.PutDSL {
+func (dsl *PutDSL) StaticRoute(val *vpp_l3.Route) linuxclient.PutDSL {
 	dsl.parent.putReq.StaticRoutes = append(dsl.parent.putReq.StaticRoutes, val)
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // Arp adds a request to create or update VPP L3 ARP.
-func (dsl *PutDSL) Arp(val *l3.ARPEntry) linuxclient.PutDSL {
+func (dsl *PutDSL) Arp(val *vpp_l3.ARPEntry) linuxclient.PutDSL {
 	dsl.parent.putReq.ArpEntries = append(dsl.parent.putReq.ArpEntries, val)
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // ProxyArp adds a request to create or update VPP L3 proxy ARP.
-func (dsl *PutDSL) ProxyArp(val *l3.ProxyARP) linuxclient.PutDSL {
+func (dsl *PutDSL) ProxyArp(val *vpp_l3.ProxyARP) linuxclient.PutDSL {
 	dsl.parent.putReq.ProxyArp = val
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // IPScanNeighbor adds L3 IP Scan Neighbor to the RESYNC request.
-func (dsl *PutDSL) IPScanNeighbor(val *l3.IPScanNeighbor) linuxclient.PutDSL {
+func (dsl *PutDSL) IPScanNeighbor(val *vpp_l3.IPScanNeighbor) linuxclient.PutDSL {
 	dsl.parent.putReq.IPScanNeighbor = val
 	dsl.parent.withPut = true
 	return dsl
@@ -197,48 +197,48 @@ func (dsl *PutDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) linuxclient.
 }
 
 // StnRule adds a request to create or update VPP Stn rule.
-func (dsl *PutDSL) StnRule(val *stn.STN_Rule) linuxclient.PutDSL {
+func (dsl *PutDSL) StnRule(val *vpp_stn.Rule) linuxclient.PutDSL {
 	defer func() { panic(deprecated) }()
 	return dsl
 }
 
 // NAT44Global adds a request to set global configuration for NAT44
-func (dsl *PutDSL) NAT44Global(val *nat.Nat44Global) linuxclient.PutDSL {
+func (dsl *PutDSL) NAT44Global(val *vpp_nat.Nat44Global) linuxclient.PutDSL {
 	dsl.parent.putReq.NatGlobal = val
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // DNAT44 adds a request to create or update DNAT44 configuration
-func (dsl *PutDSL) DNAT44(val *nat.DNat44) linuxclient.PutDSL {
+func (dsl *PutDSL) DNAT44(val *vpp_nat.DNat44) linuxclient.PutDSL {
 	dsl.parent.putReq.DNATs = append(dsl.parent.putReq.DNATs, val)
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // IPSecSA adds request to create a new Security Association
-func (dsl *PutDSL) IPSecSA(val *ipsec.SecurityAssociation) linuxclient.PutDSL {
+func (dsl *PutDSL) IPSecSA(val *vpp_ipsec.SecurityAssociation) linuxclient.PutDSL {
 	dsl.parent.putReq.SAs = append(dsl.parent.putReq.SAs, val)
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // IPSecSPD adds request to create a new Security Policy Database
-func (dsl *PutDSL) IPSecSPD(val *ipsec.SecurityPolicyDatabase) linuxclient.PutDSL {
+func (dsl *PutDSL) IPSecSPD(val *vpp_ipsec.SecurityPolicyDatabase) linuxclient.PutDSL {
 	dsl.parent.putReq.SPDs = append(dsl.parent.putReq.SPDs, val)
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // PuntIPRedirect adds request to create or update rule to punt L3 traffic via interface.
-func (dsl *PutDSL) PuntIPRedirect(val *punt.IpRedirect) linuxclient.PutDSL {
+func (dsl *PutDSL) PuntIPRedirect(val *vpp_punt.IPRedirect) linuxclient.PutDSL {
 	dsl.parent.putReq.IPRedirectPunts = append(dsl.parent.putReq.IPRedirectPunts, val)
 	dsl.parent.withPut = true
 	return dsl
 }
 
 // PuntToHost adds request to create or update rule to punt L4 traffic to a host.
-func (dsl *PutDSL) PuntToHost(val *punt.ToHost) linuxclient.PutDSL {
+func (dsl *PutDSL) PuntToHost(val *vpp_punt.ToHost) linuxclient.PutDSL {
 	dsl.parent.putReq.ToHostPunts = append(dsl.parent.putReq.ToHostPunts, val)
 	dsl.parent.withPut = true
 	return dsl
@@ -268,7 +268,7 @@ func (dsl *DeleteDSL) LinuxInterface(ifaceName string) linuxclient.DeleteDSL {
 // LinuxArpEntry adds a request to delete Linux ARP entry
 func (dsl *DeleteDSL) LinuxArpEntry(ifaceName string, ipAddr string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.LinuxArpEntries = append(dsl.parent.delReq.LinuxArpEntries,
-		&linux_l3.StaticARPEntry{
+		&linux_l3.ARPEntry{
 			Interface: ifaceName,
 			IpAddress: ipAddr,
 		})
@@ -279,7 +279,7 @@ func (dsl *DeleteDSL) LinuxArpEntry(ifaceName string, ipAddr string) linuxclient
 // LinuxRoute adds a request to delete Linux route
 func (dsl *DeleteDSL) LinuxRoute(dstNet, outIfaceName string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.LinuxRoutes = append(dsl.parent.delReq.LinuxRoutes,
-		&linux_l3.StaticRoute{
+		&linux_l3.Route{
 			DstNetwork:        dstNet,
 			OutgoingInterface: outIfaceName,
 		})
@@ -290,7 +290,7 @@ func (dsl *DeleteDSL) LinuxRoute(dstNet, outIfaceName string) linuxclient.Delete
 // VppInterface adds a request to delete an existing VPP network interface.
 func (dsl *DeleteDSL) VppInterface(ifaceName string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.Interfaces = append(dsl.parent.delReq.Interfaces,
-		&interfaces.Interface{
+		&vpp_interfaces.Interface{
 			Name: ifaceName,
 		})
 	dsl.parent.withDel = true
@@ -300,7 +300,7 @@ func (dsl *DeleteDSL) VppInterface(ifaceName string) linuxclient.DeleteDSL {
 // ACL adds a request to delete an existing VPP Access Control List.
 func (dsl *DeleteDSL) ACL(aclName string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.AccessLists = append(dsl.parent.delReq.AccessLists,
-		&acl.Acl{
+		&vpp_acl.ACL{
 			Name: aclName,
 		})
 	dsl.parent.withDel = true
@@ -331,7 +331,7 @@ func (dsl *DeleteDSL) BfdEchoFunction(bfdEchoName string) linuxclient.DeleteDSL 
 // BD adds a request to delete an existing VPP Bridge Domain.
 func (dsl *DeleteDSL) BD(bdName string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.BridgeDomains = append(dsl.parent.delReq.BridgeDomains,
-		&l2.BridgeDomain{
+		&vpp_l2.BridgeDomain{
 			Name: bdName,
 		})
 	dsl.parent.withDel = true
@@ -342,7 +342,7 @@ func (dsl *DeleteDSL) BD(bdName string) linuxclient.DeleteDSL {
 // Base.
 func (dsl *DeleteDSL) BDFIB(bdName string, mac string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.FIBs = append(dsl.parent.delReq.FIBs,
-		&l2.FIBEntry{
+		&vpp_l2.FIBEntry{
 			BridgeDomain: bdName,
 			PhysAddress:  mac,
 		})
@@ -353,7 +353,7 @@ func (dsl *DeleteDSL) BDFIB(bdName string, mac string) linuxclient.DeleteDSL {
 // XConnect adds a request to delete an existing VPP Cross Connect.
 func (dsl *DeleteDSL) XConnect(rxIfaceName string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.XCons = append(dsl.parent.delReq.XCons,
-		&l2.XConnectPair{
+		&vpp_l2.XConnectPair{
 			ReceiveInterface: rxIfaceName,
 		})
 	dsl.parent.withDel = true
@@ -363,7 +363,7 @@ func (dsl *DeleteDSL) XConnect(rxIfaceName string) linuxclient.DeleteDSL {
 // StaticRoute adds a request to delete an existing VPP L3 Static Route.
 func (dsl *DeleteDSL) StaticRoute(vrf uint32, dstNet string, nextHopAddr string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.StaticRoutes = append(dsl.parent.delReq.StaticRoutes,
-		&l3.StaticRoute{
+		&vpp_l3.Route{
 			VrfId:       vrf,
 			DstNetwork:  dstNet,
 			NextHopAddr: nextHopAddr,
@@ -375,7 +375,7 @@ func (dsl *DeleteDSL) StaticRoute(vrf uint32, dstNet string, nextHopAddr string)
 // Arp adds a request to delete an existing VPP L3 ARP.
 func (dsl *DeleteDSL) Arp(ifaceName string, ipAddr string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.ArpEntries = append(dsl.parent.delReq.ArpEntries,
-		&l3.ARPEntry{
+		&vpp_l3.ARPEntry{
 			Interface: ifaceName,
 			IpAddress: ipAddr,
 		})
@@ -385,14 +385,14 @@ func (dsl *DeleteDSL) Arp(ifaceName string, ipAddr string) linuxclient.DeleteDSL
 
 // ProxyArp adds a request to delete an existing VPP L3 proxy ARP
 func (dsl *DeleteDSL) ProxyArp() linuxclient.DeleteDSL {
-	dsl.parent.delReq.ProxyArp = &l3.ProxyARP{}
+	dsl.parent.delReq.ProxyArp = &vpp_l3.ProxyARP{}
 	dsl.parent.withDel = true
 	return dsl
 }
 
 // IPScanNeighbor adds a request to delete an existing VPP L3 IP Scan Neighbor.
 func (dsl *DeleteDSL) IPScanNeighbor() linuxclient.DeleteDSL {
-	dsl.parent.delReq.IPScanNeighbor = &l3.IPScanNeighbor{}
+	dsl.parent.delReq.IPScanNeighbor = &vpp_l3.IPScanNeighbor{}
 	dsl.parent.withDel = true
 	return dsl
 }
@@ -410,14 +410,14 @@ func (dsl *DeleteDSL) AppNamespace(id string) linuxclient.DeleteDSL {
 }
 
 // StnRule adds a request to delete an existing VPP Stn rule.
-func (dsl *DeleteDSL) StnRule(ruleName string) linuxclient.DeleteDSL {
+func (dsl *DeleteDSL) StnRule(iface, addr string) linuxclient.DeleteDSL {
 	defer func() { panic(deprecated) }()
 	return dsl
 }
 
 // NAT44Global adds a request to remove global configuration for NAT44
 func (dsl *DeleteDSL) NAT44Global() linuxclient.DeleteDSL {
-	dsl.parent.delReq.NatGlobal = &nat.Nat44Global{}
+	dsl.parent.delReq.NatGlobal = &vpp_nat.Nat44Global{}
 	dsl.parent.withDel = true
 	return dsl
 }
@@ -425,7 +425,7 @@ func (dsl *DeleteDSL) NAT44Global() linuxclient.DeleteDSL {
 // DNAT44 adds a request to delete an existing DNAT-44 configuration
 func (dsl *DeleteDSL) DNAT44(label string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.DNATs = append(dsl.parent.delReq.DNATs,
-		&nat.DNat44{
+		&vpp_nat.DNat44{
 			Label: label,
 		})
 	dsl.parent.withDel = true
@@ -435,7 +435,7 @@ func (dsl *DeleteDSL) DNAT44(label string) linuxclient.DeleteDSL {
 // IPSecSA adds request to delete a Security Association
 func (dsl *DeleteDSL) IPSecSA(saIndex string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.SAs = append(dsl.parent.delReq.SAs,
-		&ipsec.SecurityAssociation{
+		&vpp_ipsec.SecurityAssociation{
 			Index: saIndex,
 		})
 	dsl.parent.withDel = true
@@ -445,7 +445,7 @@ func (dsl *DeleteDSL) IPSecSA(saIndex string) linuxclient.DeleteDSL {
 // IPSecSPD adds request to delete a Security Policy Database
 func (dsl *DeleteDSL) IPSecSPD(spdIndex string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.SPDs = append(dsl.parent.delReq.SPDs,
-		&ipsec.SecurityPolicyDatabase{
+		&vpp_ipsec.SecurityPolicyDatabase{
 			Index: spdIndex,
 		})
 	dsl.parent.withDel = true
@@ -453,9 +453,9 @@ func (dsl *DeleteDSL) IPSecSPD(spdIndex string) linuxclient.DeleteDSL {
 }
 
 // PuntIPRedirect adds request to delete a rule used to punt L3 traffic via interface.
-func (dsl *DeleteDSL) PuntIPRedirect(l3Proto punt.L3Protocol, txInterface string) linuxclient.DeleteDSL {
+func (dsl *DeleteDSL) PuntIPRedirect(l3Proto vpp_punt.L3Protocol, txInterface string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.IPRedirectPunts = append(dsl.parent.delReq.IPRedirectPunts,
-		&punt.IpRedirect{
+		&vpp_punt.IPRedirect{
 			L3Protocol:  l3Proto,
 			TxInterface: txInterface,
 		})
@@ -464,9 +464,9 @@ func (dsl *DeleteDSL) PuntIPRedirect(l3Proto punt.L3Protocol, txInterface string
 }
 
 // PuntToHost adds request to delete a rule used to punt L4 traffic to a host.
-func (dsl *DeleteDSL) PuntToHost(l3Proto punt.L3Protocol, l4Proto punt.L4Protocol, port uint32) linuxclient.DeleteDSL {
+func (dsl *DeleteDSL) PuntToHost(l3Proto vpp_punt.L3Protocol, l4Proto vpp_punt.L4Protocol, port uint32) linuxclient.DeleteDSL {
 	dsl.parent.delReq.ToHostPunts = append(dsl.parent.delReq.ToHostPunts,
-		&punt.ToHost{
+		&vpp_punt.ToHost{
 			L3Protocol: l3Proto,
 			L4Protocol: l4Proto,
 			Port:       port,

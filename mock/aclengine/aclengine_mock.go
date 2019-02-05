@@ -30,7 +30,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/ligato/cn-infra/datasync/syncbase"
-	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
+	"github.com/ligato/vpp-agent/api/models/vpp/acl"
 )
 
 // maxPortNum is the maximum possible port number.
@@ -70,6 +70,8 @@ const (
 	ACLActionFailure
 )
 
+const aclPrefix = "config/vpp/acls/v2/acl/"
+
 // MockACLEngine simulates ACL evaluation engine from the VPP/ACL plugin.
 type MockACLEngine struct {
 	sync.Mutex
@@ -90,15 +92,15 @@ type PodConfig struct {
 
 // ACLConfig stores currently installed ACLs.
 type ACLConfig struct {
-	byName  map[string]*vpp_acl.Acl
+	byName  map[string]*vpp_acl.ACL
 	byIf    map[string]*InterfaceACLs
 	changes int
 }
 
 // InterfaceACLs stores ACLs assigned to interface.
 type InterfaceACLs struct {
-	inbound  *vpp_acl.Acl
-	outbound *vpp_acl.Acl
+	inbound  *vpp_acl.ACL
+	outbound *vpp_acl.ACL
 }
 
 // NewMockACLEngine is a constructor for MockACLEngine.
@@ -115,7 +117,7 @@ func NewMockACLEngine(log logging.Logger, ipv4Net ipv4net.API, contivConf Contiv
 // NewACLConfig is a constructor for ACLConfig.
 func NewACLConfig() *ACLConfig {
 	return &ACLConfig{
-		byName: make(map[string]*vpp_acl.Acl),
+		byName: make(map[string]*vpp_acl.ACL),
 		byIf:   make(map[string]*InterfaceACLs),
 	}
 }
@@ -163,10 +165,10 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 
 		mae.ClearACLs()
 		for key, value := range txn.LinuxDataResyncTxn.Values {
-			if !strings.HasPrefix(key, vpp_acl.Prefix) {
+			if !strings.HasPrefix(key, aclPrefix) {
 				return errors.New("non-ACL changed in txn")
 			}
-			acl, isACL := value.(*vpp_acl.Acl)
+			acl, isACL := value.(*vpp_acl.ACL)
 			if !isACL {
 				return errors.New("failed to cast ACL value")
 			}
@@ -186,10 +188,10 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 
 	dataChange := txn.LinuxDataChangeTxn
 	for key, value := range dataChange.Values {
-		if !strings.HasPrefix(key, vpp_acl.Prefix) {
+		if !strings.HasPrefix(key, aclPrefix) {
 			return errors.New("non-ACL changed in txn")
 		}
-		aclName := strings.TrimPrefix(key, vpp_acl.Prefix)
+		aclName := strings.TrimPrefix(key, aclPrefix)
 		//foundRev, _ := latestRevs.Get(op.Key) TODO: update/uncomment after the refactor
 		if value != nil {
 			// put ACL
@@ -199,7 +201,7 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 					return errors.New("modify vs create ACL operation mismatch")
 				}
 			*/
-			acl, isACL := value.(*vpp_acl.Acl)
+			acl, isACL := value.(*vpp_acl.ACL)
 			if !isACL {
 				return errors.New("failed to cast ACL value")
 			}
@@ -226,7 +228,7 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 }
 
 // DumpACLs returns all ACLs currently installed.
-func (mae *MockACLEngine) DumpACLs() (acls []*vpp_acl.Acl) {
+func (mae *MockACLEngine) DumpACLs() (acls []*vpp_acl.ACL) {
 	for _, acl := range mae.aclConfig.byName {
 		acls = append(acls, acl)
 	}
@@ -240,20 +242,20 @@ func (mae *MockACLEngine) GetNumOfACLs() int {
 
 // GetInboundACL returns ACL assigned on the inbound side of the given interface,
 // or nil if there is none.
-func (mae *MockACLEngine) GetInboundACL(ifName string) *vpp_acl.Acl {
+func (mae *MockACLEngine) GetInboundACL(ifName string) *vpp_acl.ACL {
 	acls := mae.aclConfig.GetACLs(ifName)
 	return acls.inbound
 }
 
 // GetOutboundACL returns ACL assigned on the outbound side of the given interface,
 // or nil if there is none.
-func (mae *MockACLEngine) GetOutboundACL(ifName string) *vpp_acl.Acl {
+func (mae *MockACLEngine) GetOutboundACL(ifName string) *vpp_acl.ACL {
 	acls := mae.aclConfig.GetACLs(ifName)
 	return acls.outbound
 }
 
 // GetACLByName returns ACL with the given name, or nil if there is none.
-func (mae *MockACLEngine) GetACLByName(aclName string) *vpp_acl.Acl {
+func (mae *MockACLEngine) GetACLByName(aclName string) *vpp_acl.ACL {
 	acl, has := mae.aclConfig.byName[aclName]
 	if !has {
 		return nil
@@ -498,7 +500,7 @@ func (mae *MockACLEngine) testConnection(srcIfName string, srcIP net.IP,
 	return ConnActionAllow
 }
 
-func (mae *MockACLEngine) evalACL(acl *vpp_acl.Acl, srcIP, dstIP net.IP,
+func (mae *MockACLEngine) evalACL(acl *vpp_acl.ACL, srcIP, dstIP net.IP,
 	protocol renderer.ProtocolType, dstPort uint16) ACLAction {
 
 	if acl == nil {
@@ -635,11 +637,11 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.Acl, srcIP, dstIP net.IP,
 			"acl":  acl.Name,
 		}).Debug("Connection matched by ACL rule")
 		switch rule.Action {
-		case vpp_acl.Acl_Rule_DENY:
+		case vpp_acl.ACL_Rule_DENY:
 			return ACLActionDeny
-		case vpp_acl.Acl_Rule_PERMIT:
+		case vpp_acl.ACL_Rule_PERMIT:
 			return ACLActionPermit
-		case vpp_acl.Acl_Rule_REFLECT:
+		case vpp_acl.ACL_Rule_REFLECT:
 			return ACLActionReflect
 		default:
 			return ACLActionFailure
@@ -678,7 +680,7 @@ func (ac *ACLConfig) DelACL(aclName string) error {
 }
 
 // PutACL adds the given ACL.
-func (ac *ACLConfig) PutACL(acl *vpp_acl.Acl) error {
+func (ac *ACLConfig) PutACL(acl *vpp_acl.ACL) error {
 	if acl == nil {
 		return errors.New("ACL is nil")
 	}

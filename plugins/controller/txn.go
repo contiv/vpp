@@ -20,8 +20,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/ligato/cn-infra/datasync"
-
 	"github.com/contiv/vpp/plugins/controller/api"
 	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 )
@@ -34,12 +32,7 @@ type kvSchedulerTxn struct {
 	values api.KeyValuePairs
 
 	// injected by Controller to merge external with internal configuration
-	merged map[string]datasync.LazyValue
-}
-
-// lazyValue implements datasync.LazyValue interface.
-type lazyValue struct {
-	value proto.Message
+	merged api.KeyValuePairs
 }
 
 // newTransaction creates new transaction to be executed via KVScheduler.
@@ -47,7 +40,7 @@ func newTransaction(kvScheduler scheduler_api.KVScheduler) *kvSchedulerTxn {
 	return &kvSchedulerTxn{
 		kvScheduler: kvScheduler,
 		values:      make(api.KeyValuePairs),
-		merged:      make(map[string]datasync.LazyValue),
+		merged:      make(api.KeyValuePairs),
 	}
 }
 
@@ -57,14 +50,14 @@ func (txn *kvSchedulerTxn) Commit(ctx context.Context) (seqNum uint64, err error
 	for key, value := range txn.values {
 		if value != nil {
 			// put
-			schedTxn.SetValue(key, &lazyValue{value: value})
+			schedTxn.SetValue(key, value)
 		} else {
 			// delete
 			schedTxn.SetValue(key, nil)
 		}
 	}
-	for key, lazyVal := range txn.merged {
-		schedTxn.SetValue(key, lazyVal)
+	for key, value := range txn.merged {
+		schedTxn.SetValue(key, value)
 	}
 	return schedTxn.Commit(ctx)
 }
@@ -87,13 +80,4 @@ func (txn *kvSchedulerTxn) Delete(key string) {
 func (txn *kvSchedulerTxn) Get(key string) proto.Message {
 	value, _ := txn.values[key]
 	return value
-}
-
-// GetValue places the value into the provided proto message.
-func (lv *lazyValue) GetValue(value proto.Message) error {
-	tmp, err := proto.Marshal(lv.value)
-	if err != nil {
-		return err
-	}
-	return proto.Unmarshal(tmp, value)
 }

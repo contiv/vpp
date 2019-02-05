@@ -358,7 +358,7 @@ The processing is split into 13 steps:
 13. In case of a non-healing processing failure, an after-error Healing resync
     gets scheduled to execute soon after.
 
-## Event logging
+### Event logging
 
 Every processed event is logged into the standard output with two messages - first
 introducing a newly received event and the second summarizing the outcome of the
@@ -398,6 +398,37 @@ to the first event, which is guaranteed to be the startup resync. The event
 sequence number is displayed in both opening and closing messages, aligned
 to the right side of the message box and prefixed with the hash symbol.
 
+### Event history
+
+The Controller plugin maintains an in-memory history of processed events.
+Every finalized event is recorded as an instance of the `EventRecord` type:
+
+```
+type EventRecord struct {
+	SeqNum          uint64
+	ProcessingStart time.Time
+	ProcessingEnd   time.Time
+	IsFollowUp      bool
+	FollowUpTo      uint64
+	Name            string
+	Description     string
+	Method          api.EventMethodType
+	Handlers        []*EventHandlingRecord
+	TxnError        error
+	Txn             *scheduler.RecordedTxn
+}
+```
+
+Event payload is not fully recorded, however, only the event name, description,
+return values from event handlers and the associated transaction that was
+submitted to VPP-Agent.
+
+The records are not kept in-memory forever, however, otherwise the memory usage
+would grow indefinitely. Instead the history is periodically trimmed off
+too old records. Maximum allowed age of records can be configured, by default
+it is 24 hours.
+
+The event history is exposed via [REST API][controller-rest].
 
 [external-config-guide]: EXTERNAL_CONFIG.md
 [event-loop-diagram]: event-loop/event-loop.png

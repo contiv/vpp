@@ -6,8 +6,7 @@ and handles, and on the other side by the state data it exposes. For example,
 [nodesync](#nodesync) plugin processes `KubeStateChange` event with updates
 related to K8s Node state data, pushes newly defined event `NodeUpdate`
 to announce when another node joins or leaves cluster, and finally the plugin
-exposes IPs and IDs of all nodes currently in the cluster through an exposed
-[interface][nodesync-api].
+exposes IPs and IDs of all nodes currently in the cluster through an [interface][nodesync-api].
 
 This approach of decoupling the Contiv core functionality across multiple
 plugins with a clear API defined in-between, allows to even replace an original
@@ -162,6 +161,7 @@ Controller can be accessed from outside via REST API:
 
 [ContivConf][contivconf-plugin] plugins simplifies the Contiv configuration
 processing for other plugins.
+
 The problem is that Contiv has multiple sources of configuration:
   * configuration file, further split between the global options and node-specific
     sections
@@ -170,9 +170,10 @@ The problem is that Contiv has multiple sources of configuration:
     host stack)
   * implicit values determined on run-time - e.g. use the first interface by
     name/index
+
 ContivConf reads all the sources of the configuration and for each option
 determines the right value based on priorities.
-ContivConf is used not only withing `contiv-agent`, but also for the initialization
+ContivConf is used not only within `contiv-agent`, but also for the initialization
 container running [contiv-init][contiv-init] to determine whether to start the
 agent in the STN mode or not.
 
@@ -195,7 +196,7 @@ inside the node that will not collide with other nodes.
 Furthermore, NodeSync publishes allocations/changes of the VPP-side of node IP
 address(es) - information that is not known to Kubernetes.
 
-NodeSync defines new [resource][db-resource] called [VppNode][vppnode-model],
+NodeSync defines new [resource][db-resources] called [VppNode][vppnode-model],
 added into the list of items to watch for in KVDB and to dispatch across event
 handlers using `DBResync` and `KubeStateChange` events.
 
@@ -203,12 +204,15 @@ handlers using `DBResync` and `KubeStateChange` events.
 
 NodeSync introduces single new event, called `NodeUpdate`, an update event that
 represents change in the status of a K8s node.
+
 For other nodes, the event is triggered when:
   * node joins the cluster
   * node leaves the cluster
   * VPP or management IP addresses of another node are updated
+
 For the same node, the event is triggered only when:
   * the management IP addresses are updated
+
 For update of this node VPP IP addresses, there is already resync event
 `NodeIPv*Change`, that should be implemented by network connectivity plugins.
 
@@ -216,9 +220,9 @@ For update of this node VPP IP addresses, there is already resync event
 
 [PodManager][podmanager-plugin] plugin manages locally deployed pods.
 It serves Add/Delete CNI requests, converts them to `AddPod` and `DeletePod`
-events, and maintains a map of metadata (container & namespace IDs) for all
-locally deployed pods, with enough information for other plugins to be able to
-(re)construct connectivity between pods and the vswitch.
+events, and maintains a map of metadata for all locally deployed pods, with enough
+information for other plugins to be able to (re)construct connectivity between
+pods and the vswitch.
 
 ### Events
 
@@ -226,10 +230,10 @@ Request to establish connectivity with a newly created pod is received from
 [contiv-cni][contiv-cni] through GRPC into PodManager, which then wraps the
 request into an instance of the blocking event `AddPod`.
 The event contain input parameters: *pod ID*, *container ID*, *namespace reference*,
-and expects network plugins to fill-in routes and interfaces that were configured
-and Kubernetes should be informed about.
+and expects network plugins to fill-in *routes* and *interfaces* that were
+configured and Kubernetes should be informed about.
 Similarly, CNI request to delete pod is wrapped into blocking event `DeletePod`,
-which is dispatched through the chain of event handlers in the reverse order.
+which is dispatched through the chain of event handlers in the *reverse* order.
 
 ## IPAM
 

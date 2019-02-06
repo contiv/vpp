@@ -29,13 +29,14 @@ to the handlers exactly in this order. If plugin `B` needs to read the state of
 plugin `A` through its API, i.e. plugin `B` depends on `A`, and both plugins are
 handlers for at least one common event, then plugin `A` should be registered
 before `B` to ensure, that when plugin `B` receives an event, it can access
-plugin `A` knowing that it has already updated its state to reflect the event.
+plugin `A` knowing that it has already updated its state to reflect this event.
 First few plugins in the chain of event handlers are therefore core plugins
 providing some basic functionally, used by more specialized plugins that follow.
 
 The outcome of event processing can be threefold:
-* update of the internal state of event handlers
-* update/resync of the VPP/Linux configuration for the [ligato/VPP-Agent][ligato-vpp-agent] to apply
+* update of the **internal state** of event handlers
+* update/resync of the **VPP/Linux configuration** for the [ligato/VPP-Agent][ligato-vpp-agent]
+  to apply
 * dispatching of a new **follow-up** event
 
 What to remember internally is fully in the reign of individual event handlers.
@@ -93,7 +94,7 @@ type Event interface {
 
 	// Done is used to mark the event as processed.
 	// A specific Event implementation may use this method for example to deliver
-	// the return value back to the send of the event.
+	// the return value back to the sender of the event.
 	Done(error)
 }
 ```
@@ -111,9 +112,9 @@ type Event interface {
   specific kind of resync it is (for example: "DB resync", "DHCP-assigned
   Node IP change", etc.).
   Based on the scope of data to resynchronize, the resync is further divided
-  into the modes:
+  into 3 modes:
     - `Full Resync`: desired configuration is re-calculated by Contiv plugins,
-      the view of SB plane (VPP/Linux) is refreshed and inconsistencies are
+      the view of the SB plane (VPP/Linux) is refreshed and inconsistencies are
       resolved using CRUD operations by the VPP-Agent.
     - `Upstream resync`: partial resync; same as Full resync except the view
       of SB plane is assumed to be up-to-date and will not get refreshed.
@@ -121,9 +122,9 @@ type Event interface {
       rather than to determine the (minimal) difference.
     - `Downstream resync`: partial resync; unlike Full resync the Contiv plugins
       are not asked to Resync their state, i.e. `Resync` methods of event handlers
-      are not called - the event is fully handled by the Controller, instead
-      the last state of Contiv-requested configuration is assumed to be up-to-date
-      and re-used by VPP-Agent to perform resync with the data plane.
+      are not called (the event is fully handled by the Controller).
+      The last state of the Contiv-requested configuration is assumed to be
+      up-to-date and re-used by VPP-Agent to perform resync with the data plane.
       In Contiv, the Downstream resync is used for periodical Healing resync,
       which, if enabled, can execute without any interaction with event handlers.
 
@@ -151,10 +152,10 @@ type UpdateEvent interface {
 With `TransactionType()` it is possible to define how to treat transaction
 errors - either to rollback failed transaction (`RevertOnFailure`) or to keep
 effects of successful operations to be as close to the desired state as it is
-possible. For example, if we fail to connect pod with VPP, we revert all the
-changes and return error back to Kubernetes, which sends new request for a
-re-created container soon after. Resync events, on the other hand, are all
-handled in the best-effort mode (revert makes no sense).
+possible (`BestEffort`). For example, if we fail to connect pod with VPP, we
+revert all the changes and return error back to Kubernetes, which sends new
+request for a re-created container soon after. Resync events, on the other hand,
+are all handled in the best-effort mode (revert makes no sense).
 
 `Direction()` allows to change the direction in which the event should flow
 through the chain of event handlers. By default, the events are processed
@@ -251,13 +252,13 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 }
 ```
 
-When a given event is selected by `HandlesEvent`, it is then passed for processing
-through `Update()` or `Resync()`, depending on the event method (as given by
-`Event.Method()`). Together with the event, a handler is also given reference
-to the associated [transaction][controller-txn-api], created to collect VPP/Linux
-configuration changes to be installed to reflect the event.
+When a given event is selected by `HandlesEvent()`, it is then passed for
+processing through `Update()` or `Resync()`, depending on the event method
+(as given by `Event.Method()`). Together with the event, a handler is also given
+reference to the associated [transaction][controller-txn-api], created to collect
+VPP/Linux configuration changes to be installed to reflect the event.
 
-The handler may return error from `Update`/`Resync` wrapped in either:
+The handler may return error from `Update()`/`Resync()` wrapped in either:
 * [FatalError][controller-error-api] to signal that the agent should be
   terminated (and restarted by k8s), or
 * [AbortEventError][controller-error-api] to signal that the processing of the
@@ -268,12 +269,12 @@ a resync is needed, but if the transaction is of type `BestEffort`, then
 the current event processing will continue.
 
 For update events which are defined to be reverted on failure, the Controller
-will call `Revert` method on all the handlers that already processed the event,
-but in the reverse order so that they can undo internal state changes.
+will call the `Revert()` method on all the handlers that already processed the
+event, but in the reverse order so that they can undo internal state changes.
 
 Event handlers are registered for event processing by listing them in the slice
-`EventHandlers` from the dependencies of the Controller plugin. Remember that
-if plugin `B` depends on `A`, then `A` must be listed before `B`.
+`EventHandlers`, found among the dependencies of the Controller plugin. Remember
+that if plugin `B` depends on `A`, then `A` must be listed before `B`.
 For example, here is an excerpt from `main.go` of the Contiv agent, where all
 the dependency injection takes place:
 ```
@@ -329,12 +330,12 @@ Here is a summary of key methods and their purpose:
   By default this is disabled, but when turned on, `periodicHealing` will keep
   sending signals in the configured time period to run the so-called **periodic
   Healing resync**;
-* `Controller.scheduleHealing`: when event processing fails - the error being
-  thrown by one of the handlers or the VPP-Agent - the controller will schedule
-  a so-called **after-error Healing resync** using this method, hoping that
-  re-synchronization of all event handlers and of the network configuration might
-  resolve the issue. But when Healing resync fails as well, the agent is set
-  for hard-restart using the [statuscheck plugin][statuscheck];
+* `Controller.scheduleHealing`: when event processing fails (error is returned
+  either by one of the handlers or by the VPP-Agent), the controller will
+  schedule a so-called **after-error Healing resync** using this method, hoping
+  that re-synchronization of all event handlers and of the network configuration
+  might resolve the issue. But when Healing resync fails as well, the agent is
+  set for hard-restart using the [statuscheck plugin][statuscheck];
 
 ### Event processing
 
@@ -379,9 +380,9 @@ The processing is split into 13 steps:
 Every processed event is logged into the standard output with two messages - first
 introducing a newly received event and the second summarizing the outcome of the
 event processing once it has finalized. Both messages are bordered using brackets
-and asterisks for better readability, with the introduction log messages marked
-using angle brackets pointing from the left to the right, to represent
-incoming event, and the closing message using brackets oriented in the opposite
+and asterisks for better readability, where the introduction log messages are
+marked using angle brackets pointing from the left to the right, to represent
+incoming event, and the closing messages with brackets oriented in the opposite
 direction to denote the end of the event loop iteration.
 
 An example event log:
@@ -435,21 +436,24 @@ type EventRecord struct {
 }
 ```
 
-Event payload is not fully recorded, however, only the event name, description,
-return values from event handlers and the associated transaction that was
-submitted to VPP-Agent.
+Event payload is not fully recorded, instead the record only collects the event
+name, description, return values from event handlers and the associated
+transaction that was submitted to VPP-Agent.
 
-The records are not kept in-memory forever, however, otherwise the memory usage
-would grow indefinitely. Instead the history is periodically trimmed off
-too old records. Maximum allowed age of records can be configured, by default
-it is 24 hours.
+The records are not kept in-memory forever, otherwise the memory usage would
+grow indefinitely. Instead the history is periodically trimmed off too old records.
+Maximum allowed age of records can be configured and by default it is 24 hours.
+The initialization phase of the agent might be of a greater interest, however,
+therefore it is possible to configure length of a time period since the start
+of the agent with events to be permanently recorded (by default it is the first
+hour of runtime).
 
 The event history is exposed via [REST API][controller-rest].
 
 [external-config-guide]: EXTERNAL_CONFIG.md
 [event-loop-diagram]: event-loop/event-loop.png
 [controller-config]: CORE_PLUGINS.md#controller-configuration
-[controller-rest]: CORE_PLUGINS.md#rest-api
+[controller-rest]: CORE_PLUGINS.md#controller-rest-api
 [controller-caches]: CORE_PLUGINS.md#input-data-caching
 [controller-plugin]: https://github.com/contiv/vpp/blob/master/plugins/controller/plugin_controller.go
 [controller-api]: https://github.com/contiv/vpp/tree/master/plugins/controller/api

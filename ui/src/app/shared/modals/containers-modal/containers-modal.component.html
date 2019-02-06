@@ -1,0 +1,17 @@
+<clr-modal [clrModalSize]="'lg'" [(clrModalOpen)]="isModalOpened" *ngIf="pod">
+  <h3 class="modal-title">Containers - {{ pod.name }}</h3>
+  <div class="modal-body">
+    <clr-datagrid *ngIf="pod.containers">
+      <clr-dg-column [clrDgSortBy]="'name'">Name</clr-dg-column>
+      <clr-dg-column [clrDgSortBy]="'image'">Image</clr-dg-column>
+
+      <clr-dg-row *clrDgItems="let container of pod.containers">
+        <clr-dg-cell>{{container.name}}</clr-dg-cell>
+        <clr-dg-cell>{{container.image}}</clr-dg-cell>
+      </clr-dg-row>
+    </clr-datagrid>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-primary" (click)="isModalOpened = false">Close</button>
+  </div>
+</clr-modal>

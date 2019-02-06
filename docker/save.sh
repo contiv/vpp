@@ -58,6 +58,7 @@ images="${images} contivvpp/cni${IMAGEARCH}:${IMAGE_TAG}"
 images="${images} contivvpp/stn${IMAGEARCH}:${IMAGE_TAG}"
 images="${images} contivvpp/vswitch${IMAGEARCH}:${IMAGE_TAG}"
 images="${images} contivvpp/crd${IMAGEARCH}:${IMAGE_TAG}"
+images="${images} contivvpp/ui${IMAGEARCH}:${IMAGE_TAG}"
 echo $images
 
 if [ -f ../vagrant/images.tar ]; then

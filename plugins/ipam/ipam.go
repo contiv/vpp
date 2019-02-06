@@ -384,6 +384,12 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID) (net.IP, error) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
+	// check whether IP is already allocated
+	ip := i.GetPodIP(podID)
+	if ip != nil {
+		return ip.IP, nil
+	}
+
 	// get network prefix as uint32
 	networkPrefix, err := ipv4ToUint32(i.podSubnetThisNode.IP)
 	if err != nil {

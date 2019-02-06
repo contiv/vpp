@@ -109,7 +109,23 @@ type Event interface {
   of the currently desired Linux/VPP configuration, and potentially also full
   refresh of the internal state data of event handlers, depending on what
   specific kind of resync it is (for example: "DB resync", "DHCP-assigned
-  Node IP change", etc.)
+  Node IP change", etc.).
+  Based on the scope of data to resynchronize, the resync is further divided
+  into the modes:
+    - `Full Resync`: desired configuration is re-calculated by Contiv plugins,
+      the view of SB plane (VPP/Linux) is refreshed and inconsistencies are
+      resolved using CRUD operations by the VPP-Agent.
+    - `Upstream resync`: partial resync; same as Full resync except the view
+      of SB plane is assumed to be up-to-date and will not get refreshed.
+      It is used by Contiv when it is easier to re-calculate the desired state
+      rather than to determine the (minimal) difference.
+    - `Downstream resync`: partial resync; unlike Full resync the Contiv plugins
+      are not asked to Resync their state, i.e. `Resync` methods of event handlers
+      are not called - the event is fully handled by the Controller, instead
+      the last state of Contiv-requested configuration is assumed to be up-to-date
+      and re-used by VPP-Agent to perform resync with the data plane.
+      In Contiv, the Downstream resync is used for periodical Healing resync,
+      which, if enabled, can execute without any interaction with event handlers.
 
 If event producer(s) need to wait for the result of the transaction associated
 with the event, `IsBlocking()` should return `true` and `Done(error)` can be

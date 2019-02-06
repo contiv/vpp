@@ -145,10 +145,7 @@ func (p *Plugin) Resync(controller.Event, controller.KubeStateData, int, control
 	return nil
 }
 
-// Update is called for:
-//   - AddPod and DeletePod
-//   - NodeUpdate for other nodes
-//   - Shutdown event
+// Update is called for the DeletePod event.
 func (p *Plugin) Update(event controller.Event, _ controller.UpdateOperations) (changeDescription string, err error) {
 	p.Lock()
 	defer p.Unlock()

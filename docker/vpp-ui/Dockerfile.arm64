@@ -16,6 +16,7 @@ ENV PATH="/root/.npm-global/bin:${PATH}"
 ENV NPM_CONFIG_LOGLEVEL warn
 ENV NPM_CONFIG_PREFIX=/root/.npm-global
 
+RUN npm config set unsafe-perm true
 RUN npm install -g npm@latest
 RUN npm install -g @angular/cli@7.0.2
 RUN mkdir -p /src/ui

@@ -1,4 +1,4 @@
-# Release v2.2.2 (7.2. 2019)
+# Release v2.1.2 (7.2. 2019)
 
 ### VPP
  - version **v18.10** (latest stable/1810)

@@ -21,13 +21,9 @@ import (
 	//"github.com/go-errors/errors"
 
 	"github.com/ligato/cn-infra/agent"
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/servicelabel"
-
-	"github.com/ligato/vpp-agent/plugins/kvscheduler"
 
 	plugin "github.com/contiv/vpp/plugins/controller"
 	"github.com/contiv/vpp/plugins/controller/api"
@@ -44,9 +40,6 @@ func main() {
 
 	ksrServicelabel := servicelabel.NewPlugin(servicelabel.UseLabel(ksr.MicroserviceLabel))
 	ksrServicelabel.SetName("ksrServiceLabel")
-
-	watcher := &datasync.KVProtoWatchers{local.Get()}
-	kvscheduler.DefaultPlugin.Watcher = watcher
 
 	controller := plugin.NewPlugin(plugin.UseDeps(func(deps *plugin.Deps) {
 		deps.LocalDB = &bolt.DefaultPlugin

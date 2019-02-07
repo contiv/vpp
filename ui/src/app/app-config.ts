@@ -7,5 +7,5 @@ export class AppConfig {
   public static API_V1_NETWORKING = 'apis/networking.k8s.io/v1/';
   public static API_V1_CONTIV = 'contiv/v1/';
   public static API_V1_VPP = 'vpp/dump/v1/';
-  public static API_V2_VPP = 'vpp/dump/v2/';
+  public static API_V2_VPP = 'dump/vpp/v2/';
 }

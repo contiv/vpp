@@ -31,6 +31,7 @@ contiv:
     nodeInterconnectCIDR: 192.168.16.0/24
     vxlanCIDR: 192.168.30.0/24
     nodeInterconnectDHCP: false
+    # defaultGateway: 192.168.16.100
     # serviceCIDR: "10.96.0.0/12"
     # example of node configuration for VPP interfaces
     # nodeConfig:
@@ -59,9 +60,16 @@ logs:
   defaultLevel: debug
 
 controller:
+  enableRetry: true
+  delayRetry: 1000000000
+  maxRetryAttempts: 3
+  enableExpBackoffRetry: true
   delayLocalResync: 5000000000
+  startupResyncDeadline: 30000000000
   enablePeriodicHealing: false
   periodicHealingInterval: 30000000000
+  delayAfterErrorHealing: 5000000000
+  remoteDBProbingInterval: 3000000000
   recordEventHistory: true
   eventHistoryAgeLimit: 1440
   permanentlyRecordedInitPeriod: 60

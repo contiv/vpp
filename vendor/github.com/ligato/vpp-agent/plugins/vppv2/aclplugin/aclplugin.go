@@ -23,7 +23,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	"github.com/ligato/vpp-agent/plugins/vppv2/aclplugin/aclidx"
 	"github.com/ligato/vpp-agent/plugins/vppv2/aclplugin/descriptor"
 	"github.com/ligato/vpp-agent/plugins/vppv2/aclplugin/descriptor/adapter"
@@ -50,7 +50,7 @@ type ACLPlugin struct {
 // Deps represents dependencies for the plugin.
 type Deps struct {
 	infra.PluginDeps
-	Scheduler   scheduler.KVScheduler
+	Scheduler   kvs.KVScheduler
 	GoVppmux    govppmux.API
 	IfPlugin    ifplugin.API
 	StatusCheck statuscheck.PluginStatusWriter // optional
@@ -74,7 +74,10 @@ func (p *ACLPlugin) Init() error {
 	// init & register descriptors
 	p.aclDescriptor = descriptor.NewACLDescriptor(p.aclHandler, p.IfPlugin, p.Log)
 	aclDescriptor := adapter.NewACLDescriptor(p.aclDescriptor.GetDescriptor())
-	p.Scheduler.RegisterKVDescriptor(aclDescriptor)
+	err = p.Scheduler.RegisterKVDescriptor(aclDescriptor)
+	if err != nil {
+		return err
+	}
 
 	// obtain read-only references to index maps
 	var withIndex bool
@@ -86,7 +89,10 @@ func (p *ACLPlugin) Init() error {
 
 	p.aclInterfaceDescriptor = descriptor.NewACLToInterfaceDescriptor(p.aclIndex, p.aclHandler, p.Log)
 	aclInterfaceDescriptor := p.aclInterfaceDescriptor.GetDescriptor()
-	p.Scheduler.RegisterKVDescriptor(aclInterfaceDescriptor)
+	err = p.Scheduler.RegisterKVDescriptor(aclInterfaceDescriptor)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

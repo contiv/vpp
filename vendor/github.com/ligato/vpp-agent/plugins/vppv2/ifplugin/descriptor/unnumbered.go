@@ -21,7 +21,7 @@ import (
 	"github.com/pkg/errors"
 
 	interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor/adapter"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
@@ -59,9 +59,8 @@ func (d *UnnumberedIfDescriptor) GetDescriptor() *adapter.UnnumberedDescriptor {
 		Name:               UnnumberedIfDescriptorName,
 		KeySelector:        d.IsUnnumberedInterfaceKey,
 		ValueTypeName:      proto.MessageName(&interfaces.Interface_Unnumbered{}),
-		Add:                d.Add,
+		Create:             d.Create,
 		Delete:             d.Delete,
-		ModifyWithRecreate: d.ModifyWithRecreate,
 		Dependencies:       d.Dependencies,
 	}
 }
@@ -79,8 +78,8 @@ func (d *UnnumberedIfDescriptor) IsUnnumberedInterfaceKey(key string) bool {
 	return isValid
 }
 
-// Add sets interface as unnumbered.
-func (d *UnnumberedIfDescriptor) Add(key string, unIntf *interfaces.Interface_Unnumbered) (metadata interface{}, err error) {
+// Create sets interface as unnumbered.
+func (d *UnnumberedIfDescriptor) Create(key string, unIntf *interfaces.Interface_Unnumbered) (metadata interface{}, err error) {
 	ifName, _ := interfaces.ParseNameFromUnnumberedKey(key)
 
 	ifMeta, found := d.ifIndex.LookupByName(ifName)
@@ -138,18 +137,12 @@ func (d *UnnumberedIfDescriptor) Delete(key string, unIntf *interfaces.Interface
 	return err
 }
 
-// ModifyWithRecreate returns always true so that the link to interface with IP
-// address is reconfigured with UnsetUnnumberedIP followed by SetUnnumberedIP for the new interface.
-func (d *UnnumberedIfDescriptor) ModifyWithRecreate(key string, oldUnIntf, newUnIntf *interfaces.Interface_Unnumbered, oldMetadata interface{}) bool {
-	return true
-}
-
 // Dependencies lists dependencies for an unnumbered VPP interface.
-func (d *UnnumberedIfDescriptor) Dependencies(key string, unIntf *interfaces.Interface_Unnumbered) []scheduler.Dependency {
+func (d *UnnumberedIfDescriptor) Dependencies(key string, unIntf *interfaces.Interface_Unnumbered) []kvs.Dependency {
 	// link between unnumbered interface and the referenced interface with IP address
 	// - satisfied as along as the referenced interface is configured and has at least
 	//   one IP address assigned
-	return []scheduler.Dependency{{
+	return []kvs.Dependency{{
 		Label: unnumberedInterfaceHasIPDep,
 		AnyOf: func(key string) bool {
 			ifName, _, _, isIfaceAddrKey := interfaces.ParseInterfaceAddressKey(key)

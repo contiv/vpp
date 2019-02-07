@@ -34,7 +34,7 @@ import (
 	"github.com/ligato/vpp-agent/api/models/vpp"
 	interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	linux_ifcalls "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/linuxcalls"
 	"github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
@@ -102,8 +102,8 @@ type IfPlugin struct {
 // Deps lists dependencies of the interface plugin.
 type Deps struct {
 	infra.PluginDeps
-	Scheduler scheduler.KVScheduler
-	GoVppmux  govppmux.StatsAPI
+	KVScheduler kvs.KVScheduler
+	GoVppmux    govppmux.StatsAPI
 
 	/*	LinuxIfPlugin and NsPlugin deps are optional,
 		but they are required if AFPacket or TAP+TAP_TO_VPP interfaces are used. */
@@ -155,24 +155,33 @@ func (p *IfPlugin) Init() error {
 	p.ifDescriptor = descriptor.NewInterfaceDescriptor(p.ifHandler, p.defaultMtu,
 		p.linuxIfHandler, p.LinuxIfPlugin, p.NsPlugin, p.Log)
 	ifDescriptor := adapter.NewInterfaceDescriptor(p.ifDescriptor.GetDescriptor())
-	p.Deps.Scheduler.RegisterKVDescriptor(ifDescriptor)
+	err = p.KVScheduler.RegisterKVDescriptor(ifDescriptor)
+	if err != nil {
+		return err
+	}
 
 	p.unIfDescriptor = descriptor.NewUnnumberedIfDescriptor(p.ifHandler, p.Log)
 	unIfDescriptor := adapter.NewUnnumberedDescriptor(p.unIfDescriptor.GetDescriptor())
-	p.Deps.Scheduler.RegisterKVDescriptor(unIfDescriptor)
+	err = p.KVScheduler.RegisterKVDescriptor(unIfDescriptor)
+	if err != nil {
+		return err
+	}
 
-	p.dhcpDescriptor = descriptor.NewDHCPDescriptor(p.Scheduler, p.ifHandler, p.Log)
+	p.dhcpDescriptor = descriptor.NewDHCPDescriptor(p.KVScheduler, p.ifHandler, p.Log)
 	dhcpDescriptor := p.dhcpDescriptor.GetDescriptor()
-	p.Deps.Scheduler.RegisterKVDescriptor(dhcpDescriptor)
+	err = p.KVScheduler.RegisterKVDescriptor(dhcpDescriptor)
+	if err != nil {
+		return err
+	}
 
 	// obtain read-only references to index maps
 	var withIndex bool
-	metadataMap := p.Deps.Scheduler.GetMetadataMap(ifDescriptor.Name)
+	metadataMap := p.KVScheduler.GetMetadataMap(ifDescriptor.Name)
 	p.intfIndex, withIndex = metadataMap.(ifaceidx.IfaceMetadataIndex)
 	if !withIndex {
 		return errors.New("missing index with interface metadata")
 	}
-	p.dhcpIndex = p.Deps.Scheduler.GetMetadataMap(dhcpDescriptor.Name)
+	p.dhcpIndex = p.KVScheduler.GetMetadataMap(dhcpDescriptor.Name)
 	if p.dhcpIndex == nil {
 		return errors.New("missing index with DHCP metadata")
 	}
@@ -209,7 +218,7 @@ func (p *IfPlugin) Init() error {
 		p.ifStateChan = make(chan *interfaces.InterfaceNotification, 1000)
 		// Interface state updater
 		p.ifStateUpdater = &InterfaceStateUpdater{}
-		if err := p.ifStateUpdater.Init(p.ctx, p.Log, p.Scheduler, p.GoVppmux, p.intfIndex,
+		if err := p.ifStateUpdater.Init(p.ctx, p.Log, p.KVScheduler, p.GoVppmux, p.intfIndex,
 			func(state *interfaces.InterfaceNotification) {
 				select {
 				case p.ifStateChan <- state:
@@ -277,6 +286,7 @@ func (p *IfPlugin) GetDHCPIndex() idxmap.NamedMapping {
 	return p.dhcpIndex
 }
 
+// SetNotifyService sets notification callback for processing VPP notifications.
 func (p *IfPlugin) SetNotifyService(notify func(notification *vpp.Notification)) {
 	p.PushNotification = notify
 }

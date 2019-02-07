@@ -65,7 +65,8 @@ transaction has finalized. The returned error, if not nil, is an instance
 of [TransactionError][txn-error] informing about which items have failed to be
 (re-)configured. The agent is set to apply the changes in a best-effort mode -
 i.e. not reverting failed transactions, instead periodically re-trying failed
-items in the background until they are fixed or changed by another transaction.
+items in the background until they are fixed, changed by another transaction,
+or the number of retry attempts has reached the configured limit.
 
 *TODO: add option to select with-revert behaviour if requested*
 
@@ -97,7 +98,7 @@ main event loop and potentially wait for the result to propagate back to the cli
 
 The events with external configuration changes are received and processed
 by the controller plugin. Normally, they are just delegated further straight
-to the VPP agent. In case there is a collision between internal (from Contiv)
+into the VPP agent. In case there is a collision between internal (from Contiv)
 and external configuration (both modifying the same key), the Controller has
 to first merge the colliding values using `proto.Merge`, where destination
 is the internal value and source is the external one. In most cases this
@@ -121,5 +122,5 @@ possible (e.g. separate VRFs, custom links between vswitch and the pods, etc.)
 [grpc-example]: https://github.com/contiv/vpp/tree/master/plugins/grpc/example
 [grpc-plugin]: https://github.com/contiv/vpp/tree/master/plugins/grpc
 [txn-error]: https://github.com/ligato/vpp-agent/blob/dev/plugins/kvscheduler/api/errors.go
-[vpp-models]: https://github.com/ligato/vpp-agent/tree/dev/plugins/vppv2/model
-[linux-models]: https://github.com/ligato/vpp-agent/tree/dev/plugins/linuxv2/model
+[vpp-models]: https://github.com/ligato/vpp-agent/tree/dev/api/models/vpp
+[linux-models]: https://github.com/ligato/vpp-agent/tree/dev/api/models/linux

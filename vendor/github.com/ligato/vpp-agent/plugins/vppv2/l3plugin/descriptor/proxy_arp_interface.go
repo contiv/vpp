@@ -19,7 +19,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	"github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/descriptor/adapter"
 	"github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/vppcalls"
 	"github.com/pkg/errors"
@@ -37,11 +37,11 @@ const (
 type ProxyArpInterfaceDescriptor struct {
 	log             logging.Logger
 	proxyArpHandler vppcalls.ProxyArpVppAPI
-	scheduler       scheduler.KVScheduler
+	scheduler       kvs.KVScheduler
 }
 
 // NewProxyArpInterfaceDescriptor creates a new instance of the ProxyArpInterfaceDescriptor.
-func NewProxyArpInterfaceDescriptor(scheduler scheduler.KVScheduler,
+func NewProxyArpInterfaceDescriptor(scheduler kvs.KVScheduler,
 	proxyArpHandler vppcalls.ProxyArpVppAPI, log logging.PluginLogger) *ProxyArpInterfaceDescriptor {
 
 	return &ProxyArpInterfaceDescriptor{
@@ -61,17 +61,14 @@ func (d *ProxyArpInterfaceDescriptor) GetDescriptor() *adapter.ProxyARPInterface
 			return isProxyARPInterfaceKey
 		},
 		ValueTypeName: proto.MessageName(&l3.ProxyARP_Interface{}),
-		Add:           d.Add,
+		Create:        d.Create,
 		Delete:        d.Delete,
-		ModifyWithRecreate: func(key string, oldValue, newValue *l3.ProxyARP_Interface, metadata interface{}) bool {
-			return true
-		},
-		Dependencies: d.Dependencies,
+		Dependencies:  d.Dependencies,
 	}
 }
 
-// Add enables VPP Proxy ARP for interface.
-func (d *ProxyArpInterfaceDescriptor) Add(key string, value *l3.ProxyARP_Interface) (metadata interface{}, err error) {
+// Create enables VPP Proxy ARP for interface.
+func (d *ProxyArpInterfaceDescriptor) Create(key string, value *l3.ProxyARP_Interface) (metadata interface{}, err error) {
 	if err := d.proxyArpHandler.EnableProxyArpInterface(value.Name); err != nil {
 		return nil, errors.Errorf("failed to enable proxy ARP for interface %s: %v", value.Name, err)
 	}
@@ -87,8 +84,8 @@ func (d *ProxyArpInterfaceDescriptor) Delete(key string, value *l3.ProxyARP_Inte
 }
 
 // Dependencies returns list of dependencies for VPP Proxy ARP interface.
-func (d *ProxyArpInterfaceDescriptor) Dependencies(key string, value *l3.ProxyARP_Interface) (deps []scheduler.Dependency) {
-	return []scheduler.Dependency{
+func (d *ProxyArpInterfaceDescriptor) Dependencies(key string, value *l3.ProxyARP_Interface) (deps []kvs.Dependency) {
+	return []kvs.Dependency{
 		{
 			Label: proxyArpInterfaceDep,
 			Key:   interfaces.InterfaceKey(value.Name),

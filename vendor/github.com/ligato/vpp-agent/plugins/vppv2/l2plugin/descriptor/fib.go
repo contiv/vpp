@@ -21,7 +21,7 @@ import (
 	"github.com/pkg/errors"
 
 	l2 "github.com/ligato/vpp-agent/api/models/vpp/l2"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	vpp_ifdescriptor "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
 	"github.com/ligato/vpp-agent/plugins/vppv2/l2plugin/descriptor/adapter"
 	"github.com/ligato/vpp-agent/plugins/vppv2/l2plugin/vppcalls"
@@ -76,13 +76,12 @@ func (d *FIBDescriptor) GetDescriptor() *adapter.FIBDescriptor {
 		KeyLabel:        l2.ModelFIBEntry.StripKeyPrefix,
 		ValueComparator: d.EquivalentFIBs,
 		// NB keys already covered by the prefix for bridge domains
-		Add:                d.Add,
-		Delete:             d.Delete,
-		ModifyWithRecreate: d.ModifyWithRecreate,
-		IsRetriableFailure: d.IsRetriableFailure,
-		Dependencies:       d.Dependencies,
-		Dump:               d.Dump,
-		DumpDependencies:   []string{vpp_ifdescriptor.InterfaceDescriptorName, BridgeDomainDescriptorName},
+		Validate:             d.Validate,
+		Create:               d.Create,
+		Delete:               d.Delete,
+		Retrieve:             d.Retrieve,
+		Dependencies:         d.Dependencies,
+		RetrieveDependencies: []string{vpp_ifdescriptor.InterfaceDescriptorName, BridgeDomainDescriptorName},
 	}
 }
 
@@ -106,30 +105,22 @@ func (d *FIBDescriptor) EquivalentFIBs(key string, oldFIB, newFIB *l2.FIBEntry) 
 	return strings.ToLower(oldFIB.PhysAddress) == strings.ToLower(newFIB.PhysAddress)
 }
 
-// IsRetriableFailure returns <false> for errors related to invalid configuration.
-func (d *FIBDescriptor) IsRetriableFailure(err error) bool {
-	nonRetriable := []error{
-		ErrFIBWithoutBD,
-		ErrFIBWithoutHwAddr,
-		ErrForwardFIBWithoutInterface,
+// Validate validates VPP L2 FIB configuration.
+func (d *FIBDescriptor) Validate(key string, fib *l2.FIBEntry) error {
+	if fib.PhysAddress == "" {
+		return kvs.NewInvalidValueError(ErrFIBWithoutHwAddr, "phys_address")
 	}
-	for _, nonRetriableErr := range nonRetriable {
-		if err == nonRetriableErr {
-			return false
-		}
+	if fib.Action == l2.FIBEntry_FORWARD && fib.OutgoingInterface == "" {
+		return kvs.NewInvalidValueError(ErrForwardFIBWithoutInterface, "action", "outgoing_interface")
 	}
-	return true
+	if fib.BridgeDomain == "" {
+		return kvs.NewInvalidValueError(ErrFIBWithoutBD, "bridge_domain")
+	}
+	return nil
 }
 
-// Add adds new L2 FIB.
-func (d *FIBDescriptor) Add(key string, fib *l2.FIBEntry) (metadata interface{}, err error) {
-	// validate the configuration first
-	err = d.validateFIBConfig(fib)
-	if err != nil {
-		d.log.Error(err)
-		return nil, err
-	}
-
+// Create adds new L2 FIB.
+func (d *FIBDescriptor) Create(key string, fib *l2.FIBEntry) (metadata interface{}, err error) {
 	// add L2 FIB
 	err = d.fibHandler.AddL2FIB(fib)
 	if err != nil {
@@ -147,57 +138,38 @@ func (d *FIBDescriptor) Delete(key string, fib *l2.FIBEntry, metadata interface{
 	return err
 }
 
-// ModifyWithRecreate always returns true - L2 FIBs are modified via re-creation.
-func (d *FIBDescriptor) ModifyWithRecreate(key string, oldFIB, newFIB *l2.FIBEntry, metadata interface{}) bool {
-	return true
+// Retrieve returns all configured VPP L2 FIBs.
+func (d *FIBDescriptor) Retrieve(correlate []adapter.FIBKVWithMetadata) (retrieved []adapter.FIBKVWithMetadata, err error) {
+	fibs, err := d.fibHandler.DumpL2FIBs()
+	if err != nil {
+		d.log.Error(err)
+		return retrieved, err
+	}
+	for _, fib := range fibs {
+		retrieved = append(retrieved, adapter.FIBKVWithMetadata{
+			Key:    l2.FIBKey(fib.Fib.BridgeDomain, fib.Fib.PhysAddress),
+			Value:  fib.Fib,
+			Origin: kvs.UnknownOrigin, // there can be automatically created FIBs
+		})
+	}
+
+	return retrieved, nil
 }
 
 // Dependencies for FIBs are:
 //  * FORWARD FIB: bridge domain + outgoing interface already put into the bridge domain
 //  * DROP FIB: bridge domain
-func (d *FIBDescriptor) Dependencies(key string, fib *l2.FIBEntry) (dependencies []scheduler.Dependency) {
+func (d *FIBDescriptor) Dependencies(key string, fib *l2.FIBEntry) (dependencies []kvs.Dependency) {
 	if fib.Action == l2.FIBEntry_FORWARD {
-		dependencies = append(dependencies, scheduler.Dependency{
+		dependencies = append(dependencies, kvs.Dependency{
 			Label: bridgedInterfaceDep,
 			Key:   l2.BDInterfaceKey(fib.BridgeDomain, fib.OutgoingInterface),
 		})
 	} else {
-		dependencies = append(dependencies, scheduler.Dependency{
+		dependencies = append(dependencies, kvs.Dependency{
 			Label: bridgeDomainDep,
 			Key:   l2.BridgeDomainKey(fib.BridgeDomain),
 		})
 	}
 	return dependencies
-}
-
-// Dump returns all configured VPP L2 FIBs.
-func (d *FIBDescriptor) Dump(correlate []adapter.FIBKVWithMetadata) (dump []adapter.FIBKVWithMetadata, err error) {
-	fibs, err := d.fibHandler.DumpL2FIBs()
-	if err != nil {
-		d.log.Error(err)
-		return dump, err
-	}
-	for _, fib := range fibs {
-		dump = append(dump, adapter.FIBKVWithMetadata{
-			Key:    l2.FIBKey(fib.Fib.BridgeDomain, fib.Fib.PhysAddress),
-			Value:  fib.Fib,
-			Origin: scheduler.UnknownOrigin, // there can be automatically created FIBs
-		})
-	}
-
-	return dump, nil
-}
-
-// validateFIBConfig validates VPP L2 FIB configuration.
-func (d *FIBDescriptor) validateFIBConfig(fib *l2.FIBEntry) error {
-	if fib.PhysAddress == "" {
-		return ErrFIBWithoutHwAddr
-	}
-	if fib.Action == l2.FIBEntry_FORWARD && fib.OutgoingInterface == "" {
-		return ErrForwardFIBWithoutInterface
-	}
-	if fib.BridgeDomain == "" {
-		return ErrFIBWithoutBD
-	}
-	return nil
 }

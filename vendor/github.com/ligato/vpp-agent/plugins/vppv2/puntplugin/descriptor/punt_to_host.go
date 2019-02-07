@@ -61,17 +61,16 @@ func NewPuntToHostDescriptor(puntHandler vppcalls.PuntVppAPI, log logging.Logger
 // the KVScheduler.
 func (d *PuntToHostDescriptor) GetDescriptor() *adapter.PuntToHostDescriptor {
 	return &adapter.PuntToHostDescriptor{
-		Name:               PuntToHostDescriptorName,
-		NBKeyPrefix:        punt.ModelToHost.KeyPrefix(),
-		ValueTypeName:      punt.ModelToHost.ProtoName(),
-		KeySelector:        punt.ModelToHost.IsKeyValid,
-		KeyLabel:           punt.ModelToHost.StripKeyPrefix,
-		ValueComparator:    d.EquivalentPuntToHost,
-		Add:                d.Add,
-		Delete:             d.Delete,
-		ModifyWithRecreate: d.ModifyWithRecreate,
-		IsRetriableFailure: d.IsRetriableFailure,
-		Dump:               d.Dump,
+		Name:            PuntToHostDescriptorName,
+		NBKeyPrefix:     punt.ModelToHost.KeyPrefix(),
+		ValueTypeName:   punt.ModelToHost.ProtoName(),
+		KeySelector:     punt.ModelToHost.IsKeyValid,
+		KeyLabel:        punt.ModelToHost.StripKeyPrefix,
+		ValueComparator: d.EquivalentPuntToHost,
+		Validate:        d.Validate,
+		Create:          d.Create,
+		Delete:          d.Delete,
+		Retrieve:        d.Retrieve,
 	}
 }
 
@@ -85,15 +84,34 @@ func (d *PuntToHostDescriptor) EquivalentPuntToHost(key string, oldPunt, newPunt
 	return true
 }
 
-// Add adds new punt to host entry or registers new punt to unix domain socket.
-func (d *PuntToHostDescriptor) Add(key string, punt *punt.ToHost) (metadata interface{}, err error) {
-	// validate the configuration
-	err = d.validatePuntConfig(punt)
-	if err != nil {
-		d.log.Error(err)
-		return nil, err
+// Validate validates VPP punt configuration.
+func (d *PuntToHostDescriptor) Validate(key string, puntCfg *punt.ToHost) error {
+	// validate L3 protocol
+	switch puntCfg.L3Protocol {
+	case punt.L3Protocol_IPv4:
+	case punt.L3Protocol_IPv6:
+	case punt.L3Protocol_ALL:
+	default:
+		return kvs.NewInvalidValueError(ErrPuntWithoutL3Protocol, "l3_protocol")
 	}
 
+	// validate L4 protocol
+	switch puntCfg.L4Protocol {
+	case punt.L4Protocol_TCP:
+	case punt.L4Protocol_UDP:
+	default:
+		return kvs.NewInvalidValueError(ErrPuntWithoutL4Protocol, "l4_protocol")
+	}
+
+	if puntCfg.Port == 0 {
+		return kvs.NewInvalidValueError(ErrPuntWithoutPort, "port")
+	}
+
+	return nil
+}
+
+// Create adds new punt to host entry or registers new punt to unix domain socket.
+func (d *PuntToHostDescriptor) Create(key string, punt *punt.ToHost) (metadata interface{}, err error) {
 	// add punt to host
 	if punt.SocketPath == "" {
 		err = d.puntHandler.AddPunt(punt)
@@ -129,8 +147,8 @@ func (d *PuntToHostDescriptor) Delete(key string, punt *punt.ToHost, metadata in
 	return err
 }
 
-// Dump returns all configured VPP punt to host entries.
-func (d *PuntToHostDescriptor) Dump(correlate []adapter.PuntToHostKVWithMetadata) (dump []adapter.PuntToHostKVWithMetadata, err error) {
+// Retrieve returns all configured VPP punt to host entries.
+func (d *PuntToHostDescriptor) Retrieve(correlate []adapter.PuntToHostKVWithMetadata) (retrieved []adapter.PuntToHostKVWithMetadata, err error) {
 	// TODO dump for punt and punt socket register missing in api
 	d.log.Info("Dump punt/socket register is not supported by the VPP")
 
@@ -140,58 +158,12 @@ func (d *PuntToHostDescriptor) Dump(correlate []adapter.PuntToHostKVWithMetadata
 	}
 
 	for _, punt := range socks {
-		dump = append(dump, adapter.PuntToHostKVWithMetadata{
+		retrieved = append(retrieved, adapter.PuntToHostKVWithMetadata{
 			Key:    models.Key(punt.PuntData),
 			Value:  punt.PuntData,
 			Origin: kvs.FromNB,
 		})
 	}
 
-	return dump, nil
-}
-
-// ModifyWithRecreate always returns true - punt entries are always modified via re-creation.
-func (d *PuntToHostDescriptor) ModifyWithRecreate(key string, oldPunt, newPunt *punt.ToHost, metadata interface{}) bool {
-	return true
-}
-
-// IsRetriableFailure returns <false> for errors related to invalid configuration.
-func (d *PuntToHostDescriptor) IsRetriableFailure(err error) bool {
-	nonRetriable := []error{
-		ErrPuntWithoutL3Protocol,
-		ErrPuntWithoutL4Protocol,
-		ErrPuntWithoutPort,
-	}
-	for _, nonRetriableErr := range nonRetriable {
-		if err == nonRetriableErr {
-			return false
-		}
-	}
-	return true
-}
-
-// validatePuntConfig validates VPP punt configuration.
-func (d *PuntToHostDescriptor) validatePuntConfig(puntCfg *punt.ToHost) error {
-	// validate L3 protocol
-	switch puntCfg.L3Protocol {
-	case punt.L3Protocol_IPv4:
-	case punt.L3Protocol_IPv6:
-	case punt.L3Protocol_ALL:
-	default:
-		return ErrPuntWithoutL3Protocol
-	}
-
-	// validate L4 protocol
-	switch puntCfg.L4Protocol {
-	case punt.L4Protocol_TCP:
-	case punt.L4Protocol_UDP:
-	default:
-		return ErrPuntWithoutL4Protocol
-	}
-
-	if puntCfg.Port == 0 {
-		return ErrPuntWithoutPort
-	}
-
-	return nil
+	return retrieved, nil
 }

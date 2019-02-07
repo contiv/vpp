@@ -22,7 +22,7 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/ligato/cn-infra/logging"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 
 	ifmodel "github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	l3 "github.com/ligato/vpp-agent/api/models/linux/l3"
@@ -39,10 +39,11 @@ const (
 	ARPDescriptorName = "linux-arp"
 
 	// dependency labels
-	arpInterfaceDep = "interface-exists"
+	arpInterfaceDep   = "interface-is-up"
+	arpInterfaceIPDep = "interface-has-ip-address"
 
 	// minimum number of interfaces to be given to a single Go routine for processing
-	// in the Dump operation
+	// in the Retrieve operation
 	minWorkForGoRoutine = 3
 )
 
@@ -72,24 +73,24 @@ type ARPDescriptor struct {
 	l3Handler l3linuxcalls.NetlinkAPI
 	ifPlugin  ifplugin.API
 	nsPlugin  nsplugin.API
-	scheduler scheduler.KVScheduler
+	scheduler kvs.KVScheduler
 
-	// parallelization of the Dump operation
-	dumpGoRoutinesCnt int
+	// parallelization of the Retrieve operation
+	goRoutinesCnt int
 }
 
 // NewARPDescriptor creates a new instance of the ARP descriptor.
 func NewARPDescriptor(
-	scheduler scheduler.KVScheduler, ifPlugin ifplugin.API, nsPlugin nsplugin.API,
-	l3Handler l3linuxcalls.NetlinkAPI, log logging.PluginLogger, dumpGoRoutinesCnt int) *ARPDescriptor {
+	scheduler kvs.KVScheduler, ifPlugin ifplugin.API, nsPlugin nsplugin.API,
+	l3Handler l3linuxcalls.NetlinkAPI, log logging.PluginLogger, goRoutinesCnt int) *ARPDescriptor {
 
 	return &ARPDescriptor{
-		scheduler:         scheduler,
-		l3Handler:         l3Handler,
-		ifPlugin:          ifPlugin,
-		nsPlugin:          nsPlugin,
-		dumpGoRoutinesCnt: dumpGoRoutinesCnt,
-		log:               log.NewLogger("arp-descriptor"),
+		scheduler:     scheduler,
+		l3Handler:     l3Handler,
+		ifPlugin:      ifPlugin,
+		nsPlugin:      nsPlugin,
+		goRoutinesCnt: goRoutinesCnt,
+		log:           log.NewLogger("arp-descriptor"),
 	}
 }
 
@@ -97,19 +98,19 @@ func NewARPDescriptor(
 // the KVScheduler.
 func (d *ARPDescriptor) GetDescriptor() *adapter.ARPDescriptor {
 	return &adapter.ARPDescriptor{
-		Name:               ARPDescriptorName,
-		NBKeyPrefix:        l3.ModelARPEntry.KeyPrefix(),
-		ValueTypeName:      l3.ModelARPEntry.ProtoName(),
-		KeySelector:        l3.ModelARPEntry.IsKeyValid,
-		KeyLabel:           l3.ModelARPEntry.StripKeyPrefix,
-		ValueComparator:    d.EquivalentARPs,
-		Add:                d.Add,
-		Delete:             d.Delete,
-		Modify:             d.Modify,
-		IsRetriableFailure: d.IsRetriableFailure,
-		Dependencies:       d.Dependencies,
-		Dump:               d.Dump,
-		DumpDependencies:   []string{ifdescriptor.InterfaceDescriptorName},
+		Name:                 ARPDescriptorName,
+		NBKeyPrefix:          l3.ModelARPEntry.KeyPrefix(),
+		ValueTypeName:        l3.ModelARPEntry.ProtoName(),
+		KeySelector:          l3.ModelARPEntry.IsKeyValid,
+		KeyLabel:             l3.ModelARPEntry.StripKeyPrefix,
+		ValueComparator:      d.EquivalentARPs,
+		Validate:             d.Validate,
+		Create:               d.Create,
+		Delete:               d.Delete,
+		Update:               d.Update,
+		Retrieve:             d.Retrieve,
+		Dependencies:         d.Dependencies,
+		RetrieveDependencies: []string{ifdescriptor.InterfaceDescriptorName},
 	}
 }
 
@@ -129,25 +130,22 @@ func (d *ARPDescriptor) EquivalentARPs(key string, oldArp, NewArp *l3.ARPEntry) 
 	return equalAddrs(oldArp.IpAddress, NewArp.IpAddress)
 }
 
-// IsRetriableFailure returns <false> for errors related to invalid configuration.
-func (d *ARPDescriptor) IsRetriableFailure(err error) bool {
-	nonRetriable := []error{
-		ErrARPWithoutInterface,
-		ErrARPWithoutIP,
-		ErrARPWithInvalidIP,
-		ErrARPWithoutHwAddr,
-		ErrARPWithInvalidHwAddr,
+// Validate validates ARP entry configuration.
+func (d *ARPDescriptor) Validate(key string, arp *l3.ARPEntry) (err error) {
+	if arp.Interface == "" {
+		return kvs.NewInvalidValueError(ErrARPWithoutInterface, "interface")
 	}
-	for _, nonRetriableErr := range nonRetriable {
-		if err == nonRetriableErr {
-			return false
-		}
+	if arp.IpAddress == "" {
+		return kvs.NewInvalidValueError(ErrARPWithoutIP, "ip_address")
 	}
-	return true
+	if arp.HwAddress == "" {
+		return kvs.NewInvalidValueError(ErrARPWithoutHwAddr, "hw_address")
+	}
+	return nil
 }
 
-// Add creates ARP entry.
-func (d *ARPDescriptor) Add(key string, arp *l3.ARPEntry) (metadata interface{}, err error) {
+// Create creates ARP entry.
+func (d *ARPDescriptor) Create(key string, arp *l3.ARPEntry) (metadata interface{}, err error) {
 	err = d.updateARPEntry(arp, "add", d.l3Handler.SetARPEntry)
 	return nil, err
 }
@@ -157,8 +155,8 @@ func (d *ARPDescriptor) Delete(key string, arp *l3.ARPEntry, metadata interface{
 	return d.updateARPEntry(arp, "delete", d.l3Handler.DelARPEntry)
 }
 
-// Modify is able to change MAC address of the ARP entry.
-func (d *ARPDescriptor) Modify(key string, oldARP, newARP *l3.ARPEntry, oldMetadata interface{}) (newMetadata interface{}, err error) {
+// Update is able to change MAC address of the ARP entry.
+func (d *ARPDescriptor) Update(key string, oldARP, newARP *l3.ARPEntry, oldMetadata interface{}) (newMetadata interface{}, err error) {
 	err = d.updateARPEntry(newARP, "modify", d.l3Handler.SetARPEntry)
 	return nil, err
 }
@@ -166,23 +164,6 @@ func (d *ARPDescriptor) Modify(key string, oldARP, newARP *l3.ARPEntry, oldMetad
 // updateARPEntry adds, modifies or deletes an ARP entry.
 func (d *ARPDescriptor) updateARPEntry(arp *l3.ARPEntry, actionName string, actionClb func(arpEntry *netlink.Neigh) error) error {
 	var err error
-
-	// validate the configuration first
-	if arp.Interface == "" {
-		err = ErrARPWithoutInterface
-		d.log.Error(err)
-		return err
-	}
-	if arp.IpAddress == "" {
-		err = ErrARPWithoutIP
-		d.log.Error(err)
-		return err
-	}
-	if arp.HwAddress == "" {
-		err = ErrARPWithoutHwAddr
-		d.log.Error(err)
-		return err
-	}
 
 	// Prepare ARP entry object
 	neigh := &netlink.Neigh{}
@@ -248,63 +229,71 @@ func (d *ARPDescriptor) updateARPEntry(arp *l3.ARPEntry, actionName string, acti
 }
 
 // Dependencies lists dependencies for a Linux ARP entry.
-func (d *ARPDescriptor) Dependencies(key string, arp *l3.ARPEntry) []scheduler.Dependency {
-	// the associated interface must exist and be UP
+func (d *ARPDescriptor) Dependencies(key string, arp *l3.ARPEntry) []kvs.Dependency {
+	// the associated interface must exist, but also must be UP and have at least
+	// one IP address assigned (to be in the L3 mode)
 	if arp.Interface != "" {
-		return []scheduler.Dependency{
+		return []kvs.Dependency{
 			{
 				Label: arpInterfaceDep,
 				Key:   ifmodel.InterfaceStateKey(arp.Interface, true),
+			},
+			{
+				Label: arpInterfaceIPDep,
+				AnyOf: func(key string) bool {
+					ifName, _, isAddrKey := ifmodel.ParseInterfaceAddressKey(key)
+					return isAddrKey && ifName == arp.Interface
+				},
 			},
 		}
 	}
 	return nil
 }
 
-// arpDump is used as the return value sent via channel by dumpARPs().
-type arpDump struct {
+// retrievedARPs is used as the return value sent via channel by retrieveARPs().
+type retrievedARPs struct {
 	arps []adapter.ARPKVWithMetadata
 	err  error
 }
 
-// Dump returns all ARP entries associated with interfaces managed by this agent.
-func (d *ARPDescriptor) Dump(correlate []adapter.ARPKVWithMetadata) ([]adapter.ARPKVWithMetadata, error) {
-	var dump []adapter.ARPKVWithMetadata
+// Retrieve returns all ARP entries associated with interfaces managed by this agent.
+func (d *ARPDescriptor) Retrieve(correlate []adapter.ARPKVWithMetadata) ([]adapter.ARPKVWithMetadata, error) {
+	var values []adapter.ARPKVWithMetadata
 	interfaces := d.ifPlugin.GetInterfaceIndex().ListAllInterfaces()
 	goRoutinesCnt := len(interfaces) / minWorkForGoRoutine
 	if goRoutinesCnt == 0 {
 		goRoutinesCnt = 1
 	}
-	if goRoutinesCnt > d.dumpGoRoutinesCnt {
-		goRoutinesCnt = d.dumpGoRoutinesCnt
+	if goRoutinesCnt > d.goRoutinesCnt {
+		goRoutinesCnt = d.goRoutinesCnt
 	}
-	dumpCh := make(chan arpDump, goRoutinesCnt)
+	ch := make(chan retrievedARPs, goRoutinesCnt)
 
-	// invoke multiple go routines for more efficient parallel dumping
+	// invoke multiple go routines for more efficient parallel ARP retrieval
 	for idx := 0; idx < goRoutinesCnt; idx++ {
 		if goRoutinesCnt > 1 {
-			go d.dumpARPs(interfaces, idx, goRoutinesCnt, dumpCh)
+			go d.retrieveARPs(interfaces, idx, goRoutinesCnt, ch)
 		} else {
-			d.dumpARPs(interfaces, idx, goRoutinesCnt, dumpCh)
+			d.retrieveARPs(interfaces, idx, goRoutinesCnt, ch)
 		}
 	}
 
 	// collect results from the go routines
 	for idx := 0; idx < goRoutinesCnt; idx++ {
-		arpDump := <-dumpCh
-		if arpDump.err != nil {
-			return dump, arpDump.err
+		retrieved := <-ch
+		if retrieved.err != nil {
+			return values, retrieved.err
 		}
-		dump = append(dump, arpDump.arps...)
+		values = append(values, retrieved.arps...)
 	}
 
-	return dump, nil
+	return values, nil
 }
 
-// dumpARPs is run by a separate go routine to dump all ARP entries associated
+// retrieveARPs is run by a separate go routine to retrieve all ARP entries associated
 // with every <goRoutineIdx>-th interface.
-func (d *ARPDescriptor) dumpARPs(interfaces []string, goRoutineIdx, goRoutinesCnt int, dumpCh chan<- arpDump) {
-	var dump arpDump
+func (d *ARPDescriptor) retrieveARPs(interfaces []string, goRoutineIdx, goRoutinesCnt int, ch chan<- retrievedARPs) {
+	var retrieved retrievedARPs
 	ifMetaIdx := d.ifPlugin.GetInterfaceIndex()
 	nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
 
@@ -313,8 +302,8 @@ func (d *ARPDescriptor) dumpARPs(interfaces []string, goRoutineIdx, goRoutinesCn
 		// get interface metadata
 		ifMeta, found := ifMetaIdx.LookupByName(ifName)
 		if !found || ifMeta == nil {
-			dump.err = errors.Errorf("failed to obtain metadata for interface %s", ifName)
-			d.log.Error(dump.err)
+			retrieved.err = errors.Errorf("failed to obtain metadata for interface %s", ifName)
+			d.log.Error(retrieved.err)
 			break
 		}
 
@@ -325,7 +314,7 @@ func (d *ARPDescriptor) dumpARPs(interfaces []string, goRoutineIdx, goRoutinesCn
 			d.log.WithFields(logging.Fields{
 				"err":       err,
 				"namespace": ifMeta.Namespace,
-			}).Warn("Failed to dump namespace")
+			}).Warn("Failed to retrieve ARPs from the namespace")
 			continue
 		}
 
@@ -333,8 +322,8 @@ func (d *ARPDescriptor) dumpARPs(interfaces []string, goRoutineIdx, goRoutinesCn
 		arps, err := d.l3Handler.GetARPEntries(ifMeta.LinuxIfIndex)
 		revertNs()
 		if err != nil {
-			dump.err = err
-			d.log.Error(dump.err)
+			retrieved.err = err
+			d.log.Error(retrieved.err)
 			break
 		}
 
@@ -347,17 +336,17 @@ func (d *ARPDescriptor) dumpARPs(interfaces []string, goRoutineIdx, goRoutinesCn
 			ipAddr := arp.IP.String()
 			hwAddr := arp.HardwareAddr.String()
 
-			dump.arps = append(dump.arps, adapter.ARPKVWithMetadata{
+			retrieved.arps = append(retrieved.arps, adapter.ARPKVWithMetadata{
 				Key: l3.ArpKey(ifName, ipAddr),
 				Value: &l3.ARPEntry{
 					Interface: ifName,
 					IpAddress: ipAddr,
 					HwAddress: hwAddr,
 				},
-				Origin: scheduler.UnknownOrigin, // let the scheduler to determine the origin
+				Origin: kvs.UnknownOrigin, // let the scheduler to determine the origin
 			})
 		}
 	}
 
-	dumpCh <- dump
+	ch <- retrieved
 }

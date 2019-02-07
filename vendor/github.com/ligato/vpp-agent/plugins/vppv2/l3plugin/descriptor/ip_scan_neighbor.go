@@ -20,7 +20,7 @@ import (
 
 	l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
 	"github.com/ligato/vpp-agent/pkg/models"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	"github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/descriptor/adapter"
 	"github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/vppcalls"
 )
@@ -51,11 +51,11 @@ var defaultIPScanNeighbor = &l3.IPScanNeighbor{
 type IPScanNeighborDescriptor struct {
 	log       logging.Logger
 	ipNeigh   vppcalls.IPNeighVppAPI
-	scheduler scheduler.KVScheduler
+	scheduler kvs.KVScheduler
 }
 
 // NewIPScanNeighborDescriptor creates a new instance of the IPScanNeighborDescriptor.
-func NewIPScanNeighborDescriptor(scheduler scheduler.KVScheduler,
+func NewIPScanNeighborDescriptor(scheduler kvs.KVScheduler,
 	proxyArpHandler vppcalls.IPNeighVppAPI, log logging.PluginLogger) *IPScanNeighborDescriptor {
 
 	return &IPScanNeighborDescriptor{
@@ -69,16 +69,15 @@ func NewIPScanNeighborDescriptor(scheduler scheduler.KVScheduler,
 // the KVScheduler.
 func (d *IPScanNeighborDescriptor) GetDescriptor() *adapter.IPScanNeighborDescriptor {
 	return &adapter.IPScanNeighborDescriptor{
-		Name:               IPScanNeighborDescriptorName,
-		NBKeyPrefix:        l3.ModelIPScanNeighbor.KeyPrefix(),
-		ValueTypeName:      l3.ModelIPScanNeighbor.ProtoName(),
-		KeySelector:        l3.ModelIPScanNeighbor.IsKeyValid,
-		ValueComparator:    d.EquivalentIPScanNeighbors,
-		Add:                d.Add,
-		Modify:             d.Modify,
-		Delete:             d.Delete,
-		IsRetriableFailure: d.IsRetriableFailure,
-		Dump:               d.Dump,
+		Name:            IPScanNeighborDescriptorName,
+		NBKeyPrefix:     l3.ModelIPScanNeighbor.KeyPrefix(),
+		ValueTypeName:   l3.ModelIPScanNeighbor.ProtoName(),
+		KeySelector:     l3.ModelIPScanNeighbor.IsKeyValid,
+		ValueComparator: d.EquivalentIPScanNeighbors,
+		Create:          d.Create,
+		Update:          d.Update,
+		Delete:          d.Delete,
+		Retrieve:        d.Retrieve,
 	}
 }
 
@@ -87,33 +86,28 @@ func (d *IPScanNeighborDescriptor) EquivalentIPScanNeighbors(key string, oldValu
 	return proto.Equal(withDefaults(oldValue), withDefaults(newValue))
 }
 
-// Add adds VPP IP Scan Neighbor.
-func (d *IPScanNeighborDescriptor) Add(key string, value *l3.IPScanNeighbor) (metadata interface{}, err error) {
-	return d.Modify(key, defaultIPScanNeighbor, value, nil)
+// Create adds VPP IP Scan Neighbor.
+func (d *IPScanNeighborDescriptor) Create(key string, value *l3.IPScanNeighbor) (metadata interface{}, err error) {
+	return d.Update(key, defaultIPScanNeighbor, value, nil)
 }
 
 // Delete deletes VPP IP Scan Neighbor.
 func (d *IPScanNeighborDescriptor) Delete(key string, value *l3.IPScanNeighbor, metadata interface{}) error {
-	_, err := d.Modify(key, value, defaultIPScanNeighbor, metadata)
+	_, err := d.Update(key, value, defaultIPScanNeighbor, metadata)
 	return err
 }
 
-// Modify modifies VPP IP Scan Neighbor.
-func (d *IPScanNeighborDescriptor) Modify(key string, oldValue, newValue *l3.IPScanNeighbor, oldMetadata interface{}) (newMetadata interface{}, err error) {
+// Update modifies VPP IP Scan Neighbor.
+func (d *IPScanNeighborDescriptor) Update(key string, oldValue, newValue *l3.IPScanNeighbor, oldMetadata interface{}) (newMetadata interface{}, err error) {
 	if err := d.ipNeigh.SetIPScanNeighbor(newValue); err != nil {
 		return nil, err
 	}
 	return nil, nil
 }
 
-// IsRetriableFailure returns true for retriable errors.
-func (d *IPScanNeighborDescriptor) IsRetriableFailure(err error) bool {
-	return false
-}
-
-// Dump dumps VPP IP Scan Neighbor.
-func (d *IPScanNeighborDescriptor) Dump(correlate []adapter.IPScanNeighborKVWithMetadata) (
-	dump []adapter.IPScanNeighborKVWithMetadata, err error,
+// Retrieve returns current VPP IP Scan Neighbor configuration.
+func (d *IPScanNeighborDescriptor) Retrieve(correlate []adapter.IPScanNeighborKVWithMetadata) (
+	retrieved []adapter.IPScanNeighborKVWithMetadata, err error,
 ) {
 	// Retrieve VPP configuration
 	ipNeigh, err := d.ipNeigh.GetIPScanNeighbor()
@@ -122,18 +116,18 @@ func (d *IPScanNeighborDescriptor) Dump(correlate []adapter.IPScanNeighborKVWith
 	}
 	fillDefaults(ipNeigh)
 
-	var origin = scheduler.FromNB
+	var origin = kvs.FromNB
 	if proto.Equal(ipNeigh, defaultIPScanNeighbor) {
-		origin = scheduler.FromSB
+		origin = kvs.FromSB
 	}
 
-	dump = append(dump, adapter.IPScanNeighborKVWithMetadata{
+	retrieved = append(retrieved, adapter.IPScanNeighborKVWithMetadata{
 		Key:    models.Key(ipNeigh),
 		Value:  ipNeigh,
 		Origin: origin,
 	})
 
-	return dump, nil
+	return retrieved, nil
 }
 func withDefaults(orig *l3.IPScanNeighbor) *l3.IPScanNeighbor {
 	var val = *orig

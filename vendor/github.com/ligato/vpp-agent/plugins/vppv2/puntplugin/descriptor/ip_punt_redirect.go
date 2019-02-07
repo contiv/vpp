@@ -16,23 +16,22 @@ package descriptor
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 	interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	punt "github.com/ligato/vpp-agent/api/models/vpp/punt"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	"github.com/ligato/vpp-agent/plugins/vppv2/puntplugin/descriptor/adapter"
 	"github.com/ligato/vpp-agent/plugins/vppv2/puntplugin/vppcalls"
 )
 
 const (
 	// IPRedirectDescriptorName is the name of the descriptor for the VPP punt to host/socket
-	IPRedirectDescriptorName = "vpp-punt-ip-redirect"
+	IPRedirectDescriptorName = "vpp-punt-ipredirect"
 
 	// dependency labels
-	ipRedirectTxInterfaceDep = "ip-redirect-tx-interface-exists"
+	ipRedirectTxInterfaceDep = "tx-interface-exists"
 )
 
 // A list of non-retriable errors:
@@ -57,7 +56,7 @@ type IPRedirectDescriptor struct {
 // NewIPRedirectDescriptor creates a new instance of the punt to host descriptor.
 func NewIPRedirectDescriptor(puntHandler vppcalls.PuntVppAPI, log logging.LoggerFactory) *IPRedirectDescriptor {
 	return &IPRedirectDescriptor{
-		log:         log.NewLogger("punt-ip-redirect--descriptor"),
+		log:         log.NewLogger("punt-ipredirect-descriptor"),
 		puntHandler: puntHandler,
 	}
 }
@@ -66,18 +65,17 @@ func NewIPRedirectDescriptor(puntHandler vppcalls.PuntVppAPI, log logging.Logger
 // the KVScheduler.
 func (d *IPRedirectDescriptor) GetDescriptor() *adapter.IPPuntRedirectDescriptor {
 	return &adapter.IPPuntRedirectDescriptor{
-		Name:               IPRedirectDescriptorName,
-		NBKeyPrefix:        punt.ModelIPRedirect.KeyPrefix(),
-		ValueTypeName:      punt.ModelIPRedirect.ProtoName(),
-		KeySelector:        punt.ModelIPRedirect.IsKeyValid,
-		KeyLabel:           punt.ModelIPRedirect.StripKeyPrefix,
-		ValueComparator:    d.EquivalentIPRedirect,
-		Add:                d.Add,
-		Delete:             d.Delete,
-		ModifyWithRecreate: d.ModifyWithRecreate,
-		IsRetriableFailure: d.IsRetriableFailure,
-		Dependencies:       d.Dependencies,
-		Dump:               d.Dump,
+		Name:            IPRedirectDescriptorName,
+		NBKeyPrefix:     punt.ModelIPRedirect.KeyPrefix(),
+		ValueTypeName:   punt.ModelIPRedirect.ProtoName(),
+		KeySelector:     punt.ModelIPRedirect.IsKeyValid,
+		KeyLabel:        punt.ModelIPRedirect.StripKeyPrefix,
+		ValueComparator: d.EquivalentIPRedirect,
+		Validate:        d.Validate,
+		Create:          d.Create,
+		Delete:          d.Delete,
+		Retrieve:        d.Retrieve,
+		Dependencies:    d.Dependencies,
 	}
 }
 
@@ -87,22 +85,32 @@ func (d *IPRedirectDescriptor) EquivalentIPRedirect(key string, oldIPRedirect, n
 	return proto.Equal(oldIPRedirect, newIPRedirect)
 }
 
-// Add adds new IP punt redirect entry.
-func (d *IPRedirectDescriptor) Add(key string, redirect *punt.IPRedirect) (metadata interface{}, err error) {
-	// remove mask from IP address if necessary
-	ipParts := strings.Split(redirect.NextHop, "/")
-	if len(ipParts) > 1 {
-		d.log.Debugf("IP punt redirect next hop IP address %s is defined with mask, removing it")
-		redirect.NextHop = ipParts[0]
+// Validate validates VPP punt configuration.
+func (d *IPRedirectDescriptor) Validate(key string, redirect *punt.IPRedirect) error {
+	// validate L3 protocol
+	switch redirect.L3Protocol {
+	case punt.L3Protocol_IPv4:
+	case punt.L3Protocol_IPv6:
+	case punt.L3Protocol_ALL:
+	default:
+		return kvs.NewInvalidValueError(ErrIPRedirectWithoutL3Protocol, "l3_protocol")
 	}
 
-	// validate the configuration
-	err = d.validateIPRedirectConfig(redirect)
-	if err != nil {
-		d.log.Error(err)
-		return nil, err
+	// validate tx interface
+	if redirect.TxInterface == "" {
+		return kvs.NewInvalidValueError(ErrIPRedirectWithoutTxInterface, "tx_interface")
 	}
 
+	// validate next hop
+	if redirect.NextHop == "" {
+		return kvs.NewInvalidValueError(ErrIPRedirectWithoutNextHop, "next_hop")
+	}
+
+	return nil
+}
+
+// Create adds new IP punt redirect entry.
+func (d *IPRedirectDescriptor) Create(key string, redirect *punt.IPRedirect) (metadata interface{}, err error) {
 	// add Punt to host/socket
 	err = d.puntHandler.AddPuntRedirect(redirect)
 	if err != nil {
@@ -120,62 +128,18 @@ func (d *IPRedirectDescriptor) Delete(key string, redirect *punt.IPRedirect, met
 	return err
 }
 
-// Dump returns all configured VPP punt to host entries.
-func (d *IPRedirectDescriptor) Dump(correlate []adapter.IPPuntRedirectKVWithMetadata) (dump []adapter.IPPuntRedirectKVWithMetadata, err error) {
+// Retrieve returns all configured VPP punt to host entries.
+func (d *IPRedirectDescriptor) Retrieve(correlate []adapter.IPPuntRedirectKVWithMetadata) (dump []adapter.IPPuntRedirectKVWithMetadata, err error) {
 	// TODO dump for IP redirect missing in api
 	d.log.Info("Dump IP punt redirect is not supported by the VPP")
 	return []adapter.IPPuntRedirectKVWithMetadata{}, nil
 }
 
-// ModifyWithRecreate always returns true - IP punt redirect entries are always modified via re-creation.
-func (d *IPRedirectDescriptor) ModifyWithRecreate(key string, oldIPRedirect, newIPRedirect *punt.IPRedirect, metadata interface{}) bool {
-	return true
-}
-
 // Dependencies for IP punt redirect are represented by tx interface
-func (d *IPRedirectDescriptor) Dependencies(key string, redirect *punt.IPRedirect) (dependencies []scheduler.Dependency) {
-	dependencies = append(dependencies, scheduler.Dependency{
+func (d *IPRedirectDescriptor) Dependencies(key string, redirect *punt.IPRedirect) (dependencies []kvs.Dependency) {
+	dependencies = append(dependencies, kvs.Dependency{
 		Label: ipRedirectTxInterfaceDep,
 		Key:   interfaces.InterfaceKey(redirect.TxInterface),
 	})
 	return dependencies
-}
-
-// IsRetriableFailure returns <false> for errors related to invalid configuration.
-func (d *IPRedirectDescriptor) IsRetriableFailure(err error) bool {
-	nonRetriable := []error{
-		ErrIPRedirectWithoutL3Protocol,
-		ErrIPRedirectWithoutTxInterface,
-		ErrIPRedirectWithoutNextHop,
-	}
-	for _, nonRetriableErr := range nonRetriable {
-		if err == nonRetriableErr {
-			return false
-		}
-	}
-	return true
-}
-
-// validatePuntConfig validates VPP punt configuration.
-func (d *IPRedirectDescriptor) validateIPRedirectConfig(redirect *punt.IPRedirect) error {
-	// validate L3 protocol
-	switch redirect.L3Protocol {
-	case punt.L3Protocol_IPv4:
-	case punt.L3Protocol_IPv6:
-	case punt.L3Protocol_ALL:
-	default:
-		return ErrIPRedirectWithoutL3Protocol
-	}
-
-	// validate tx interface
-	if redirect.TxInterface == "" {
-		return ErrIPRedirectWithoutTxInterface
-	}
-
-	// validate next hop
-	if redirect.NextHop == "" {
-		return ErrIPRedirectWithoutNextHop
-	}
-
-	return nil
 }

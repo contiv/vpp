@@ -10,23 +10,16 @@ import (
 
 	interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/pkg/models"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin/linuxcalls"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor/adapter"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
 )
 
-// Add creates a VPP interface.
-func (d *InterfaceDescriptor) Add(key string, intf *interfaces.Interface) (metadata *ifaceidx.IfaceMetadata, err error) {
+// Create creates a VPP interface.
+func (d *InterfaceDescriptor) Create(key string, intf *interfaces.Interface) (metadata *ifaceidx.IfaceMetadata, err error) {
 	var ifIdx uint32
 	var tapHostIfName string
-
-	// validate the configuration first
-	err = d.validateInterfaceConfig(intf)
-	if err != nil {
-		d.log.Error(err)
-		return nil, err
-	}
 
 	// create the interface of the given type
 	switch intf.Type {
@@ -320,15 +313,8 @@ func (d *InterfaceDescriptor) Delete(key string, intf *interfaces.Interface, met
 	return nil
 }
 
-// Modify is able to change Type-unspecific attributes.
-func (d *InterfaceDescriptor) Modify(key string, oldIntf, newIntf *interfaces.Interface, oldMetadata *ifaceidx.IfaceMetadata) (newMetadata *ifaceidx.IfaceMetadata, err error) {
-	// validate the new configuration first
-	err = d.validateInterfaceConfig(newIntf)
-	if err != nil {
-		d.log.Error(err)
-		return nil, err
-	}
-
+// Update is able to change Type-unspecific attributes.
+func (d *InterfaceDescriptor) Update(key string, oldIntf, newIntf *interfaces.Interface, oldMetadata *ifaceidx.IfaceMetadata) (newMetadata *ifaceidx.IfaceMetadata, err error) {
 	ifIdx := oldMetadata.SwIfIndex
 
 	// rx-mode
@@ -442,8 +428,8 @@ func (d *InterfaceDescriptor) Modify(key string, oldIntf, newIntf *interfaces.In
 	return oldMetadata, nil
 }
 
-// Dump returns all configured VPP interfaces.
-func (d *InterfaceDescriptor) Dump(correlate []adapter.InterfaceKVWithMetadata) (dump []adapter.InterfaceKVWithMetadata, err error) {
+// Retrieve returns all configured VPP interfaces.
+func (d *InterfaceDescriptor) Retrieve(correlate []adapter.InterfaceKVWithMetadata) (retrieved []adapter.InterfaceKVWithMetadata, err error) {
 	// make sure that any checks on the Linux side are done in the default namespace with locked thread
 	if d.nsPlugin != nil {
 		nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
@@ -464,7 +450,7 @@ func (d *InterfaceDescriptor) Dump(correlate []adapter.InterfaceKVWithMetadata) 
 	if err != nil {
 		err = errors.Errorf("failed to dump memif socket details: %v", err)
 		d.log.Error(err)
-		return dump, err
+		return retrieved, err
 	}
 	for socketPath, socketID := range d.memifSocketToID {
 		if socketID == 0 {
@@ -480,14 +466,14 @@ func (d *InterfaceDescriptor) Dump(correlate []adapter.InterfaceKVWithMetadata) 
 	if err != nil {
 		err = errors.Errorf("failed to dump interfaces: %v", err)
 		d.log.Error(err)
-		return dump, err
+		return retrieved, err
 	}
 
 	for ifIdx, intf := range vppIfs {
-		origin := scheduler.FromNB
+		origin := kvs.FromNB
 		if ifIdx == 0 {
 			// local0 is created automatically
-			origin = scheduler.FromSB
+			origin = kvs.FromSB
 		}
 		if intf.Interface.Type == interfaces.Interface_DPDK {
 			d.ethernetIfs[intf.Interface.Name] = ifIdx
@@ -572,7 +558,7 @@ func (d *InterfaceDescriptor) Dump(correlate []adapter.InterfaceKVWithMetadata) 
 			IPAddresses:   intf.Interface.IpAddresses,
 			TAPHostIfName: tapHostIfName,
 		}
-		dump = append(dump, adapter.InterfaceKVWithMetadata{
+		retrieved = append(retrieved, adapter.InterfaceKVWithMetadata{
 			Key:      models.Key(intf.Interface),
 			Value:    intf.Interface,
 			Metadata: metadata,
@@ -581,7 +567,7 @@ func (d *InterfaceDescriptor) Dump(correlate []adapter.InterfaceKVWithMetadata) 
 
 	}
 
-	return dump, nil
+	return retrieved, nil
 }
 
 func ifaceSupportsSetMTU(intf *interfaces.Interface) bool {

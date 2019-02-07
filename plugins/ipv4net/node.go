@@ -337,10 +337,11 @@ func (n *IPv4Net) routesPodToMainVRF() map[string]*vpp_l3.Route {
 
 	// by default to go from Pod VRF via Main VRF
 	r1 := &vpp_l3.Route{
-		Type:       vpp_l3.Route_INTER_VRF,
-		DstNetwork: ipv4NetAny,
-		VrfId:      routingCfg.PodVRFID,
-		ViaVrfId:   routingCfg.MainVRFID,
+		Type:        vpp_l3.Route_INTER_VRF,
+		DstNetwork:  ipv4NetAny,
+		VrfId:       routingCfg.PodVRFID,
+		ViaVrfId:    routingCfg.MainVRFID,
+		NextHopAddr: ipv4AddrAny,
 	}
 	r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 	routes[r1Key] = r1
@@ -349,10 +350,11 @@ func (n *IPv4Net) routesPodToMainVRF() map[string]*vpp_l3.Route {
 		// host network (this node) routed from Pod VRF via Main VRF
 		// (only needed for VXLAN mode, to have better prefix match so that the drop route is not in effect)
 		r2 := &vpp_l3.Route{
-			Type:       vpp_l3.Route_INTER_VRF,
-			DstNetwork: n.IPAM.HostInterconnectSubnetThisNode().String(),
-			VrfId:      routingCfg.PodVRFID,
-			ViaVrfId:   routingCfg.MainVRFID,
+			Type:        vpp_l3.Route_INTER_VRF,
+			DstNetwork:  n.IPAM.HostInterconnectSubnetThisNode().String(),
+			VrfId:       routingCfg.PodVRFID,
+			ViaVrfId:    routingCfg.MainVRFID,
+			NextHopAddr: ipv4AddrAny,
 		}
 		r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
 		routes[r2Key] = r2
@@ -369,30 +371,33 @@ func (n *IPv4Net) routesMainToPodVRF() map[string]*vpp_l3.Route {
 	if !routingCfg.UseL2Interconnect {
 		// pod subnet (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
 		r1 := &vpp_l3.Route{
-			Type:       vpp_l3.Route_INTER_VRF,
-			DstNetwork: n.IPAM.PodSubnetAllNodes().String(),
-			VrfId:      routingCfg.MainVRFID,
-			ViaVrfId:   routingCfg.PodVRFID,
+			Type:        vpp_l3.Route_INTER_VRF,
+			DstNetwork:  n.IPAM.PodSubnetAllNodes().String(),
+			VrfId:       routingCfg.MainVRFID,
+			ViaVrfId:    routingCfg.PodVRFID,
+			NextHopAddr: ipv4AddrAny,
 		}
 		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 		routes[r1Key] = r1
 
 		// host network (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
 		r2 := &vpp_l3.Route{
-			Type:       vpp_l3.Route_INTER_VRF,
-			DstNetwork: n.IPAM.HostInterconnectSubnetAllNodes().String(),
-			VrfId:      routingCfg.MainVRFID,
-			ViaVrfId:   routingCfg.PodVRFID,
+			Type:        vpp_l3.Route_INTER_VRF,
+			DstNetwork:  n.IPAM.HostInterconnectSubnetAllNodes().String(),
+			VrfId:       routingCfg.MainVRFID,
+			ViaVrfId:    routingCfg.PodVRFID,
+			NextHopAddr: ipv4AddrAny,
 		}
 		r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
 		routes[r2Key] = r2
 	} else {
 		// pod subnet (this node only) routed from Main VRF to Pod VRF
 		r1 := &vpp_l3.Route{
-			Type:       vpp_l3.Route_INTER_VRF,
-			DstNetwork: n.IPAM.PodSubnetThisNode().String(),
-			VrfId:      routingCfg.MainVRFID,
-			ViaVrfId:   routingCfg.PodVRFID,
+			Type:        vpp_l3.Route_INTER_VRF,
+			DstNetwork:  n.IPAM.PodSubnetThisNode().String(),
+			VrfId:       routingCfg.MainVRFID,
+			ViaVrfId:    routingCfg.PodVRFID,
+			NextHopAddr: ipv4AddrAny,
 		}
 		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 		routes[r1Key] = r1
@@ -427,9 +432,10 @@ func (n *IPv4Net) dropRoutesIntoPodVRF() map[string]*vpp_l3.Route {
 // dropRoute is a helper method to construct drop route.
 func (n *IPv4Net) dropRoute(vrfID uint32, dstAddr *net.IPNet) *vpp_l3.Route {
 	return &vpp_l3.Route{
-		Type:       vpp_l3.Route_DROP,
-		DstNetwork: dstAddr.String(),
-		VrfId:      vrfID,
+		Type:        vpp_l3.Route_DROP,
+		DstNetwork:  dstAddr.String(),
+		VrfId:       vrfID,
+		NextHopAddr: ipv4AddrAny,
 	}
 }
 
@@ -629,10 +635,11 @@ func (n *IPv4Net) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (
 // to go via Pod VRF (and then further via VXLANs).
 func (n *IPv4Net) routeToOtherNodeManagementIPViaPodVRF(managementIP net.IP) (key string, config *vpp_l3.Route) {
 	route := &vpp_l3.Route{
-		Type:       vpp_l3.Route_INTER_VRF,
-		DstNetwork: managementIP.String() + "/32",
-		VrfId:      n.ContivConf.GetRoutingConfig().MainVRFID,
-		ViaVrfId:   n.ContivConf.GetRoutingConfig().PodVRFID,
+		Type:        vpp_l3.Route_INTER_VRF,
+		DstNetwork:  managementIP.String() + "/32",
+		VrfId:       n.ContivConf.GetRoutingConfig().MainVRFID,
+		ViaVrfId:    n.ContivConf.GetRoutingConfig().PodVRFID,
+		NextHopAddr: ipv4AddrAny,
 	}
 	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	return key, route

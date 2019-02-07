@@ -142,6 +142,10 @@ func (h *PuntVppHandler) registerPuntWithSocket(punt *punt.ToHost, isIPv4 bool) 
 	p.SocketPath = strings.SplitN(string(reply.Pathname), "\x00", 2)[0]
 	socketPathMap[punt.Port] = &p
 
+	if h.RegisterSocketFn != nil {
+		h.RegisterSocketFn(true, punt, p.SocketPath)
+	}
+
 	return nil
 }
 
@@ -165,6 +169,11 @@ func (h *PuntVppHandler) unregisterPuntWithSocket(punt *punt.ToHost, isIPv4 bool
 		return err
 	}
 
+	if h.RegisterSocketFn != nil {
+		if p, ok := socketPathMap[punt.Port]; ok {
+			h.RegisterSocketFn(false, punt, p.SocketPath)
+		}
+	}
 	delete(socketPathMap, punt.Port)
 
 	return nil
@@ -198,11 +207,18 @@ func (h *PuntVppHandler) handlePuntRedirect(punt *punt.IPRedirect, isIPv4, isAdd
 	}
 
 	// next hop address
+	//  - remove mask from IP address if necessary
+	nextHopStr := punt.NextHop
+	ipParts := strings.Split(punt.NextHop, "/")
+	if len(ipParts) > 1 {
+		h.log.Debugf("IP punt redirect next hop IP address %s is defined with mask, removing it")
+		nextHopStr = ipParts[0]
+	}
 	var nextHop []byte
 	if isIPv4 {
-		nextHop = net.ParseIP(punt.NextHop).To4()
+		nextHop = net.ParseIP(nextHopStr).To4()
 	} else {
-		nextHop = net.ParseIP(punt.NextHop).To16()
+		nextHop = net.ParseIP(nextHopStr).To16()
 	}
 
 	req := &api_ip.IPPuntRedirect{

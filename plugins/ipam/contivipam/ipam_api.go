@@ -1,4 +1,4 @@
-package externalipam
+package contivipam
 
 import (
 	"fmt"
@@ -7,25 +7,21 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
-// PodCIDRChange is triggered when CIDR for PODs on current node changes.
+// PodCIDRChange is triggered when CIDR for PODs on the current node changes.
 type PodCIDRChange struct {
-	PodNetworkCIDR *net.IPNet
-	LocalPodCIDR   *net.IPNet
-	Gateway        net.IP
+	LocalPodCIDR *net.IPNet
 }
 
-// GetName returns name of the NodeIPv4Change event.
+// GetName returns name of the PodCIDRChange event.
 func (ev *PodCIDRChange) GetName() string {
 	return "Pod CIDR Change"
 }
 
-// String describes NodeIPv4Change event.
+// String describes PodCIDRChange event.
 func (ev *PodCIDRChange) String() string {
 	return fmt.Sprintf("%s\n"+
-		"* PodNetworkCIDR: %v\n"+
 		"* LocalPodCIDR: %v\n"+
-		"* Gateway: %v",
-		ev.GetName(), ev.PodNetworkCIDR, ev.LocalPodCIDR, ev.Gateway)
+		ev.GetName(), ev.LocalPodCIDR)
 }
 
 // Method is UpstreamResync.

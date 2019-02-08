@@ -23,11 +23,14 @@ import (
 
 	"github.com/ligato/cn-infra/infra"
 
+	cnisb "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/go-errors/errors"
+	"github.com/ligato/cn-infra/servicelabel"
 )
 
 const (
@@ -88,8 +91,10 @@ type IPAM struct {
 // Deps lists dependencies of the IPAM plugin.
 type Deps struct {
 	infra.PluginDeps
-	NodeSync   nodesync.API
-	ContivConf contivconf.API
+	NodeSync     nodesync.API
+	ContivConf   contivconf.API
+	ServiceLabel servicelabel.ReaderAPI
+	EventLoop    controller.EventLoop
 }
 
 type uintIP = uint32
@@ -100,8 +105,21 @@ func (i *IPAM) Init() (err error) {
 }
 
 // HandlesEvent selects any Resync event.
+//   - any Resync event
+//   - NodeUpdate for the current node if external IPAM is in use (may trigger PodCIDRChange)
 func (i *IPAM) HandlesEvent(event controller.Event) bool {
-	return event.Method() != controller.Update
+	if event.Method() != controller.Update {
+		return true
+	}
+
+	if i.ContivConf.GetIPAMConfig().UseExternalIPAM {
+		if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
+			return nodeUpdate.NodeName == i.ServiceLabel.GetAgentLabel()
+		}
+	}
+
+	// unhandled event
+	return false
 }
 
 // Resync resynchronizes IPAM against the configuration and Kubernetes state data.
@@ -120,8 +138,10 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 	// addresses in the run-time - local pod should not be added/deleted without
 	// the agent knowing about it. But if we are healing after an error, reload
 	// the state of IPAM just in case.
+	// In case that external IPAM is in use, we need to resync on POD CIDR change.
 	_, isHealingResync := event.(*controller.HealingResync)
-	if resyncCount > 1 && !isHealingResync {
+	_, isPodCIDRChange := event.(*PodCIDRChange)
+	if resyncCount > 1 && !isHealingResync && !isPodCIDRChange {
 		return nil
 	}
 
@@ -147,7 +167,7 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 			return err
 		}
 	}
-	if err := i.initializePods(subnets, nodeID); err != nil {
+	if err := i.initializePods(kubeStateData, subnets, nodeID); err != nil {
 		return err
 	}
 	if err := i.initializeVPPHost(subnets, nodeID); err != nil {
@@ -197,10 +217,9 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 }
 
 // initializePodsIPAM initializes POD-related variables.
-func (i *IPAM) initializePods(config *contivconf.CustomIPAMSubnets, nodeID uint32) (err error) {
-	i.podSubnetAllNodes = config.PodSubnetCIDR
-	i.podSubnetThisNode, err = dissectSubnetForNode(
-		i.podSubnetAllNodes, config.PodSubnetOneNodePrefixLen, nodeID)
+func (i *IPAM) initializePods(kubeStateData controller.KubeStateData, config *contivconf.CustomIPAMSubnets, nodeID uint32) (err error) {
+
+	err = i.initializePodSubnets(kubeStateData, config, nodeID)
 	if err != nil {
 		return
 	}
@@ -209,10 +228,54 @@ func (i *IPAM) initializePods(config *contivconf.CustomIPAMSubnets, nodeID uint3
 	if err != nil {
 		return
 	}
+
 	i.podSubnetGatewayIP = uint32ToIpv4(podNetworkPrefixUint32 + podGatewaySeqID)
 	i.lastPodIPAssigned = 1
 	i.assignedPodIPs = make(map[uintIP]podmodel.ID)
 	i.podToIP = make(map[podmodel.ID]net.IP)
+
+	return nil
+}
+
+// initializePodsIPAM initializes POD-related variables.
+func (i *IPAM) initializePodSubnets(kubeStateData controller.KubeStateData, config *contivconf.CustomIPAMSubnets, nodeID uint32) (err error) {
+	i.podSubnetAllNodes = config.PodSubnetCIDR
+
+	thisNodePodCIDR := ""
+
+	// if external IPAM is in use, try to look up for this node's POD CIDR in k8s state data
+	if i.ContivConf.GetIPAMConfig().UseExternalIPAM {
+		nodeName := i.ServiceLabel.GetAgentLabel()
+		for _, k8sNodeProto := range kubeStateData[nodemodel.NodeKeyword] {
+			k8sNode := k8sNodeProto.(*nodemodel.Node)
+			if k8sNode.Name == nodeName {
+				thisNodePodCIDR = k8sNode.Pod_CIDR
+				break
+			}
+		}
+		i.Log.Infof("This node POD CIDR: %s", thisNodePodCIDR)
+	}
+
+	if thisNodePodCIDR != "" {
+		// pod subnet as detected
+		_, i.podSubnetThisNode, err = net.ParseCIDR(thisNodePodCIDR)
+		if err != nil {
+			return
+		}
+	} else {
+		// pod subnet based on node ID
+		i.podSubnetThisNode, err = dissectSubnetForNode(
+			i.podSubnetAllNodes, config.PodSubnetOneNodePrefixLen, nodeID)
+		if err != nil {
+			return
+		}
+	}
+
+	i.podSubnetThisNode, err = dissectSubnetForNode(
+		i.podSubnetAllNodes, config.PodSubnetOneNodePrefixLen, nodeID)
+	if err != nil {
+		return
+	}
 	return nil
 }
 
@@ -234,8 +297,17 @@ func (i *IPAM) initializeVPPHost(config *contivconf.CustomIPAMSubnets, nodeID ui
 	return
 }
 
-// Update is NOOP - never called.
+// Update handles NodeUpdate event in case that external IPAM is in use.
 func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
+
+	if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
+		if nodeUpdate.NodeName == i.ServiceLabel.GetAgentLabel() {
+			// TODO: only generate PodCIDRChange if POD CIDR actually changes
+			i.EventLoop.PushEvent(&PodCIDRChange{})
+			i.Log.Infof("Sent PodCIDRChange event to the event loop for PodCIDRChange")
+		}
+	}
+
 	return "", nil
 }
 
@@ -384,6 +456,11 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
+	if i.ContivConf.GetIPAMConfig().UseExternalIPAM {
+		// allocate IP using external IPAM
+		return i.allocateExternalPodIP(podID, ipamType, ipamData)
+	}
+
 	// get network prefix as uint32
 	networkPrefix, err := ipv4ToUint32(i.podSubnetThisNode.IP)
 	if err != nil {
@@ -414,6 +491,27 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 	}
 
 	return nil, fmt.Errorf("no IP address is free for allocation in the subnet %v", i.podSubnetThisNode)
+}
+
+// allocateExternalPodIP allocates IP address for the given pod using the external IPAM.
+func (i *IPAM) allocateExternalPodIP(podID podmodel.ID, ipamType string, ipamData string) (net.IP, error) {
+
+	i.Log.Debugf("IPAM type=%s data: %s", ipamType, ipamData)
+
+	// parse the external IPAM result
+	ipamResult := &cnisb.IPConfig{}
+	err := ipamResult.UnmarshalJSON([]byte(ipamData))
+	if err != nil {
+		return nil, fmt.Errorf("error by unmarshalling external IPAM result: %v", err)
+	}
+
+	// save allocated IP to POD mapping
+	ip := ipamResult.Address.IP
+	i.podToIP[podID] = ip
+
+	i.Log.Infof("Assigned new pod IP %v for POD ID %v", ip, podID)
+
+	return ip, nil
 }
 
 // tryToAllocatePodIP checks whether the IP at the given index is available.
@@ -456,11 +554,18 @@ func (i *IPAM) ReleasePodIP(podID podmodel.ID) error {
 		i.Log.Warnf("Unable to find IP for pod %v", podID)
 		return nil
 	}
-	addrIndex, _ := ipv4ToUint32(addr)
-	delete(i.assignedPodIPs, addrIndex)
 	delete(i.podToIP, podID)
 
 	i.Log.Infof("Released IP %v for pod ID %v", addr, podID)
+
+	if i.ContivConf.GetIPAMConfig().UseExternalIPAM {
+		// no further processing for external IPAM
+		return nil
+	}
+
+	addrIndex, _ := ipv4ToUint32(addr)
+	delete(i.assignedPodIPs, addrIndex)
+
 	i.logAssignedPodIPPool()
 	return nil
 }

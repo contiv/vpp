@@ -37,7 +37,6 @@ import (
 	contivgrpc "github.com/contiv/vpp/plugins/grpc"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipam/contivipam"
-	"github.com/contiv/vpp/plugins/ipam/externalipam"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
@@ -164,31 +163,16 @@ func main() {
 
 	podManager := &podmanager.DefaultPlugin
 
-	// use contiv or external IPAM based on the IPAM env. variable
-	var ipamPlugin ipam.API
-	var ipamPluginEH controller_api.EventHandler
-	var extIPAM *externalipam.IPAM
-	if os.Getenv("IPAM") == "external" {
-		extIPAM = externalipam.NewPlugin(externalipam.UseDeps(func(deps *externalipam.Deps) {
-			deps.ContivConf = contivConf
-			deps.NodeSync = nodeSyncPlugin
-		}))
-		ipamPlugin = extIPAM
-		ipamPluginEH = extIPAM
-	} else {
-		contivIPAM := contivipam.NewPlugin(contivipam.UseDeps(func(deps *contivipam.Deps) {
-			deps.ContivConf = contivConf
-			deps.NodeSync = nodeSyncPlugin
-		}))
-		ipamPlugin = contivIPAM
-		ipamPluginEH = contivIPAM
-	}
+	contivIPAM := contivipam.NewPlugin(contivipam.UseDeps(func(deps *contivipam.Deps) {
+		deps.ContivConf = contivConf
+		deps.NodeSync = nodeSyncPlugin
+	}))
 
 	ipv4NetPlugin := ipv4net.NewPlugin(ipv4net.UseDeps(func(deps *ipv4net.Deps) {
 		deps.GoVPP = &govppmux.DefaultPlugin
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.ContivConf = contivConf
-		deps.IPAM = ipamPlugin
+		deps.IPAM = contivIPAM
 		deps.NodeSync = nodeSyncPlugin
 		deps.PodManager = podManager
 	}))
@@ -198,13 +182,13 @@ func main() {
 
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
 		deps.ContivConf = contivConf
-		deps.IPAM = ipamPlugin
+		deps.IPAM = contivIPAM
 		deps.IPv4Net = ipv4NetPlugin
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
 		deps.ContivConf = contivConf
-		deps.IPAM = ipamPlugin
+		deps.IPAM = contivIPAM
 		deps.IPv4Net = ipv4NetPlugin
 		deps.NodeSync = nodeSyncPlugin
 		deps.PodManager = podManager
@@ -221,7 +205,7 @@ func main() {
 			contivConf,
 			nodeSyncPlugin,
 			podManager,
-			ipamPluginEH,
+			contivIPAM,
 			ipv4NetPlugin,
 			servicePlugin,
 			policyPlugin,
@@ -240,9 +224,7 @@ func main() {
 	podManager.EventLoop = controller
 	ipv4NetPlugin.EventLoop = controller
 	contivGRPC.EventLoop = controller
-	if extIPAM != nil {
-		extIPAM.EventLoop = controller
-	}
+	contivIPAM.EventLoop = controller
 	bgpReflector.EventLoop = controller
 
 	// initialize the agent
@@ -271,7 +253,7 @@ func main() {
 		ContivGRPC:    contivGRPC,
 		NodeSync:      nodeSyncPlugin,
 		PodManager:    podManager,
-		IPAM:          ipamPlugin,
+		IPAM:          contivIPAM,
 		IPv4Net:       ipv4NetPlugin,
 		Policy:        policyPlugin,
 		Service:       servicePlugin,

@@ -35,6 +35,9 @@ const (
 // BGPReflector plugin implements BGP route reflection from Linux host to VPP.
 type BGPReflector struct {
 	Deps
+
+	routeUpdateCh   chan netlink.RouteUpdate
+	routeSubsDoneCh chan struct{}
 }
 
 // Deps lists dependencies of the BGPReflector plugin.
@@ -53,6 +56,11 @@ func (br *BGPReflector) Init() (err error) {
 //   - any Resync event
 //   - BGPRouteUpdate
 func (br *BGPReflector) HandlesEvent(event controller.Event) bool {
+	// do not handle any events if external IPAM is not in use
+	if !br.ContivConf.GetIPAMConfig().UseExternalIPAM {
+		return false
+	}
+
 	if event.Method() != controller.Update {
 		return true
 	}
@@ -68,6 +76,11 @@ func (br *BGPReflector) HandlesEvent(event controller.Event) bool {
 // A set of already allocated pod IPs is updated.
 func (br *BGPReflector) Resync(event controller.Event, kubeStateData controller.KubeStateData,
 	resyncCount int, txn controller.ResyncOperations) (err error) {
+
+	// do not initialize if external IPAM is not in use
+	if !br.ContivConf.GetIPAMConfig().UseExternalIPAM {
+		return nil
+	}
 
 	// return any error as fatal
 	defer func() {
@@ -93,7 +106,7 @@ func (br *BGPReflector) Resync(event controller.Event, kubeStateData controller.
 		return err
 	}
 
-	// reflect bird routes
+	// reflect bird routes to VPP
 	for _, r := range routes {
 		if r.Protocol == birdRouteProtoNumber && isValidRoute(r.Dst, r.Gw) {
 			key, route := br.vppRoute(r.Dst, r.Gw)
@@ -110,6 +123,7 @@ func (br *BGPReflector) Update(event controller.Event, txn controller.UpdateOper
 	if bgpRouteUpdate, isBGPRouteUpdate := event.(*BGPRouteUpdate); isBGPRouteUpdate {
 		br.Log.Debugf("BGP route update: %v", bgpRouteUpdate)
 
+		// add / delete route on VPP
 		key, route := br.vppRoute(bgpRouteUpdate.DstNetwork, bgpRouteUpdate.GwAddr)
 		if bgpRouteUpdate.Type == RouteAdd {
 			txn.Put(key, route)
@@ -127,25 +141,30 @@ func (br *BGPReflector) Revert(event controller.Event) error {
 	return nil
 }
 
-// Close is NOOP.
+// Close cleans up the resources.
 func (br *BGPReflector) Close() error {
+
+	// close route subscription channel to stop recieval of route updates
+	if br.routeSubsDoneCh != nil {
+		close(br.routeSubsDoneCh)
+	}
+
 	return nil
 }
 
-// watchRoutes watches routing table for BGP routes and generates BGPRouteUpdate events upon each BGP route change.
+// watchRoutes watches host's routing table for BGP routes and generates BGPRouteUpdate events upon each BGP route change.
 func (br *BGPReflector) watchRoutes() error {
-	ch := make(chan netlink.RouteUpdate)
-	done := make(chan struct{})
+	br.routeUpdateCh = make(chan netlink.RouteUpdate)
+	br.routeSubsDoneCh = make(chan struct{})
 
-	//defer close(done) // TODO handle nice close
-	if err := netlink.RouteSubscribe(ch, done); err != nil {
+	if err := netlink.RouteSubscribe(br.routeUpdateCh, br.routeSubsDoneCh); err != nil {
 		return fmt.Errorf("unable to subscribe the route watcher")
 	}
 
 	go func() {
 		for {
 			select {
-			case r := <-ch:
+			case r := <-br.routeUpdateCh:
 				if r.Protocol == birdRouteProtoNumber && isValidRoute(r.Dst, r.Gw) {
 					br.Log.Debugf("BGP route update: proto=%d %v", r.Protocol, r)
 					ev := &BGPRouteUpdate{

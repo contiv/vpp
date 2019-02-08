@@ -7,13 +7,13 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
-/*************************** Node IPv4 Change Event ***************************/
+/*************************** BGP Route Update Event ***************************/
 
 // BGPRouteUpdateType represents type of the BGP update.
 type BGPRouteUpdateType int
 
 const (
-	// RouteAdd represents addition of a BGP route.
+	// RouteAdd represents addition of a new BGP route.
 	RouteAdd BGPRouteUpdateType = iota
 	// RouteDelete represents deletion of a BGP route.
 	RouteDelete
@@ -30,7 +30,7 @@ func (t BGPRouteUpdateType) String() string {
 	}
 }
 
-// BGPRouteUpdate is triggered when DHCP-assigned IPv4 address of the node changes.
+// BGPRouteUpdate is triggered when a BGP route on the host changes.
 type BGPRouteUpdate struct {
 	Type       BGPRouteUpdateType
 	DstNetwork *net.IPNet

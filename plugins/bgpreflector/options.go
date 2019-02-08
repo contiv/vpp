@@ -15,9 +15,8 @@
 package bgpreflector
 
 import (
-	"github.com/ligato/cn-infra/logging"
-
 	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/ligato/cn-infra/logging"
 )
 
 // DefaultPlugin is a default instance of BGPReflector plugin.

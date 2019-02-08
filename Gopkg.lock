@@ -712,14 +712,13 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:bcd9f31b818e22d036bbaeada81cd9e6dd7a3010a05e5d81ceaddee0d1349eb0"
+  digest = "1:1a2dadb566ee5455ae6d6ba6e004b99b344f0453ac488f951c02061be7dc337f"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
     "config",
     "datasync",
     "datasync/kvdbsync",
-    "datasync/kvdbsync/local",
     "datasync/resync",
     "datasync/syncbase",
     "db/keyval",
@@ -752,7 +751,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:c9dd3842c98a66979108f539fa6be8a305d55a3137cd7de97f1383182bbb326c"
+  digest = "1:ae66b9be4e70ac59af830ae108d229efd7e06db5e443809886f12c3a9f4e946e"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -849,7 +848,7 @@
     "plugins/vppv2/stnplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "56d627480d89d83d1febd9dc705f77bce405fcc1"
+  revision = "5e630431976fd372292dece3b78fff7c059a1bb8"
 
 [[projects]]
   branch = "master"
@@ -1697,7 +1696,6 @@
     "github.com/ligato/cn-infra/config",
     "github.com/ligato/cn-infra/datasync",
     "github.com/ligato/cn-infra/datasync/kvdbsync",
-    "github.com/ligato/cn-infra/datasync/kvdbsync/local",
     "github.com/ligato/cn-infra/datasync/resync",
     "github.com/ligato/cn-infra/datasync/syncbase",
     "github.com/ligato/cn-infra/db/keyval",

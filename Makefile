@@ -8,7 +8,7 @@ LDFLAGS = -s -w -X $(CNINFRA_AGENT).BuildVersion=$(VERSION) -X $(CNINFRA_AGENT).
 COVER_DIR ?= /tmp/
 
 # Build commands
-build: contiv-agent contiv-ksr contiv-crd contiv-cni contiv-stn contiv-init contiv-netctl
+build: contiv-agent contiv-ksr contiv-crd contiv-cni contiv-stn contiv-init contiv-netctl contiv-ui-backend
 
 # Run all
 all: lint build test install
@@ -48,6 +48,11 @@ contiv-netctl:
 	@echo "# building contiv-netctl"
 	cd cmd/contiv-netctl && go build -v -i -ldflags "${LDFLAGS}" -tags="${GO_BUILD_TAGS}"
 
+#Build contiv-ui-backend
+contiv-ui-backend:
+	@echo "# building contiv-ui-backend"
+	cd cmd/contiv-ui-backend && go build -v -i -ldflags "${LDFLAGS}" -tags="${GO_BUILD_TAGS}"
+
 # Install commands
 install:
 	@echo "# installing commands"
@@ -69,6 +74,7 @@ clean:
 	rm -f cmd/contiv-stn/contiv-stn
 	rm -f cmd/contiv-init/contiv-init
 	rm -f cmd/contiv-netctl/contiv-netctl
+	rm -f cmd/contiv-ui-backend/contiv-ui-backend
 
 # Run tests
 test:
@@ -209,6 +215,7 @@ lint-yaml:
 lint-helm:
 	@echo "# running HELM lint"
 	helm lint k8s/contiv-vpp/
+	helm lint k8s/contiv-vpp-ui/
 
 # Check if manifest YAMLs need to be re-generated
 check-manifests:
@@ -287,6 +294,10 @@ helm-yaml: generate-manifest
 
 helm-yaml-arm64: generate-manifest-arm64
 
+# starts dev version of UI accessible at localhost:4200 CORS check must be turned off
+run-debug-ui:
+	cd ui && npm install && node_modules/@angular/cli/bin/ng serve --host 0.0.0.0
+
 .PHONY: build all \
 	install clean test test-race \
 	get-covtools test-cover test-cover-html test-cover-xml \
@@ -296,4 +307,4 @@ helm-yaml-arm64: generate-manifest-arm64
 	get-dep dep-install \
 	docker-images docker-dev vagrant-images\
 	describe generate-manifest helm-package helm-yaml \
-	generate-manifest-arm64 helm-yaml-arm64
+	generate-manifest-arm64 helm-yaml-arm64 run-debug-ui

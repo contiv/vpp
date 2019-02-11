@@ -459,6 +459,12 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 		return i.allocateExternalPodIP(podID, ipamType, ipamData)
 	}
 
+	// check whether IP is already allocated
+	ip := i.GetPodIP(podID)
+	if ip != nil {
+		return ip.IP, nil
+	}
+
 	// get network prefix as uint32
 	networkPrefix, err := ipv4ToUint32(i.podSubnetThisNode.IP)
 	if err != nil {

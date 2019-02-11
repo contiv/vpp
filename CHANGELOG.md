@@ -1,3 +1,19 @@
+# Release v2.1.2 (7.2. 2019)
+
+### VPP
+ - version **v18.10** (latest stable/1810)
+
+### New Features & Enhancements
+ - global helm option for default gateway
+ - documentation & dev guide
+
+### Bugfixes
+ - fixed issue where default route in pod was not configured after IP address change
+
+### Known Issues
+ - load-balancing between backends of a service is limited to the first 256 PODs
+   (the others will not receive any traffic until some of the first 256 PODs disappear)
+
 # Release v2.1.1 (24.1.2019)
 
 ### VPP

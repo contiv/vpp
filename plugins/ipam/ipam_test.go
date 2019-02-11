@@ -30,6 +30,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
+	"bytes"
 	"github.com/contiv/vpp/plugins/contivconf"
 	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -191,6 +192,23 @@ func TestBasicAllocateReleasePodAddress(t *testing.T) {
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+
+	err = i.ReleasePodIP(podID[0])
+	Expect(err).To(BeNil())
+}
+
+// TestAlreadyAllocated tests that repeated allocation for a given podID returns the same IP
+func TestAlreadyAllocatedAddress(t *testing.T) {
+	i := setup(t, newDefaultConfig())
+	ip, err := i.AllocatePodIP(podID[0], "", "")
+	Expect(err).To(BeNil())
+	Expect(ip).NotTo(BeNil())
+	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+
+	repeated, err := i.AllocatePodIP(podID[0], "", "")
+	Expect(err).To(BeNil())
+	Expect(repeated).NotTo(BeNil())
+	Expect(bytes.Compare(repeated, ip)).To(BeZero())
 
 	err = i.ReleasePodIP(podID[0])
 	Expect(err).To(BeNil())

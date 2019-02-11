@@ -1,0 +1,11 @@
+<clr-modal [clrModalSize]="'lg'" [(clrModalOpen)]="isModalOpened">
+  <h3 class="modal-title">{{ api }}</h3>
+  <div class="modal-body">
+    <pre>
+{{ response }}
+    </pre>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-primary" (click)="isModalOpened = false">Close</button>
+  </div>
+</clr-modal>

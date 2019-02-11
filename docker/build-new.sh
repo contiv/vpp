@@ -51,18 +51,21 @@ CNIDEFAULTIMG="contivvpp/cni":${TAG}
 CRDDEFAULTIMG="contivvpp/crd":${TAG}
 KSRDEFAULTIMG="contivvpp/ksr":${TAG}
 STNDEFAULTIMG="contivvpp/stn":${TAG}
+UIDEFAULTIMG="contivvpp/ui":${TAG}
 
 
 CNIBUILDIMG="contivvpp/cni"-${BUILDARCH}:${TAG}
 CRDBUILDIMG="contivvpp/crd"-${BUILDARCH}:${TAG}
 KSRBUILDIMG="contivvpp/ksr"-${BUILDARCH}:${TAG}
 STNBUILDIMG="contivvpp/stn"-${BUILDARCH}:${TAG}
+UIBUILDIMG="contivvpp/ui"-${BUILDARCH}:${TAG}
 
 
 docker build -t ${CNIBUILDIMG} ${DOCKER_BUILD_ARGS} -f docker/vpp-cni/${DOCKERFILE} .
 docker build -t ${CRDBUILDIMG} ${DOCKER_BUILD_ARGS} -f docker/vpp-crd/${DOCKERFILE} .
 docker build -t ${KSRBUILDIMG} ${DOCKER_BUILD_ARGS} -f docker/vpp-ksr/${DOCKERFILE} .
 docker build -t ${STNBUILDIMG} ${DOCKER_BUILD_ARGS} -f docker/vpp-stn/${DOCKERFILE} .
+docker build -t ${UIBUILDIMG} ${DOCKER_BUILD_ARGS} -f docker/vpp-ui/${DOCKERFILE} .
 
 
 if [ ${BUILDARCH} = "amd64" ] ; then
@@ -70,4 +73,5 @@ if [ ${BUILDARCH} = "amd64" ] ; then
   docker tag  ${CRDBUILDIMG} ${CRDDEFAULTIMG}
   docker tag  ${KSRBUILDIMG} ${KSRDEFAULTIMG}
   docker tag  ${STNBUILDIMG} ${STNDEFAULTIMG}
+  docker tag  ${UIBUILDIMG} ${UIDEFAULTIMG}
 fi

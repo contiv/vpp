@@ -18,7 +18,7 @@ data:
     {{- end }}
     {{- if .Values.contiv.useBasicAuth }}
     contivBasicAuthUser: {{ .Values.contiv.basicAuthUser }}
-    contivBasicAuthPass: {{ .Values.contiv.basicAuthUser }}
+    contivBasicAuthPass: {{ .Values.contiv.basicAuthPass }}
     {{- end }}
 
 ---

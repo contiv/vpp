@@ -77,11 +77,6 @@ func (br *BGPReflector) HandlesEvent(event controller.Event) bool {
 func (br *BGPReflector) Resync(event controller.Event, kubeStateData controller.KubeStateData,
 	resyncCount int, txn controller.ResyncOperations) (err error) {
 
-	// do not initialize if external IPAM is not in use
-	if !br.ContivConf.GetIPAMConfig().UseExternalIPAM {
-		return nil
-	}
-
 	// return any error as fatal
 	defer func() {
 		if err != nil {

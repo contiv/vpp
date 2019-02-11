@@ -620,9 +620,9 @@ func (n *IPv4Net) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net
 // routeToOtherNodeManagementIP returns configuration for route applied to traffic destined
 // to a management IP of another node.
 func (n *IPv4Net) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (key string, config *vpp_l3.Route) {
-        if managementIP.Equal(nextHopIP) {
-                return "", nil
-        }
+	if managementIP.Equal(nextHopIP) {
+		return "", nil
+	}
 	route := &vpp_l3.Route{
 		DstNetwork:  managementIP.String() + "/32",
 		NextHopAddr: nextHopIP.String(),

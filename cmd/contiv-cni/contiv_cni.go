@@ -54,7 +54,7 @@ type cniConfig struct {
 
 	// EtcdEndpoints is a plugin-specific config, may contain comma-separated list of ETCD endpoints
 	// required for specific for the CNI / IPAM plugin.
-	EtcdConfig string `json:"etcdConfig"`
+	EtcdEndpoints string `json:"etcdEndpoints"`
 }
 
 // parseCNIConfig parses CNI config from JSON (in bytes) to cniConfig struct.
@@ -158,7 +158,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	// call external IPAM if provided
 	if cfg.IPAM.Type != "" {
 		cniRequest.IpamType = cfg.IPAM.Type
-		cniRequest.IpamData, err = execIPAMAdd(cfg.IPAM.Type, args.StdinData)
+		cniRequest.IpamData, err = execIPAMAdd(cfg, args.StdinData)
 		if err != nil {
 			log.Errorf("IPAM plugin %s ADD returned an error: %v", cfg.IPAM.Type, err)
 			return err
@@ -167,7 +167,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		// Invoke IPAM DEL in case of error to avoid IP leak
 		defer func() {
 			if cniResult.Interfaces == nil || len(cniResult.Interfaces) == 0 {
-				execIPAMDel(cfg.IPAM.Type, args.StdinData)
+				execIPAMDel(cfg, args.StdinData)
 			}
 		}()
 	}
@@ -302,7 +302,7 @@ func cmdDel(args *skel.CmdArgs) error {
 
 	// execute DELETE on external IPAM plugin, if provided
 	if cfg.IPAM.Type != "" {
-		err = execIPAMDel(cfg.IPAM.Type, args.StdinData)
+		err = execIPAMDel(cfg, args.StdinData)
 		if err != nil {
 			log.Errorf("IPAM plugin %s: DEL returned an error: %v", cfg.IPAM.Type, err)
 			return err

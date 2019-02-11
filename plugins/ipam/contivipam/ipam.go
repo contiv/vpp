@@ -271,11 +271,6 @@ func (i *IPAM) initializePodSubnets(kubeStateData controller.KubeStateData, conf
 		}
 	}
 
-	i.podSubnetThisNode, err = dissectSubnetForNode(
-		i.podSubnetAllNodes, config.PodSubnetOneNodePrefixLen, nodeID)
-	if err != nil {
-		return
-	}
 	return nil
 }
 

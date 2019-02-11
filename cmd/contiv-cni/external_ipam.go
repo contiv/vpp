@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"errors"
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
@@ -17,21 +18,31 @@ import (
 )
 
 const (
-	agentPrefix = "/vnf-agent/"
-
+	// name of the host-local plugin
 	hostLocalPluginName = "host-local"
+
+	// keys in the IPAM config
+	cfgIpamKey   = "ipam"
+	cfgSubnetKey = "subnet"
+
+	// special keword that needs to be replaced with the actual host POD CIDR address
+	podCidrSubstKey = "usePodCidr"
+
+	// ETCD prefixes
+	etcdAgentPrefix = "/vnf-agent/"
+	etcdNodePrefix  = "contiv-ksr/k8s/node"
 )
 
-func execIPAMAdd(plugin string, netconf []byte) (string, error) {
-	log.Debugf("Calling external IPAM: %s", plugin)
+func execIPAMAdd(cfg *cniConfig, netconf []byte) (string, error) {
+	log.Debugf("Calling external IPAM: %s", cfg.IPAM.Type)
 
-	if plugin == hostLocalPluginName {
+	if cfg.IPAM.Type == hostLocalPluginName {
 		// special case: need to convert usePodCidr to actual POD CIDR for this node
-		netconf = replacePodCIDR(netconf)
+		netconf = replacePodCIDR(netconf, cfg.EtcdEndpoints)
 	}
 
 	// execute the IPAM plugin
-	r, err := ipam.ExecAdd(plugin, netconf)
+	r, err := ipam.ExecAdd(cfg.IPAM.Type, netconf)
 	if err != nil {
 		return "", err
 	}
@@ -42,7 +53,7 @@ func execIPAMAdd(plugin string, netconf []byte) (string, error) {
 		return "", fmt.Errorf("cannot convert IPAM result: %v", err)
 	}
 
-	log.Debugf("IPAM plugin %s ADD cniResult: %v", plugin, ipamResult)
+	log.Debugf("IPAM plugin %s ADD cniResult: %v", cfg.IPAM.Type, ipamResult)
 
 	if len(ipamResult.IPs) > 0 {
 		json, err := ipamResult.IPs[0].MarshalJSON()
@@ -54,24 +65,24 @@ func execIPAMAdd(plugin string, netconf []byte) (string, error) {
 	return "", nil
 }
 
-func execIPAMDel(plugin string, netconf []byte) error {
-	log.Debugf("Calling external IPAM: %s", plugin)
+func execIPAMDel(cfg *cniConfig, netconf []byte) error {
+	log.Debugf("Calling external IPAM: %s", cfg.IPAM.Type)
 
-	if plugin == hostLocalPluginName {
+	if cfg.IPAM.Type == hostLocalPluginName {
 		// special case: need to convert usePodCidr to actual POD CIDR for this node
-		netconf = replacePodCIDR(netconf)
+		netconf = replacePodCIDR(netconf, cfg.EtcdEndpoints)
 	}
 
-	err := ipam.ExecDel(plugin, netconf)
+	err := ipam.ExecDel(cfg.IPAM.Type, netconf)
 	if err != nil {
-		return fmt.Errorf("IPAM plugin %s: DEL returned an error: %v", plugin, err)
+		return fmt.Errorf("IPAM plugin %s: DEL returned an error: %v", cfg.IPAM.Type, err)
 	}
 
-	log.Debugf("IPAM plugin %s DEL OK", plugin)
+	log.Debugf("IPAM plugin %s DEL OK", cfg.IPAM.Type)
 	return nil
 }
 
-func replacePodCIDR(netconf []byte) []byte {
+func replacePodCIDR(netconf []byte, etcdEndpoints string) []byte {
 
 	// unmarshall netconf data
 	var cniConfig map[string]interface{}
@@ -80,15 +91,15 @@ func replacePodCIDR(netconf []byte) []byte {
 		return netconf
 	}
 
-	ipamData, ok := cniConfig["ipam"].(map[string]interface{})
+	ipamData, ok := cniConfig[cfgIpamKey].(map[string]interface{})
 	if !ok {
-		fmt.Printf("failed to parse host-local IPAM data; was expecting a dict, not: %v", cniConfig["ipam"])
+		fmt.Printf("failed to parse host-local IPAM data; was expecting a dict, not: %v", cniConfig[cfgIpamKey])
 	}
 
 	// replace usePodCidr in subnet with an actual subnet
-	subnet, _ := ipamData["subnet"].(string)
-	if strings.EqualFold(subnet, "usePodCidr") {
-		ipamData["subnet"] = getPodCIDR()
+	subnet, _ := ipamData[cfgSubnetKey].(string)
+	if strings.EqualFold(subnet, podCidrSubstKey) {
+		ipamData[cfgSubnetKey] = getPodCIDR(etcdEndpoints)
 	}
 
 	// marshall netconf data back
@@ -103,16 +114,15 @@ func replacePodCIDR(netconf []byte) []byte {
 	return result
 }
 
-func getPodCIDR() string {
-	_, broker, err := createEtcdClient()
+func getPodCIDR(etcdEndpoints string) string {
+	_, broker, err := createEtcdClient(etcdEndpoints)
 	if err != nil {
 		log.Errorf("Error by creating ETCD client: %v", err)
 		return ""
 	}
 
 	hostName, err := os.Hostname()
-
-	key := fmt.Sprintf("%s/%s", "contiv-ksr/k8s/node", hostName)
+	key := fmt.Sprintf("%s/%s", etcdNodePrefix, hostName)
 
 	nodeInfo := &nodemodel.Node{}
 	found, _, err := broker.GetValue(key, nodeInfo)
@@ -129,16 +139,16 @@ func getPodCIDR() string {
 	return nodeInfo.Pod_CIDR
 }
 
-func createEtcdClient() (*etcd.BytesConnectionEtcd, keyval.ProtoBroker, error) {
+func createEtcdClient(etcdEndpoints string) (*etcd.BytesConnectionEtcd, keyval.ProtoBroker, error) {
 
+	if etcdEndpoints == "" {
+		return nil, nil, errors.New("ETCD endpoints string is empty")
+	}
 	cfg := &etcd.Config{
-		Endpoints:         []string{"http://127.0.0.1:32379"},
+		Endpoints:         strings.Split(etcdEndpoints, ","),
 		InsecureTransport: true,
 		DialTimeout:       10000000000,
 	}
-	//if err := config.ParseConfigFromYamlFile(configFile, cfg); err != nil {
-	//	return nil, nil, err
-	//}
 
 	etcdConfig, err := etcd.ConfigToClient(cfg)
 	if err != nil {
@@ -150,5 +160,5 @@ func createEtcdClient() (*etcd.BytesConnectionEtcd, keyval.ProtoBroker, error) {
 		return nil, nil, err
 	}
 
-	return bDB, kvproto.NewProtoWrapperWithSerializer(bDB, &keyval.SerializerJSON{}).NewBroker(agentPrefix), nil
+	return bDB, kvproto.NewProtoWrapperWithSerializer(bDB, &keyval.SerializerJSON{}).NewBroker(etcdAgentPrefix), nil
 }

@@ -616,12 +616,16 @@ if [ "#{node_os_release}" == "16.04" ] ; then
 fi
 
 if [ "#{dep_scenario}" == 'calicovpp' ]; then
+    echo "Deploy bird BGP router"
 
-    # generate BGP peers into bird.conf
+    # generate BGP config into /etc/bird/bird.conf
+    sudo mkdir /etc/bird
+    sudo cp /vagrant/bird/bird.conf /etc/bird
+
     counter=2;
     until ((counter-1 > "#{num_nodes}"))
     do
-      cat << EOL >> /vagrant/bird/bird.conf
+      sudo cat << EOL >> /etc/bird/bird.conf
 protocol bgp {
         debug all;
         import all;

@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker run -dit --restart always --name bird --net=host --privileged -v /vagrant/bird:/etc/bird:rw pierky/bird
+docker run -dit --restart always --name bird --net=host --privileged -v /etc/bird:/etc/bird:rw pierky/bird

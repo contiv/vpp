@@ -297,9 +297,12 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 
 	if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
 		if nodeUpdate.NodeName == i.ServiceLabel.GetAgentLabel() {
-			// TODO: only generate PodCIDRChange if POD CIDR actually changes
-			i.EventLoop.PushEvent(&PodCIDRChange{})
-			i.Log.Infof("Sent PodCIDRChange event to the event loop for PodCIDRChange")
+			if nodeUpdate.NewState.PodCIDR != nodeUpdate.PrevState.PodCIDR {
+				i.EventLoop.PushEvent(&PodCIDRChange{
+					LocalPodCIDR: nodeUpdate.NewState.PodCIDR,
+				})
+				i.Log.Infof("Sent PodCIDRChange event to the event loop for PodCIDRChange")
+			}
 		}
 	}
 

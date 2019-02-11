@@ -239,6 +239,7 @@ func (ns *NodeSync) Resync(event controller.Event, kubeStateData controller.Kube
 		}
 		node := ns.nodes[k8sNode.Name]
 		node.MgmtIPAddresses = ns.nodeMgmtAddresses(k8sNode)
+		node.PodCIDR = ns.nodePodCIDR(k8sNode)
 	}
 
 	// allocate ID for this node if it is not already
@@ -285,6 +286,22 @@ func (ns *NodeSync) nodeMgmtAddresses(nodeProto proto.Message) (addresses []net.
 		addresses = append(addresses, mgmtIP)
 	}
 	return addresses
+}
+
+// nodePodCIDR returns a pod CIDR for the given node, as expected by k8s.
+func (ns *NodeSync) nodePodCIDR(nodeProto proto.Message) *net.IPNet {
+	if nodeProto == nil {
+		return nil
+	}
+	node := nodeProto.(*nodemodel.Node)
+	if node.Pod_CIDR != "" {
+		_, cidr, err := net.ParseCIDR(node.Pod_CIDR)
+		if err == nil {
+			return cidr
+		}
+		ns.Log.Warnf("Error by converting POD CIDR %s: %v", node.Pod_CIDR, err)
+	}
+	return nil
 }
 
 // nodeVPPAddresses returns a list of node IP addresses on the VPP side.
@@ -416,6 +433,7 @@ func (ns *NodeSync) Update(event controller.Event, txn controller.UpdateOperatio
 		}
 		if node != nil {
 			node.MgmtIPAddresses = mgmtAddrs
+			node.PodCIDR = ns.nodePodCIDR(kubeStateChange.NewValue)
 			if node.ID != 0 {
 				ns.EventLoop.PushEvent(&NodeUpdate{
 					NodeName:  nodeName,

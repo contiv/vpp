@@ -200,12 +200,12 @@ func TestBasicAllocateReleasePodAddress(t *testing.T) {
 // TestAlreadyAllocated tests that repeated allocation for a given podID returns the same IP
 func TestAlreadyAllocatedAddress(t *testing.T) {
 	i := setup(t, newDefaultConfig())
-	ip, err := i.AllocatePodIP(podID[0])
+	ip, err := i.AllocatePodIP(podID[0], "", "")
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
-	repeated, err := i.AllocatePodIP(podID[0])
+	repeated, err := i.AllocatePodIP(podID[0], "", "")
 	Expect(err).To(BeNil())
 	Expect(repeated).NotTo(BeNil())
 	Expect(bytes.Compare(repeated, ip)).To(BeZero())

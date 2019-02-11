@@ -1,0 +1,25 @@
+<form clrForm clrLayout="vertical" *ngIf="!title">
+  <clr-input-container *ngFor="let item of data">
+    <label>{{item.label}}</label>
+    <input clrInput type="text" [(ngModel)]="item.value" [name]="item.label" disabled>
+  </clr-input-container>
+</form>
+
+<div class="card" *ngIf="title">
+  <div class="card-header">
+    {{title}}
+  </div>
+  <div class="card-block">
+    <div class="card-text">
+      <form clrForm clrLayout="vertical">
+        <clr-input-container *ngFor="let item of data">
+          <label>{{item.label}}</label>
+          <input clrInput type="text" [(ngModel)]="item.value" [name]="item.label" disabled>
+        </clr-input-container>
+      </form>
+    </div>
+  </div>
+  <div class="card-footer" *ngIf="buttons && buttons.length">
+    <button class="btn btn-link" *ngFor="let btn of buttons; let i = index" (click)="buttonClick(i)">{{ btn }}</button>
+  </div>
+</div>

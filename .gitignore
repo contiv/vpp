@@ -8,11 +8,13 @@ cmd/contiv-init/contiv-init
 cmd/contiv-stn/contiv-stn
 cmd/contiv-crd/contiv-crd
 cmd/contiv-netctl/contiv-netctl
+cmd/contiv-ui-backend/contiv-ui-backend
 cmd/tools/ldpreload-label-injector/ldpreload-label-injector
 docker/development/contiv-agent
 docker/development/contiv-init
 docker/development/supervisord.conf
 plugins/controller/example/example
 vagrant/images.tar
+ui/node_modules
 .vagrant
 .vagrant-state

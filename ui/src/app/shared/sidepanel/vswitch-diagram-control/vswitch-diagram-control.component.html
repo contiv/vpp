@@ -1,0 +1,27 @@
+<div id="wrap">
+  <div class="btn-wrap">
+    <button class="btn btn-primary" (click)="showNodeData()">Show Node Data</button>
+  </div>
+  <div class="btn-wrap">
+    <button class="btn btn-primary" (click)="showInterfaces()">Show Interface Data</button>
+  </div>
+  <div class="btn-wrap">
+    <button class="btn btn-primary" disabled>Run Trace</button>
+  </div>
+  <div class="btn-wrap">
+    <clr-select-container>
+      <label>Run VPP API</label>
+      <select clrSelect name="options1" [(ngModel)]="apis" (change)="showApi()">
+        <option *ngFor="let api of apiList">{{ api.name }}</option>
+      </select>
+    </clr-select-container>
+  </div>
+  <div class="btn-wrap">
+    <clr-select-container>
+      <label>Select vSwitch</label>
+      <select clrSelect name="vswitchSelect" [(ngModel)]="vswitchSelect" (change)="selectVswitch($event.target.value)">
+        <option *ngFor="let vswitch of vswitches" [value]="vswitch.name">{{vswitch.node}} - {{ vswitch.name }}</option>
+      </select>
+    </clr-select-container>
+  </div>
+</div>

@@ -9,4 +9,4 @@ ignore: |
   k8s/contiv-vpp/templates/vpp.yaml
   tests/
   vendor/
-  vagrant/cvpp/
+  vagrant/calico-vpp/

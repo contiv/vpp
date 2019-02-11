@@ -208,7 +208,7 @@ data:
             "type": "host-local",
             "subnet": "usePodCidr"
           },
-          "etcd_endpoints" : "127.0.0.1:{{ .Values.etcd.service.nodePort }}",
+          "etcdEndpoints" : "127.0.0.1:{{ .Values.etcd.service.nodePort }}",
           {{- end }}
           "logFile": "/var/run/contiv/cni.log"
         },

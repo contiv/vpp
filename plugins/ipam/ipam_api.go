@@ -15,8 +15,10 @@
 package ipam
 
 import (
+	"fmt"
 	"net"
 
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
@@ -80,4 +82,36 @@ type API interface {
 
 	// ReleasePodIP releases the pod IP address making it available for new PODs.
 	ReleasePodIP(podID podmodel.ID) error
+}
+
+// PodCIDRChange is triggered when CIDR for PODs on the current node changes.
+type PodCIDRChange struct {
+	LocalPodCIDR *net.IPNet
+}
+
+// GetName returns name of the PodCIDRChange event.
+func (ev *PodCIDRChange) GetName() string {
+	return "Pod CIDR Change"
+}
+
+// String describes PodCIDRChange event.
+func (ev *PodCIDRChange) String() string {
+	return fmt.Sprintf("%s\n"+
+		"* LocalPodCIDR: %v\n"+
+		ev.GetName(), ev.LocalPodCIDR)
+}
+
+// Method is UpstreamResync.
+func (ev *PodCIDRChange) Method() controller.EventMethodType {
+	return controller.UpstreamResync
+}
+
+// IsBlocking returns false.
+func (ev *PodCIDRChange) IsBlocking() bool {
+	return false
+}
+
+// Done is NOOP.
+func (ev *PodCIDRChange) Done(error) {
+	return
 }

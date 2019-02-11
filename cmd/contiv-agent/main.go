@@ -36,7 +36,6 @@ import (
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
 	contivgrpc "github.com/contiv/vpp/plugins/grpc"
 	"github.com/contiv/vpp/plugins/ipam"
-	"github.com/contiv/vpp/plugins/ipam/contivipam"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
@@ -163,7 +162,7 @@ func main() {
 
 	podManager := &podmanager.DefaultPlugin
 
-	contivIPAM := contivipam.NewPlugin(contivipam.UseDeps(func(deps *contivipam.Deps) {
+	ipamPlugin := ipam.NewPlugin(ipam.UseDeps(func(deps *ipam.Deps) {
 		deps.ContivConf = contivConf
 		deps.NodeSync = nodeSyncPlugin
 	}))
@@ -172,7 +171,7 @@ func main() {
 		deps.GoVPP = &govppmux.DefaultPlugin
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.ContivConf = contivConf
-		deps.IPAM = contivIPAM
+		deps.IPAM = ipamPlugin
 		deps.NodeSync = nodeSyncPlugin
 		deps.PodManager = podManager
 	}))
@@ -182,13 +181,13 @@ func main() {
 
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
 		deps.ContivConf = contivConf
-		deps.IPAM = contivIPAM
+		deps.IPAM = ipamPlugin
 		deps.IPv4Net = ipv4NetPlugin
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
 		deps.ContivConf = contivConf
-		deps.IPAM = contivIPAM
+		deps.IPAM = ipamPlugin
 		deps.IPv4Net = ipv4NetPlugin
 		deps.NodeSync = nodeSyncPlugin
 		deps.PodManager = podManager
@@ -205,7 +204,7 @@ func main() {
 			contivConf,
 			nodeSyncPlugin,
 			podManager,
-			contivIPAM,
+			ipamPlugin,
 			ipv4NetPlugin,
 			servicePlugin,
 			policyPlugin,
@@ -222,9 +221,9 @@ func main() {
 	}
 	nodeSyncPlugin.EventLoop = controller
 	podManager.EventLoop = controller
+	ipamPlugin.EventLoop = controller
 	ipv4NetPlugin.EventLoop = controller
 	contivGRPC.EventLoop = controller
-	contivIPAM.EventLoop = controller
 	bgpReflector.EventLoop = controller
 
 	// initialize the agent
@@ -253,7 +252,7 @@ func main() {
 		ContivGRPC:    contivGRPC,
 		NodeSync:      nodeSyncPlugin,
 		PodManager:    podManager,
-		IPAM:          contivIPAM,
+		IPAM:          ipamPlugin,
 		IPv4Net:       ipv4NetPlugin,
 		Policy:        policyPlugin,
 		Service:       servicePlugin,

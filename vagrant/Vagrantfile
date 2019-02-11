@@ -318,7 +318,7 @@ fi
 echo "Exporting Kube Master IP and Kubeadm Token..."
 echo "export KUBEADM_TOKEN=$(kubeadm token generate)" >> /vagrant/config/init
 
-if [ "#{dep_scenario}" = 'stn' ]; then
+if [ "#{dep_scenario}" != 'nostn' ]; then
   echo "export KUBE_MASTER_IP=$(hostname -I | cut -f2 -d' ')" >> /vagrant/config/init
   source /vagrant/config/init
   sed 's/127\.0\.1\.1.*k8s.*/'"$KUBE_MASTER_IP"' '"$1"'/' -i /etc/hosts
@@ -354,10 +354,10 @@ if [ $split_k8s_version -gt 10 ] ; then
   fi
   systemctl daemon-reload
   systemctl restart kubelet
-  if [ "#{dep_scenario}" != 'calico' ]; then
+  if [ "#{dep_scenario}" != 'calico' ] && [ "#{dep_scenario}" != 'calicovpp' ]; then
     echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
   else
-    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="192.168.0.0/16" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="10.10.0.0/16" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
   fi
 else
   sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
@@ -495,16 +495,47 @@ applyCalicoNetwork() {
   kubectl taint nodes --all node-role.kubernetes.io/master-
 }
 
+applyCalicoVPPNetwork() {
+  echo "Deploy CalicoVPP"
+  kubectl apply -f #{contiv_dir}/vagrant/calico-vpp/rbac-kdd.yaml
+  kubectl apply -f #{contiv_dir}/vagrant/calico-vpp/calico.yaml
+  kubectl apply -f #{contiv_dir}/vagrant/calico-vpp/calico-vpp.yaml
+
+  echo "Label master with cni-type=calico"
+  kubectl label nodes k8s-master cni-type=calico
+
+  echo "Install calicoctl"
+  wget --progress=bar:force https://github.com/projectcalico/calicoctl/releases/download/v3.3.2/calicoctl
+  chmod +x calicoctl
+  sudo mv calicoctl /usr/local/bin/
+  sudo mkdir /etc/calico/
+  sudo cp #{contiv_dir}/vagrant/calico-vpp/calicoctl.cfg /etc/calico/
+
+  echo "Configure BGP"
+  until sudo calicoctl apply -f #{contiv_dir}/vagrant/calico-vpp/bgp.yaml
+  do
+      sleep 1
+      echo "retry..."
+  done
+}
+
 stn_config=""
 export stn_config
 applySTNScenario
 
-if [ "#{dep_scenario}" != 'calico' ]; then
-  export -f applyVPPnetwork
-  su vagrant -c "bash -c applyVPPnetwork"
-else
+if [ "#{dep_scenario}" == 'calico' ]; then
   export -f applyCalicoNetwork
   su vagrant -c "bash -c applyCalicoNetwork"
+elif [ "#{dep_scenario}" == 'calicovpp' ]; then
+  export stn_config="${stn_config} --set contiv.useL2Interconnect=true --set contiv.ipamConfig.useExternalIPAM=true --set contiv.ipamConfig.podSubnetCIDR=10.10.0.0/16 --set vswitch.useNodeAffinity=true"
+  export -f applyVPPnetwork
+  su vagrant -c "bash -c applyVPPnetwork"
+  export -f applyCalicoVPPNetwork
+  su vagrant -c "bash -c applyCalicoVPPNetwork"
+else
+  # nostn / stn
+  export -f applyVPPnetwork
+  su vagrant -c "bash -c applyVPPnetwork"
 fi
 
 SCRIPT
@@ -523,7 +554,7 @@ fi
 
 source /vagrant/config/init
 
-if [ "#{dep_scenario}" = 'stn' ]; then
+if [ "#{dep_scenario}" != 'nostn' ]; then
   export KUBE_WORKER_IP=$(hostname -I | cut -f2 -d' ')
 else
   export KUBE_WORKER_IP=$2
@@ -535,7 +566,7 @@ echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" 
 source /etc/profile.d/envvar.sh
 source /home/vagrant/.profile
 
-if [ "#{dep_scenario}" = 'stn' ]; then
+if [ "#{dep_scenario}" != 'nostn' ]; then
   curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh > /tmp/contiv-stn.sh
   chmod +x /tmp/contiv-stn.sh
   sudo /tmp/contiv-stn.sh
@@ -582,6 +613,33 @@ EOF
 chmod +x /etc/network/if-pre-up.d/iptables-restore
 if [ "#{node_os_release}" == "16.04" ] ; then
     sudo /sbin/ifdown enp0s8 && sudo /sbin/ifup enp0s8
+fi
+
+if [ "#{dep_scenario}" == 'calicovpp' ]; then
+    echo "Deploy bird BGP router"
+
+    # generate BGP config into /etc/bird/bird.conf
+    sudo mkdir /etc/bird
+    sudo cp /vagrant/bird/bird.conf /etc/bird
+
+    counter=2;
+    until ((counter-1 > "#{num_nodes}"))
+    do
+      sudo cat << EOL >> /etc/bird/bird.conf
+protocol bgp {
+        debug all;
+        import all;
+        export all;
+        local as 63400;
+        neighbor 192.168.16.$counter as 63400;
+}
+EOL
+    ((counter++))
+    done
+
+    # install docker & deploy bird container
+    sudo -E apt-get install -y docker.io
+    sudo /vagrant/bird/run.sh
 fi
 
 SCRIPT
@@ -654,7 +712,7 @@ VAGRANTFILE_API_VERSION = "2"
       k8smaster_ip = base_ip + "2"
       k8smaster.vm.synced_folder "../", "#{contiv_dir}"
 
-      if dep_scenario == 'stn'
+      if dep_scenario != 'nostn'
         k8smaster.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
         # default router
         k8smaster.vm.provision "shell",
@@ -695,7 +753,7 @@ VAGRANTFILE_API_VERSION = "2"
       config.vm.define node_name do |node|
         node.vm.hostname = node_name
         # Interface for K8s Cluster
-        if dep_scenario == 'stn'
+        if dep_scenario != 'nostn'
           node.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
           # default router
           node.vm.provision "shell",

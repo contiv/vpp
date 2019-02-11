@@ -53,6 +53,9 @@ data:
     routeServiceCIDRToVPP: {{ .Values.contiv.routeServiceCIDRToVPP }}
     crdNodeConfigurationDisabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
     ipamConfig:
+      {{- if .Values.contiv.ipamConfig.useExternalIPAM }}
+      useExternalIPAM: true
+      {{- end }}
       {{- if .Values.contiv.ipamConfig.contivCIDR }}
       contivCIDR: {{ .Values.contiv.ipamConfig.contivCIDR }}
       {{ else }}
@@ -182,6 +185,42 @@ data:
     transaction-history-age-limit: {{ .Values.controller.eventHistoryAgeLimit }}
     permanently-recorded-init-period: {{ .Values.controller.permanentlyRecordedInitPeriod }}
 
+---
+
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: contiv-cni-cfg
+  namespace: kube-system
+data:
+  # The CNI network configuration to install on each node. The special
+  # values in this config will be automatically populated.
+  10-contiv-vpp.conflist: |-
+    {
+      "name": "k8s-pod-network",
+      "cniVersion": "0.3.1",
+      "plugins": [
+        {
+          "type": "contiv-cni",
+          "grpcServer": "/var/run/contiv/cni.sock",
+          {{- if .Values.contiv.ipamConfig.useExternalIPAM }}
+          "ipam": {
+            "type": "host-local",
+            "subnet": "usePodCidr"
+          },
+          "etcdEndpoints" : "127.0.0.1:{{ .Values.etcd.service.nodePort }}",
+          {{- end }}
+          "logFile": "/var/run/contiv/cni.log"
+        },
+        {
+          "type": "portmap",
+          "capabilities": {
+              "portMappings": true
+          },
+          "externalSetMarkChain": "KUBE-MARK-MASQ"
+        }
+      ]
+    }
 ---
 
 ###########################################################
@@ -511,6 +550,17 @@ spec:
         # Marks this pod as a critical add-on.
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
+      {{- if .Values.vswitch.useNodeAffinity }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: cni-type
+                operator: In
+                values:
+                  - vpp
+      {{- end }}
       tolerations:
         # We need this to schedule on the master no matter what else is going on, so tolerate everything.
         - key: ''
@@ -540,6 +590,8 @@ spec:
               name: cni-bin-dir
             - mountPath: /etc/cni/net.d
               name: cni-net-dir
+            - mountPath: /cni/cfg
+              name: contiv-cni-cfg
             - mountPath: /var/run/contiv
               name: contiv-run
 
@@ -880,6 +932,10 @@ spec:
         - name: docker-socket
           hostPath:
             path: /var/run/docker.sock
+        # CNI config
+        - name: contiv-cni-cfg
+          configMap:
+            name: contiv-cni-cfg
 
 ---
 

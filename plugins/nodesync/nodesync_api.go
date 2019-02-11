@@ -46,6 +46,7 @@ type Node struct {
 	Name            string
 	VppIPAddresses  contivconf.IPsWithNetworks
 	MgmtIPAddresses []net.IP
+	PodCIDR         *net.IPNet
 }
 
 // Nodes is a map of node-name -> Node info.

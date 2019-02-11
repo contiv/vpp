@@ -55,7 +55,7 @@ echo
 
 echo 'Please choose deployment scenario: '
 PS3='--> '
-options=("Without StealTheNIC" "With StealTheNIC" "Quit")
+options=("Without StealTheNIC" "With StealTheNIC" "Calico" "Calico-VPP" "Quit")
 select opt in "${options[@]}"
 do
     case $opt in
@@ -67,6 +67,16 @@ do
         "With StealTheNIC")
             echo "You chose deployment with StealTheNIC"
             export K8S_DEPLOYMENT_SCENARIO="stn"
+            break
+            ;;
+        "Calico")
+            echo "You chose deployment with Calico"
+            export K8S_DEPLOYMENT_SCENARIO="calico"
+            break
+            ;;
+        "Calico-VPP")
+            echo "You chose deployment with Calico-VPP"
+            export K8S_DEPLOYMENT_SCENARIO="calicovpp"
             break
             ;;
         "Quit")

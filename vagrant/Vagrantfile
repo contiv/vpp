@@ -621,7 +621,7 @@ if [ "#{dep_scenario}" == 'calicovpp' ]; then
     counter=2;
     until ((counter-1 > "#{num_nodes}"))
     do
-      cat << EOL >> #{contiv_dir}/vagrant/bird/bird.conf
+      cat << EOL >> /vagrant/bird/bird.conf
 protocol bgp {
         debug all;
         import all;

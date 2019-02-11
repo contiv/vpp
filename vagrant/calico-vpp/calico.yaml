@@ -273,7 +273,7 @@ spec:
               value: "autodetect"
             # Enable IPIP
             - name: CALICO_IPV4POOL_IPIP
-              value: "off" # rasto
+              value: "off" # modified for calico-vpp
             # Set MTU for tunnel device used if ipip is enabled
             - name: FELIX_IPINIPMTU
               valueFrom:
@@ -284,7 +284,7 @@ spec:
             # chosen from this range. Changing this value after installation will have
             # no effect. This should fall within `--cluster-cidr`.
             - name: CALICO_IPV4POOL_CIDR
-              value: "10.10.0.0/16" # rasto
+              value: "10.10.0.0/16" # modified for calico-vpp
             # Disable file logging so `kubectl logs` works.
             - name: CALICO_DISABLE_FILE_LOGGING
               value: "true"
@@ -384,7 +384,7 @@ spec:
             path: /opt/cni/bin
         - name: cni-net-dir
           hostPath:
-            path: /etc/cni/net.d # rasto
+            path: /etc/cni/net.d
 ---
 
 apiVersion: v1

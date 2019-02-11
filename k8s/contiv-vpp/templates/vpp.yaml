@@ -208,7 +208,7 @@ data:
             "type": "host-local",
             "subnet": "usePodCidr"
           },
-          "etcd_endpoints" : "http://127.0.0.1:32379",
+          "etcd_endpoints" : "127.0.0.1:{{ .Values.etcd.service.nodePort }}",
           {{- end }}
           "logFile": "/var/run/contiv/cni.log"
         },
@@ -775,10 +775,6 @@ spec:
               value: "/etc/vpp-agent/linux-l3plugin.conf"
             - name: KVSCHEDULER_CONFIG
               value: "/etc/vpp-agent/kvscheduler.conf"
-            {{- if .Values.contiv.ipamConfig.useExternalIPAM }}
-            - name: IPAM
-              value: "external"
-            {{- end}}
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt

@@ -497,9 +497,9 @@ applyCalicoNetwork() {
 
 applyCalicoVPPNetwork() {
   echo "Deploy CalicoVPP"
-  kubectl apply -f #{contiv_dir}/vagrant/cvpp/rbac-kdd.yaml
-  kubectl apply -f #{contiv_dir}/vagrant/cvpp/calico.yaml
-  kubectl apply -f #{contiv_dir}/vagrant/cvpp/calico-vpp.yaml
+  kubectl apply -f #{contiv_dir}/vagrant/calico-vpp/rbac-kdd.yaml
+  kubectl apply -f #{contiv_dir}/vagrant/calico-vpp/calico.yaml
+  kubectl apply -f #{contiv_dir}/vagrant/calico-vpp/calico-vpp.yaml
 
   echo "Label master with cni-type=calico"
   kubectl label nodes k8s-master cni-type=calico
@@ -509,10 +509,10 @@ applyCalicoVPPNetwork() {
   chmod +x calicoctl
   sudo mv calicoctl /usr/local/bin/
   sudo mkdir /etc/calico/
-  sudo cp #{contiv_dir}/vagrant/cvpp/calicoctl.cfg /etc/calico/
+  sudo cp #{contiv_dir}/vagrant/calico-vpp/calicoctl.cfg /etc/calico/
 
   echo "Configure BGP"
-  until sudo calicoctl apply -f #{contiv_dir}/vagrant/cvpp/bgp.yaml
+  until sudo calicoctl apply -f #{contiv_dir}/vagrant/calico-vpp/bgp.yaml
   do
       sleep 1
       echo "retry..."
@@ -616,6 +616,24 @@ if [ "#{node_os_release}" == "16.04" ] ; then
 fi
 
 if [ "#{dep_scenario}" == 'calicovpp' ]; then
+
+    # generate BGP peers into bird.conf
+    counter=2;
+    until ((counter-1 > "#{num_nodes}"))
+    do
+      cat << EOL >> #{contiv_dir}/vagrant/bird/bird.conf
+protocol bgp {
+        debug all;
+        import all;
+        export all;
+        local as 63400;
+        neighbor 192.168.16.$counter as 63400;
+}
+EOL
+    ((counter++))
+    done
+
+    # install docker & deploy bird container
     sudo -E apt-get install -y docker.io
     sudo /vagrant/bird/run.sh
 fi

@@ -51,6 +51,10 @@ type cniConfig struct {
 	// LogFile is a plugin-specific config, specifies location of the CNI plugin log file.
 	// If empty, plugin logs into defaultLogFile.
 	LogFile string `json:"logFile"`
+
+	// EtcdEndpoints is a plugin-specific config, may contain comma-separated list of ETCD endpoints
+	// required for specific for the CNI / IPAM plugin.
+	EtcdEndpoints string `json:"etcdEndpoints"`
 }
 
 // parseCNIConfig parses CNI config from JSON (in bytes) to cniConfig struct.
@@ -138,6 +142,36 @@ func cmdAdd(args *skel.CmdArgs) error {
 		"Args":        args.Args,
 	}).Debug("CNI ADD request")
 
+	// prepare CNI request
+	cniRequest := &cninb.CNIRequest{
+		Version:          cfg.CNIVersion,
+		ContainerId:      args.ContainerID,
+		InterfaceName:    args.IfName,
+		NetworkNamespace: args.Netns,
+		ExtraArguments:   args.Args,
+		ExtraNwConfig:    string(args.StdinData),
+	}
+	cniResult := &cnisb.Result{
+		CNIVersion: cfg.CNIVersion,
+	}
+
+	// call external IPAM if provided
+	if cfg.IPAM.Type != "" {
+		cniRequest.IpamType = cfg.IPAM.Type
+		cniRequest.IpamData, err = execIPAMAdd(cfg, args.StdinData)
+		if err != nil {
+			log.Errorf("IPAM plugin %s ADD returned an error: %v", cfg.IPAM.Type, err)
+			return err
+		}
+
+		// Invoke IPAM DEL in case of error to avoid IP leak
+		defer func() {
+			if cniResult.Interfaces == nil || len(cniResult.Interfaces) == 0 {
+				execIPAMDel(cfg, args.StdinData)
+			}
+		}()
+	}
+
 	// connect to the remote CNI handler over gRPC
 	conn, c, err := grpcConnect(cfg.GrpcServer)
 	if err != nil {
@@ -146,29 +180,17 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 	defer conn.Close()
 
-	// execute the ADD request
-	r, err := c.Add(context.Background(), &cninb.CNIRequest{
-		Version:          cfg.CNIVersion,
-		ContainerId:      args.ContainerID,
-		InterfaceName:    args.IfName,
-		NetworkNamespace: args.Netns,
-		ExtraArguments:   args.Args,
-		ExtraNwConfig:    string(args.StdinData),
-	})
+	// execute the remote ADD request
+	r, err := c.Add(context.Background(), cniRequest)
 	if err != nil {
 		log.Errorf("Error by executing remote CNI Add request: %v", err)
 		return err
 	}
 
-	// process the reply from the remote CNI handler
-	result := &cnisb.Result{
-		CNIVersion: cfg.CNIVersion,
-	}
-
 	// process interfaces
 	for ifidx, iface := range r.Interfaces {
 		// append interface info
-		result.Interfaces = append(result.Interfaces, &cnisb.Interface{
+		cniResult.Interfaces = append(cniResult.Interfaces, &cnisb.Interface{
 			Name:    iface.Name,
 			Mac:     iface.Mac,
 			Sandbox: iface.Sandbox,
@@ -192,7 +214,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 			if ip.Version == cninb.CNIReply_Interface_IP_IPV6 {
 				ver = "6"
 			}
-			result.IPs = append(result.IPs, &cnisb.IPConfig{
+			cniResult.IPs = append(cniResult.IPs, &cnisb.IPConfig{
 				Address:   *ipAddr,
 				Version:   ver,
 				Interface: &ifidx,
@@ -213,7 +235,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 			log.Error(err)
 			return err
 		}
-		result.Routes = append(result.Routes, &types.Route{
+		cniResult.Routes = append(cniResult.Routes, &types.Route{
 			Dst: *dstIP,
 			GW:  gwAddr,
 		})
@@ -221,15 +243,15 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	// process DNS entry
 	for _, dns := range r.Dns {
-		result.DNS.Nameservers = dns.Nameservers
-		result.DNS.Domain = dns.Domain
-		result.DNS.Search = dns.Search
-		result.DNS.Options = dns.Options
+		cniResult.DNS.Nameservers = dns.Nameservers
+		cniResult.DNS.Domain = dns.Domain
+		cniResult.DNS.Search = dns.Search
+		cniResult.DNS.Options = dns.Options
 	}
 
-	log.WithFields(log.Fields{"Result": result}).Debugf("CNI ADD request OK, took %s", time.Since(start))
+	log.WithFields(log.Fields{"Result": cniResult}).Debugf("CNI ADD request OK, took %s", time.Since(start))
 
-	return result.Print()
+	return cniResult.Print()
 }
 
 // cmdDel implements the CNI request to delete a container from network.
@@ -276,6 +298,15 @@ func cmdDel(args *skel.CmdArgs) error {
 	if err != nil {
 		log.Errorf("Error by executing remote CNI Delete request: %v", err)
 		return err
+	}
+
+	// execute DELETE on external IPAM plugin, if provided
+	if cfg.IPAM.Type != "" {
+		err = execIPAMDel(cfg, args.StdinData)
+		if err != nil {
+			log.Errorf("IPAM plugin %s: DEL returned an error: %v", cfg.IPAM.Type, err)
+			return err
+		}
 	}
 
 	log.Debugf("CNI DEL request OK, took %s", time.Since(start))

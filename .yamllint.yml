@@ -11,3 +11,4 @@ ignore: |
   tests/
   vendor/
   ui/node_modules/
+  vagrant/calico-vpp/

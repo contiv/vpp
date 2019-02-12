@@ -115,6 +115,35 @@ data:
 
 ---
 
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: contiv-cni-cfg
+  namespace: kube-system
+data:
+  # The CNI network configuration to install on each node. The special
+  # values in this config will be automatically populated.
+  10-contiv-vpp.conflist: |-
+    {
+      "name": "k8s-pod-network",
+      "cniVersion": "0.3.1",
+      "plugins": [
+        {
+          "type": "contiv-cni",
+          "grpcServer": "/var/run/contiv/cni.sock",
+          "logFile": "/var/run/contiv/cni.log"
+        },
+        {
+          "type": "portmap",
+          "capabilities": {
+              "portMappings": true
+          },
+          "externalSetMarkChain": "KUBE-MARK-MASQ"
+        }
+      ]
+    }
+---
+
 ###########################################################
 #
 # !!! DO NOT EDIT THINGS BELOW THIS LINE !!!
@@ -311,6 +340,8 @@ spec:
               name: cni-bin-dir
             - mountPath: /etc/cni/net.d
               name: cni-net-dir
+            - mountPath: /cni/cfg
+              name: contiv-cni-cfg
             - mountPath: /var/run/contiv
               name: contiv-run
 
@@ -516,6 +547,10 @@ spec:
         - name: docker-socket
           hostPath:
             path: /var/run/docker.sock
+        # CNI config
+        - name: contiv-cni-cfg
+          configMap:
+            name: contiv-cni-cfg
 
 ---
 

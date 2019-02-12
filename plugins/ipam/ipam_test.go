@@ -188,7 +188,7 @@ func TestDynamicGetters(t *testing.T) {
 // TestBasicAllocateReleasePodAddress test simple happy path scenario for getting 1 pod address and releasing it
 func TestBasicAllocateReleasePodAddress(t *testing.T) {
 	i := setup(t, newDefaultConfig())
-	ip, err := i.AllocatePodIP(podID[0])
+	ip, err := i.AllocatePodIP(podID[0], "", "")
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
@@ -200,12 +200,12 @@ func TestBasicAllocateReleasePodAddress(t *testing.T) {
 // TestAlreadyAllocated tests that repeated allocation for a given podID returns the same IP
 func TestAlreadyAllocatedAddress(t *testing.T) {
 	i := setup(t, newDefaultConfig())
-	ip, err := i.AllocatePodIP(podID[0])
+	ip, err := i.AllocatePodIP(podID[0], "", "")
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
-	repeated, err := i.AllocatePodIP(podID[0])
+	repeated, err := i.AllocatePodIP(podID[0], "", "")
 	Expect(err).To(BeNil())
 	Expect(repeated).NotTo(BeNil())
 	Expect(bytes.Compare(repeated, ip)).To(BeZero())
@@ -217,13 +217,13 @@ func TestAlreadyAllocatedAddress(t *testing.T) {
 // TestAssigniningIncrementalIPs test whether released IPs are reused only once all the range is exhausted
 func TestAssigniningIncrementalIPs(t *testing.T) {
 	i := setup(t, newDefaultConfig())
-	ip, err := i.AllocatePodIP(podID[0])
+	ip, err := i.AllocatePodIP(podID[0], "", "")
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
 	Expect(ip.String()).To(BeEquivalentTo("1.2.128.10"))
 	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
-	second, err := i.AllocatePodIP(podID[1])
+	second, err := i.AllocatePodIP(podID[1], "", "")
 	Expect(err).To(BeNil())
 	Expect(second).NotTo(BeNil())
 	Expect(second.String()).To(BeEquivalentTo("1.2.128.11"))
@@ -233,20 +233,20 @@ func TestAssigniningIncrementalIPs(t *testing.T) {
 	Expect(err).To(BeNil())
 
 	// check that second is not reused
-	third, err := i.AllocatePodIP(podID[2])
+	third, err := i.AllocatePodIP(podID[2], "", "")
 	Expect(err).To(BeNil())
 	Expect(third).NotTo(BeNil())
 	Expect(third.String()).To(BeEquivalentTo("1.2.128.12"))
 	Expect(i.PodSubnetThisNode().Contains(third)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	// exhaust the range
-	assigned, err := i.AllocatePodIP(podID[3])
+	assigned, err := i.AllocatePodIP(podID[3], "", "")
 	Expect(err).To(BeNil())
 	Expect(assigned).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(assigned)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	// expect released ip to be reused
-	reused, err := i.AllocatePodIP(podID[1])
+	reused, err := i.AllocatePodIP(podID[1], "", "")
 	Expect(err).To(BeNil())
 	Expect(reused).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(reused)).To(BeTrue(), "Pod IP address is not from pod network")
@@ -495,7 +495,7 @@ func TestExcludeGateway(t *testing.T) {
 func exhaustPodIPAddresses(i *IPAM, maxIPCount int) (allocatedIPs []string, allocatedPodIDS []podmodel.ID) {
 	for j := 1; j <= maxIPCount; j++ {
 		podID := podmodel.ID{Namespace: "default", Name: "pod" + strconv.Itoa(j)}
-		ip, _ := i.AllocatePodIP(podID)
+		ip, _ := i.AllocatePodIP(podID, "", "")
 		allocatedIPs = append(allocatedIPs, ip.To4().String())
 		allocatedPodIDS = append(allocatedPodIDS, podID)
 	}
@@ -517,7 +517,7 @@ func releaseAllPodAddresses(i *IPAM, ipCount int) {
 
 func assertCorrectIPExhaustion(i *IPAM, maxIPCount int) {
 	podID := podmodel.ID{Namespace: "default", Name: "pod" + strconv.Itoa(maxIPCount+1)}
-	_, err := i.AllocatePodIP(podID)
+	_, err := i.AllocatePodIP(podID, "", "")
 	Expect(err).NotTo(BeNil(), "Pool of free IP addresses should be empty, but IPAM allocation function didn't fail")
 }
 
@@ -525,7 +525,7 @@ func assertAllocationOfIPAddresses(i *IPAM, expectedIPs []string, network net.IP
 	freeIPsCount := len(expectedIPs)
 	for j := 1; j <= freeIPsCount; j++ {
 		podID := podmodel.ID{Namespace: "default", Name: "pod" + strconv.Itoa(j) + "-secondAllocation"}
-		ip, err := i.AllocatePodIP(podID)
+		ip, err := i.AllocatePodIP(podID, "", "")
 		Expect(err).To(BeNil(), "Can't successfully allocate %v. IP address", j)
 		assertAllocationOfIPAddress(ip, network)
 		Expect(expectedIPs).To(ContainElement(ip.String()), "Allocated IP is not from given IP slice")
@@ -536,7 +536,7 @@ func assertAllocationOfAllIPAddresses(i *IPAM, maxIPCount int, network net.IPNet
 	allocated := make(map[string]bool, maxIPCount)
 	for j := 1; j <= maxIPCount; j++ {
 		podID := podmodel.ID{Namespace: "default", Name: "pod" + strconv.Itoa(j)}
-		ip, err := i.AllocatePodIP(podID)
+		ip, err := i.AllocatePodIP(podID, "", "")
 		Expect(err).To(BeNil(), "Can't successfully allocate %v. IP address out of %v possible IP addresses", j, maxIPCount)
 		Expect(allocated[ip.String()]).To(BeFalse(), "IP address %v is allocated second time", ip)
 		assertAllocationOfIPAddress(ip, network)

@@ -484,6 +484,9 @@ applyVPPnetwork() {
 
   echo "Schedule Pods on master"
   kubectl taint nodes --all node-role.kubernetes.io/master-
+
+  echo "Deploy contiv UI"
+  kubectl apply -f #{contiv_dir}/k8s/contiv-vpp-ui.yaml
 }
 
 applyCalicoNetwork() {

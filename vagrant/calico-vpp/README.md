@@ -11,7 +11,7 @@ PODs running on non-VPP nodes to communicate with PODs running on VPP nodes as n
 As of now, only no-overlay mode is supported, with BGP used to announce the POD subnets between
 the nodes and the outside network.
 
-[![Calico-VPP Architecture](../../docs/img/calico-vpp.png)](../../docs/img/img/calico-vpp.png)
+[![Calico-VPP Architecture](../../docs/img/calico-vpp.png)](../../docs/img/calico-vpp.png)
 
 ## Vagrant Deployment Steps
 

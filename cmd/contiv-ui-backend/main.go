@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	k8sURLPrefix = "/k8s/"
-	contivPrefix = "/contiv/"
+	k8sURLPrefix = "/api/k8s/"
+	contivPrefix = "/api/contiv/"
 
 	serviceToken = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	rootCa       = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
@@ -254,7 +254,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	uiPaths := []string{"/kubernetes/nodes", "/bridge-domain", "/services"}
+	uiPaths := []string{"/kubernetes/nodes", "/bridge-domain", "/services", "/contiv"}
 	fs := http.FileServer(http.Dir("static/"))
 	http.Handle("/", fs)
 	for _, p := range uiPaths {

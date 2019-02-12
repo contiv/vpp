@@ -59,6 +59,8 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
     this.topoSubscription = this.topologyService.getTopologyDataObservable().subscribe(() => {
       this.renderTopology();
     });
+
+    this.dataService.preventRefresh();
   }
 
   ngAfterViewInit() {
@@ -123,6 +125,7 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
 
     return function() {
       self.positionsChanged.emit(self.topologyService.getTopologyData());
+      self.dataService.allowRefresh();
     };
   }
 

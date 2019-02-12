@@ -12,7 +12,7 @@ export class AppComponent implements OnInit {
   public isDataLoading: boolean;
   public isWebTerminalOpened: boolean;
   private preventRefresh: boolean;
-  private timer: any;
+  private reloadTimer: any;
 
   constructor(
     private dataService: DataService
@@ -22,14 +22,13 @@ export class AppComponent implements OnInit {
     this.isWebTerminalOpened = false;
     this.preventRefresh = false;
 
-    this.timer = setInterval(() => this.reloadData(), AppConfig.POLLING_FREQ);
+    this.reloadTimer = setInterval(() => this.reloadData(), AppConfig.POLLING_FREQ);
 
     this.dataService.isDataLoading.subscribe(state => this.isDataLoading = state);
     this.dataService.preventRefreshSubject.subscribe(state => {
       if (!state) {
-        clearInterval(this.timer);
-        // this.reloadData(true);
-        this.timer = setInterval(() => this.reloadData(), AppConfig.POLLING_FREQ);
+        clearInterval(this.reloadTimer);
+        this.reloadTimer = setInterval(() => this.reloadData(), AppConfig.POLLING_FREQ);
       }
 
       this.preventRefresh = state;

@@ -44,6 +44,10 @@ svg {
   fill: #314351;
 }
 
+.bvi circle {
+  fill: #00D4B8;
+}
+
 .node text {
   font-weight: bold;
   fill: #ffffff;

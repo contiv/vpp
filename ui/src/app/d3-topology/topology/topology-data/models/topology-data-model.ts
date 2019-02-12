@@ -13,7 +13,6 @@ export class TopologyDataModel {
 
   public nodes: NodeDataModel[];
   public links: EdgeDataModel[];
-  public bvis: VppTopoBvi[];
 
   public setData(nodesData: NodeData[], linksData: EdgeData[]) {
     if (nodesData && nodesData.length) {
@@ -35,7 +34,7 @@ export class TopologyDataModel {
             this.nodes.push(new VppTopoVswitch(nd));
             break;
           case 'bvi':
-            this.bvis.push(new VppTopoBvi(nd));
+            this.nodes.push(new VppTopoBvi(nd));
             break;
         }
       });
@@ -80,7 +79,7 @@ export class TopologyDataModel {
   }
 
   public getBVIById(bviId: string): NodeDataModel {
-    return this.bvis.find(
+    return this.nodes.find(
       (bvi: NodeDataModel) => bvi.id === bviId
     );
   }
@@ -139,6 +138,5 @@ export class TopologyDataModel {
   constructor() {
     this.nodes = [];
     this.links = [];
-    this.bvis = [];
   }
 }

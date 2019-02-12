@@ -17,12 +17,10 @@ import { PodTopologyService } from './pod-network/pod-topology.service';
 import { K8sTopologyService } from './kubernetes/k8s-topology.service';
 import { LayoutService } from './shared/services/layout.service';
 import { ModalService } from './shared/services/modal.service';
-import { VswitchDiagramService } from './vswitch-diagram/vswitch-diagram.service';
 
 import { AppComponent } from './app.component';
 import { KubernetesComponent } from './kubernetes/kubernetes.component';
 import { PodNetworkComponent } from './pod-network/pod-network.component';
-import { VppComponent } from './vpp/vpp.component';
 import { SidepanelComponent } from './shared/sidepanel/sidepanel.component';
 import { PodsComponent } from './shared/sidepanel/pods/pods.component';
 import { NodesComponent } from './shared/sidepanel/nodes/nodes.component';
@@ -54,7 +52,6 @@ import { ServicesTopologyService } from './shared/sidepanel/services/services-to
     AppComponent,
     KubernetesComponent,
     PodNetworkComponent,
-    VppComponent,
     PodsComponent,
     NodesComponent,
     SidepanelComponent,
@@ -98,7 +95,6 @@ import { ServicesTopologyService } from './shared/sidepanel/services/services-to
     K8sTopologyService,
     LayoutService,
     ModalService,
-    VswitchDiagramService,
     BridgeDomainService,
     ServicesTopologyService
   ],

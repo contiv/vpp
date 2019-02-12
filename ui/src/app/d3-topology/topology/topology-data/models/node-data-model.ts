@@ -21,6 +21,9 @@ export abstract class NodeDataModel implements NodeData {
   public IP: string;
   public namespace: string;
 
+  public fx: number;
+  public fy: number;
+
   constructor(data?: NodeData) {
     this.init();
 

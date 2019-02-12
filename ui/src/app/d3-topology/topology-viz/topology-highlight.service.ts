@@ -70,8 +70,12 @@ export class TopologyHighlightService {
    * Highlights node
    */
   public highlightNode(nodeId: string): void {
-    this.topologyVizService.getSvgObject().select('#node' + nodeId)
+    const svg = this.topologyVizService.getSvgObject();
+
+    if (svg) {
+      svg.select('#node' + nodeId)
       .classed('selected-node', true);
+    }
   }
 
   public highlightNamespace(namespace: string) {
@@ -252,22 +256,26 @@ export class TopologyHighlightService {
         return 'node' + n.id;
       })
       .each(function(node) {
+        const n = d3.select(this);
         if (state) {
           if (node instanceof VppTopoPod && !node.label.includes('coredns') && !node.label.includes('-ui-')
             || node instanceof VppTopoVswitch) {
-            d3.select(this).classed('hidden', false);
+            n.classed('hidden', false);
+          } else if (node instanceof VppTopoBvi) {
+            n.classed('hidden', false);
+            n.classed('bvi', true);
+            n.attr('opacity', 1);
           } else {
-            d3.select(this).classed('hidden', true);
+            n.classed('hidden', true);
           }
         }
       });
 
     const link = d3.selectAll('.link').classed('hidden', state);
-    const bvis = d3.selectAll('.bvi').classed('hidden', !state);
+    d3.selectAll('.dashed').classed('hidden', false);
     const vxlinks = d3.selectAll('.vxlink').classed('hidden', !state);
 
     if (state) {
-      bvis.attr('opacity', 1);
       vxlinks.attr('opacity', 1);
     }
   }

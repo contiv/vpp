@@ -51,12 +51,15 @@ export class ServicesTopologyService {
 
   private createTopologyNode(node: K8sNodeModel): NodeData {
     const savedPosition = this.layoutService.getSavedPosition(node.name, 'svc');
-    const position = savedPosition ? savedPosition : this.layoutService.getNodePosition(node);
+    const position = savedPosition ? savedPosition : {x: 0, y: 0};
+
     return {
       id: node.name,
       label: node.name,
       x: position.x,
       y: position.y,
+      fx: savedPosition ? savedPosition.x : null,
+      fy: savedPosition ? savedPosition.y : null,
       stroke: TopoColors.NODE_STROKE,
       nodeType: 'node',
       IP: node.ip
@@ -65,12 +68,15 @@ export class ServicesTopologyService {
 
   private createTopologyVswitch(vswitch: K8sPodModel): NodeData {
     const savedPosition = this.layoutService.getSavedPosition(vswitch.name, 'svc');
-    const position = savedPosition ? savedPosition : this.layoutService.getVswitchPosition(vswitch);
+    const position = savedPosition ? savedPosition : {x: 0, y: 0};
+
     const node: NodeData = {
       id: vswitch.name,
       label: vswitch.name,
       x: position.x,
       y: position.y,
+      fx: savedPosition ? savedPosition.x : null,
+      fy: savedPosition ? savedPosition.y : null,
       nodeType: 'vswitch',
       IP: vswitch.podIp,
       namespace: vswitch.namespace,
@@ -82,12 +88,15 @@ export class ServicesTopologyService {
 
   private createTopologyPod(pod: K8sPodModel): NodeData {
     const savedPosition = this.layoutService.getSavedPosition(pod.name, 'svc');
-    const position = savedPosition ? savedPosition : this.layoutService.getPodPosition(pod);
+    const position = savedPosition ? savedPosition : {x: 0, y: 0};
+
     const node: NodeData = {
       id: pod.name,
       label: pod.name,
       x: position.x,
       y: position.y,
+      fx: savedPosition ? savedPosition.x : null,
+      fy: savedPosition ? savedPosition.y : null,
       nodeType: 'pod',
       IP: pod.podIp,
       namespace: pod.namespace
@@ -98,12 +107,15 @@ export class ServicesTopologyService {
 
   private createTopologyVppPod(pod: K8sPodModel, vswitch: NodeData): NodeData {
     const savedPosition = this.layoutService.getSavedPosition(pod.name, 'svc');
-    const position = savedPosition ? savedPosition : this.layoutService.getPodPosition(pod);
+    const position = savedPosition ? savedPosition : {x: 0, y: 0};
+
     const node: NodeData = {
       id: pod.name,
       label: pod.name,
       x: position.x,
       y: position.y,
+      fx: savedPosition ? savedPosition.x : null,
+      fy: savedPosition ? savedPosition.y : null,
       nodeType: 'vppPod',
       IP: pod.podIp,
       namespace: pod.namespace

@@ -8,8 +8,10 @@ export interface NodeData {
   icon?: string;
   iconWidth?: number;
   iconHeight?: number;
-  x: number;
-  y: number;
+  x?: number;
+  y?: number;
+  fx?: number;
+  fy?: number;
   type?: TopologyType;
   stroke?: string;
   strokeWidth?: string;

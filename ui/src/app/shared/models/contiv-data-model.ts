@@ -18,6 +18,10 @@ export class ContivDataModel {
     this.contivData.push(contivData);
   }
 
+  public getK8sMasterNode(): K8sNodeModel {
+    return this.contivData.find(n => n.node.isMaster()).node;
+  }
+
   public getK8sNodes(): K8sNodeModel[] {
     const nodes: K8sNodeModel[] = [];
 

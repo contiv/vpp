@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { DataService } from './shared/services/data.service';
+import { AppConfig } from './app-config';
 
 @Component({
   selector: 'app-root',
@@ -10,6 +11,8 @@ export class AppComponent implements OnInit {
 
   public isDataLoading: boolean;
   public isWebTerminalOpened: boolean;
+  private preventRefresh: boolean;
+  private timer: any;
 
   constructor(
     private dataService: DataService
@@ -17,11 +20,29 @@ export class AppComponent implements OnInit {
 
   ngOnInit() {
     this.isWebTerminalOpened = false;
+    this.preventRefresh = false;
+
+    this.timer = setInterval(() => this.reloadData(), AppConfig.POLLING_FREQ);
+
     this.dataService.isDataLoading.subscribe(state => this.isDataLoading = state);
+    this.dataService.preventRefreshSubject.subscribe(state => {
+      if (!state) {
+        clearInterval(this.timer);
+        // this.reloadData(true);
+        this.timer = setInterval(() => this.reloadData(), AppConfig.POLLING_FREQ);
+      }
+
+      this.preventRefresh = state;
+    });
   }
 
-  public reloadData() {
-    if (!this.isDataLoading) {
+  public reloadData(force?: boolean) {
+    if (force) {
+      this.dataService.loadData();
+      return;
+    }
+
+    if (!this.isDataLoading && !this.preventRefresh) {
       this.dataService.loadData();
     }
   }

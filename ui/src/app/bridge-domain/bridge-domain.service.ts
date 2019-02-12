@@ -42,18 +42,22 @@ export class BridgeDomainService {
   private createLinks(data: ContivDataModel): EdgeData[] {
     const vppLinks = this.layoutService.connectVppPodsToVswitch(data);
     const vxTunnels = this.layoutService.connectBVIs(data);
+    const bviLinks = this.layoutService.connectBVIsToVswitches(data);
 
-    return [].concat(vppLinks, vxTunnels);
+    return [].concat(vppLinks, vxTunnels, bviLinks);
   }
 
   private createTopologyVswitch(vswitch: K8sPodModel): NodeData {
     const savedPosition = this.layoutService.getSavedPosition(vswitch.name, 'bd');
-    const position = savedPosition ? savedPosition : this.layoutService.getVswitchPosition(vswitch);
+    const position = savedPosition ? savedPosition : {x: 0, y: 0};
+
     const node: NodeData = {
       id: vswitch.name,
       label: vswitch.name,
       x: position.x,
       y: position.y,
+      fx: savedPosition ? savedPosition.x : null,
+      fy: savedPosition ? savedPosition.y : null,
       nodeType: 'vswitch',
       IP: vswitch.podIp,
       namespace: vswitch.namespace,
@@ -64,11 +68,15 @@ export class BridgeDomainService {
   }
 
   private createTopologyBVI(bvi: VppInterfaceModel, vswitch: NodeData): NodeData {
-    const position = this.layoutService.getBVIPosition(vswitch);
+    const savedPosition = this.layoutService.getSavedPosition(vswitch.label + '-bvi', 'bd');
+    const position = savedPosition ? savedPosition : {x: 0, y: 0};
+
     return {
       id: vswitch.label + '-bvi',
       x: position.x,
       y: position.y,
+      fx: savedPosition ? savedPosition.x : null,
+      fy: savedPosition ? savedPosition.y : null,
       stroke: TopoColors.BVI_STROKE,
       nodeType: 'bvi',
       IP: bvi.IPS
@@ -77,12 +85,15 @@ export class BridgeDomainService {
 
   private createTopologyVppPod(pod: K8sPodModel, vswitch: NodeData): NodeData {
     const savedPosition = this.layoutService.getSavedPosition(pod.name, 'bd');
-    const position = savedPosition ? savedPosition : this.layoutService.getVppPodPosition(pod, vswitch, true);
+    const position = savedPosition ? savedPosition : {x: 0, y: 0};
+
     const node: NodeData = {
       id: pod.name,
       label: pod.name,
       x: position.x,
       y: position.y,
+      fx: savedPosition ? savedPosition.x : null,
+      fy: savedPosition ? savedPosition.y : null,
       nodeType: 'vppPod',
       IP: pod.podIp,
       namespace: pod.namespace

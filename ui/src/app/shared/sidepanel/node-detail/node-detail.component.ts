@@ -6,7 +6,6 @@ import { DataService } from '../../services/data.service';
 import { ContivNodeDataModel } from '../../models/contiv-node-data-model';
 import { TopologyHighlightService } from '../../../d3-topology/topology-viz/topology-highlight.service';
 import { IpCidrMap } from '../../interfaces/ip-cidr-map';
-import { VppInterfaceModel } from '../../models/vpp/vpp-interface-model';
 import { ModalService } from '../../services/modal.service';
 
 @Component({
@@ -35,15 +34,15 @@ export class NodeDetailComponent implements OnInit, OnDestroy {
     this.subscriptions.push(
       this.route.params.subscribe(params => {
 
-        this.subscriptions.push(
-          this.dataService.isContivDataLoaded.subscribe(isLoaded => {
-            if (isLoaded) {
+        // this.subscriptions.push(
+        //   this.dataService.isContivDataLoaded.subscribe(isLoaded => {
+        //     if (isLoaded) {
               this.domain = this.dataService.contivData.getDomainByNodeId(params.id);
               this.setFormData();
               this.topologyHighlightService.highlightNode(params.id);
-            }
-          })
-        );
+        //     }
+        //   })
+        // );
       })
     );
   }

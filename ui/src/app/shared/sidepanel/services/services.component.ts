@@ -67,15 +67,16 @@ export class ServicesComponent implements OnInit, OnDestroy {
                 this.k8sService.loadEndpoints().subscribe(endpoints => {
                   this.services = services;
                   this.endpoints = endpoints;
+
+                  this.topoData = this.servicesTopologyService.getTopologyData(this.dataService.contivData);
+
+                  const topo: TopologyDataModel = new TopologyDataModel();
+                  topo.setData(this.topoData.nodes, this.topoData.links);
+                  this.topologyService.setTopologyData(topo);
                 })
               );
             })
           );
-        } else {
-          this.services = [];
-          this.k8sNodes = [];
-          this.resetService();
-          this.selectedService = null;
         }
       })
     );
@@ -97,16 +98,6 @@ export class ServicesComponent implements OnInit, OnDestroy {
 
   public showTopology() {
     this.shownTopology = true;
-
-    this.subscriptions.push(this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
-      if (dataLoaded) {
-        this.topoData = this.servicesTopologyService.getTopologyData(this.dataService.contivData);
-
-        const topo: TopologyDataModel = new TopologyDataModel();
-        topo.setData(this.topoData.nodes, this.topoData.links);
-        this.topologyService.setTopologyData(topo);
-      }
-    }));
   }
 
   public onNodeClicked(data: NodeClickEvent) {

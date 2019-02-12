@@ -16,6 +16,7 @@ import { VppTopoBvi } from '../topology/topology-data/models/nodes/vpp-topo-bvi'
 import * as d3 from 'd3';
 import { K8sTopoNode } from '../topology/topology-data/models/nodes/k8s-topo-node';
 import { TopologyDataModel } from '../topology/topology-data/models/topology-data-model';
+import { DataService } from '../../shared/services/data.service';
 
 @Component({
   selector: 'app-topology-viz',
@@ -42,24 +43,24 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
   private svg: d3.Selection<SVGSVGElement, {}, null, undefined>;
   private dropNode: NodeDataModel;
   private dropLink: EdgeDataModel;
-  private subscriptions: Subscription[];
+  private topoSubscription: Subscription;
   private isDraggingItem = false;
+  private simulation: d3.Simulation<NodeDataModel, EdgeDataModel>;
 
   constructor(
     private coreService: CoreService,
     private topologyService: TopologyService,
-    private topologyVizService: TopologyVizService
+    private topologyVizService: TopologyVizService,
+    private dataService: DataService
     ) {
   }
 
   ngOnInit() {
-    this.subscriptions = [];
+    this.topoSubscription = this.topologyService.getTopologyDataObservable().subscribe(() => {
+      this.renderTopology();
+    });
 
-    this.subscriptions.push(
-      this.topologyService.getTopologyDataObservable().subscribe(() => {
-        this.renderTopology();
-      })
-    );
+    this.dataService.preventRefresh();
   }
 
   ngAfterViewInit() {
@@ -84,15 +85,82 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
+  private forceTopologyLayout() {
+    const svgRect = this.svg.node().getBoundingClientRect();
+
+    const links = this.svg.select('.links')
+      .selectAll('.link')
+      .data(this.topologyService.getTopologyData().links);
+
+    const nodes = this.svg.select('.nodes')
+      .selectAll('.node')
+      .data(this.topologyService.getTopologyData().nodes);
+
+    this.simulation = d3.forceSimulation<NodeDataModel, EdgeDataModel>(this.topologyService.getTopologyData().nodes)
+      .force('charge', d3.forceManyBody().strength(-500))
+      .force('link', d3.forceLink<NodeDataModel, EdgeDataModel>(this.topologyService.getTopologyData().links)
+        .id(d => d.id)
+        .distance(d => {
+          if (d.fromNodeObj.nodeType === 'node' && d.toNodeObj.nodeType === 'node') {
+            return 400;
+          } else if (d.fromNodeObj instanceof VppTopoVswitch && d.toNodeObj instanceof VppTopoBvi) {
+            return 20;
+          } else if (d.fromNodeObj instanceof VppTopoVswitch) {
+            return 300;
+          } else if (d.type === 'vxlan') {
+            return 400;
+          } else {
+            return 200;
+          }
+        })
+      )
+      .force('center', d3.forceCenter(svgRect.width / 2, svgRect.height / 2))
+      .on('tick', this.ticked(links, nodes))
+      .on('end', this.forceEnded())
+      .alphaDecay(0.03);
+  }
+
+  private forceEnded() {
+    const self = this;
+
+    return function() {
+      self.positionsChanged.emit(self.topologyService.getTopologyData());
+      self.dataService.allowRefresh();
+    };
+  }
+
+  private ticked(links: d3.Selection<any, EdgeDataModel, any, {}>, nodes: d3.Selection<any, NodeDataModel, any, {}>) {
+    const self = this;
+
+    return function() {
+      links.attr('d', (link: EdgeDataModel) => {
+        const fromX = (link.fromNodeObj.x + link.fromNodeObj.iconWidth / 2);
+        const fromY = (link.fromNodeObj.y + link.fromNodeObj.iconHeight / 2);
+        const toX = (link.toNodeObj.x + link.toNodeObj.iconWidth / 2);
+        const toY = (link.toNodeObj.y + link.toNodeObj.iconHeight / 2);
+
+        const offsetYfrom = link.fromType === 'vxlan' ? -20 : 0;
+        const offsetYto = link.toType === 'vxlan' ? -20 : 0;
+
+        return 'M ' + fromX + ' ' + (fromY + offsetYfrom) + ' L ' + toX + ' ' + (toY + offsetYto);
+      });
+
+      nodes.attr('transform', (d) => 'translate(' + d.x + ',' + d.y + ')');
+    };
+  }
+
   /**
    * Aggregated function for setting parameters and events to all topology items
    */
   private renderTopology() {
     this.renderLinks(this.topologyService.getTopologyData().links, {selector: '.links'});
     this.renderNodes(this.topologyService.getTopologyData().nodes, {selector: '.nodes'});
-    this.renderBVIs(this.topologyService.getTopologyData().bvis, {selector: '.bvis'});
     this.appendEventsToTopologyItems();
-    this.topologyRendered.emit(true);
+    this.forceTopologyLayout();
+
+    if (this.topologyService.getTopologyData().nodes.length) {
+      this.topologyRendered.emit(true);
+    }
   }
 
   /**
@@ -113,8 +181,6 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
       .attr('stroke', d => d.color)
       .attr('stroke-width', d => d.width)
       .attr('d', (link: EdgeDataModel) => {
-        let isBezier = false;
-
         const fromX = (link.fromNodeObj.x + link.fromNodeObj.iconWidth / 2);
         const fromY = (link.fromNodeObj.y + link.fromNodeObj.iconHeight / 2);
         const toX = (link.toNodeObj.x + link.toNodeObj.iconWidth / 2);
@@ -123,20 +189,7 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
         const offsetYfrom = link.fromType === 'vxlan' ? -20 : 0;
         const offsetYto = link.toType === 'vxlan' ? -20 : 0;
 
-        if (link.type === 'vxlan' && link.from.includes('vswitch') && link.to.includes('vswitch')) {
-          // isBezier = true;
-          isBezier = false;
-        }
-
-        if (isBezier) {
-          const dx = toX - fromX;
-          const dy = toY - fromY;
-          const dr = Math.sqrt(dx * dx + dy * dy) * 3;
-
-          return 'M ' + fromX + ' ' + (fromY + offsetYfrom) + ' A ' + dr + ' ' + dr + ' 0 0 1' + toX + ' ' + (toY + offsetYto);
-        } else {
-          return 'M ' + fromX + ' ' + (fromY + offsetYfrom) + ' L ' + toX + ' ' + (toY + offsetYto);
-        }
+        return 'M ' + fromX + ' ' + (fromY + offsetYfrom) + ' L ' + toX + ' ' + (toY + offsetYto);
       })
       .classed('dashed', d => d.isDashed)
       .classed('disabled', d => !d.clickable)
@@ -159,15 +212,14 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
 
     nodesData.exit().remove();
 
-    nodesData.attr('id', d => 'node' + d.id)
-      .attr('class', 'node hidden')
+    nodesData.classed('node', true)
       .attr('transform', (d) => 'translate(' + d.x + ',' + d.y + ')')
       .attr('type', d => d.type);
 
     const nodesEnterG = nodesData.enter().append<SVGGElement>('g');
 
     nodesEnterG.attr('id', d => 'node' + d.id)
-      .attr('class', 'node')
+      .classed('node', true)
       .classed('hidden', this.hasLayers)
       .attr('transform', (d) => 'translate(' + d.x + ',' + d.y + ')')
       .attr('type', d => d.type);
@@ -194,7 +246,7 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
       .text((d) => d.label);
 
     const nonIconNodes = nodesEnterG.filter(d => {
-      return d.icon === '' ? true : false;
+      return d.icon === '' && !(d instanceof VppTopoBvi) ? true : false;
     });
 
     nonIconNodes.each(function (n) {
@@ -229,38 +281,18 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
       .text((d) => n.label);
     });
 
-    // TODO: Optimalize update
-    // this.svg.select('.nodes').selectAll('.node-icon').data(this.topologyService.getTopologyData().nodes)
-    //   .attr('href', (d) => d.icon);
+    const bviNodes = nodesEnterG.filter(d => d instanceof VppTopoBvi);
+    bviNodes.attr('id', d => 'bvi' + d.id)
+      .classed('bvi', true);
 
-    // this.svg.select('.nodes').selectAll('.node-text').data(this.topologyService.getTopologyData().nodes)
-    //   .attr('text-anchor', 'middle')
-    //   .attr('dx', (d) => d.iconWidth / 2)
-    //   .attr('dy', (d) => d.iconHeight + 20)
-    //   .attr('fill', d => d.labelColor)
-    //   .text((d) => d.label);
-  }
+    bviNodes.each(function(b) {
+      const bvi = d3.select(this);
 
-  private renderBVIs(data: VppTopoBvi[], options: RenderOptions) {
-    const bviData = this.svg.select(options.selector)
-      .selectAll('.bvi')
-      .data(data, function (d: VppTopoBvi) {
-        return 'bvi' + d.id;
-      });
-
-    bviData.attr('id', d => 'bvi' + d.id)
-      .attr('transform', (d) => 'translate(' + d.x + ',' + d.y + ')');
-
-    const bviEnterG = bviData.enter().append<SVGGElement>('g')
-      .attr('id', d => 'bvi' + d.id)
-      .classed('bvi', true)
-      .classed('hidden', this.hasLayers)
-      .attr('transform', (d) => 'translate(' + d.x + ',' + d.y + ')');
-
-    bviEnterG.append<SVGCircleElement>('circle')
-      .attr('r', 15)
-      .attr('cy', -20)
-      .attr('fill', d => d.stroke);
+      bvi.append<SVGCircleElement>('circle')
+        .attr('r', 15)
+        .attr('cy', -20)
+        .attr('fill', b.stroke);
+    });
   }
 
   /**
@@ -291,40 +323,33 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
 
     nodes.filter(d => d.type === 'topology-item')
       .on('click', function (d) {
-        self.nodeClicked.emit({
-          node: d,
-          svgNode: this
-        });
+        if (d instanceof VppTopoBvi) {
+          self.bviClicked.emit({
+            node: d,
+            svgNode: this
+          });
+        } else {
+          self.nodeClicked.emit({
+            node: d,
+            svgNode: this
+          });
+        }
+      })
+      .on('dblclick', function(d) {
+        if (d instanceof VppTopoVswitch) {
+          self.nodeDblClicked.emit({
+            node: d,
+            svgNode: this
+          });
+        }
       })
       .on('mouseenter', n => this.dropNode = n)
       .on('mouseleave', n => this.dropNode = null)
       .call(d3.drag<SVGGElement, NodeDataModel>()
+        .on('start', this.startHandle(links))
         .on('drag', this.dragHandle(links))
         .on('end', this.stopHandle(links))
       );
-
-    nodes.filter(d => d.nodeType === 'vswitch')
-      .on('dblclick', function(d) {
-        self.nodeDblClicked.emit({
-          node: d,
-          svgNode: this
-        });
-      });
-
-    // add events to BVIs
-    const bvis = this.svg.select('.bvis')
-      .selectAll('.bvi')
-      .data(this.topologyService.getTopologyData().bvis);
-
-    bvis.filter(d => d.type === 'topology-item')
-      .on('click', function (d) {
-        self.bviClicked.emit({
-          node: d,
-          svgNode: this
-        });
-      })
-      .on('mouseenter', n => this.dropNode = n)
-      .on('mouseleave', n => this.dropNode = null);
   }
 
   private zoomHandle(svgSelection) {
@@ -334,6 +359,27 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
       const zoomEvent: d3.D3ZoomEvent<SVGSVGElement, any> = d3.event;
       svgSelection.attr('transform', zoomEvent.transform.toString());
       self.transform.emit(self.coreService.parseTransform(zoomEvent.transform.toString()));
+    };
+  }
+
+  private startHandle(links: d3.Selection<any, EdgeDataModel, any, {}>) {
+    const self = this;
+
+    return function (this: SVGGElement, d: NodeDataModel) {
+      self.dataService.preventRefresh();
+
+      const dragEvent: d3.D3DragEvent<SVGGElement, NodeDataModel, any> = d3.event;
+      if (!d3.event.active) {
+        self.simulation.alphaTarget(0.1).restart();
+      }
+
+      dragEvent.subject.fx = dragEvent.subject.x;
+      dragEvent.subject.fy = dragEvent.subject.y;
+
+      self.topologyService.getTopologyData().nodes.forEach(n => {
+        n.fx = null;
+        n.fy = null;
+      });
     };
   }
 
@@ -347,19 +393,8 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
       d.x = dragEvent.x;
       d.y = dragEvent.y;
 
-      if (d instanceof VppTopoVswitch) {
-        const bvi = self.topologyService.getTopologyData().getBVIById(d.id + '-bvi');
-
-        if (bvi) {
-          d3.select('#bvi' + d.id + '-bvi')
-            .attr('transform', 'translate(' + d.x + ',' + d.y + ')');
-
-          bvi.x = dragEvent.x;
-          bvi.y = dragEvent.y;
-
-          self.updateLinks(bvi, link);
-        }
-      }
+      dragEvent.subject.fx = dragEvent.x;
+      dragEvent.subject.fy = dragEvent.y;
 
       const dragNode = d3.select(this)
         .attr('transform', 'translate(' + d.x + ',' + d.y + ')');
@@ -376,6 +411,16 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
     const self = this;
 
     return function (this: SVGGElement, d: NodeDataModel) {
+      self.dataService.allowRefresh();
+
+      const dragEvent: d3.D3DragEvent<SVGGElement, NodeDataModel, any> = d3.event;
+      if (!d3.event.active) {
+        self.simulation.alphaTarget(0);
+      }
+
+      dragEvent.subject.fx = null;
+      dragEvent.subject.fy = null;
+
       if (!self.isDraggingItem) {
         return;
       }
@@ -398,8 +443,6 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
 
     connectedLinks
       .attr('d', (link: EdgeDataModel) => {
-        let isBezier = false;
-
         const fromX = (link.fromNodeObj.x + link.fromNodeObj.iconWidth / 2);
         const fromY = (link.fromNodeObj.y + link.fromNodeObj.iconHeight / 2);
         const toX = (link.toNodeObj.x + link.toNodeObj.iconWidth / 2);
@@ -408,20 +451,7 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
         const offsetYfrom = link.fromType === 'vxlan' ? -20 : 0;
         const offsetYto = link.toType === 'vxlan' ? -20 : 0;
 
-        if (link.type === 'vxlan' && link.from.includes('vswitch') && link.to.includes('vswitch')) {
-          // isBezier = true;
-          isBezier = false;
-        }
-
-        if (isBezier) {
-          const dx = toX - fromX;
-          const dy = toY - fromY;
-          const dr = Math.sqrt(dx * dx + dy * dy) * 3;
-
-          return 'M ' + fromX + ' ' + (fromY + offsetYfrom) + ' A ' + dr + ' ' + dr + ' 0 0 1' + toX + ' ' + (toY + offsetYto);
-        } else {
-          return 'M ' + fromX + ' ' + (fromY + offsetYfrom) + ' L ' + toX + ' ' + (toY + offsetYto);
-        }
+        return 'M ' + fromX + ' ' + (fromY + offsetYfrom) + ' L ' + toX + ' ' + (toY + offsetYto);
       })
       .classed('link-dragging', true);
   }
@@ -450,7 +480,9 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnDestroy(): void {
-    this.subscriptions.forEach(s => s.unsubscribe());
+    if (this.topoSubscription) {
+      this.topoSubscription.unsubscribe();
+    }
   }
 
 }

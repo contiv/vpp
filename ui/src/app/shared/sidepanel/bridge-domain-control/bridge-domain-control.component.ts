@@ -1,4 +1,4 @@
-import { Component, OnInit, Input, OnChanges, SimpleChanges, Output, EventEmitter } from '@angular/core';
+import { Component, OnInit, Input, OnChanges, SimpleChanges, Output, EventEmitter, OnDestroy } from '@angular/core';
 import { DataService } from '../../services/data.service';
 import { ContivNodeDataModel } from '../../models/contiv-node-data-model';
 import { VppInterfaceModel } from '../../models/vpp/vpp-interface-model';
@@ -38,7 +38,7 @@ interface VxlanRow {
   templateUrl: './bridge-domain-control.component.html',
   styleUrls: ['./bridge-domain-control.component.css']
 })
-export class BridgeDomainControlComponent implements OnInit, OnChanges {
+export class BridgeDomainControlComponent implements OnInit, OnChanges, OnDestroy {
 
   @Input() tableType: string;
   @Output() detailShowed: EventEmitter<{
@@ -57,7 +57,7 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
   public isTunnels: boolean;
 
   private disabledClear: boolean;
-  private subscriptions: Subscription[];
+  private dataSubscription: Subscription;
 
   constructor(
     private dataService: DataService,
@@ -65,7 +65,6 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
   ) { }
 
   ngOnInit() {
-    this.subscriptions = [];
     this.summaryObj = [];
     this.podsObj = [];
     this.tunnelsObj = [];
@@ -76,70 +75,68 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
 
     this.disabledClear = false;
 
-    this.subscriptions.push(
-      this.dataService.isContivDataLoaded.subscribe(isLoaded => {
-        if (isLoaded) {
-          this.bd = this.dataService.contivData.contivData[0].bd[0];
-          this.domains = this.dataService.contivData.contivData;
-          this.summaryObj = this.domains.map(d => {
-            const bvi = d.getBVI();
-            const vxlans = d.getVxlans();
-            const row: BdRow = {
-              node: d.node.name,
-              bviName: d.vswitch.name + '-bvi',
-              bviIp: bvi.IPS,
-              vrf: bvi.vrf,
-              vni: vxlans[0].vni,
-              podsCount: d.getTapInterfaces().length,
-              vxlansCount: vxlans.length
-            };
+    this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(isLoaded => {
+      if (isLoaded) {
+        this.bd = this.dataService.contivData.contivData[0].bd[0];
+        this.domains = this.dataService.contivData.contivData;
+        this.summaryObj = this.domains.map(d => {
+          const bvi = d.getBVI();
+          const vxlans = d.getVxlans();
+          const row: BdRow = {
+            node: d.node.name,
+            bviName: d.vswitch.name + '-bvi',
+            bviIp: bvi.IPS,
+            vrf: bvi.vrf,
+            vni: vxlans[0].vni,
+            podsCount: d.getTapInterfaces().length,
+            vxlansCount: vxlans.length
+          };
 
-            return row;
-          });
+          return row;
+        });
 
-          this.domains.forEach(d => {
-            d.vppPods.forEach(pod => {
-              if (!pod.name.includes('coredns') && !pod.name.includes('contiv-ui')) {
-                const row: PodRow = {
-                  name: pod.name,
-                  iface: pod.tapInternalInterface,
-                  ip: pod.podIp,
-                  node: pod.node
-                };
-
-                this.podsObj.push(row);
-              }
-            });
-          });
-
-          this.domains.forEach(d => {
-            d.getVxlans().forEach(vx => {
-              const srcNode = this.dataService.contivData.getNodeByIpamIp(vx.srcIP);
-              const dstNode = this.dataService.contivData.getNodeByIpamIp(vx.dstIP);
-
-              const srcDomain = this.dataService.contivData.getDomainByNodeId(srcNode.name);
-              const dstDomain = this.dataService.contivData.getDomainByNodeId(dstNode.name);
-
-              const row: VxlanRow = {
-                srcIP: vx.srcIP,
-                srcNode: srcNode.name,
-                dstIP: vx.dstIP,
-                dstNode: dstNode.name,
-                name: vx.name,
-                srcBvi: srcDomain.vswitch.name + '-bvi',
-                dstBvi: dstDomain.vswitch.name + '-bvi'
+        this.domains.forEach(d => {
+          d.vppPods.forEach(pod => {
+            if (!pod.name.includes('coredns') && !pod.name.includes('contiv-ui')) {
+              const row: PodRow = {
+                name: pod.name,
+                iface: pod.tapInternalInterface,
+                ip: pod.podIp,
+                node: pod.node
               };
 
-              this.tunnelsObj.push(row);
-            });
+              this.podsObj.push(row);
+            }
           });
-        } else {
-          this.summaryObj = [];
-          this.podsObj = [];
-          this.tunnelsObj = [];
-        }
-      })
-    );
+        });
+
+        this.domains.forEach(d => {
+          d.getVxlans().forEach(vx => {
+            const srcNode = this.dataService.contivData.getNodeByIpamIp(vx.srcIP);
+            const dstNode = this.dataService.contivData.getNodeByIpamIp(vx.dstIP);
+
+            const srcDomain = this.dataService.contivData.getDomainByNodeId(srcNode.name);
+            const dstDomain = this.dataService.contivData.getDomainByNodeId(dstNode.name);
+
+            const row: VxlanRow = {
+              srcIP: vx.srcIP,
+              srcNode: srcNode.name,
+              dstIP: vx.dstIP,
+              dstNode: dstNode.name,
+              name: vx.name,
+              srcBvi: srcDomain.vswitch.name + '-bvi',
+              dstBvi: dstDomain.vswitch.name + '-bvi'
+            };
+
+            this.tunnelsObj.push(row);
+          });
+        });
+      } else {
+        this.summaryObj = [];
+        this.podsObj = [];
+        this.tunnelsObj = [];
+      }
+    });
   }
 
   public showDetail(nodeId: string, type: 'vppPod' | 'bvi' | 'vxtunnel', dstId?: string) {
@@ -186,6 +183,12 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges {
           this.isTunnels = true;
           break;
       }
+    }
+  }
+
+  ngOnDestroy() {
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
     }
   }
 }

@@ -22,6 +22,8 @@ export class BviDetailComponent implements OnInit, OnDestroy {
   public vxlans: VppInterfaceModel[];
 
   private subscriptions: Subscription[];
+  private dataSubscription: Subscription;
+  private bviId: string;
 
   constructor(
     private route: ActivatedRoute,
@@ -34,24 +36,27 @@ export class BviDetailComponent implements OnInit, OnDestroy {
     this.subscriptions = [];
     this.bviData = [];
     this.vxlansData = [];
+    setTimeout(() => this.sidepanelService.openSidepanel(), 0);
 
     this.subscriptions.push(
       this.route.params.subscribe(params => {
+        // is ID change
+        if (this.bviId !== params.id && this.dataSubscription) {
+          this.dataSubscription.unsubscribe();
+        }
 
-        this.subscriptions.push(
-          this.dataService.isContivDataLoaded.subscribe(isLoaded => {
-            if (isLoaded) {
-              this.domain = this.dataService.contivData.getDomainByVswitchId(params.id);
-              this.bvi = this.domain.getBVI();
-              this.vxlans = this.domain.getVxlans();
+        this.bviId = params.id;
 
-              this.setFormData();
-              this.sidepanelService.openSidepanel();
-              this.topologyHighlightService.highlightBVI(params.id);
-              this.topologyHighlightService.highlightTunnelFromToNode(params.id);
-            }
-          })
-        );
+        this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(isLoaded => {
+          if (isLoaded) {
+            this.domain = this.dataService.contivData.getDomainByVswitchId(this.bviId);
+            this.bvi = this.domain.getBVI();
+            this.vxlans = this.domain.getVxlans();
+            this.setFormData();
+            this.topologyHighlightService.highlightBVI(this.bviId);
+            this.topologyHighlightService.highlightTunnelFromToNode(this.bviId);
+          }
+        });
       })
     );
   }
@@ -95,6 +100,10 @@ export class BviDetailComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subscriptions.forEach(s => s.unsubscribe());
+
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
+    }
   }
 
 }

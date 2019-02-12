@@ -8,4 +8,5 @@ export class AppConfig {
   public static API_V1_CONTIV = 'contiv/v1/';
   public static API_V1_VPP = 'vpp/dump/v1/';
   public static API_V2_VPP = 'dump/vpp/v2/';
+  public static POLLING_FREQ = 5000;
 }

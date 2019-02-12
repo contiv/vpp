@@ -22,6 +22,9 @@ export class VxtunnelDetailComponent implements OnInit, OnDestroy {
   public vxlans: VppInterfaceModel[];
 
   private subscriptions: Subscription[];
+  private dataSubscription: Subscription;
+  private fromId: string;
+  private toId: string;
 
   constructor(
     private route: ActivatedRoute,
@@ -37,24 +40,28 @@ export class VxtunnelDetailComponent implements OnInit, OnDestroy {
 
     this.subscriptions.push(
       this.route.params.subscribe(params => {
+        // is ID change
+        if (this.fromId !== params.from || this.toId !== params.to) {
+          if (this.dataSubscription) {
+            this.dataSubscription.unsubscribe();
+          }
+        }
 
-        this.subscriptions.push(
-          this.dataService.isContivDataLoaded.subscribe(isLoaded => {
-            if (isLoaded) {
-              this.domainFrom = this.dataService.contivData.getDomainByVswitchId(params.from);
-              this.domainTo = this.dataService.contivData.getDomainByVswitchId(params.to);
+        this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(isLoaded => {
+          if (isLoaded) {
+            this.domainFrom = this.dataService.contivData.getDomainByVswitchId(params.from);
+            this.domainTo = this.dataService.contivData.getDomainByVswitchId(params.to);
 
-              const fromIp = this.domainFrom.getIpamNodeIp();
-              const toIp = this.domainTo.getIpamNodeIp();
+            const fromIp = this.domainFrom.getIpamNodeIp();
+            const toIp = this.domainTo.getIpamNodeIp();
 
-              this.vxlans = this.dataService.contivData.getVxlansByIps(fromIp, toIp);
+            this.vxlans = this.dataService.contivData.getVxlansByIps(fromIp, toIp);
 
-              this.setFormData();
-              this.sidepanelService.openSidepanel();
-              this.topologyHighlightService.highlightLinkBetweenNodes(params.from, params.to);
-            }
-          })
-        );
+            this.setFormData();
+            this.sidepanelService.openSidepanel();
+            this.topologyHighlightService.highlightLinkBetweenNodes(params.from, params.to);
+          }
+        });
       })
     );
   }
@@ -107,6 +114,10 @@ export class VxtunnelDetailComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subscriptions.forEach(s => s.unsubscribe());
+
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
+    }
   }
 
 }

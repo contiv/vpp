@@ -7,6 +7,7 @@ import { ContivNodeDataModel } from '../../models/contiv-node-data-model';
 import { TopologyHighlightService } from '../../../d3-topology/topology-viz/topology-highlight.service';
 import { IpCidrMap } from '../../interfaces/ip-cidr-map';
 import { ModalService } from '../../services/modal.service';
+import { SidepanelService } from '../sidepanel.service';
 
 @Component({
   selector: 'app-node-detail',
@@ -19,30 +20,38 @@ export class NodeDetailComponent implements OnInit, OnDestroy {
   public formData: FormObject[];
 
   private subscriptions: Subscription[];
+  private dataSubscription: Subscription;
+  private nodeId: string;
 
   constructor(
     private route: ActivatedRoute,
     private dataService: DataService,
     private topologyHighlightService: TopologyHighlightService,
-    private modalService: ModalService
+    private modalService: ModalService,
+    private sidepanelService: SidepanelService
   ) { }
 
   ngOnInit() {
     this.subscriptions = [];
     this.formData = [];
+    setTimeout(() => this.sidepanelService.openSidepanel(), 0);
 
     this.subscriptions.push(
       this.route.params.subscribe(params => {
+        // is ID change
+        if (this.nodeId !== params.id && this.dataSubscription) {
+          this.dataSubscription.unsubscribe();
+        }
 
-        // this.subscriptions.push(
-        //   this.dataService.isContivDataLoaded.subscribe(isLoaded => {
-        //     if (isLoaded) {
-              this.domain = this.dataService.contivData.getDomainByNodeId(params.id);
-              this.setFormData();
-              this.topologyHighlightService.highlightNode(params.id);
-        //     }
-        //   })
-        // );
+        this.nodeId = params.id;
+
+        this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(isLoaded => {
+          if (isLoaded) {
+            this.domain = this.dataService.contivData.getDomainByNodeId(this.nodeId);
+            this.setFormData();
+            this.topologyHighlightService.highlightNode(this.nodeId);
+          }
+        });
       })
     );
   }
@@ -97,6 +106,10 @@ export class NodeDetailComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subscriptions.forEach(s => s.unsubscribe());
+
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
+    }
   }
 
 }

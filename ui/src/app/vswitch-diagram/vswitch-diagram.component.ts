@@ -24,6 +24,8 @@ export class VswitchDiagramComponent implements OnInit, OnDestroy {
   public version: string;
 
   private subscriptions: Subscription[];
+  private dataSubscription: Subscription;
+  private versionSubscription: Subscription;
 
   constructor(
     private route: ActivatedRoute,
@@ -35,23 +37,30 @@ export class VswitchDiagramComponent implements OnInit, OnDestroy {
     this.init();
     this.subscriptions.push(
       this.route.params.subscribe(params => {
+        // is ID change
+        if (this.vswitchId !== params.id) {
+          if (this.dataSubscription) {
+            this.dataSubscription.unsubscribe();
+          }
+
+          if (this.versionSubscription) {
+            this.versionSubscription.unsubscribe();
+          }
+        }
         this.vswitchId = params.id;
 
-        this.subscriptions.push(
-          this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
-            if (dataLoaded) {
-              this.domain = this.dataService.contivData.getDomainByVswitchId(params.id);
-              this.taps = this.domain.getTapInterfaces();
-              this.bvi = this.domain.getBVI();
-              this.vxlans = this.domain.getVxlans();
-              this.nic = this.domain.getGigInterface();
 
-              this.subscriptions.push(
-                this.vppService.getVersion(this.domain.node.ip).subscribe(output => this.version = output)
-              );
-            }
-          })
-        );
+        this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
+          if (dataLoaded) {
+            this.domain = this.dataService.contivData.getDomainByVswitchId(this.vswitchId);
+            this.taps = this.domain.getTapInterfaces();
+            this.bvi = this.domain.getBVI();
+            this.vxlans = this.domain.getVxlans();
+            this.nic = this.domain.getGigInterface();
+
+            this.versionSubscription = this.vppService.getVersion(this.domain.node.ip).subscribe(output => this.version = output);
+          }
+        });
       })
     );
   }
@@ -67,6 +76,14 @@ export class VswitchDiagramComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subscriptions.forEach(s => s.unsubscribe());
+
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
+    }
+
+    if (this.versionSubscription) {
+      this.versionSubscription.unsubscribe();
+    }
   }
 
 }

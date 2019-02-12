@@ -43,7 +43,7 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
   private svg: d3.Selection<SVGSVGElement, {}, null, undefined>;
   private dropNode: NodeDataModel;
   private dropLink: EdgeDataModel;
-  private subscriptions: Subscription[];
+  private topoSubscription: Subscription;
   private isDraggingItem = false;
   private simulation: d3.Simulation<NodeDataModel, EdgeDataModel>;
 
@@ -56,13 +56,9 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnInit() {
-    this.subscriptions = [];
-
-    this.subscriptions.push(
-      this.topologyService.getTopologyDataObservable().subscribe(() => {
-        this.renderTopology();
-      })
-    );
+    this.topoSubscription = this.topologyService.getTopologyDataObservable().subscribe(() => {
+      this.renderTopology();
+    });
   }
 
   ngAfterViewInit() {
@@ -213,8 +209,7 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
 
     nodesData.exit().remove();
 
-    nodesData.attr('id', d => 'node' + d.id)
-      .classed('node', true)
+    nodesData.classed('node', true)
       .attr('transform', (d) => 'translate(' + d.x + ',' + d.y + ')')
       .attr('type', d => d.type);
 
@@ -482,7 +477,9 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnDestroy(): void {
-    this.subscriptions.forEach(s => s.unsubscribe());
+    if (this.topoSubscription) {
+      this.topoSubscription.unsubscribe();
+    }
   }
 
 }

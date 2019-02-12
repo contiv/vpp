@@ -34,7 +34,7 @@ export class BridgeDomainComponent implements OnInit, OnDestroy {
   public tableType: string;
   public svgTransform: SvgTransform;
 
-  private subscriptions: Subscription[];
+  private dataSubscription: Subscription;
 
   constructor(
     private router: Router,
@@ -54,7 +54,7 @@ export class BridgeDomainComponent implements OnInit, OnDestroy {
     };
 
     this.init();
-    this.subscriptions.push(this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
+    this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
       if (dataLoaded) {
         this.topoData = this.bdService.getTopologyData(this.dataService.contivData);
         this.topoData.type = 'bd';
@@ -65,7 +65,7 @@ export class BridgeDomainComponent implements OnInit, OnDestroy {
         topo.setData(this.topoData.nodes, this.topoData.links);
         this.topologyService.setTopologyData(topo);
       }
-    }));
+    });
   }
 
   public toggleSidepanel(state: boolean) {
@@ -212,7 +212,6 @@ export class BridgeDomainComponent implements OnInit, OnDestroy {
   }
 
   private init() {
-    this.subscriptions = [];
     this.topoData = {nodes: [], links: [], type: 'k8s'};
     this.isSidepanelOpen = false;
     this.showedTables = [false, false, false];
@@ -220,6 +219,8 @@ export class BridgeDomainComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    this.subscriptions.forEach(s => s.unsubscribe);
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
+    }
   }
 }

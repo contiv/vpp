@@ -38,7 +38,6 @@ import { VswitchDetailComponent } from './shared/sidepanel/vswitch-detail/vswitc
 import { VswitchInterfacesModalComponent } from './shared/modals/vswitch-interfaces-modal/vswitch-interfaces-modal.component';
 import { BridgeDomainComponent } from './bridge-domain/bridge-domain.component';
 import { VswitchDiagramComponent } from './vswitch-diagram/vswitch-diagram.component';
-import { VppInterfaceDetailComponent } from './shared/sidepanel/vpp-interface-detail/vpp-interface-detail.component';
 import { VswitchDiagramControlComponent } from './shared/sidepanel/vswitch-diagram-control/vswitch-diagram-control.component';
 import { NodeDetailModalComponent } from './shared/modals/node-detail-modal/node-detail-modal.component';
 import { BridgeDomainControlComponent } from './shared/sidepanel/bridge-domain-control/bridge-domain-control.component';
@@ -69,7 +68,6 @@ import { ServicesTopologyService } from './shared/sidepanel/services/services-to
     VswitchInterfacesModalComponent,
     BridgeDomainComponent,
     VswitchDiagramComponent,
-    VppInterfaceDetailComponent,
     VswitchDiagramControlComponent,
     NodeDetailModalComponent,
     BridgeDomainControlComponent,

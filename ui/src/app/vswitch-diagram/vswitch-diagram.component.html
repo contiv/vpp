@@ -19,11 +19,9 @@
       <div class="datagrid-label">POD to vSwitch Interface</div>
       <clr-datagrid *ngIf="domain">
         <clr-dg-column [clrDgSortBy]="'internalName'">Name</clr-dg-column>
-        <clr-dg-column [clrDgSortBy]="'IPS'">IP</clr-dg-column>
         <clr-dg-column [clrDgSortBy]="'vrf'">VRF</clr-dg-column>
         <clr-dg-row *clrDgItems="let tap of taps">
           <clr-dg-cell>{{ tap.internalName }}</clr-dg-cell>
-          <clr-dg-cell>{{ tap.IPS }}</clr-dg-cell>
           <clr-dg-cell>{{ tap.vrf }}</clr-dg-cell>
         </clr-dg-row>
       </clr-datagrid>

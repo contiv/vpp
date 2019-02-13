@@ -42,7 +42,7 @@ spec:
         node-role.kubernetes.io/master: ""
       containers:
         - name: ui
-          image: {{ .Values.image.repository}}/ui:{{ .Values.image.tag }}
+          image: {{ .Values.image.repository}}:{{ .Values.image.tag }}
           env:
             - name: CONTIV_UI_CONF
               value: "/etc/contiv-ui/contiv-ui.conf"

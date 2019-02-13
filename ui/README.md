@@ -13,10 +13,14 @@ kubectl apply -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-
 
 UI is exposed as nodeport service it can be accessed from web browser at `http://<node-ip>:32500`.
 
-**Note:** Currently, the all UI functionality is supported by three node topology created by [vagrant](../vagrant/vagrant-up) only.
-
 In order to forward the service from vagrant machine run:
 
 ```
 ssh -F vagrant.conf -L 32500:127.0.0.1:32500 k8s-master
-``` 
+```
+
+## Configuration
+
+Default UI deployment assumes that Contiv API is exposed via HTTP without additional security features.
+If that is not the case follow [README](../k8s/contiv-vpp-ui/README.md) and generate your customized
+deployment yaml file using helm.

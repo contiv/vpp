@@ -31,7 +31,7 @@ Environment variable | Description | Default
 `K8S_MASTER_MEMORY` | Memory size for master node | `4096`
 `K8S_NODE_MEMORY` | Memory size for worker nodes | `4096`
 `K8S_VERSION` | Kubernetes version to be installed | `1.11.5`
-`K8S_DEPLOYMENT_SCENARIO` | Contiv deployment scenario to be used [`stn`](../docs/SINGLE_NIC_SETUP.md) or `nostn` | `nostn`
+`K8S_DEPLOYMENT_SCENARIO` | Contiv deployment scenario to be used [`stn`](../docs/setup/SINGLE_NIC_SETUP.md) or `nostn` | `nostn`
 `CONTIV_IMAGE_TAG` | Docker image tag denoting contiv/vpp version to be installed | `latest`
 `CRD_DISABLED` | If set to `true` nodeconfig must be set in contiv deployment file. Otherwise it is configure using crd. | `true`
 `HELM_EXTRA_OPTS` | Allows to pass arbitrary helm option see [available parameters](../k8s/contiv-vpp)| `""`

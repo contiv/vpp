@@ -85,7 +85,7 @@ network stack and data-plane NIC interface controlled by VPP:
  - data-plane NIC is controlled directly by VPP using DPDK. Note that this means that
  this interface is not visible to the host Linux network stack, and the node either needs another
  management interface for k8s control plane communication, or 
- [STN (Steal The NIC)](SINGLE_NIC_SETUP.md) deployment must be applied.
+ [STN (Steal The NIC)](setup/SINGLE_NIC_SETUP.md) deployment must be applied.
 
 **Contiv VPP Agent** is the control plane part of the vSwitch container. It is responsible
 for configuring the VPP according to the information gained from ETCD and requests
@@ -114,6 +114,6 @@ do not provide 2 network interfaces, Contiv/VPP can work in the single NIC setup
 when the interface will be "stolen" from the host network stack just before starting
 the VPP and configured with the same IP address on VPP, as well as 
 on the host-VPP interconnect TAP interface, as it had in the host before it. 
-For more information on STN setup, read the [Single NIC Setup README](SINGLE_NIC_SETUP.md).
+For more information on STN setup, read the [Single NIC Setup README](setup/SINGLE_NIC_SETUP.md).
 
-[![Contiv/VPP Architecture](img/contiv-flow.png)](img/contiv-flow.svg)
+[![Contiv/VPP Architecture](img/contiv-flow.png)](img/contiv-flow.png)

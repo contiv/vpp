@@ -7,7 +7,7 @@ on the port `32379` on each node.
 To secure the access to ETCD, we recommend using the SSL/TLS certificates to authenticate
 both client and server side and encrypt the communication.
 
-In Contiv-VPP, this can be done using the Helm charts in [k8s/contiv-vpp folder](../k8s/contiv-vpp).
+In Contiv-VPP, this can be done using the Helm charts in [k8s/contiv-vpp folder](../../k8s/contiv-vpp).
 
 The prerequisite for that is generation of SSL certificates.
 
@@ -86,4 +86,4 @@ Then you can go ahead and just deploy Contiv-VPP using this yaml file.
 
 Please note that the path of the mount folder with certificates, as well as certificate 
 file names can be customized using the config parameters of the Contiv-VPP chart, 
-as described in [this README](../k8s/contiv-vpp/README.md).
+as described in [this README](../../k8s/contiv-vpp/README.md).

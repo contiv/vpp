@@ -48,7 +48,7 @@ source code.
 
 ### Policy Plugin skeleton
 
-The [Policy Plugin Skeleton][policy-plugin] implements the [Ligato plugin API][plugin-intf],
+The [Policy Plugin Skeleton][policy-plugin] implements the [Ligato plugin API][cn-infra],
 which makes it pluggable with the Ligato CN-Infra framework.
 
 Inside the Policy Plugin's `Init()` method all the layers are initialized and
@@ -473,14 +473,14 @@ the configuration of K8s policies.
 [ligato-vpp-agent]: http://github.com/ligato/vpp-agent
 [local-client]: https://github.com/ligato/vpp-agent/tree/dev/clientv2
 [acl-plugin-vpp]: http://github.com/vpp-dev/vpp/tree/stable-1801-contiv/src/plugins/acl
-[acl-plugin-agent]: https://github.com/ligato/vpp-agent/tree/dev/plugins/vppv2/aclplugin
+[acl-plugin-agent]: https://github.com/ligato/vpp-agent/tree/master/plugins/vpp/aclplugin
 [vpptcp]: http://github.com/vpp-dev/vpp/tree/stable-1801-contiv/src/vnet/session
 [govpp]: https://wiki.fd.io/view/GoVPP
 [policy-plugin]: http://github.com/contiv/vpp/tree/master/plugins/policy/plugin_impl_policy.go
 [controller-plugin]: https://github.com/contiv/vpp/blob/master/plugins/controller/plugin_controller.go
 [transaction-api]: https://github.com/contiv/vpp/blob/master/plugins/controller/api/txn.go
 [ipv4net-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipv4net
-[plugin-intf]: http://github.com/ligato/cn-infra/tree/master/core/plugin_spi.go
+[cn-infra]: http://github.com/ligato/cn-infra
 [policy-model]: http://github.com/contiv/vpp/blob/master/plugins/ksr/model/policy/policy.proto
 [db-resources]: https://github.com/contiv/vpp/tree/master/dbresources
 [pod-model]: http://github.com/contiv/vpp/blob/master/plugins/ksr/model/pod/pod.proto

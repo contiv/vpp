@@ -36,8 +36,8 @@ The expected logs would look like the following excerpt:
 2018/02/23 10:08:34 Starting the STN GRPC server at port 50051
 ```
 
-For more details, please read the Go documentation for [contiv-stn](../cmd/contiv-stn/doc.go)
-and [contiv-init](../cmd/contiv-init/doc.go).
+For more details, please read the Go documentation for [contiv-stn](../../cmd/contiv-stn/doc.go)
+and [contiv-init](../../cmd/contiv-init/doc.go).
 
 #### Creating VPP interface configuration
 Create the VPP configuration for the hardware interface as described 
@@ -142,4 +142,4 @@ docker ps -q -f name=contiv-stn
 ```
 No containers should be listed.
 
-[1]: ../k8s/contiv-vpp.yaml
+[1]: ../../k8s/contiv-vpp.yaml

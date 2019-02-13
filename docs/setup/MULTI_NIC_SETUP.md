@@ -7,7 +7,7 @@ described [here](https://github.com/contiv/vpp/blob/master/docs/VPP_CONFIG.md#mu
 ##### Global configuration:
 Global configuration is used in homogeneous environments where all nodes in
 a given cluster have the same hardware configuration. If you want use DHCP to configure
-node IPs. Put the following stanza into the [`contiv.conf`](../k8s/contiv-vpp.yaml) deployment file:
+node IPs. Put the following stanza into the [`contiv.conf`](../../k8s/contiv-vpp.yaml) deployment file:
 ```
 data:
   contiv.conf: |-

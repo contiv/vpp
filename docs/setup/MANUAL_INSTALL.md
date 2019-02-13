@@ -99,7 +99,7 @@ To define memory limit, append the following snippet to vswitch container in dep
                 memory: 1024Mi
 
 ```
-or set `contiv.vswitch.defineMemoryLimits` to `true` in [helm values](../k8s/contiv-vpp/README.md).
+or set `contiv.vswitch.defineMemoryLimits` to `true` in [helm values](../../k8s/contiv-vpp/README.md).
 
 ### (2/4) Initializing your master
 Before initializing the master, you may want to [tear down][8] up any
@@ -120,7 +120,7 @@ kubeadm init --token-ttl 0 --pod-network-cidr=10.1.0.0/16 --apiserver-advertise-
 **Note:** The CIDR specified with the flag `--pod-network-cidr` is used by
 kube-proxy, and it **must include** the `PodSubnetCIDR` from the `IPAMConfig`
 section in the Contiv-vpp config map in Contiv-vpp's deployment file
-([contiv-vpp.yaml](../k8s/contiv-vpp.yaml)). Pods in the host network namespace
+([contiv-vpp.yaml](../../k8s/contiv-vpp.yaml)). Pods in the host network namespace
 are a special case; they share their respective interfaces and IP addresses with
 the host. For proxying to work properly it is therefore required for services
 with backends running on the host to also **include the node management IP**
@@ -455,10 +455,10 @@ rm -rf /var/bolt/bolt.db
 [6]: https://kubernetes.io/docs/setup/independent/install-kubeadm/
 [8]: #tearing-down-kubernetes
 [10]: #setting-up-custom-management-network-on-multi-homed-nodes
-[11]: ../vagrant/README.md
+[11]: ../../vagrant/README.md
 [12]: CUSTOM_MGMT_NETWORK.md
 [13]: VMWARE_FUSION_HOST.md
 [14]: SINGLE_NIC_SETUP.md
 [15]: MULTI_NIC_SETUP.md
 [16]: SINGLE_NIC_SETUP.md#configuring-stn-in-contiv-vpp-k8s-deployment-files
-[17]: ../k8s/README.md#setup-node-sh
+[17]: ../../k8s/README.md#setup-node-sh

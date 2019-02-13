@@ -6,10 +6,11 @@
 [![GoDoc](https://godoc.org/github.com/contiv/vpp?status.svg)](https://godoc.org/github.com/contiv/vpp)
 [![GitHub license](https://img.shields.io/badge/license-Apache%20license%202.0-blue.svg)](https://github.com/contiv/vpp/blob/master/LICENSE)
 
-This Kubernetes network plugin uses FD.io VPP to provide network connectivity
-between PODs. Currently, only Kubernetes 1.9.X and higher versions are supported.
+[Contiv-VPP](https://contivpp.io/) is a Kubernetes CNI plugin for Kubernetes that employs
+a programmable CNF vSwitch based on [FD.io VPP](https://fd.io/) offering feature-rich,
+high-performance cloud-native networking and services.
 
-For more details see [https://contivpp.io/](https://contivpp.io/).
+For more details see [https://contivpp.io/](https://contivpp.io/)
 
 
 ## Releases
@@ -35,7 +36,7 @@ You can get started with Contiv-VPP in one of the following ways:
   VMs. This is the easiest way to bring up a cluster for exploring the
   capabilities and features of Contiv-VPP.
 
-* Use the [Contiv-specific kubeadm install](docs/MANUAL_INSTALL.md)
+* Use the [Contiv-specific kubeadm install](docs/setup/MANUAL_INSTALL.md)
   instructions to manually install Kubernetes with Contiv-VPP networking on one
   or more bare-metal servers.
 
@@ -47,14 +48,17 @@ You can get started with Contiv-VPP in one of the following ways:
   in Calico clusters, where some of the nodes can be running plain Calico (without VPP)
   and some of the nodes can be running Calico with VPP.
 
+* Try [Contiv-VPP UI](ui/README.md) web browser user interface on top of Contiv-VPP,
+  it runs in Vagrant deployments as well as on bare-metal.
+
 
 ## Configuration & Troubleshooting
-Please refer to the [Contiv-VPP configuration and troubleshooting](docs/TOOLS.md) document.
+Please refer to the [Contiv-VPP configuration and troubleshooting](docs/operation/TOOLS.md) document.
 
 
 ## Reporting Bugs
 In order to report a bug, please file an issue in GitHub. Please provide
-the information described in [Bug Reports README](docs/BUG_REPORTS.md).
+the information described in [Bug Reports README](docs/debugging/BUG_REPORTS.md).
 
 
 ## Communication Channels

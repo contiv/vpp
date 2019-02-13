@@ -72,12 +72,12 @@ install Contiv-VPP on Cavium Thunderx servers.
 
 
 
-[1]: ../MANUAL_INSTALL.md
+[1]: ../setup/MANUAL_INSTALL.md
 [2]: MANUAL_INSTALL_CAVIUM.md
 [3]: MULTI_NIC_SETUP_CAVIUM.md
 [4]: VPP_CONFIG_CAVIUM.md
-[5]: ../SINGLE_NIC_SETUP.md#configuring-stn-in-contiv-vpp-k8s-deployment-files
-[6]: ../SINGLE_NIC_SETUP.md
-[7]: ../MULTI_NIC_SETUP.md
-[8]: ../MANUAL_INSTALL.md#determining-network-adapter-pci-addresses
+[5]: ../setup/SINGLE_NIC_SETUP.md#configuring-stn-in-contiv-vpp-k8s-deployment-files
+[6]: ../setup/SINGLE_NIC_SETUP.md
+[7]: ../setup/MULTI_NIC_SETUP.md
+[8]: ../setup/MANUAL_INSTALL.md#determining-network-adapter-pci-addresses
 

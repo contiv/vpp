@@ -24,7 +24,7 @@ import (
 
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 
-	vppifdescr "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
+	vppifdescr "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ipv4net"

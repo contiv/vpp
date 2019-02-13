@@ -31,8 +31,6 @@ import (
 	"github.com/ligato/vpp-agent/api/models/vpp/nat"
 	"github.com/ligato/vpp-agent/api/models/vpp/punt"
 	"github.com/ligato/vpp-agent/api/models/vpp/stn"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/l4"
 )
 
 // NewDataResyncDSL is a constructor.
@@ -80,27 +78,6 @@ func (dsl *DataResyncDSL) ACL(val *vpp_acl.ACL) linuxclient.DataResyncDSL {
 	return dsl
 }
 
-// BfdSession adds VPP bidirectional forwarding detection session
-// to the RESYNC request.
-func (dsl *DataResyncDSL) BfdSession(val *bfd.SingleHopBFD_Session) linuxclient.DataResyncDSL {
-	defer func() { panic(notImplemented) }()
-	return dsl
-}
-
-// BfdAuthKeys adds VPP bidirectional forwarding detection key to the RESYNC
-// request.
-func (dsl *DataResyncDSL) BfdAuthKeys(val *bfd.SingleHopBFD_Key) linuxclient.DataResyncDSL {
-	defer func() { panic(notImplemented) }()
-	return dsl
-}
-
-// BfdEchoFunction adds VPP bidirectional forwarding detection echo function
-// to the RESYNC request.
-func (dsl *DataResyncDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) linuxclient.DataResyncDSL {
-	defer func() { panic(notImplemented) }()
-	return dsl
-}
-
 // BD adds VPP Bridge Domain to the RESYNC request.
 func (dsl *DataResyncDSL) BD(val *vpp_l2.BridgeDomain) linuxclient.DataResyncDSL {
 	dsl.req.BridgeDomains = append(dsl.req.BridgeDomains, val)
@@ -140,18 +117,6 @@ func (dsl *DataResyncDSL) ProxyArp(val *vpp_l3.ProxyARP) linuxclient.DataResyncD
 // IPScanNeighbor adds L3 IP Scan Neighbor to the RESYNC request.
 func (dsl *DataResyncDSL) IPScanNeighbor(val *vpp_l3.IPScanNeighbor) linuxclient.DataResyncDSL {
 	dsl.req.IPScanNeighbor = val
-	return dsl
-}
-
-// L4Features adds L4 features to the RESYNC request
-func (dsl *DataResyncDSL) L4Features(val *l4.L4Features) linuxclient.DataResyncDSL {
-	defer func() { panic(notImplemented) }()
-	return dsl
-}
-
-// AppNamespace adds VPP Application namespaces to the RESYNC request
-func (dsl *DataResyncDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) linuxclient.DataResyncDSL {
-	defer func() { panic(notImplemented) }()
 	return dsl
 }
 

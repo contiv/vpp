@@ -24,9 +24,9 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stats"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/ip"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/stats"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/vpe"
 )
 
 // getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host

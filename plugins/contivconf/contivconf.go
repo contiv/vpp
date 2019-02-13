@@ -33,7 +33,7 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
+	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
@@ -853,7 +853,7 @@ func (c *ContivConf) getFirstHostInterfaceName() string {
 
 // dumpDPDKInterfaces dumps DPDK interfaces configured on VPP.
 func (c *ContivConf) dumpDPDKInterfaces() (ifaces []string, err error) {
-	ifHandler := intf_vppcalls.NewIfVppHandler(c.govppCh, c.Log)
+	ifHandler := intf_vppcalls.CompatibleInterfaceVppHandler(c.govppCh, c.Log)
 
 	dump, err := ifHandler.DumpInterfacesByType(vpp_interfaces.Interface_DPDK)
 	if err != nil {

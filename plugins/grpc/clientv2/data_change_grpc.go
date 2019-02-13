@@ -31,8 +31,6 @@ import (
 	"github.com/ligato/vpp-agent/api/models/vpp/nat"
 	"github.com/ligato/vpp-agent/api/models/vpp/punt"
 	"github.com/ligato/vpp-agent/api/models/vpp/stn"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/l4"
 )
 
 const (
@@ -114,27 +112,6 @@ func (dsl *PutDSL) ACL(val *vpp_acl.ACL) linuxclient.PutDSL {
 	return dsl
 }
 
-// BfdSession adds a request to create or update VPP bidirectional
-// forwarding detection session.
-func (dsl *PutDSL) BfdSession(val *bfd.SingleHopBFD_Session) linuxclient.PutDSL {
-	defer func() { panic(notImplemented) }()
-	return dsl
-}
-
-// BfdAuthKeys adds a request to create or update VPP bidirectional
-// forwarding detection key.
-func (dsl *PutDSL) BfdAuthKeys(val *bfd.SingleHopBFD_Key) linuxclient.PutDSL {
-	defer func() { panic(notImplemented) }()
-	return dsl
-}
-
-// BfdEchoFunction adds a request to create or update VPP bidirectional
-// forwarding detection echo function.
-func (dsl *PutDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) linuxclient.PutDSL {
-	defer func() { panic(notImplemented) }()
-	return dsl
-}
-
 // BD adds a request to create or update VPP Bridge Domain.
 func (dsl *PutDSL) BD(val *vpp_l2.BridgeDomain) linuxclient.PutDSL {
 	dsl.parent.putReq.BridgeDomains = append(dsl.parent.putReq.BridgeDomains, val)
@@ -181,18 +158,6 @@ func (dsl *PutDSL) ProxyArp(val *vpp_l3.ProxyARP) linuxclient.PutDSL {
 func (dsl *PutDSL) IPScanNeighbor(val *vpp_l3.IPScanNeighbor) linuxclient.PutDSL {
 	dsl.parent.putReq.IPScanNeighbor = val
 	dsl.parent.withPut = true
-	return dsl
-}
-
-// L4Features adds a request to enable or disable L4 features
-func (dsl *PutDSL) L4Features(val *l4.L4Features) linuxclient.PutDSL {
-	defer func() { panic(notImplemented) }()
-	return dsl
-}
-
-// AppNamespace adds a request to create or update VPP Application namespace
-func (dsl *PutDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) linuxclient.PutDSL {
-	defer func() { panic(notImplemented) }()
 	return dsl
 }
 

@@ -1,6 +1,13 @@
+[![GoDoc](https://godoc.org/github.com/kolo/xmlrpc?status.svg)](https://godoc.org/github.com/kolo/xmlrpc)
+
 ## Overview
 
 xmlrpc is an implementation of client side part of XMLRPC protocol in Go language.
+
+## Status
+
+This project is in minimal maintenance mode with no further development. Bug fixes
+are accepted, but it might take some time until they will be merged.
 
 ## Installation
 
@@ -28,15 +35,17 @@ xmlrpc package supports encoding of native Go data types to method
 arguments.
 
 Data types encoding rules:
+
 * int, int8, int16, int32, int64 encoded to int;
 * float32, float64 encoded to double;
 * bool encoded to boolean;
 * string encoded to string;
 * time.Time encoded to datetime.iso8601;
 * xmlrpc.Base64 encoded to base64;
-* slice decoded to array;
+* slice encoded to array;
 
 Structs decoded to struct by following rules:
+
 * all public field become struct members;
 * field name become member name;
 * if field has xmlrpc tag, its value become member name.
@@ -50,6 +59,7 @@ Each value of such slice encoded as separate argument.
 Result of remote function is decoded to native Go data type.
 
 Data types decoding rules:
+
 * int, i4 decoded to int, int8, int16, int32, int64;
 * double decoded to float32, float64;
 * boolean decoded to bool;
@@ -72,7 +82,7 @@ response Response data type can be used.
 
 ## Contribution
 
-Feel free to fork the project, submit pull requests, ask questions.
+See [project status](#status).
 
 ## Authors
 

@@ -134,6 +134,10 @@ func (p *proxy) k8sHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		writeServerError(err, w, r)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(body)
@@ -171,6 +175,11 @@ func (p *proxy) contivHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		writeServerError(err, w, r)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
 	w.Write(body)

@@ -765,7 +765,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:15b2cc671f0758a3f29375ce0b8552d1b70558595e090537c119dbe8f49ff402"
+  digest = "1:8b5c8d78dda6d8c51ba8daafccb91da348439f0e2cf5be1304dde153a82bc016"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -885,7 +885,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1810",
   ]
   pruneopts = "UT"
-  revision = "c89c24cd27710483d7faddfc6e9c5dfe634e9957"
+  revision = "d070c51dbb8536da9323ec2c8e3f6e5f7eb9a4ae"
 
 [[projects]]
   branch = "master"
@@ -1309,14 +1309,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:8975c6b66d95adc1cd08820aba7ad6b60b165725a401c4177c0eaa866170bb10"
+  digest = "1:0d703f14f9bbbe1070ff0ce86d749dcbc9d68fb0ae554252c09bd4bb37a072e7"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "UT"
-  revision = "3b5209105503162ded1863c307ac66fec31120dd"
+  revision = "983097b1a8a340cd1cc7df17d735154d89e10b1a"
 
 [[projects]]
   digest = "1:436b24586f8fee329e0dd65fd67c817681420cda1d7f934345c13fe78c212a73"

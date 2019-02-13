@@ -409,7 +409,7 @@ may not be useful for future renderers.
 #### Skeleton
 
 The [Service Plugin Skeleton][service-plugin-skeleton] implements the
-[Ligato plugin API][plugin-intf], which makes it pluggable with the Ligato
+[Ligato plugin API][cn-infra], which makes it pluggable with the Ligato
 CN-Infra framework.
 
 Inside the Service Plugin's `Init()` method both Processor and NAT44 Renderer
@@ -514,13 +514,13 @@ periodically cleaning up inactive NAT sessions.
 [vpp-nat-plugin-api]: https://github.com/vpp-dev/vpp/blob/stable-1801-contiv/src/plugins/nat/nat.api
 [service-plugin]: https://github.com/contiv/vpp/tree/master/plugins/service
 [service-plugin-skeleton]: https://github.com/contiv/vpp/blob/master/plugins/service/plugin_impl_service.go
-[plugin-intf]: http://github.com/ligato/cn-infra/tree/master/core/plugin_spi.go
+[cn-infra]: http://github.com/ligato/cn-infra
 [processor-api]: http://github.com/contiv/vpp/tree/master/plugins/service/processor/processor_api.go
 [processor-data-change]: http://github.com/contiv/vpp/tree/master/plugins/service/processor/data_change.go
 [processor-data-resync]: http://github.com/contiv/vpp/tree/master/plugins/service/processor/data_resync.go
 [renderer-api]: http://github.com/contiv/vpp/blob/master/plugins/service/renderer/api.go
 [nat-model]: https://github.com/ligato/vpp-agent/blob/dev/api/models/vpp/nat/nat.proto
-[vpp-agent-nat-plugin]: https://github.com/ligato/vpp-agent/tree/dev/plugins/vppv2/natplugin
+[vpp-agent-nat-plugin]: https://github.com/ligato/vpp-agent/tree/dev/plugins/vpp/natplugin
 [controller-plugin]: https://github.com/contiv/vpp/blob/master/plugins/controller/plugin_controller.go
 [transaction-api]: https://github.com/contiv/vpp/blob/master/plugins/controller/api/txn.go
 [ligato-vpp-agent]: http://github.com/ligato/vpp-agent

@@ -1,4 +1,4 @@
-## Contiv-VPP Contributions
+## Contiv-VPP Contribution Guidelines
 
 Contributions to Contiv-VPP are welcome. We use the standard pull request
 model. You can either pick an open issue and assign it to yourself or open

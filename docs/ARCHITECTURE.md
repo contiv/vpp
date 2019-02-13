@@ -116,4 +116,4 @@ the VPP and configured with the same IP address on VPP, as well as
 on the host-VPP interconnect TAP interface, as it had in the host before it. 
 For more information on STN setup, read the [Single NIC Setup README](SINGLE_NIC_SETUP.md).
 
-[![Contiv/VPP Architecture](img/contiv-flow.png)](img/contiv-flow.svg)
+[![Contiv/VPP Architecture](img/contiv-flow.png)](img/contiv-flow.png)

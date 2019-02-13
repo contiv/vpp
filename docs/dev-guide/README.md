@@ -16,4 +16,4 @@ Kubernetes services and policies implementation:
 * [Kubernetes services in Contiv/VPP](SERVICES.md)
 
 Other:
-* [Contribution guidelines](docs/dev-guide/CONTRIBUTING.md)
+* [Contribution guidelines](CONTRIBUTING.md)

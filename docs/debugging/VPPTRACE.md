@@ -21,7 +21,7 @@ individually, but only all at the same time. In Contiv/VPP all pods are connecte
 with VPP via the same kind of the TAP interface, meaning that it is not possible to
 capture packets incoming only from one selected pod.
 
-Contiv/VPP ships with a simple bash script [vpptrace.sh](../scripts/vpptrace.sh)
+Contiv/VPP ships with a simple bash script [vpptrace.sh](../../scripts/vpptrace.sh)
 which helps to alleviate the aforementioned VPP limitations. The script automatically
 re-initializes buffer and trace whenever it is close to getting full in order to
 avoid packet loss as much as it is possible. Next it allows to filter packets

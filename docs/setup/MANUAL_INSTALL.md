@@ -99,7 +99,7 @@ To define memory limit, append the following snippet to vswitch container in dep
                 memory: 1024Mi
 
 ```
-or set `contiv.vswitch.defineMemoryLimits` to `true` in [helm values](../k8s/contiv-vpp/README.md).
+or set `contiv.vswitch.defineMemoryLimits` to `true` in [helm values](../../k8s/contiv-vpp/README.md).
 
 ### (2/4) Initializing your master
 Before initializing the master, you may want to [tear down][8] up any

@@ -7,8 +7,8 @@
 [![GitHub license](https://img.shields.io/badge/license-Apache%20license%202.0-blue.svg)](https://github.com/contiv/vpp/blob/master/LICENSE)
 
 [Contiv-VPP](https://contivpp.io/) is a Kubernetes CNI plugin for Kubernetes that employs
-a programmable CNF vSwitch based on [FD.io VPP](https://fd.io/) offering feature-rich,
-high-performance cloud-native networking and services.
+a programmable [CNF vSwitch](docs/ARCHITECTURE.md) based on [FD.io VPP](https://fd.io/)
+offering feature-rich, high-performance cloud-native networking and services.
 
 For more details see [https://contivpp.io/](https://contivpp.io/)
 
@@ -19,6 +19,7 @@ For more details see [https://contivpp.io/](https://contivpp.io/)
 |Latest stable release|[![Latest release](https://img.shields.io/github/release/contiv/vpp.svg)](https://github.com/contiv/vpp/releases/latest)|![release date](https://img.shields.io/github/release-date/contiv/vpp.svg?style=flat)|
 
 Please see the [CHANGELOG](CHANGELOG.md) for a full list of changes on every release.
+
 
 ## Documentation
 The [docs folder](docs) contains lots of documentation. For the begging, you can start with:

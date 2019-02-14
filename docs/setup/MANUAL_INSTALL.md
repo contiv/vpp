@@ -2,30 +2,54 @@
 This document describes how to use [kubeadm][1] to manually install Kubernetes
 with Contiv-VPP networking on one or more bare metal or VM hosts.
 
-## Preparing your hosts
+The manual installation consists of the following steps:
+1. [Preparing the nodes](#1.-preparing-the-nodes):
+   1. [Setting up network adapter(s)](#1.1.-setting-up-network-adapter(s))
+   2. [Setting up the VPP vSwitch to use the network adapters](#1.2.-setting-up-the-vpp-vswitch-to-use-the-network-adapters)
+3. [Installing & intializing Kubernetes (using kubeadm)](#2.-installing-&-intializing-kubernetes-(using-kubeadm))
+3. [Installing the Contiv-VPP CNI plugin](#4.-installing-the-contiv-vpp-cni-plugin)
 
-### Host-specific configurations
+After successful installation, you can perform the following tasks:
+* [Deployment Verification](#deployment-verification)
+* [Uninstalling Contiv-VPP](#uninstalling-contiv-vpp)
+* [Tearing down Kubernetes](#tearing-down-kubernetes)
+
+
+## 1. Preparing the nodes
+
+#### Host-specific configurations
 - **VmWare VMs**: the vmxnet3 driver is required on each interface that will
   be used by VPP. Please see [here][13] for instructions how to install the
   vmxnet3 driver on VmWare Fusion.
 
-### Setting up Network Adapter(s)
-#### Setting up DPDK
-DPDK setup must be completed **on each node** as follows:
+#### Using the node setup script
+The node preparation steps described below can be also performed using the interactive
+[node setup script][17].
 
-- Load the PCI UIO driver:
+
+#### 1.1. Setting up network adapter(s)
+DPDK provides access to the NIC for VPPs running on each node in the cluster. 
+Therefore, this setup must be completed **on each node** in the cluster.
+
+#### Setting up DPDK
+There are 2 DPDK-compatible drivers, `vfio-pci` (preferred on newer systems, 
+such as Ubuntu 18.04) and `uio_pci_generic` (works on older systems, such as Ubuntu 16.04).
+The following guide will use the `uio_pci_generic` driver, but you can change it to 
+`vfio-pci` if it works well on your system.
+
+- Load the PCI driver:
   ```
   $ sudo modprobe uio_pci_generic
   ```
 
-- Verify that the PCI UIO driver has loaded successfully:
+- Verify that the PCI driver has loaded successfully:
   ```
   $ lsmod | grep uio
   uio_pci_generic        16384  0
   uio                    20480  1 uio_pci_generic
   ```
 
-  Please note that this driver needs to be loaded upon each server bootup,
+  Please note that the PCI driver needs to be loaded upon each server bootup,
   so you may want to add `uio_pci_generic` into the `/etc/modules` file,
   or a file in the `/etc/modules-load.d/` directory. For example, the
   `/etc/modules` file could look as follows:
@@ -36,37 +60,19 @@ DPDK setup must be completed **on each node** as follows:
   # at boot time, one per line. Lines beginning with "#" are ignored.
   uio_pci_generic
   ```
-#### Determining Network Adapter PCI addresses
-You need to find out the PCI address of the network interface that
-you want VPP to use for multi-node pod interconnect. On Debian-based
-distributions, you can use `lshw`(*):
 
-```
-$ sudo lshw -class network -businfo
-Bus info          Device      Class      Description
-====================================================
-pci@0000:00:03.0  ens3        network    Virtio network device
-pci@0000:00:04.0  ens4        network    Virtio network device
-```
-\* On CentOS/RedHat/Fedora distributions, `lshw` may not be available by default, install it by
-    ```
-    yum -y install lshw
-    ```
+### 1.2. Setting up the VPP vSwitch to use the network adapters
+Next, you need to set up the vswitch to use the network adapters in one of the two modes:
 
-#### Setting up the vswitch to use Network Adapters
-Finally, you need to set up the vswitch to use the network adapters:
+- [Setup a node with multiple NICs][14] (preferred; one NIC for management and one for VPP)
+- [Setup on a node with a single NIC][15] (for nodes with only single NIC)
 
-- [Setup on a node with a single NIC][14]
-- [Setup a node with multiple NICs][15]
 
-### Using a node setup script
-You can perform the above steps using the [node setup script][17].
-
-## Installing Kubernetes with Contiv-vpp CNI plugin
+## 2. Installing & intializing Kubernetes (using kubeadm)
 After the nodes you will be using in your K8s cluster are prepared, you can
 install the cluster using [kubeadm][1].
 
-### (1/4) Installing Kubeadm on your hosts
+### Installing Kubeadm on your hosts
 For first-time installation, see [Installing kubeadm][6]. To update an
 existing installation,  you should do a `apt-get update && apt-get upgrade`
 or `yum update` to get the latest version of kubeadm.
@@ -75,12 +81,15 @@ On each host with multiple NICs where the NIC that will be used for Kubernetes
 management traffic is not the one pointed to by the default route out of the
 host, a [custom management network][12] for Kubernetes must be configured.
 
-#### Using Kubernetes 1.10 and above
-In K8s 1.10, support for huge pages in a pod has been introduced. For now, this
-feature must be either disabled or memory limit must be defined for vswitch container.
 
-To disable huge pages, perform the following
-steps as root:
+#### Hugepages (Kubernetes 1.10 and above)
+VPP requires hugepages to run during VPP operation, to manage large pages of memory. 
+In K8s 1.10, the support for 
+[huge pages in PODs](https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/) 
+has been introduced. Since then, this feature must be either disabled or memory limit
+must be defined for the vSwitch container.
+
+(a) To disable huge pages, perform the following steps as root:
 * Using your favorite editor, disable huge pages in the kubelet configuration
   file (`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` or `/etc/default/kubelet` for version 1.11+):
 ```
@@ -92,16 +101,17 @@ steps as root:
   systemctl restart kubelet
 ```
 
-To define memory limit, append the following snippet to vswitch container in deployment yaml file:
-```          resources:
-              limits:
-                hugepages-2Mi: 1024Mi
-                memory: 1024Mi
-
+(b) To define memory limit for the vSwitch container, append the following snippet to vswitch container in deployment yaml file:
+```yaml
+    resources:
+      limits:
+        hugepages-2Mi: 1024Mi
+        memory: 1024Mi
 ```
 or set `contiv.vswitch.defineMemoryLimits` to `true` in [helm values](../../k8s/contiv-vpp/README.md).
 
-### (2/4) Initializing your master
+
+### Initializing your master
 Before initializing the master, you may want to [tear down][8] up any
 previously installed K8s components. Then, proceed with master initialization
 as described in the [kubeadm manual][3]. Execute the following command as
@@ -138,24 +148,39 @@ If Kubernetes was initialized successfully, it prints out this message:
 Your Kubernetes master has initialized successfully!
 ```
 
-After successful initialization, don't forget to set up your .kube directory
+After successful initialization, don't forget to set up your `.kube` directory
 as a regular user (as instructed by `kubeadm`):
-```bash
+```
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
 
-### (3/4) Installing the Contiv-VPP pod network
+#### Master Isolation (Optional)
+By default, your cluster will not schedule pods on the master for security
+reasons. If you want to be able to schedule pods on the master, e.g. for a
+single-machine Kubernetes cluster for development, run:
+
+```
+kubectl taint nodes --all node-role.kubernetes.io/master-
+```
+
+
+### 4. Installing the Contiv-VPP CNI plugin
 If you have already used the Contiv-VPP plugin before, you may need to pull
 the most recent Docker images on each node:
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
 ```
 
-Install the Contiv-VPP network for your cluster as follows:
+Contiv-VPP CNI plugin can be installed in two ways:
+- [Contiv-VPP Helm Installation](../../k8s/README.md), allows for customization via helm options,
+  but is more complex, described in [this document](../../k8s/README.md).
+- YAML file based installation, easier for simple deployments, described below.
 
-- If you do not use the STN feature, install Contiv-vpp as follows:
+To install the Contiv-VPP CNI using the pre-generated deployment YAML:
+
+- If you do not use the STN feature, install Contiv-VPP as follows:
   ```
   kubectl apply -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
   ```
@@ -170,84 +195,15 @@ Install the Contiv-VPP network for your cluster as follows:
   kubectl apply -f ./contiv-vpp.yaml
   ```
 
-Beware contiv-etcd data is persisted in `/var/etcd` by default. It has to be cleaned up manually after `kubeadm reset`.
-Otherwise outdated data will be loaded by a subsequent deployment.
+Beware that Contiv data is persisted in `/var/etcd` on the master node by default.
+It has to be cleaned up manually after `kubeadm reset`. Otherwise outdated data may
+be loaded by a subsequent deployment.
 
-You can also generate random subfolder, alternatively:
 
-```
-curl --silent https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml | sed "s/\/var\/etcd\/contiv-data/\/var\/etcd\/contiv-data\/$RANDOM/g" | kubectl apply -f -
-```
-
-#### Deployment Verification
+## Deployment Verification
 After some time, all contiv containers should enter the running state:
 ```
-root@cvpp:/home/jan# kubectl get pods -n kube-system -o wide | grep contiv
-NAME                           READY     STATUS    RESTARTS   AGE       IP               NODE
-...
-contiv-etcd-gwc84              1/1       Running   0          14h       192.168.56.106   cvpp
-contiv-ksr-5c2vk               1/1       Running   2          14h       192.168.56.106   cvpp
-contiv-vswitch-l59nv           2/2       Running   0          14h       192.168.56.106   cvpp
-```
-In particular, make sure that the Contiv-VPP pod IP addresses are the same as
-the IP address specified in the `--apiserver-advertise-address=<ip-address>`
-argument to kubeadm init.
-
-Verify that the VPP successfully grabbed the network interface specified in
-the VPP startup config (`GigabitEthernet0/4/0` in our case):
-```
-$ sudo vppctl
-vpp# sh inter
-              Name               Idx       State          Counter          Count
-GigabitEthernet0/4/0              1         up       rx packets                  1294
-                                                     rx bytes                  153850
-                                                     tx packets                   512
-                                                     tx bytes                   21896
-                                                     drops                        962
-                                                     ip4                         1032
-host-40df9b44c3d42f4              3         up       rx packets                126601
-                                                     rx bytes                44628849
-                                                     tx packets                132155
-                                                     tx bytes                27205450
-                                                     drops                         24
-                                                     ip4                       126585
-                                                     ip6                           16
-host-vppv2                        2         up       rx packets                132162
-                                                     rx bytes                27205824
-                                                     tx packets                126658
-                                                     tx bytes                44634963
-                                                     drops                         15
-                                                     ip4                       132147
-                                                     ip6                           14
-local0                            0        down
-```
-
-You should also see the interface to kube-dns (`host-40df9b44c3d42f4`) and to the
-node's IP stack (`host-vppv2`).
-
-#### Master Isolation (Optional)
-By default, your cluster will not schedule pods on the master for security
-reasons. If you want to be able to schedule pods on the master, e.g. for a
-single-machine Kubernetes cluster for development, run:
-
-```
-kubectl taint nodes --all node-role.kubernetes.io/master-
-```
-More details about installing the pod network can be found in the
-[kubeadm manual][4].
-
-### (4/4) Joining your nodes
-To add a new node to your cluster, run as root the command that was output
-by kubeadm init. For example:
-```
-kubeadm join --token <token> <master-ip>:<master-port> --discovery-token-ca-cert-hash sha256:<hash>
-```
-More details can be found int the [kubeadm manual][5].
-
-#### Deployment Verification
-After some time, all contiv containers should enter the running state:
-```
-root@cvpp:/home/jan# kubectl get pods -n kube-system -o wide | grep contiv
+$ kubectl get pods -n kube-system -o wide
 NAME                           READY     STATUS    RESTARTS   AGE       IP               NODE
 contiv-etcd-gwc84              1/1       Running   0          14h       192.168.56.106   cvpp
 contiv-ksr-5c2vk               1/1       Running   2          14h       192.168.56.106   cvpp
@@ -261,31 +217,43 @@ kube-proxy-q8sv2               1/1       Running   0          14h       192.168.
 kube-proxy-s8kv9               1/1       Running   0          14h       192.168.56.105   cvpp-slave2
 kube-scheduler-cvpp            1/1       Running   0          14h       192.168.56.106   cvpp
 ```
-In particular, verify that a vswitch pod and a kube-proxy pod is running on
+
+In particular, make sure that the Contiv-VPP pod IP addresses are the same as
+the IP address specified in the `--apiserver-advertise-address=<ip-address>`
+argument to kubeadm init.
+
+Also verify that a vswitch pod and a kube-proxy pod is running on
 each joined node, as shown above.
 
-On each joined node, verify that the VPP successfully grabbed the network
-interface specified in the VPP startup config (`GigabitEthernet0/4/0` in
-our case):
+Verify that the VPP successfully grabbed the network interface specified in
+the VPP startup config (`GigabitEthernet0/9/0` in our case) on each node:
 ```
 $ sudo vppctl
 vpp# sh inter
-              Name               Idx       State          Counter          Count
-GigabitEthernet0/4/0              1         up
-...
+              Name               Idx    State  MTU (L3/IP4/IP6/MPLS)     Counter          Count     
+GigabitEthernet0/9/0              1      up          9000/0/0/0     
+local0                            0     down          0/0/0/0       
+loop0                             2      up          9000/0/0/0     
+loop1                             4      up          9000/0/0/0     
+tap0                              3      up          1450/0/0/0     rx packets                   127
+                                                                    rx bytes                   35767
+                                                                    tx packets                    82
+                                                                    tx bytes                    7714
+                                                                    drops                         48
+                                                                    ip4                          101
+                                                                    ip6                           23
+tap1                              5      up          1450/0/0/0     rx packets                    95
+                                                                    rx bytes                    8764
+                                                                    tx packets                    79
+                                                                    tx bytes                   28989
+                                                                    drops                         14
+                                                                    ip4                           87
+                                                                    ip6                            8
 ```
-From the vpp CLI on a joined node you can also ping kube-dns to verify
-node-to-node connectivity. For example:
-```apple js
-vpp# ping 10.1.134.2
-64 bytes from 10.1.134.2: icmp_seq=1 ttl=64 time=.1557 ms
-64 bytes from 10.1.134.2: icmp_seq=2 ttl=64 time=.1339 ms
-64 bytes from 10.1.134.2: icmp_seq=3 ttl=64 time=.1295 ms
-64 bytes from 10.1.134.2: icmp_seq=4 ttl=64 time=.1714 ms
-64 bytes from 10.1.134.2: icmp_seq=5 ttl=64 time=.1317 ms
 
-Statistics: 5 sent, 5 received, 0% packet loss
-```
+You should also see the interface to kube-dns / core-dns (`tap1`) and to the node's IP stack (`tap0`).
+
+
 ### Deploying example applications
 #### Simple deployment
 You can go ahead and create a simple deployment:
@@ -322,87 +290,19 @@ You can check the pods' connectivity in one of the following ways:
   ping 10.1.1.3
 ```
 
-#### Deploying pods on different nodes
-to enable pod deployment on the master, untaint the master first:
-```
-kubectl taint nodes --all node-role.kubernetes.io/master-
-```
 
-In order to verify inter-node pod connectivity, we need to tell Kubernetes
-to deploy one pod on the master node and one POD on the worker. For this,
-we can use node selectors.
-
-In your deployment YAMLs, add the `nodeSelector` sections that refer to
-preferred node hostnames, e.g.:
-```
-  nodeSelector:
-    kubernetes.io/hostname: vm5
-```
-
-Example of whole JSONs:
-```
-apiVersion: v1
-kind: Pod
-metadata:
-  name: nginx1
-spec:
-  nodeSelector:
-    kubernetes.io/hostname: vm5
-  containers:
-    - name: nginx
-      image: nginx
-```
-
-```
-apiVersion: v1
-kind: Pod
-metadata:
-  name: nginx2
-spec:
-  nodeSelector:
-    kubernetes.io/hostname: vm6
-  containers:
-    - name: nginx
-      image: nginx
-```
-
-After deploying the JSONs, verify they were deployed on different hosts:
-```
-$ kubectl get pods -o wide
-NAME      READY     STATUS    RESTARTS   AGE       IP           NODE
-nginx1    1/1       Running   0          13m       10.1.36.2    vm5
-nginx2    1/1       Running   0          13m       10.1.219.3   vm6
-```
-
-Now you can verify the connectivity to both nginx PODs from a busybox POD:
-```
-kubectl run busybox --rm -it --image=busybox /bin/sh
-
-/ # wget 10.1.36.2
-Connecting to 10.1.36.2 (10.1.36.2:80)
-index.html           100% |*******************************************************************************************************************************************************************|   612   0:00:00 ETA
-
-/ # rm index.html
-
-/ # wget 10.1.219.3
-Connecting to 10.1.219.3 (10.1.219.3:80)
-index.html           100% |*******************************************************************************************************************************************************************|   612   0:00:00 ETA
-```
-
-### Uninstalling Contiv-VPP
+## Uninstalling Contiv-VPP
 To uninstall the network plugin itself, use `kubectl`:
 ```
 kubectl delete -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
 ```
-In order to remove the persisted config, cleanup the bolt and etcd storage:
+In order to remove the persisted config, cleanup the bolt and ETCD storage:
 ```
 rm -rf /var/etcd/contiv-data
-rm -rf /var/bolt/bolt.db
 ```
 
-### Tearing down Kubernetes
-* First, drain the node and make sure that the node is empty before
-shutting it down:
+## Tearing down Kubernetes
+* First, drain the node and make sure that the node is empty before shutting it down:
 ```
   kubectl drain <node name> --delete-local-data --force --ignore-daemonsets
   kubectl delete node <node name>
@@ -410,43 +310,9 @@ shutting it down:
 * Next, on the node being removed, reset all kubeadm installed state:
 ```
   rm -rf $HOME/.kube
-  sudo su
-  kubeadm reset
+  sudo kubeadm reset
 ```
 
-* If you added environment variable definitions into
-  `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` (e.g. in
-   [Step 1.3][10]), clean them up now.
-
-### Troubleshooting
-Some of the issues that can occur during the installation are:
-
-- Forgetting to create and initialize the `.kube` directory in your home
-  directory (As instructed by `kubeadm init --token-ttl 0`). This can manifest
-  itself as the following error:
-  ```
-  W1017 09:25:43.403159    2233 factory_object_mapping.go:423] Failed to download OpenAPI (Get https://192.168.209.128:6443/swagger-2.0.0.pb-v1: x509: certificate signed by unknown authority (possibly because of "crypto/rsa: verification error" while trying to verify candidate authority certificate "kubernetes")), falling back to swagger
-  Unable to connect to the server: x509: certificate signed by unknown authority (possibly because of "crypto/rsa: verification error" while trying to verify candidate authority certificate "kubernetes")
-  ```
-- Previous installation lingering on the file system.
-  `'kubeadm init --token-ttl 0` fails to initialize kubelet with one or more
-  of the following error messages:
-  ```
-  ...
-  [kubelet-check] It seems like the kubelet isn't running or healthy.
-  [kubelet-check] The HTTP call equal to 'curl -sSL http://localhost:10255/healthz' failed with error: Get http://localhost:10255/healthz: dial tcp [::1]:10255: getsockopt: connection refused.
-  ...
-  ```
-
-If you run into any of the above issues, try to clean up and reinstall as root:
-```
-sudo su
-rm -rf $HOME/.kube
-kubeadm reset
-kubeadm init --token-ttl 0
-rm -rf /var/etcd/contiv-data
-rm -rf /var/bolt/bolt.db
-```
 
 [1]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
 [3]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#initializing-your-master
@@ -454,11 +320,10 @@ rm -rf /var/bolt/bolt.db
 [5]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#joining-your-nodes
 [6]: https://kubernetes.io/docs/setup/independent/install-kubeadm/
 [8]: #tearing-down-kubernetes
-[10]: #setting-up-custom-management-network-on-multi-homed-nodes
 [11]: ../../vagrant/README.md
 [12]: CUSTOM_MGMT_NETWORK.md
 [13]: VMWARE_FUSION_HOST.md
 [14]: SINGLE_NIC_SETUP.md
 [15]: MULTI_NIC_SETUP.md
 [16]: SINGLE_NIC_SETUP.md#configuring-stn-in-contiv-vpp-k8s-deployment-files
-[17]: ../../k8s/README.md#setup-node-sh
+[17]: ../../k8s/README.md#setup-node.sh

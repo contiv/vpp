@@ -31,7 +31,7 @@ Contiv/VPP consists of several components, each of them packed and shipped as
 a Docker container. Three of them deploy on Kubernetes master node only:
 
  - [Contiv KSR](#contiv-ksr-(kubernetes-state-reflector))
- - [Contiv CRD + netctl](#contiv-crd-netctl)
+ - [Contiv CRD + netctl](#contiv-crd-+-netctl)
  - [Contiv ETCD](#contiv-etcd)
 
 and the rest of them deploy on all nodes within the k8s cluster (including the master node):
@@ -39,6 +39,7 @@ and the rest of them deploy on all nodes within the k8s cluster (including the m
 - [Contiv vSwitch](#contiv-vswitch)
 - [Contiv CNI](#contiv-cni-(container-network-interface))
 - [Contiv STN](#contiv-stn-(steal-the-nic)-daemon)
+- [Contiv UI](#contiv-ui)
 
 
 The following section briefly describes the individual Contiv components, which are displayed
@@ -115,5 +116,13 @@ when the interface will be "stolen" from the host network stack just before star
 the VPP and configured with the same IP address on VPP, as well as 
 on the host-VPP interconnect TAP interface, as it had in the host before it. 
 For more information on STN setup, read the [Single NIC Setup README](setup/SINGLE_NIC_SETUP.md).
+
+### Contiv UI
+[Contivpp UI](../ui/README.md) is composed of two components. The first is a customized GUI
+enabling the user to display the k8s cluster including the contivpp.io system pods. It also
+allows access to the configuration (e.g. IPAM), k8s, contivpp and namespace and k8s services
+mapped to contiv vswitches. The other component is a proxy providing REST APIs to the front-end
+GUI and per-vswitch APIs to the contiv vswitches deployed in the cluster. The contivpp UI is
+deployed as a docker container and is optional both in the production and demo systems.
 
 [![Contiv/VPP Architecture](img/contiv-flow.png)](img/contiv-flow.png)

@@ -19,7 +19,7 @@ pci@0000:00:04.0  ens4        network    Virtio network device
 
 #### Configuring Network Adapter PCI addresses
 Next, configure hardware interfaces in the VPP startup config, as
-described [here](https://github.com/contiv/vpp/blob/master/docs/VPP_CONFIG.md#multi-nic-configuration).
+described [here](VPP_CONFIG.md#multi-nic-configuration).
 
 
 ##### Global configuration:

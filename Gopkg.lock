@@ -85,7 +85,7 @@
   revision = "2bd8b58cf4275aeb086ade613de226773e29e853"
 
 [[projects]]
-  digest = "1:5312bbdd6466ac0a0f8c029bfbbffc6c255ba4de3fbe099ddbec4b1a4b367e16"
+  digest = "1:9a6100a446d31e25148e5ad84f39fc057b7f798c6a6053f7058ff4ca7d998f1f"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -119,8 +119,8 @@
     "service/sts",
   ]
   pruneopts = "UT"
-  revision = "25f89dc67cc7eddac939028c7128499dcfcab46b"
-  version = "v1.16.33"
+  revision = "24d2586ee6c7aa6a6efec818c2b8709db125ee4c"
+  version = "v1.16.34"
 
 [[projects]]
   branch = "master"
@@ -765,7 +765,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:8b5c8d78dda6d8c51ba8daafccb91da348439f0e2cf5be1304dde153a82bc016"
+  digest = "1:58ab1bf6a9c6f9226600e5f5dc3dd891d0d5bcfb55d8fdd499195a3d01110125"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -788,6 +788,7 @@
     "plugins/govppmux",
     "plugins/govppmux/vppcalls",
     "plugins/govppmux/vppcalls/vpp1810",
+    "plugins/govppmux/vppcalls/vpp1901",
     "plugins/kvscheduler",
     "plugins/kvscheduler/api",
     "plugins/kvscheduler/internal/graph",
@@ -810,29 +811,14 @@
     "plugins/telemetry",
     "plugins/telemetry/vppcalls",
     "plugins/telemetry/vppcalls/vpp1810",
+    "plugins/telemetry/vppcalls/vpp1901",
     "plugins/vpp/aclplugin",
     "plugins/vpp/aclplugin/aclidx",
     "plugins/vpp/aclplugin/descriptor",
     "plugins/vpp/aclplugin/descriptor/adapter",
     "plugins/vpp/aclplugin/vppcalls",
     "plugins/vpp/aclplugin/vppcalls/vpp1810",
-    "plugins/vpp/binapi/acl",
-    "plugins/vpp/binapi/af_packet",
-    "plugins/vpp/binapi/dhcp",
-    "plugins/vpp/binapi/interfaces",
-    "plugins/vpp/binapi/ip",
-    "plugins/vpp/binapi/ipsec",
-    "plugins/vpp/binapi/l2",
-    "plugins/vpp/binapi/memclnt",
-    "plugins/vpp/binapi/memif",
-    "plugins/vpp/binapi/nat",
-    "plugins/vpp/binapi/punt",
-    "plugins/vpp/binapi/session",
-    "plugins/vpp/binapi/stn",
-    "plugins/vpp/binapi/tap",
-    "plugins/vpp/binapi/tapv2",
-    "plugins/vpp/binapi/vmxnet3",
-    "plugins/vpp/binapi/vpe",
+    "plugins/vpp/aclplugin/vppcalls/vpp1901",
     "plugins/vpp/binapi/vpp1810/acl",
     "plugins/vpp/binapi/vpp1810/af_packet",
     "plugins/vpp/binapi/vpp1810/dhcp",
@@ -844,6 +830,7 @@
     "plugins/vpp/binapi/vpp1810/memif",
     "plugins/vpp/binapi/vpp1810/nat",
     "plugins/vpp/binapi/vpp1810/punt",
+    "plugins/vpp/binapi/vpp1810/session",
     "plugins/vpp/binapi/vpp1810/stats",
     "plugins/vpp/binapi/vpp1810/stn",
     "plugins/vpp/binapi/vpp1810/tap",
@@ -851,41 +838,63 @@
     "plugins/vpp/binapi/vpp1810/vmxnet3",
     "plugins/vpp/binapi/vpp1810/vpe",
     "plugins/vpp/binapi/vpp1810/vxlan",
-    "plugins/vpp/binapi/vxlan",
+    "plugins/vpp/binapi/vpp1901/acl",
+    "plugins/vpp/binapi/vpp1901/af_packet",
+    "plugins/vpp/binapi/vpp1901/dhcp",
+    "plugins/vpp/binapi/vpp1901/interfaces",
+    "plugins/vpp/binapi/vpp1901/ip",
+    "plugins/vpp/binapi/vpp1901/ipsec",
+    "plugins/vpp/binapi/vpp1901/l2",
+    "plugins/vpp/binapi/vpp1901/memclnt",
+    "plugins/vpp/binapi/vpp1901/memif",
+    "plugins/vpp/binapi/vpp1901/nat",
+    "plugins/vpp/binapi/vpp1901/punt",
+    "plugins/vpp/binapi/vpp1901/stn",
+    "plugins/vpp/binapi/vpp1901/tap",
+    "plugins/vpp/binapi/vpp1901/tapv2",
+    "plugins/vpp/binapi/vpp1901/vmxnet3",
+    "plugins/vpp/binapi/vpp1901/vpe",
+    "plugins/vpp/binapi/vpp1901/vxlan",
     "plugins/vpp/ifplugin",
     "plugins/vpp/ifplugin/descriptor",
     "plugins/vpp/ifplugin/descriptor/adapter",
     "plugins/vpp/ifplugin/ifaceidx",
     "plugins/vpp/ifplugin/vppcalls",
     "plugins/vpp/ifplugin/vppcalls/vpp1810",
+    "plugins/vpp/ifplugin/vppcalls/vpp1901",
     "plugins/vpp/l2plugin",
     "plugins/vpp/l2plugin/descriptor",
     "plugins/vpp/l2plugin/descriptor/adapter",
     "plugins/vpp/l2plugin/vppcalls",
     "plugins/vpp/l2plugin/vppcalls/vpp1810",
+    "plugins/vpp/l2plugin/vppcalls/vpp1901",
     "plugins/vpp/l3plugin",
     "plugins/vpp/l3plugin/descriptor",
     "plugins/vpp/l3plugin/descriptor/adapter",
     "plugins/vpp/l3plugin/vppcalls",
     "plugins/vpp/l3plugin/vppcalls/vpp1810",
+    "plugins/vpp/l3plugin/vppcalls/vpp1901",
     "plugins/vpp/natplugin",
     "plugins/vpp/natplugin/descriptor",
     "plugins/vpp/natplugin/descriptor/adapter",
     "plugins/vpp/natplugin/vppcalls",
     "plugins/vpp/natplugin/vppcalls/vpp1810",
+    "plugins/vpp/natplugin/vppcalls/vpp1901",
     "plugins/vpp/puntplugin",
     "plugins/vpp/puntplugin/descriptor",
     "plugins/vpp/puntplugin/descriptor/adapter",
     "plugins/vpp/puntplugin/vppcalls",
     "plugins/vpp/puntplugin/vppcalls/vpp1810",
+    "plugins/vpp/puntplugin/vppcalls/vpp1901",
     "plugins/vpp/stnplugin",
     "plugins/vpp/stnplugin/descriptor",
     "plugins/vpp/stnplugin/descriptor/adapter",
     "plugins/vpp/stnplugin/vppcalls",
     "plugins/vpp/stnplugin/vppcalls/vpp1810",
+    "plugins/vpp/stnplugin/vppcalls/vpp1901",
   ]
   pruneopts = "UT"
-  revision = "d070c51dbb8536da9323ec2c8e3f6e5f7eb9a4ae"
+  revision = "1a12cc9e3544b4f12f57b6be6f3e740c22c676fa"
 
 [[projects]]
   branch = "master"
@@ -1381,7 +1390,7 @@
     "internal/semver",
   ]
   pruneopts = "UT"
-  revision = "0e66cc6fab8bce4b5783ae1fc63b303910fb8b08"
+  revision = "c161412db0d0912a7438a865c39bdd7edcd20ede"
 
 [[projects]]
   digest = "1:97f6ccdb896c63238019656bd64fa3164537a8cdc807872f6ef77a861dacb743"
@@ -1802,10 +1811,9 @@
     "github.com/ligato/vpp-agent/plugins/restapi/resturl",
     "github.com/ligato/vpp-agent/plugins/telemetry",
     "github.com/ligato/vpp-agent/plugins/vpp/aclplugin",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/session",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/ip",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/nat",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/session",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/stats",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin",

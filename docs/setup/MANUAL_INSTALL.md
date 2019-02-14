@@ -6,7 +6,7 @@ The manual installation consists of the following steps:
 1. [Preparing the nodes](#1-preparing-the-nodes):
    1. [Setting up network adapter(s)](#11-setting-up-network-adapters)
    2. [Setting up the VPP vSwitch to use the network adapters](#12-setting-up-the-vpp-vswitch-to-use-the-network-adapters)
-2. [Installing & intializing Kubernetes (using kubeadm)](#2-installing-intializing-kubernetes-(using-kubeadm))
+2. [Installing & intializing Kubernetes (using kubeadm)](#2-installing-intializing-kubernetes-using-kubeadm)
 3. [Installing the Contiv-VPP CNI plugin](#4-installing-the-contiv-vpp-cni-plugin)
 
 After successful installation, you can perform the following tasks:

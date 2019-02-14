@@ -1,4 +1,4 @@
-# Contiv VPP
+# Contiv-VPP Helm Installation
 
 Deploy Contiv VPP networking
 
@@ -12,7 +12,8 @@ contiv-vpp templates.
 
 ## Installing the chart
 
-As with all helm installations, it requires tiller running in the cluster. Tiller is typically installed on clusters where networking is already setup, which can be a challenge for using this particular chart.
+As with all helm installations, it requires tiller running in the cluster. Tiller is typically installed on 
+clusters where networking is already setup, which can be a challenge for using this particular chart.
 
 To install without tiller, you can generate the manifest from this chart and install via kubectl:
 

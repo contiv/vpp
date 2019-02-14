@@ -1,7 +1,25 @@
 ### Setting up a node with multiple NICs
 
-First, configure hardware interfaces in the VPP startup config, as
-described [here](https://github.com/contiv/vpp/blob/master/docs/VPP_CONFIG.md#multi-nic-configuration).
+#### Determining Network Adapter PCI addresses
+You need to find out the PCI address of the network interface that
+you want VPP to use for multi-node pod interconnect. On Debian-based
+distributions, you can use `lshw`(*):
+
+```
+$ sudo lshw -class network -businfo
+Bus info          Device      Class      Description
+====================================================
+pci@0000:00:03.0  ens3        network    Virtio network device
+pci@0000:00:04.0  ens4        network    Virtio network device
+```
+\* On CentOS/RedHat/Fedora distributions, `lshw` may not be available by default, install it by
+    ```
+    yum -y install lshw
+    ```
+
+#### Configuring Network Adapter PCI addresses
+Next, configure hardware interfaces in the VPP startup config, as
+described [here](VPP_CONFIG.md#multi-nic-configuration).
 
 
 ##### Global configuration:

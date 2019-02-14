@@ -420,6 +420,24 @@ func TestExceededNodeIPRange(t *testing.T) {
 
 }
 
+func TestNodeCIDRIPv6(t *testing.T) {
+	RegisterTestingT(t)
+
+	customConfig := newDefaultConfig()
+	customConfig.IPAMConfig.NodeInterconnectCIDR = "fe10:f00d::/90"
+
+	i, err := newIPAM(customConfig, 1)
+	Expect(err).To(BeNil())
+	Expect(i).NotTo(BeNil())
+
+	ip, net, err := i.NodeIPAddress(1)
+
+	Expect(err).To(BeNil())
+	Expect(ip.String()).To(BeEquivalentTo("fe10:f00d::1"))
+	Expect(net.String()).To(BeEquivalentTo("fe10:f00d::1/90"))
+
+}
+
 // TestConfigWithBadCIDR test if IPAM detects incorrect unparsable CIDR string and handles it correctly (initialization returns error)
 func TestConfigWithBadCIDR(t *testing.T) {
 	RegisterTestingT(t)

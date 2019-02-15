@@ -17,6 +17,6 @@ export GOLAND_VERSION=${GOLAND_VERSION:-2018.2.4}
 export GO_VERSION=${GO_VERSION:-1.11}
 export HELM_VERSION=${HELM_VERSION:-2.9.1}
 export CRD_DISABLED=${CRD_DISABLED:-true}
-export HELM_EXTRA_OPTS=${HELM_EXTRA_OPTS:-""}
+export HELM_EXTRA_OPTS=${HELM_EXTRA_OPTS:-"--set contiv.ipamConfig.nodeInterconnectCIDR=fe10:f00d::/90"}
 export DOCKER_VERSION=${DOCKER_VERSION:-18.03.0~ce-0}
 

@@ -335,7 +335,7 @@ func (i *IPAM) NodeIPAddress(nodeID uint32) (net.IP, *net.IPNet, error) {
 
 // IsNodeInterconnectIPv6 returns true if nodeInterconnectSubnet is IPv6 range
 func (i *IPAM) IsNodeInterconnectIPv6() bool {
-	return strings.Contains(i.nodeInterconnectSubnet.String(), ":")
+	return strings.Contains(i.ContivConf.GetIPAMConfig().NodeInterconnectCIDR.String(), ":")
 }
 
 // VxlanIPAddress computes IP address of the VXLAN interface based on the provided node ID.

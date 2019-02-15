@@ -82,6 +82,9 @@ type API interface {
 
 	// ReleasePodIP releases the pod IP address making it available for new PODs.
 	ReleasePodIP(podID podmodel.ID) error
+
+	// IsNodeInterconnectIPv6 returns true if nodeInterconnectSubnet is IPv6 range
+	IsNodeInterconnectIPv6() bool
 }
 
 // PodCIDRChange is triggered when CIDR for PODs on the current node changes.

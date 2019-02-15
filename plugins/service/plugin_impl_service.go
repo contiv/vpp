@@ -138,6 +138,11 @@ func (p *Plugin) AfterInit() error {
 //  - AddPod & DeletePod
 //  - NodeUpdate event
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
+
+	if p.IPAM.IsNodeInterconnectIPv6() {
+		//temporary disable service plugin if IPv6 is enabled
+		return false
+	}
 	if event.Method() != controller.Update {
 		return true
 	}

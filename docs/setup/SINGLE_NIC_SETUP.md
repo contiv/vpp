@@ -43,7 +43,7 @@ and [contiv-init](../../cmd/contiv-init/doc.go).
 
 #### Creating VPP configuration
 Create the VPP configuration for the hardware interface as described 
-[here](https://github.com/contiv/vpp/blob/master/docs/VPP_CONFIG.md#single-nic-configuration).
+[here](VPP_CONFIG.md#single-nic-configuration).
 
 
 #### Configuring STN in Contiv-VPP K8s deployment files

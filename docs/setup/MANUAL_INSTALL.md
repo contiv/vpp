@@ -326,4 +326,4 @@ rm -rf /var/etcd/contiv-data
 [14]: SINGLE_NIC_SETUP.md
 [15]: MULTI_NIC_SETUP.md
 [16]: SINGLE_NIC_SETUP.md#configuring-stn-in-contiv-vpp-k8s-deployment-files
-[17]: ../../k8s/README.md#setup-node.sh
+[17]: ../../k8s/README.md#setup-nodesh

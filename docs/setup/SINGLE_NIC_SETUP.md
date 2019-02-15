@@ -1,5 +1,6 @@
 ### Setting up a node with a single NIC
 
+
 #### Installing the STN daemon
 The STN Daemon must be installed on every node in the cluster that has only 
 one NIC. The STN daemon installation(*) should be performed before deployment 
@@ -39,25 +40,30 @@ The expected logs would look like the following excerpt:
 For more details, please read the Go documentation for [contiv-stn](../../cmd/contiv-stn/doc.go)
 and [contiv-init](../../cmd/contiv-init/doc.go).
 
-#### Creating VPP interface configuration
+
+#### Creating VPP configuration
 Create the VPP configuration for the hardware interface as described 
 [here](https://github.com/contiv/vpp/blob/master/docs/VPP_CONFIG.md#single-nic-configuration).
 
-#### Configuring STN in Contiv-vpp K8s deployment files
+
+#### Configuring STN in Contiv-VPP K8s deployment files
 The STN feature is disabled by default. It needs to be enabled either globally,
-or individually for every node in the cluster. 
+or individually for every node in the cluster.
+
+This can be either done by modification of the deployment YAML file (we use this approach in this guide), 
+or using [helm and corresponding helm options](../../k8s/contiv-vpp/README.md).
+
 
 ##### Global configuration:
 Global configuration is used in homogeneous environments where all nodes in 
 a given cluster have the same hardware configuration, for example only a single
-Network Adapter. To enable the STN feature globally, put the `StealFirstNIC: True`
+Network Adapter. To enable the STN feature globally, put the `stealFirstNIC: True`
 stanza into the [`contiv.conf`][1] deployment file, for example:
 ```
 data:
   contiv.conf: |-
-    TCPstackDisabled: true
     ...
-    StealFirstNIC: True
+    stealFirstNIC: True
     ...
 ```
 
@@ -65,7 +71,8 @@ Setting `StealFirstNIC` to `True` will tell the STN Daemon on every node in the
 cluster to steal the first NIC from the kernel and assign it to VPP. Note that
 the Network Adapters on different nodes do not need to be of the same type. You
 still need to create the respective vswitch configurations on every node in the
-cluster, as shown [above](#creating-the-vpp-interface-configuration).
+cluster, as shown [above](#creating-vpp-configuration).
+
 
 ##### Individual configuration:
 Individual configuration is used in heterogeneous environments where each node
@@ -78,7 +85,7 @@ node in the cluster, put the following stanza into its Node Configuration in the
 deployment file, for example:
 ```
 ...
-    NodeConfig:
+    nodeConfig:
     - nodeName: "k8s-master"
       stealInterface: "enp0s8"
     - nodeName: "k8s-worker1"
@@ -120,7 +127,8 @@ These two ways of configuration are mutually exclusive. You select the one you w
 `crdNodeConfigurationDisabled` option in `contiv.conf`.
 
 Note that regardless of node config option you still have to create the vswitch configuration on the node as
-shown [here](#creating-the-vpp-interface-configuration).
+shown [here](#creating-vpp-configuration).
+
 
 #### Uninstalling the STN daemon
 
@@ -132,8 +140,6 @@ The install script should output the following:
 ```
 Uninstalling Contiv STN daemon.
 Stopping contiv-stn Docker container:
-contiv-stn
-contiv-stn
 contiv-stn
 ```
 Make sure that the STN daemon has been uninstalled:

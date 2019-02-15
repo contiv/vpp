@@ -1,8 +1,9 @@
 ### Setting up a node with multiple NICs
 
-#### Determining Network Adapter PCI addresses
-You need to find out the PCI address of the network interface that
-you want VPP to use for multi-node pod interconnect. On Debian-based
+
+#### Determining network adapter PCI addresses
+First, you need to find out the PCI address of the network interface that
+you want VPP to use for multi-node interconnect. On Debian-based
 distributions, you can use `lshw`(*):
 
 ```
@@ -17,15 +18,25 @@ pci@0000:00:04.0  ens4        network    Virtio network device
     yum -y install lshw
     ```
 
-#### Configuring Network Adapter PCI addresses
+#### Creating VPP configuration
 Next, configure hardware interfaces in the VPP startup config, as
 described [here](VPP_CONFIG.md#multi-nic-configuration).
 
 
+#### Configuring network for node interconnect
+Next, you need to tell Contiv which IP subnet / IP addresses should be used for interconnecting
+VPP interfaces of the nodes in the cluster.
+
+This can be either done by modification of the deployment YAML file (we use this approach in this guide), 
+or using [helm and corresponding helm options](../../k8s/contiv-vpp/README.md).
+
+
 ##### Global configuration:
 Global configuration is used in homogeneous environments where all nodes in
-a given cluster have the same hardware configuration. If you want use DHCP to configure
-node IPs. Put the following stanza into the [`contiv.conf`](../../k8s/contiv-vpp.yaml) deployment file:
+a given cluster have the same hardware configuration. 
+
+If you want to use DHCP to configure node IPs, put the following stanza into
+the [`contiv.conf`](../../k8s/contiv-vpp.yaml) deployment file:
 ```
 data:
   contiv.conf: |-
@@ -34,6 +45,20 @@ data:
        nodeInterconnectDHCP: true
     ...
 ```
+
+Alternatively to DHCP, you can also use automatic IP assignment from the `nodeInterconnectCIDR` pool 
+(pre-defined and customizable in [`contiv.conf`](../../k8s/contiv-vpp.yaml) deployment file).
+Also configure the `defaultGateway` if the PODs should be able to reach the internet:
+```
+data:
+  contiv.conf: |-
+    ...
+    ipamConfig:
+       nodeInterconnectCIDR: 192.168.16.0/24
+       defaultGateway: 192.168.16.100
+    ...
+```
+
 
 ##### Individual configuration:
 Individual configuration is used in heterogeneous environments where each node
@@ -45,7 +70,7 @@ to be part of contiv deployment yaml file. Put the following stanza for each nod
 the [`contiv.conf`][1] deployment file, for example:
 ```
 ...
-    NodeConfig:
+    nodeConfig:
     - nodeName: "k8s-master"
       mainVPPInterface:
         interfaceName: "GigabitEthernet0/8/0"
@@ -59,9 +84,10 @@ the [`contiv.conf`][1] deployment file, for example:
 ...
 ``` 
 
+
 - **CRD** The node configuration is applied using custom defined k8s resource. The same behavior
-as above can be achieved by the following CRD config. Usage of CRD allows to dynamically add new configuration
-for nodes joining a cluster.
+as above can be achieved by the following CRD config. Usage of CRD allows to dynamically 
+add new configuration for nodes joining a cluster.
 
 ```
 $ cat master.yaml

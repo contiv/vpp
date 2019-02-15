@@ -1,14 +1,10 @@
 # Contiv-VPP Helm Installation
 
-Deploy Contiv VPP networking
+This folder contains Contiv-VPP deployment helm chart files:
 
-The deployment consists of the following components:
- * contiv-etcd - deployed on the master node
- * contiv-vswitch - deployed on each node
- * contiv-ksr - deployed on the master node
+* the chart template is located in [`templates/vpp.yaml`](templates/vpp.yaml)
+* the default values for the template is located in  [`values.yaml`](values.yaml)
 
-The `values.yaml` file contains the default values for the
-contiv-vpp templates.
 
 ## Installing the chart
 
@@ -48,6 +44,8 @@ To install the chart with the release name `my-release`:
 ```console
 $ helm install --name my-release contiv-vpp
 ```
+
+
 ## Uninstalling the chart
 
 ```console
@@ -58,6 +56,7 @@ $ helm delete --purge my-release
 ## Configuration
 
 The following tables lists the configurable parameters of the Contiv-VPP chart and their default values.
+Some of them are described in more detail in [contiv.conf README](../README.md#contivconf).
 
 Parameter | Description | Default
 --------- | ----------- | -------

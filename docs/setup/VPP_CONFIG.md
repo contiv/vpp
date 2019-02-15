@@ -1,11 +1,13 @@
 ## Creating VPP startup configuration
 This document describes how to create the VPP startup configuration
-file located at `/etc/vpp/contiv-vswitch.conf`.
+file that should be located located at `/etc/vpp/contiv-vswitch.conf`
+on each node in the cluster with Contiv-VPP.
+
 
 ### Hardware interface configuration
 #### Single-NIC configuration
 You need to configure hardware interfaces for use by VPP. First, you
-needto find out the PCI address of the host's network interface. On 
+need to find out the PCI address of the host's network interface. On 
 Debian-based distributions, you can use `lshw`:
 
 ```
@@ -47,6 +49,8 @@ api-trace {
    nitems 5000
 }
 ```
+
+
 #### Multi-NIC configuration
 Similarly to the single-NIC configuration, use lshw to find out the PCI
 addresses of all NICs in the system, for example:
@@ -98,47 +102,10 @@ api-trace {
    nitems 5000
 }
 ```
+
 If assigning multiple NICs to VPP you will need to include each NIC's PCI address
 in the dpdk stanza in `/etc/vpp/contiv-vswitch.conf`.
 
-##### Assigning all NICs to VPP
-On a multi-NIC node, it is also possible to assign all NICs from the kernel for
-use by VPP. First, you need to install the STN daemon, as described [here][1],
-since you will want the NICs to revert to the kernel if VPP crashes.
-
-You also need to configure the NICs in the VPP startup config file
-in `/etc/vpp/contiv-vswitch.conf`. For example, to use both the primary and
-secondary NIC in a two-NIC node, your VPP startup config file would look
-something like this:
-
-```
-unix {
-    nodaemon
-    cli-listen /run/vpp/cli.sock
-    cli-no-pager
-    coredump-size unlimited
-    full-coredump
-    poll-sleep-usec 100
-}
-nat {
-    endpoint-dependent
-    translation hash buckets 1048576
-    translation hash memory 268435456
-    user hash buckets 1024
-    max translations per user 10000
-}
-acl-plugin {
-    use tuple merge 0
-}
-dpdk {
-    dev 0000:00:03.0
-    dev 0000:00:04.0
-}
-api-trace {
-   on
-   nitems 5000
-}
-```
 
 #### Installing `lshw` on CentOS/RedHat/Fedora
 Note: On CentOS/RedHat/Fedora distributions, `lshw` may not be available
@@ -146,6 +113,7 @@ by default, install it by
 ```
 sudo yum -y install lshw
 ```
+
 
 ### Power-saving mode
 In regular operation, VPP takes 100% of one CPU core at all times (poll loop).
@@ -161,6 +129,7 @@ unix {
 ```
 The power-saving mode is especially useful in VM-based development environments 
 running on laptops or less powerful servers. 
+
 
 ### VPP API trace
 To troubleshoot VPP configuration issues in production environments, it is 

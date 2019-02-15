@@ -64,8 +64,8 @@ The following guide will use the `uio_pci_generic` driver, but you can change it
 ### 1.2. Setting up the VPP vSwitch to use the network adapters
 Next, you need to set up the vswitch to use the network adapters in one of the two modes:
 
-- [Setup a node with multiple NICs][14] (preferred; one NIC for management and one for VPP)
-- [Setup on a node with a single NIC][15] (for nodes with only single NIC)
+- [Setup a node with multiple NICs][15] (preferred; one NIC for management and one for VPP)
+- [Setup on a node with a single NIC][14] (for nodes with only single NIC)
 
 
 ## 2. Installing & intializing Kubernetes (using kubeadm)
@@ -174,9 +174,9 @@ bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-imag
 ```
 
 Contiv-VPP CNI plugin can be installed in two ways:
-- [Contiv-VPP Helm Installation](../../k8s/README.md), allows for customization via helm options,
-  but is more complex, described in [this document](../../k8s/README.md).
-- YAML file based installation, easier for simple deployments, described below.
+- [Contiv-VPP Helm Installation](../../k8s/contiv-vpp/README.md), allows for customization via helm options,
+  but is more complex, described in [this document](../../k8s/contiv-vpp/README.md).
+- deployment using the pre-generated YAML files, easier for simple deployments, described below.
 
 To install the Contiv-VPP CNI using the pre-generated deployment YAML:
 

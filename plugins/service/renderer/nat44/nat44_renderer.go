@@ -441,6 +441,9 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 	for _, ip := range serviceIPs.List() {
 		if ip.To4() != nil {
 			ip = ip.To4()
+		} else {
+			// do not configure service for ipv6 address
+			continue
 		}
 		// Add one mapping for each port.
 		for portName, port := range service.Ports {

@@ -38,6 +38,11 @@ spec:
         run: contiv-ui
     spec:
       serviceAccountName: contiv-ui
+      tolerations:
+        # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+        - key: ''
+          operator: Exists
+          effect: ''
       nodeSelector:
         node-role.kubernetes.io/master: ""
       containers:

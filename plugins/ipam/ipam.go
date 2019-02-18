@@ -152,8 +152,12 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 	// exclude gateway from the set of allocated node IPs
 	i.excludedIPsfromNodeSubnet = []net.IP{}
 	defaultGW := i.ContivConf.GetStaticDefaultGW()
-	if len(defaultGW) > 0 {
-		i.excludedIPsfromNodeSubnet = []net.IP{defaultGW}
+	gw := defaultGW.To4()
+	if gw == nil {
+		gw = defaultGW.To16()
+	}
+	if len(gw) > 0 {
+		i.excludedIPsfromNodeSubnet = []net.IP{gw}
 	}
 
 	// initialize subnets based on the configuration
@@ -327,7 +331,7 @@ func (i *IPAM) NodeIPAddress(nodeID uint32) (net.IP, *net.IPNet, error) {
 	ip := make([]byte, len(nodeIP))
 	copy(ip, nodeIP)
 	nodeIPNetwork := &net.IPNet{
-		IP:   ip,
+		IP:   net.IP(ip).Mask(mask),
 		Mask: mask,
 	}
 	return nodeIP, nodeIPNetwork, nil
@@ -707,18 +711,18 @@ func addByteSlice(a, b []byte) []byte {
 
 		// increment indexes
 		if ai >= 0 {
-			ai -= 1
+			ai--
 		}
 
 		if bi >= 0 {
-			bi -= 1
+			bi--
 		}
 
 	}
 
 	// adjust length of resulting slice
 	if r[i] == 0 {
-		i += 1
+		i++
 	}
 
 	res := make([]byte, len(r)-i)

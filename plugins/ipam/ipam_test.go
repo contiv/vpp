@@ -434,7 +434,7 @@ func TestNodeCIDRIPv6(t *testing.T) {
 
 	Expect(err).To(BeNil())
 	Expect(ip.String()).To(BeEquivalentTo("fe10:f00d::1"))
-	Expect(net.String()).To(BeEquivalentTo("fe10:f00d::1/90"))
+	Expect(net.String()).To(BeEquivalentTo("fe10:f00d::/90"))
 
 }
 

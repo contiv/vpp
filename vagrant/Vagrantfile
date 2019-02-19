@@ -69,8 +69,8 @@ ip_version=ENV['IP_VERSION'] || 'ipv4'
 contiv_dir="/home/vagrant/gopath/src/github.com/contiv/vpp"
 helm_extra_opts = ENV['HELM_EXTRA_OPTS'] || ''
 
-if (ip_version != 'ipv6transport'  || ip_version != 'ipv6' )
-    # ipv6 requires vagrant box with a newer OS verion
+if (ip_version == 'ipv6transport'  || ip_version == 'ipv6' )
+    # ipv6 requires vagrant box with a newer OS version
     node_os_release = '18.04'
 end
 
@@ -351,13 +351,13 @@ source /home/vagrant/.profile
 echo "Pulling k8s images..."
 echo "$(kubeadm config images pull --kubernetes-version=v"#{k8s_version}")"
 
+service_cidr="10.96.0.0/12"
 pod_network_cidr="10.10.0.0/16"
-if [ "#{dep_scenario}" != 'calico' ] && [ "#{dep_scenario}" != 'calicovpp' ]; then
+if [ "#{ip_version}" == "ipv6" ]; then
+  pod_network_cidr="2001::/16"
+  service_cidr="2096::/64"
+elif [ "#{dep_scenario}" != 'calico' ] && [ "#{dep_scenario}" != 'calicovpp' ]; then
   pod_network_cidr="10.0.0.0/8"
-elif [ "#{ip_version}" == "ipv6" ]; then
-  #TODO: assign correct range for ipv6 pods & services
-  pod_network_cidr=""
-  service_cidr=""
 fi
 
 split_k8s_version="$(cut -d "." -f 2 <<< '#{k8s_version}')"
@@ -370,15 +370,15 @@ if [ $split_k8s_version -gt 10 ] ; then
   systemctl daemon-reload
   systemctl restart kubelet
   if [ "#{dep_scenario}" != 'calico' ] && [ "#{dep_scenario}" != 'calicovpp' ]; then
-    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
   else
-    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
   fi
 else
   sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
   systemctl daemon-reload
   systemctl restart kubelet
-  echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+  echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
 fi
 
 echo "Create folder to store kubernetes and network configuration"

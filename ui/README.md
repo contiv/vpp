@@ -1,6 +1,6 @@
 # Contiv VPP UI
 
-Demo: [video at contivpp.io](https://contivpp.io/docs/concepts/contivpp-io-demo-ui/)
+Demo: [video at contivpp.io](https://contivpp.io/demo/contivpp-io-demo-ui/)
 
 This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 7.0.2.
 

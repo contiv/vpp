@@ -65,8 +65,14 @@ go_version= ENV['GO_VERSION']
 goland_version= ENV['GOLAND_VERSION']
 helm_version= ENV['HELM_VERSION']
 crd_disabled=ENV['CRD_DISABLED']
+ip_version=ENV['IP_VERSION'] || 'ipv4'
 contiv_dir="/home/vagrant/gopath/src/github.com/contiv/vpp"
 helm_extra_opts = ENV['HELM_EXTRA_OPTS'] || ''
+
+if (ip_version != 'ipv6transport'  || ip_version != 'ipv6' )
+    # ipv6 requires vagrant box with a newer OS verion
+    node_os_release = '18.04'
+end
 
 provision_every_node = <<SCRIPT
 set -e
@@ -345,6 +351,15 @@ source /home/vagrant/.profile
 echo "Pulling k8s images..."
 echo "$(kubeadm config images pull --kubernetes-version=v"#{k8s_version}")"
 
+pod_network_cidr="10.10.0.0/16"
+if [ "#{dep_scenario}" != 'calico' ] && [ "#{dep_scenario}" != 'calicovpp' ]; then
+  pod_network_cidr="10.0.0.0/8"
+elif [ "#{ip_version}" == "ipv6" ]; then
+  #TODO: assign correct range for ipv6 pods & services
+  pod_network_cidr=""
+  service_cidr=""
+fi
+
 split_k8s_version="$(cut -d "." -f 2 <<< '#{k8s_version}')"
 if [ $split_k8s_version -gt 10 ] ; then
   if [ "#{node_os_release}" == "16.04" ] ; then
@@ -355,15 +370,15 @@ if [ $split_k8s_version -gt 10 ] ; then
   systemctl daemon-reload
   systemctl restart kubelet
   if [ "#{dep_scenario}" != 'calico' ] && [ "#{dep_scenario}" != 'calicovpp' ]; then
-    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
   else
-    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="10.10.0.0/16" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
   fi
 else
   sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
   systemctl daemon-reload
   systemctl restart kubelet
-  echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+  echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
 fi
 
 echo "Create folder to store kubernetes and network configuration"
@@ -458,9 +473,13 @@ applyVPPnetwork() {
     sed -i -e 's/latest/"#{image_tag}"/' #{contiv_dir}/k8s/contiv-vpp/values.yaml
   fi
 
+  helm_opts="#{helm_extra_opts}"
+  if [ "#{ip_version}" = "ipv6transport" ] || [ "#{ip_version}" = "ipv6" ]; then
+    helm_opts="$helm_opts --set contiv.ipamConfig.nodeInterconnectCIDR=fe10:f00d::/90"
+  fi
   if [ "#{crd_disabled}" = "false" ]; then
     # Deploy contiv-vpp networking with CRD
-    helm template #{helm_extra_opts} --name vagrant $stn_config --set contiv.routeServiceCIDRToVPP=true --set contiv.tapv2RxRingSize=1024 --set contiv.tapv2TxRingSize=1024 --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 --set contiv.ipamConfig.nodeInterconnectCIDR="" "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template --name vagrant $helm_opts $stn_config --set contiv.routeServiceCIDRToVPP=true --set contiv.tapv2RxRingSize=1024 --set contiv.tapv2TxRingSize=1024 --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 --set contiv.ipamConfig.nodeInterconnectCIDR="" "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
 
     # Wait until crd agent is ready
@@ -474,11 +493,11 @@ applyVPPnetwork() {
 
       kubectl apply -f #{contiv_dir}/k8s/node-config/crd.yaml
   else
-    if [ "#{dep_scenario}" = "nostn" ]; then
+    if [ "#{dep_scenario}" = "nostn" ] && [ "#{ip_version}" = "ipv4" ]; then
        gateway_config="--set contiv.ipamConfig.defaultGateway=192.168.16.100"
     fi
     # Deploy contiv-vpp networking without CRD
-    helm template #{helm_extra_opts} --name vagrant $stn_config $gateway_config --set contiv.routeServiceCIDRToVPP=true --set contiv.tapv2RxRingSize=1024 --set contiv.tapv2TxRingSize=1024 "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template --name vagrant $helm_opts $stn_config $gateway_config --set contiv.routeServiceCIDRToVPP=true --set contiv.tapv2RxRingSize=1024 --set contiv.tapv2TxRingSize=1024 "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
   fi
 

@@ -23,6 +23,7 @@ import (
 
 	"github.com/ligato/cn-infra/infra"
 
+	"bytes"
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -31,6 +32,7 @@ import (
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/go-errors/errors"
 	"github.com/ligato/cn-infra/servicelabel"
+	"strings"
 )
 
 const (
@@ -50,7 +52,7 @@ type IPAM struct {
 
 	mutex sync.RWMutex
 
-	excludedIPsfromNodeSubnet []uint32 // IPs from the NodeInterconnect Subnet that should not be assigned
+	excludedIPsfromNodeSubnet []net.IP // IPs from the NodeInterconnect Subnet that should not be assigned
 
 	/********** POD related variables **********/
 	// IPv4 subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
@@ -148,14 +150,14 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 	nodeID := i.NodeSync.GetNodeID()
 
 	// exclude gateway from the set of allocated node IPs
-	i.excludedIPsfromNodeSubnet = []uint32{}
+	i.excludedIPsfromNodeSubnet = []net.IP{}
 	defaultGW := i.ContivConf.GetStaticDefaultGW()
-	if len(defaultGW) > 0 {
-		excluded, err := ipv4ToUint32(defaultGW)
-		if err != nil {
-			return err
-		}
-		i.excludedIPsfromNodeSubnet = []uint32{excluded}
+	gw := defaultGW.To4()
+	if gw == nil {
+		gw = defaultGW.To16()
+	}
+	if len(gw) > 0 {
+		i.excludedIPsfromNodeSubnet = []net.IP{gw}
 	}
 
 	// initialize subnets based on the configuration
@@ -323,13 +325,21 @@ func (i *IPAM) NodeIPAddress(nodeID uint32) (net.IP, *net.IPNet, error) {
 	if err != nil {
 		return net.IP{}, nil, err
 	}
-	maskSize, _ := i.nodeInterconnectSubnet.Mask.Size()
-	mask := net.CIDRMask(maskSize, 32)
+	maskSize, bits := i.nodeInterconnectSubnet.Mask.Size()
+
+	mask := net.CIDRMask(maskSize, bits)
+	ip := make([]byte, len(nodeIP))
+	copy(ip, nodeIP)
 	nodeIPNetwork := &net.IPNet{
-		IP:   newIP(nodeIP).Mask(mask),
+		IP:   net.IP(ip).Mask(mask),
 		Mask: mask,
 	}
 	return nodeIP, nodeIPNetwork, nil
+}
+
+// IsNodeInterconnectIPv6 returns true if nodeInterconnectSubnet is IPv6 range
+func (i *IPAM) IsNodeInterconnectIPv6() bool {
+	return strings.Contains(i.ContivConf.GetIPAMConfig().NodeInterconnectCIDR.String(), ":")
 }
 
 // VxlanIPAddress computes IP address of the VXLAN interface based on the provided node ID.
@@ -620,10 +630,14 @@ func (i *IPAM) computeNodeIPAddress(nodeID uint32) (net.IP, error) {
 		return nil, errors.New("nodeInterconnectCIDR is undefined")
 	}
 
+	addrLen := net.IPv4len * 8
+	if i.IsNodeInterconnectIPv6() {
+		addrLen = net.IPv6len * 8
+	}
 	// trimming nodeID if its place in IP address is narrower than actual uint8 size
 	subnetPrefixLen, _ := i.nodeInterconnectSubnet.Mask.Size()
-	nodePartBitSize := 32 - uint8(subnetPrefixLen)
-	nodeIPPart, err := convertToNodeIPPart(nodeID, nodePartBitSize)
+	nodePartBitSize := addrLen - subnetPrefixLen
+	nodeIPPart, err := convertToNodeIPPart(nodeID, uint8(nodePartBitSize))
 	if err != nil {
 		return nil, err
 	}
@@ -632,21 +646,21 @@ func (i *IPAM) computeNodeIPAddress(nodeID uint32) (net.IP, error) {
 		return nil, fmt.Errorf("no free address for nodeID %v", nodeID)
 	}
 
-	// combining it to get result IP address
-	networkIPPartUint32, err := ipv4ToUint32(i.nodeInterconnectSubnet.IP)
-	if err != nil {
-		return nil, err
-	}
-	computedIP := networkIPPartUint32 + uint32(nodeIPPart)
+	computedIP := addByteSlice(append([]byte(nil), i.nodeInterconnectSubnet.IP...), uint32ToIpv4(nodeIPPart))
 
 	// skip excluded IPs (gateway or other invalid address)
 	for _, ex := range i.excludedIPsfromNodeSubnet {
-		if ex <= computedIP {
-			computedIP++
+		if bytes.Compare(ex, computedIP) <= 0 {
+			for i := len(computedIP) - 1; i >= 0; i-- {
+				computedIP[i]++
+				if computedIP[i] != 0 {
+					break
+				}
+			}
 		}
 	}
 
-	return uint32ToIpv4(computedIP), nil
+	return computedIP, nil
 }
 
 // computeVxlanIPAddress computes IP address of the VXLAN interface based on the given node ID.
@@ -669,4 +683,49 @@ func (i *IPAM) computeVxlanIPAddress(nodeID uint32) (net.IP, error) {
 		return nil, err
 	}
 	return uint32ToIpv4(networkIPPartUint32 + uint32(nodeIPPart)), nil
+}
+
+// addByteSlice adds two numbers represented as a slice of bytes
+// result is returned in newly allocated slice operands are unchanged.
+func addByteSlice(a, b []byte) []byte {
+	r := make([]byte, len(a)+len(b))
+
+	ai := len(a) - 1
+	bi := len(b) - 1
+	var i int
+	for i = len(r) - 1; i >= 0; i-- {
+		if ai < 0 && bi < 0 {
+			break
+		}
+
+		res := uint16(r[i])
+		if ai >= 0 {
+			res += uint16(a[ai])
+		}
+		if bi >= 0 {
+			res += uint16(b[bi])
+		}
+
+		r[i] = byte(res & 0xFF)
+		r[i-1] = byte((res >> 8) & 0xFF)
+
+		// increment indexes
+		if ai >= 0 {
+			ai--
+		}
+
+		if bi >= 0 {
+			bi--
+		}
+
+	}
+
+	// adjust length of resulting slice
+	if r[i] == 0 {
+		i++
+	}
+
+	res := make([]byte, len(r)-i)
+	copy(res, r[i:])
+	return res
 }

@@ -44,6 +44,8 @@ import (
 
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/contiv/vpp/plugins/crd/utils"
+	"github.com/ligato/cn-infra/rpc/rest"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
 
@@ -81,6 +83,8 @@ type Deps struct {
 
 	Resync resync.Subscriber
 
+	HTTP rest.HTTPHandlers
+
 	/* both Publish and Watcher are prefixed for KSR-published K8s state data */
 	Watcher datasync.KeyValProtoWatcher
 	Publish *kvdbsync.Plugin // KeyProtoValWriter does not define Delete
@@ -91,6 +95,10 @@ func (p *Plugin) Init() error {
 	var err error
 	p.Log.SetLevel(logging.DebugLevel)
 	p.verbose = flag.Lookup("verbose").Value.String() == "true"
+	netctlRESTdisabled := os.Getenv("DISABLE_NETCTL_REST")
+	if netctlRESTdisabled == "" {
+		p.HTTP.RegisterHTTPHandler("/netctl", utils.HandleNetctlCommand, "POST")
+	}
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
 

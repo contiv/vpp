@@ -17,9 +17,20 @@
 package utils
 
 import (
+	"context"
+	"encoding/json"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	telemetry "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
+	"github.com/unrolled/render"
+	"io/ioutil"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"net/http"
+	"os/exec"
+	"time"
+)
+
+const (
+	defaultNetctlCommandTimeout = 2 * time.Second
 )
 
 // GetObjectMetaData returns metadata of a given k8s object
@@ -35,4 +46,33 @@ func GetObjectMetaData(obj interface{}) meta.ObjectMeta {
 	}
 
 	return objectMeta
+}
+
+// HandleNetctlCommand executes the contiv-netctl tool with give arguments and sends the output in the response.
+func HandleNetctlCommand(formatter *render.Render) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		defer req.Body.Close()
+		body, err := ioutil.ReadAll(req.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		var args []string
+		err = json.Unmarshal(body, &args)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), defaultNetctlCommandTimeout)
+		defer cancel()
+
+		out, err := exec.CommandContext(ctx, "/contiv-netctl", args...).CombinedOutput()
+		w.Write(out)
+		if err != nil {
+			w.Write([]byte(err.Error()))
+		}
+	}
 }

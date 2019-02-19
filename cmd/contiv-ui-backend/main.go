@@ -29,6 +29,7 @@ import (
 const (
 	k8sURLPrefix = "/api/k8s/"
 	contivPrefix = "/api/contiv/"
+	netctlPrefix = "/api/netctl"
 
 	serviceToken = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	rootCa       = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
@@ -59,6 +60,8 @@ type Config struct {
 	ContivInsecureSkipVerify bool
 	// ContivPort is port where Contiv API is exposed
 	ContivPort int
+	// ContivCRDPort is port where CRD listens, used to execute netctl command
+	ContivCRDport int
 }
 
 type proxy struct {
@@ -186,6 +189,48 @@ func (p *proxy) contivHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func (p *proxy) netctlHandler(w http.ResponseWriter, r *http.Request) {
+	ok := p.IsBasicAuthOK(w, r)
+	if !ok {
+		return
+	}
+	master := r.URL.Query().Get("master")
+	if master == "" {
+		master = "127.0.0.1"
+	}
+	protocol := "http"
+	if p.ContivHTTPSEnabled {
+		protocol = "https"
+	}
+	url := fmt.Sprintf("%v://%v:%v/%v", protocol, master, p.ContivCRDport, "netctl")
+
+	req, err := http.NewRequest(r.Method, url, r.Body)
+	if err != nil {
+		writeServerError(err, w, r)
+		return
+	}
+
+	if p.ContivBasicAuthUser != "" && p.ContivBasicAuthPass != "" {
+		req.SetBasicAuth(p.ContivBasicAuthUser, p.ContivBasicAuthPass)
+	}
+
+	resp, err := p.contivClient.Do(req)
+	if err != nil {
+		writeServerError(err, w, r)
+		return
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		writeServerError(err, w, r)
+		return
+	}
+
+	w.WriteHeader(resp.StatusCode)
+	w.Write(body)
+
+}
+
 func loadConfig(fileName string) (cfg *Config, err error) {
 	data, err := ioutil.ReadFile(fileName)
 	if err != nil {
@@ -271,6 +316,7 @@ func main() {
 	}
 	http.HandleFunc(k8sURLPrefix, p.k8sHandler)
 	http.HandleFunc(contivPrefix, p.contivHandler)
+	http.HandleFunc(netctlPrefix, p.netctlHandler)
 
 	if p.UseHTTPS() {
 		log.Printf("Listening at https://localhost:%v", p.Port)

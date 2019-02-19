@@ -16,6 +16,7 @@ UI is exposed as nodeport service it can be accessed from web browser at `http:/
 In order to forward the service from vagrant machine run:
 
 ```
+vagrant ssh-config > vagrant.conf
 ssh -F vagrant.conf -L 32500:127.0.0.1:32500 k8s-master
 ```
 

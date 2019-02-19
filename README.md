@@ -16,7 +16,7 @@ For more details see [https://contivpp.io/](https://contivpp.io/)
 ## Releases
 |Release|Version|Date|
 |---|---|---|
-|Latest stable release|[![Latest release](https://img.shields.io/github/release/contiv/vpp.svg)](https://github.com/contiv/vpp/releases/latest)|![release date](https://img.shields.io/github/release-date/contiv/vpp.svg?style=flat)|
+|Latest stable release|[![Latest release](https://img.shields.io/github/release/contiv/vpp.svg)](https://github.com/contiv/vpp/releases/latest)|[![release date](https://img.shields.io/github/release-date/contiv/vpp.svg?style=flat)](https://github.com/contiv/vpp/releases/latest)|
 
 Please see the [CHANGELOG](CHANGELOG.md) for a full list of changes on every release.
 

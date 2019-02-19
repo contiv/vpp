@@ -22,6 +22,8 @@ export class VppPodDetailComponent implements OnInit, OnDestroy {
 
   private iface: string;
   private subscriptions: Subscription[];
+  private dataSubscription: Subscription;
+  private nodeId: string;
 
   constructor(
     private route: ActivatedRoute,
@@ -34,24 +36,28 @@ export class VppPodDetailComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.subscriptions = [];
     this.formData = [];
+    setTimeout(() => this.sidepanelService.openSidepanel(), 0);
 
     this.subscriptions.push(
       this.route.params.subscribe(params => {
+        // is ID change
+        if (this.nodeId !== params.id && this.dataSubscription) {
+          this.dataSubscription.unsubscribe();
+        }
 
-        this.subscriptions.push(
-          this.dataService.isContivDataLoaded.subscribe(isLoaded => {
-            if (isLoaded) {
-              this.domain = this.dataService.contivData.getDomainByPodId(params.id);
-              this.pod = this.domain.getPodById(params.id);
+        this.nodeId = params.id;
 
-              const iface = this.domain.getTapByInternalName(this.pod.tapInternalInterface);
-              this.iface = iface ? iface.internalName : '';
-              this.setFormData();
-              this.sidepanelService.openSidepanel();
-              this.topologyHighlightService.highlightNode(params.id);
-            }
-          })
-        );
+        this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(isLoaded => {
+          if (isLoaded) {
+            this.domain = this.dataService.contivData.getDomainByPodId(this.nodeId);
+            this.pod = this.domain.getPodById(this.nodeId);
+
+            const iface = this.domain.getTapByInternalName(this.pod.tapInternalInterface);
+            this.iface = iface ? iface.internalName : '';
+            this.setFormData();
+            this.topologyHighlightService.highlightNode(this.nodeId);
+          }
+        });
       })
     );
   }
@@ -83,6 +89,10 @@ export class VppPodDetailComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subscriptions.forEach(s => s.unsubscribe());
+
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
+    }
   }
 
 }

@@ -63,7 +63,7 @@ index 8d1d270a0..4b249c349 100644
      enablePeriodicHealing: false
 ``` 
 
-Please note that this config can be specified using the [helm chart](../k8s/contiv-vpp), 
+Please note that this config can be specified using the [helm chart](../../k8s/contiv-vpp), 
 and the node config also via CRD.
 
 ## STN Usage

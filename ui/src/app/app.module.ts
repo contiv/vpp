@@ -17,12 +17,10 @@ import { PodTopologyService } from './pod-network/pod-topology.service';
 import { K8sTopologyService } from './kubernetes/k8s-topology.service';
 import { LayoutService } from './shared/services/layout.service';
 import { ModalService } from './shared/services/modal.service';
-import { VswitchDiagramService } from './vswitch-diagram/vswitch-diagram.service';
 
 import { AppComponent } from './app.component';
 import { KubernetesComponent } from './kubernetes/kubernetes.component';
 import { PodNetworkComponent } from './pod-network/pod-network.component';
-import { VppComponent } from './vpp/vpp.component';
 import { SidepanelComponent } from './shared/sidepanel/sidepanel.component';
 import { PodsComponent } from './shared/sidepanel/pods/pods.component';
 import { NodesComponent } from './shared/sidepanel/nodes/nodes.component';
@@ -40,7 +38,6 @@ import { VswitchDetailComponent } from './shared/sidepanel/vswitch-detail/vswitc
 import { VswitchInterfacesModalComponent } from './shared/modals/vswitch-interfaces-modal/vswitch-interfaces-modal.component';
 import { BridgeDomainComponent } from './bridge-domain/bridge-domain.component';
 import { VswitchDiagramComponent } from './vswitch-diagram/vswitch-diagram.component';
-import { VppInterfaceDetailComponent } from './shared/sidepanel/vpp-interface-detail/vpp-interface-detail.component';
 import { VswitchDiagramControlComponent } from './shared/sidepanel/vswitch-diagram-control/vswitch-diagram-control.component';
 import { NodeDetailModalComponent } from './shared/modals/node-detail-modal/node-detail-modal.component';
 import { BridgeDomainControlComponent } from './shared/sidepanel/bridge-domain-control/bridge-domain-control.component';
@@ -54,7 +51,6 @@ import { ServicesTopologyService } from './shared/sidepanel/services/services-to
     AppComponent,
     KubernetesComponent,
     PodNetworkComponent,
-    VppComponent,
     PodsComponent,
     NodesComponent,
     SidepanelComponent,
@@ -72,7 +68,6 @@ import { ServicesTopologyService } from './shared/sidepanel/services/services-to
     VswitchInterfacesModalComponent,
     BridgeDomainComponent,
     VswitchDiagramComponent,
-    VppInterfaceDetailComponent,
     VswitchDiagramControlComponent,
     NodeDetailModalComponent,
     BridgeDomainControlComponent,
@@ -98,7 +93,6 @@ import { ServicesTopologyService } from './shared/sidepanel/services/services-to
     K8sTopologyService,
     LayoutService,
     ModalService,
-    VswitchDiagramService,
     BridgeDomainService,
     ServicesTopologyService
   ],

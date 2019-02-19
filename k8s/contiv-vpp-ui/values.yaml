@@ -12,6 +12,6 @@ contiv:
   basicAuthPass: pass
 
 image:
-  repository: contivvpp
+  repository: contivvpp/ui
   tag: latest
   pullPolicy: IfNotPresent

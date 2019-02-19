@@ -332,5 +332,5 @@ following steps:
   ./contiv-vpp-bug-report.sh -u vagrant -m k8s-master -f <path-to-your-vagrant-ssh-config-file>/vagrant-ssh.conf
 ```
 
-[1]: ../scripts/contiv-vpp-bug-report.sh
-[2]: ../vagrant/README.md
+[1]: ../../scripts/contiv-vpp-bug-report.sh
+[2]: ../../vagrant/README.md

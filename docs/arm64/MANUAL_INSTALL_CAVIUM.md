@@ -586,11 +586,11 @@ rm -rf /var/etcd/contiv-data
 [8]: #tearing-down-kubernetes
 [10]: #14-installing-kubeadm-on-your-hosts
 [11]: ../../vagrant/README.md
-[12]: ../CUSTOM_MGMT_NETWORK.md
-[13]: ../VMWARE_FUSION_HOST.md
-[14]: ../SINGLE_NIC_SETUP.md
-[15]: ../MULTI_NIC_SETUP.md
-[16]: ../SINGLE_NIC_SETUP.md#configuring-stn-in-contiv-vpp-k8s-deployment-files
+[12]: ../setup/CUSTOM_MGMT_NETWORK.md
+[13]: ../setup/VMWARE_FUSION_HOST.md
+[14]: ../setup/SINGLE_NIC_SETUP.md
+[15]: ../setup/MULTI_NIC_SETUP.md
+[16]: ../setup/SINGLE_NIC_SETUP.md#configuring-stn-in-contiv-vpp-k8s-deployment-files
 [17]: ../../k8s/README.md#setup-node-sh
 [18]: https://www.packet.net/bare-metal/servers/c1-large-arm/
 [19]: https://help.packet.net/technical/networking/layer-2-configurations

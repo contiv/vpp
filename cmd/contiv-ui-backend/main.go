@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	k8sURLPrefix = "/k8s/"
-	contivPrefix = "/contiv/"
+	k8sURLPrefix = "/api/k8s/"
+	contivPrefix = "/api/contiv/"
 
 	serviceToken = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	rootCa       = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
@@ -134,6 +134,10 @@ func (p *proxy) k8sHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		writeServerError(err, w, r)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(body)
@@ -171,6 +175,11 @@ func (p *proxy) contivHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		writeServerError(err, w, r)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
 	w.Write(body)
@@ -254,7 +263,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	uiPaths := []string{"/kubernetes/nodes", "/bridge-domain", "/services"}
+	uiPaths := []string{"/kubernetes/nodes", "/bridge-domain", "/services", "/contiv"}
 	fs := http.FileServer(http.Dir("static/"))
 	http.Handle("/", fs)
 	for _, p := range uiPaths {

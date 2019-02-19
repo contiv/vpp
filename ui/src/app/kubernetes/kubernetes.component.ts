@@ -32,7 +32,7 @@ export class KubernetesComponent implements OnInit, OnDestroy {
   public topoData: {nodes: NodeData[], links: EdgeData[], type: TopologyType};
   public namespaces: K8sNamespaceModel[];
 
-  private subscriptions: Subscription[];
+  private dataSubscription: Subscription;
 
   constructor(
     private k8sTopologyService: K8sTopologyService,
@@ -46,7 +46,7 @@ export class KubernetesComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.init();
-    this.subscriptions.push(this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
+    this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
       if (dataLoaded) {
         this.topoData = this.k8sTopologyService.getTopologyData(this.dataService.contivData);
         this.namespaces = this.dataService.contivData.getNamespaces();
@@ -55,7 +55,7 @@ export class KubernetesComponent implements OnInit, OnDestroy {
         topo.setData(this.topoData.nodes, this.topoData.links);
         this.topologyService.setTopologyData(topo);
       }
-    }));
+    });
   }
 
   public setK8sNodesLayer() {
@@ -124,7 +124,6 @@ export class KubernetesComponent implements OnInit, OnDestroy {
   }
 
   private init() {
-    this.subscriptions = [];
     this.topoData = {nodes: [], links: [], type: 'k8s'};
     this.namespaces = [];
     this.layerTitle = 'K8s Nodes';
@@ -135,7 +134,9 @@ export class KubernetesComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    this.subscriptions.forEach(s => s.unsubscribe());
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
+    }
   }
 
 }

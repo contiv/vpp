@@ -23,6 +23,9 @@ export class VppLinkDetailComponent implements OnInit, OnDestroy {
   public iface: VppInterfaceModel;
 
   private subscriptions: Subscription[];
+  private dataSubscription: Subscription;
+  private fromId: string;
+  private toId: string;
 
   constructor(
     private route: ActivatedRoute,
@@ -34,30 +37,34 @@ export class VppLinkDetailComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.subscriptions = [];
     this.ifaceData = [];
+    setTimeout(() => this.sidepanelService.openSidepanel(), 0);
 
     this.subscriptions.push(
       this.route.params.subscribe(params => {
+        // is ID change
+        if (this.fromId !== params.from || this.toId !== params.to) {
+          if (this.dataSubscription) {
+            this.dataSubscription.unsubscribe();
+          }
+        }
 
-        this.subscriptions.push(
-          this.dataService.isContivDataLoaded.subscribe(isLoaded => {
-            if (isLoaded) {
-              this.domain = this.dataService.contivData.getDomainByVswitchId(params.to);
-              if (!this.domain) {
-                this.domain = this.dataService.contivData.getDomainByVswitchId(params.from);
-              }
-
-              this.pod = this.domain.getPodById(params.from);
-              if (!this.pod) {
-                this.pod = this.domain.getPodById(params.to);
-              }
-
-              this.iface = this.domain.getInterfaceByName(this.pod.tapInterface);
-              this.setFormData();
-              this.sidepanelService.openSidepanel();
-              this.topologyHighlightService.highlightLinkBetweenNodes(params.from, params.to);
+        this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(isLoaded => {
+          if (isLoaded) {
+            this.domain = this.dataService.contivData.getDomainByVswitchId(params.to);
+            if (!this.domain) {
+              this.domain = this.dataService.contivData.getDomainByVswitchId(params.from);
             }
-          })
-        );
+
+            this.pod = this.domain.getPodById(params.from);
+            if (!this.pod) {
+              this.pod = this.domain.getPodById(params.to);
+            }
+
+            this.iface = this.domain.getInterfaceByName(this.pod.tapInterface);
+            this.setFormData();
+            this.topologyHighlightService.highlightLinkBetweenNodes(params.from, params.to);
+          }
+        });
       })
     );
   }
@@ -67,10 +74,6 @@ export class VppLinkDetailComponent implements OnInit, OnDestroy {
       {
         label: 'Interface',
         value: this.iface.internalName
-      },
-      {
-        label: 'TAP IP',
-        value: this.iface.IPS
       },
       {
         label: 'MAC',
@@ -96,7 +99,10 @@ export class VppLinkDetailComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subscriptions.forEach(s => s.unsubscribe());
-  }
 
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
+    }
+  }
 
 }

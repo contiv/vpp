@@ -6,6 +6,8 @@ export class EdgeDataModel implements EdgeData {
   public id: string;
   public from: string;
   public to: string;
+  public source: string;
+  public target: string;
   public fromNodeObj: NodeDataModel;
   public toNodeObj: NodeDataModel;
   public color: string;
@@ -42,6 +44,9 @@ export class EdgeDataModel implements EdgeData {
         this[key] = data[key];
       }
     );
+
+    this.source = this.from;
+    this.target = this.to;
   }
 
   public setLinkColor(color: string) {

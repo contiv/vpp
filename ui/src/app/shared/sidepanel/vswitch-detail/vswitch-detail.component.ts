@@ -22,6 +22,8 @@ export class VswitchDetailComponent implements OnInit, OnDestroy {
   public formData: FormObject[];
 
   private subscriptions: Subscription[];
+  private dataSubscription: Subscription;
+  private nodeId: string;
 
   constructor(
     private route: ActivatedRoute,
@@ -35,21 +37,25 @@ export class VswitchDetailComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.subscriptions = [];
     this.formData = [];
+    setTimeout(() => this.sidepanelService.openSidepanel(), 0);
 
     this.subscriptions.push(
       this.route.params.subscribe(params => {
+        // is ID change
+        if (this.nodeId !== params.id && this.dataSubscription) {
+          this.dataSubscription.unsubscribe();
+        }
 
-        this.subscriptions.push(
-          this.dataService.isContivDataLoaded.subscribe(isLoaded => {
-            if (isLoaded) {
-              this.domain = this.dataService.contivData.getDomainByPodId(params.id);
-              this.pod = this.domain.vswitch;
-              this.setFormData();
-              this.sidepanelService.openSidepanel();
-              this.topologyHighlightService.highlightNode(params.id);
-            }
-          })
-        );
+        this.nodeId = params.id;
+
+        this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(isLoaded => {
+          if (isLoaded) {
+            this.domain = this.dataService.contivData.getDomainByPodId(this.nodeId);
+            this.pod = this.domain.vswitch;
+            this.setFormData();
+            this.topologyHighlightService.highlightNode(this.nodeId);
+          }
+        });
       })
     );
   }
@@ -100,7 +106,10 @@ export class VswitchDetailComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subscriptions.forEach(s => s.unsubscribe());
-  }
 
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
+    }
+  }
 
 }

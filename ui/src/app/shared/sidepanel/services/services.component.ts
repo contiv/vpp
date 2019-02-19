@@ -36,7 +36,9 @@ export class ServicesComponent implements OnInit, OnDestroy {
   public svgTransform: SvgTransform;
   public k8sNodes: K8sNodeModel[];
 
-  private subscriptions: Subscription[];
+  private dataSubscription: Subscription;
+  private servicesSubscription: Subscription;
+  private endpointsSubscription: Subscription;
 
   constructor(
     private k8sService: KubernetesService,
@@ -52,33 +54,27 @@ export class ServicesComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.services = [];
     this.k8sNodes = [];
-    this.subscriptions = [];
     this.shownTopology = false;
     this.showAllServices = false;
 
-    this.subscriptions.push(
-      this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
-        if (dataLoaded) {
-          this.k8sNodes = this.dataService.contivData.getK8sNodes();
+    this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
+      if (dataLoaded) {
+        this.k8sNodes = this.dataService.contivData.getK8sNodes();
 
-          this.subscriptions.push(
-            this.k8sService.loadServices().subscribe(services => {
-              this.subscriptions.push(
-                this.k8sService.loadEndpoints().subscribe(endpoints => {
-                  this.services = services;
-                  this.endpoints = endpoints;
-                })
-              );
-            })
-          );
-        } else {
-          this.services = [];
-          this.k8sNodes = [];
-          this.resetService();
-          this.selectedService = null;
-        }
-      })
-    );
+        this.servicesSubscription = this.k8sService.loadServices().subscribe(services => {
+          this.endpointsSubscription = this.k8sService.loadEndpoints().subscribe(endpoints => {
+            this.services = services;
+            this.endpoints = endpoints;
+
+            this.topoData = this.servicesTopologyService.getTopologyData(this.dataService.contivData);
+
+            const topo: TopologyDataModel = new TopologyDataModel();
+            topo.setData(this.topoData.nodes, this.topoData.links);
+            this.topologyService.setTopologyData(topo);
+          });
+        });
+      }
+    });
   }
 
   public selectService(i?: number) {
@@ -97,16 +93,6 @@ export class ServicesComponent implements OnInit, OnDestroy {
 
   public showTopology() {
     this.shownTopology = true;
-
-    this.subscriptions.push(this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
-      if (dataLoaded) {
-        this.topoData = this.servicesTopologyService.getTopologyData(this.dataService.contivData);
-
-        const topo: TopologyDataModel = new TopologyDataModel();
-        topo.setData(this.topoData.nodes, this.topoData.links);
-        this.topologyService.setTopologyData(topo);
-      }
-    }));
   }
 
   public onNodeClicked(data: NodeClickEvent) {
@@ -163,7 +149,17 @@ export class ServicesComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    this.subscriptions.forEach(s => s.unsubscribe());
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
+    }
+
+    if (this.servicesSubscription) {
+      this.servicesSubscription.unsubscribe();
+    }
+
+    if (this.endpointsSubscription) {
+      this.endpointsSubscription.unsubscribe();
+    }
   }
 
 }

@@ -1,41 +1,48 @@
 ## Contiv-VPP Kubernetes Deployment Files
 
-This folder contains a set of files that can be used to deploy Contiv-VPP
-network plugin on Kubernetes.
+This folder contains a set of files and subfolders that can be used to deploy Contiv-VPP
+network plugin on Kubernetes:
+
+* [contiv-vpp.yaml](#contiv-vppyaml) + [contiv-vpp folder](contiv-vpp/README.md) for deployment
+  of Contiv-VPP CNI plugin
+* [contiv-vpp-ui](contiv-vpp-ui/README.md) for deployment of Contiv-VPP user interface
+* [pull-images.sh](#pull-imagessh) for pulling the latest images
+* [stn-install.sh](#stn-installsh) for Steal-The-Nic daemon installation
+* [setup-node.sh](#setup-nodesh) for interactive DPDK setup on individual nodes
+
 
 #### contiv-vpp.yaml
 The main deployment file that can be used to deploy Contiv-VPP network plugin using `kubeadm`:
-```
+```bash
 # deploy
 kubectl apply -f contiv-vpp.yaml
 
 # undeploy
 kubectl delete -f contiv-vpp.yaml
 ```
-Optionally you can edit `contiv-vpp.yaml` to deploy the contivvpp/dev-vswitch image, built
-in local environment with `../docker/build-all.sh`.
-```
-sed -i "s@image: contivvpp/vswitch@image: contivvpp/dev-vswitch:<your image version>@g" ./contiv-vpp.yaml
-```
 
-This manifest can be generated and updated from the contiv-vpp helm chart:
-```
+This manifest can be re-generated from the [contiv-vpp](contiv-vpp/README.md) helm chart:
+```bash
+# from the contiv-vpp repo root
 make generate-manifest
 ```
 
-And optionally, a new manifest can be generated with different configuration values than the defaults in contiv-vpp/values.yaml:
+And optionally, a new manifest can be generated with different configuration values than the 
+defaults in [`contiv-vpp/values.yaml`](contiv-vpp/values.yaml). E.g. to generate YAML with
+a specific vswitch image version:
 ```
 helm template --name contiv-vpp contiv-vpp \
   --set vswitch.image.repository=contivvpp/dev-vswitch \
   --set vswitch.image.tag=<your image version> > dev-contiv-vpp.yaml
 ```
 
-Which can be deployed/undeployed using the above kubectl steps on your newly generated manifest.
-
 To use the development image for testing with specific version of VPP, see
 [DEVIMAGE.md](../docker/DEVIMAGE.md).
 
-**contiv.conf**
+The deployment YAML starts with a config map which can be tweaked either 
+manually or using the [helm options](contiv-vpp/README.md#configuration):
+
+##### contiv.conf
 
   Configuration file for Contiv agent is deployed via the Config map `contiv-agent-cfg`
   into the location `/etc/contiv/contiv.conf` of vSwitch. It includes several options
@@ -87,6 +94,13 @@ To use the development image for testing with specific version of VPP, see
     - `NatExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed
                             with the node IP before being sent out from the node.
 
+
+#### pull-images.sh
+This script can be used to pull the newest version of the `:latest` tag of all Docker images
+that Contiv-VPP plugin uses. This may be needed in case that you have already used Contiv-VPP plugin
+on the host before and have the old (outdated) versions of docker images stored locally.
+
+
 #### stn-install.sh
 Contiv-VPP STN daemon installer / uninstaller, that can be used as follows:
 ```
@@ -97,10 +111,6 @@ Contiv-VPP STN daemon installer / uninstaller, that can be used as follows:
 ./stn-install.sh --uninstall
 ```
 
-#### pull-images.sh
-This script can be used to pull the newest version of the `:latest` tag of all Docker images
-that Contiv-VPP plugin uses. This may be needed in case that you have already used Contiv-VPP plugin
-on the host before and have the old (outdated) versions of docker images stored locally.
 
 #### setup-node.sh
 This script simplifies the setup of multi-node cluster - installs DPDK kernel module, pull the images, interactively creates startup config for vpp,... It has to be

@@ -16,9 +16,11 @@ import { VppService } from '../../services/vpp.service';
 export class VswitchDiagramControlComponent implements OnInit, OnDestroy {
 
   private subscriptions: Subscription[];
+  private dataSubscription: Subscription;
   private domain: ContivNodeDataModel;
+  private vswitchId: string;
   public vswitches: K8sPodModel[];
-  public apis;
+  public apis: any;
   public vswitchSelect: string;
   public apiList: {name: string, fn: any}[];
 
@@ -69,15 +71,20 @@ export class VswitchDiagramControlComponent implements OnInit, OnDestroy {
     this.subscriptions = [];
     this.subscriptions.push(
       this.route.params.subscribe(params => {
-        this.subscriptions.push(
-          this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
-            if (dataLoaded) {
-              this.vswitchSelect = params.id;
-              this.domain = this.dataService.contivData.getDomainByVswitchId(params.id);
-              this.vswitches = this.dataService.contivData.getVswitches();
-            }
-          })
-        );
+        // is ID change
+        if (this.vswitchId !== params.id && this.dataSubscription) {
+          this.dataSubscription.unsubscribe();
+        }
+
+        this.vswitchId = params.id;
+
+        this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(dataLoaded => {
+          if (dataLoaded) {
+            this.vswitchSelect = params.id;
+            this.domain = this.dataService.contivData.getDomainByVswitchId(this.vswitchId);
+            this.vswitches = this.dataService.contivData.getVswitches();
+          }
+        });
       })
     );
   }
@@ -109,6 +116,10 @@ export class VswitchDiagramControlComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subscriptions.forEach(s => s.unsubscribe());
+
+    if (this.dataSubscription) {
+      this.dataSubscription.unsubscribe();
+    }
   }
 
 }

@@ -6,57 +6,65 @@
 [![GoDoc](https://godoc.org/github.com/contiv/vpp?status.svg)](https://godoc.org/github.com/contiv/vpp)
 [![GitHub license](https://img.shields.io/badge/license-Apache%20license%202.0-blue.svg)](https://github.com/contiv/vpp/blob/master/LICENSE)
 
-This Kubernetes network plugin uses FD.io VPP to provide network connectivity
-between PODs. Currently, only Kubernetes 1.9.X and higher versions are supported.
+[Contiv-VPP](https://contivpp.io/) is a Kubernetes CNI plugin for Kubernetes that employs
+a programmable [CNF vSwitch](docs/ARCHITECTURE.md) based on [FD.io VPP](https://fd.io/)
+offering feature-rich, high-performance cloud-native networking and services.
+
+For more details see [https://contivpp.io/](https://contivpp.io/)
+
+
+## Releases
+|Release|Version|Date|
+|---|---|---|
+|Latest stable release|[![Latest release](https://img.shields.io/github/release/contiv/vpp.svg)](https://github.com/contiv/vpp/releases/latest)|![release date](https://img.shields.io/github/release-date/contiv/vpp.svg?style=flat)|
+
+Please see the [CHANGELOG](CHANGELOG.md) for a full list of changes on every release.
+
+
+## Documentation
+The [docs folder](docs) contains lots of documentation. For the begging, you can start with:
+* [ARCHITECTURE](docs/ARCHITECTURE.md) for high-level description of Contiv-VPP
+  components and operation,
+* [NETWORKING](docs/NETWORKING.md) for detailed description on how the network
+  is programmed with Contiv-VPP,
+* [DEVELOPER GUIDE](docs/dev-guide) for details on how Contiv-VPP works internally.
 
 
 ## Quickstart
-You can get started with Contiv-VPP in one of two ways:
-* Use the [Contiv-VPP Vagrant Installation][1] instructions to start a
+You can get started with Contiv-VPP in one of the following ways:
+* Use the [Contiv-VPP Vagrant Installation](vagrant/README.md) instructions to start a
   simulated Kubernetes cluster with a couple of hosts running in VirtualBox
   VMs. This is the easiest way to bring up a cluster for exploring the
   capabilities and features of Contiv-VPP.
 
-* Use the [Contiv-specific kubeadm install][2] instructions to manually
-  install Kubernetes with Contiv-VPP networking on one or more bare-metal
+* Use the [Contiv-specific kubeadm install](docs/setup/MANUAL_INSTALL.md)
+  instructions to manually install Kubernetes with Contiv-VPP networking on one
+  or more bare-metal servers.
 
-* Use the [Arm64-specific kubeadm install][6] instructions to manually
-  install Kubernetes with Contiv-VPP networking on one or more bare-metal
-  of Arm64 platform.
+* Use the [Arm64-specific kubeadm install](docs/arm64/MANUAL_INSTALL_ARM64.md)
+  instructions to manually install Kubernetes with Contiv-VPP networking on one or more
+  bare-metal servers of Arm64 platform.
+
+* Use the [Calico-VPP Vagrant](vagrant/calico-vpp/README.md) to explore deployment of VPP
+  in Calico clusters, where some of the nodes can be running plain Calico (without VPP)
+  and some of the nodes can be running Calico with VPP.
+
+* Try [Contiv-VPP UI](ui/README.md) web browser user interface on top of Contiv-VPP,
+  it runs in Vagrant deployments as well as on bare-metal.
+
 
 ## Configuration & Troubleshooting
-Please refer to the [Contiv-VPP configuration and troubleshooting][7] document.
+Please refer to the [Contiv-VPP configuration and troubleshooting](docs/operation/TOOLS.md) document.
+
 
 ## Reporting Bugs
 In order to report a bug, please file an issue in GitHub. Please provide
-the information described in [Bug Reports README](docs/BUG_REPORTS.md).
+the information described in [Bug Reports README](docs/debugging/BUG_REPORTS.md).
+
 
 ## Communication Channels
 Slack Channel: [https://contivvpp.slack.com/](https://contivvpp.slack.com/)
 
+
 ## Contributing
-
-Contributions to VPP-Agent are welcome. We use the standard pull request
-model. You can either pick an open issue and assign it to yourself or open
-a new issue and discuss your feature.
-
-In any case, before submitting your pull request please check the
-[Coding style][3] and cover the newly added code with tests and
-documentation (Contiv-VPP adopted the coding style used in the [Ligato][5]
-project). Upon submission, each patch is run through the `go fmt` and
-`golint` tools.
-
-
-The tool used for managing third-party dependencies is [Dep][4]. After
- adding or updating a dependency in `Gopkg.toml` run `make install-dep` to
-download the specified dependencies into the vendor folder. Please make sure
-that each dependency in the `Gopkg.toml` has a specific `version` defined
-(a specific commit ID or a git tag).
-
-[1]: vagrant/README.md
-[2]: docs/MANUAL_INSTALL.md
-[3]: https://github.com/ligato/cn-infra/blob/master/docs/guidelines/CODINGSTYLE.md
-[4]: https://github.com/golang/dep
-[5]: https://github.com/ligato
-[6]: docs/arm64/MANUAL_INSTALL_ARM64.md
-[7]: docs/TOOLS.md
+If you are interested in contributing, please see the [contribution guidelines](docs/dev-guide/CONTRIBUTING.md).

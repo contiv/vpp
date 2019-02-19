@@ -83,7 +83,7 @@
 
 ### New Features & Enhancements
  - added `cipherSuites` option for etcd into helm
- - [native PCI driver support for VMware vmxnet3](docs/VMXNET3.md)
+ - [native PCI driver support for VMware vmxnet3](docs/setup/VMXNET3.md)
 
 ### Known Issues
 - load-balancing between backends of a service is limited to the first 256 PODs

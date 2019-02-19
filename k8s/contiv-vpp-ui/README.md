@@ -40,6 +40,7 @@ Parameter | Description | Default
 `uiService.nodePort`|port where the service is exposed| `32500`
 `uiService.useHTTPS`|denotes whether secured HTTP should be used to serve UI|`false`
 `contiv.APIport`|port where Contiv API is exposed|`9999`
+`contiv.CRDport`|port where CRD exposes REST access to netctl|`9090`
 `contiv.useHTTPS`|if set to `true` HTTPS will be used to access Contiv API instead of HTTP | `false`
 `contiv.validateServerCert`| if Contiv API is accessed via HTTPS decides whether server cert should be validated| `false`
 `contiv.useBasicAuth`| if set to true HTTP basic auth credentials will be attached to all requests to Contiv API | `false`

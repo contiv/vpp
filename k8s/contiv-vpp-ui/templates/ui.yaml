@@ -11,6 +11,7 @@ metadata:
 data:
   contiv-ui.conf: |-
     port: 9500
+    contivCRDport: {{ .Values.contiv.CRDport }}
     contivPort: {{ .Values.contiv.APIport }}
     {{- if  .Values.contiv.useHTTPS }}
     contivHTTPSEnabled: {{ .Values.contiv.useHTTPS }}

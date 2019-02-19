@@ -5,6 +5,7 @@ uiService:
 
 contiv:
   APIport: 9999
+  CRDport: 9090
   useHTTPS: false
   validateServerCert: false
   useBasicAuth: false

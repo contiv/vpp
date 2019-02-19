@@ -1241,6 +1241,10 @@ spec:
               value: {{ .Values.crd.validateInterval | quote }}
             - name: CONTIV_CRD_VALIDATE_STATE
               value: {{ .Values.crd.validateState | quote }}
+          {{- if .Values.crd.disableNetctlREST }}
+            - name: DISABLE_NETCTL_REST
+              value: "true"
+          {{- end }}
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd

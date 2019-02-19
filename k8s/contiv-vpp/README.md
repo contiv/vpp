@@ -148,3 +148,4 @@ Parameter | Description | Default
 `bolt.dataDir` | Use hostPath of this directory to persist bolt data (ignored if usePersistentVolume is true) | `/var/bolt`
 `crd.validateInterval` | Interval in minutes between Contiv configuration validations for TelemetryReport CRD | `1`
 `crd.validateState` | Which state of the Contiv configuration to validate for TelemetryReport CRD (options: "SB", "internal", "NB") | `SB`
+`crd.disableNetctlREST` | Disable exposing of contiv-netctl via REST | `false`

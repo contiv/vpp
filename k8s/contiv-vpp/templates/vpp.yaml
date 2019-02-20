@@ -4,6 +4,13 @@
 #   - contiv-vswitch - deployed on each k8s node
 #   - contiv-ksr - deployed on k8s master
 
+{{- $any_addr := "0.0.0.0" -}}
+{{- $localhost_addr := "127.0.0.1" -}}
+{{- if contains ":" .Values.contiv.ipamConfig.podSubnetCIDR }}
+  {{- $any_addr = "[::]" -}}
+  {{- $localhost_addr = "[::1]" -}}
+{{- end }}
+
 ###########################################################
 #  Configuration
 ###########################################################
@@ -160,7 +167,7 @@ data:
     force-socket-removal: true
     permission: 700
   http.conf: |
-    endpoint: 0.0.0.0:9999
+    endpoint: {{ $any_addr }}:9999
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}
@@ -208,7 +215,7 @@ data:
             "type": "host-local",
             "subnet": "usePodCidr"
           },
-          "etcdEndpoints" : "127.0.0.1:{{ .Values.etcd.service.nodePort }}",
+          "etcdEndpoints" : "{{ $localhost_addr }}:{{ .Values.etcd.service.nodePort }}",
           {{- end }}
           "logFile": "/var/run/contiv/cni.log"
         },
@@ -313,12 +320,12 @@ spec:
               --cert-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverCert }} --key-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverKey }}
               --peer-client-cert-auth --peer-trusted-ca-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}
               --peer-cert-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverCert }} --peer-key-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverKey }}
-              --advertise-client-urls=https://0.0.0.0:12379 --listen-client-urls=https://0.0.0.0:12379 --listen-peer-urls=https://0.0.0.0:12380
+              --advertise-client-urls=https://{{ $any_addr }}:12379 --listen-client-urls=https://{{ $any_addr }}:12379 --listen-peer-urls=https://{{ $any_addr }}:12380
               {{- if .Values.etcd.cipherSuites }}
               --cipher-suites {{ include "utils.commaseparated" .Values.etcd.cipherSuites }}
               {{- end }}
             {{- else }}
-              --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380
+              --advertise-client-urls=http://{{ $any_addr }}:12379 --listen-client-urls=http://{{ $any_addr }}:12379 --listen-peer-urls=http://{{ $any_addr }}:12380
             {{- end }}
           volumeMounts:
             - name: var-etcd
@@ -334,7 +341,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - etcdctl get --endpoints=127.0.0.1:{{ .Values.etcd.service.nodePort }} /
+                - etcdctl get --endpoints={{ $localhost_addr }}:{{ .Values.etcd.service.nodePort }} /
             periodSeconds: {{ .Values.etcd.probePeriodSeconds }}
             initialDelaySeconds: {{ .Values.etcd.livenessProbeInitialDelaySeconds }}
           {{- end }}
@@ -446,7 +453,7 @@ metadata:
   namespace: kube-system
 data:
   http.conf: |
-    endpoint: 0.0.0.0:9191
+    endpoint: {{ $any_addr }}:9191
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}
@@ -476,7 +483,7 @@ data:
     dial-timeout: 10000000000
     allow-delayed-start: true
     endpoints:
-      - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
+      - "{{ $localhost_addr }}:{{ .Values.etcd.service.nodePort }}"
 
 ---
 
@@ -501,7 +508,7 @@ data:
     allow-delayed-start: true
     reconnect-interval: 2000000000
     endpoints:
-      - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
+      - "{{ $localhost_addr }}:{{ .Values.etcd.service.nodePort }}"
 
 {{- if .Values.http.enableServerCert }}
 {{- if not .Values.http.mountFromHost }}
@@ -615,10 +622,10 @@ spec:
           - |
             set -eu
           {{- if .Values.etcd.secureTransport }}
-            until /usr/local/bin/etcdctl --endpoints=127.0.0.1:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true \
+            until /usr/local/bin/etcdctl --endpoints={{ $localhost_addr }}:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true \
             --cert=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientCert }} --key=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientKey }} --cacert=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}| grep -m 1 "$HOSTNAME";
           {{- else }}
-            until /usr/local/bin/etcdctl --endpoints=127.0.0.1:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true | grep -m 1 "$HOSTNAME";
+            until /usr/local/bin/etcdctl --endpoints={{ $localhost_addr }}:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true | grep -m 1 "$HOSTNAME";
           {{- end }}
             do
               echo waiting for crd node config;
@@ -985,7 +992,7 @@ spec:
           image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
           {{- end }}
           imagePullPolicy: IfNotPresent
-          command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+          command: ['sh', '-c', 'until nc -w 2 {{ $localhost_addr }}:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:
         - name: contiv-ksr
@@ -1195,7 +1202,7 @@ spec:
           image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
           {{- end }}
           imagePullPolicy: IfNotPresent
-          command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+          command: ['sh', '-c', 'until nc -w 2 {{ $localhost_addr }}:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
         # This init container copies contiv-netctl tool to the host.
         - name: netctl-init
@@ -1397,7 +1404,7 @@ metadata:
   namespace: kube-system
 data:
   http.conf: |
-    endpoint: 0.0.0.0:9090
+    endpoint: {{ $any_addr }}:9090
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}

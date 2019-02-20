@@ -167,7 +167,7 @@ data:
     force-socket-removal: true
     permission: 700
   http.conf: |
-    endpoint: {{ $any_addr }}:9999
+    endpoint: "{{ $any_addr }}:9999"
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}
@@ -453,7 +453,7 @@ metadata:
   namespace: kube-system
 data:
   http.conf: |
-    endpoint: {{ $any_addr }}:9191
+    endpoint: "{{ $any_addr }}:9191"
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}
@@ -1404,7 +1404,7 @@ metadata:
   namespace: kube-system
 data:
   http.conf: |
-    endpoint: {{ $any_addr }}:9090
+    endpoint: "{{ $any_addr }}:9090"
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}

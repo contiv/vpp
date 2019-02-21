@@ -290,9 +290,11 @@ generate-manifest-arm64:
 helm-package:
 	helm package k8s/contiv-vpp/
 
-helm-yaml: generate-manifest
+helm-yaml-latest:
+	helm template k8s/contiv-vpp/ -f k8s/contiv-vpp/values.yaml,k8s/contiv-vpp/values-latest.yaml > k8s/contiv-vpp.yaml
 
-helm-yaml-arm64: generate-manifest-arm64
+helm-yaml-arm64-latest:
+	helm template k8s/contiv-vpp -f k8s/contiv-vpp/values-arm64.yaml,k8s/contiv-vpp/values.yaml,k8s/contiv-vpp/values-latest.yaml > k8s/contiv-vpp-arm64.yaml
 
 # starts dev version of UI accessible at localhost:4200 CORS check must be turned off
 run-debug-ui:

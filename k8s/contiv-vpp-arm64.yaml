@@ -332,7 +332,7 @@ spec:
       initContainers:
         # This container installs the Contiv CNI binaries and CNI network config file on each node.
         - name: contiv-cni
-          image: contivvpp/cni-arm64:2.1.2
+          image: contivvpp/cni-arm64:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: SLEEP
@@ -349,7 +349,7 @@ spec:
 
         # This init container extracts/copies default VPP config to the host and initializes VPP core dumps.
         - name: vpp-init
-          image: contivvpp/vswitch-arm64:2.1.2
+          image: contivvpp/vswitch-arm64:latest
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -396,7 +396,7 @@ spec:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
-          image: contivvpp/vswitch-arm64:2.1.2
+          image: contivvpp/vswitch-arm64:latest
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
@@ -602,7 +602,7 @@ spec:
 
       containers:
         - name: contiv-ksr
-          image: contivvpp/ksr-arm64:2.1.2
+          image: contivvpp/ksr-arm64:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCD_CONFIG
@@ -738,7 +738,7 @@ spec:
 
         # This init container copies contiv-netctl tool to the host.
         - name: netctl-init
-          image: contivvpp/crd-arm64:2.1.2
+          image: contivvpp/crd-arm64:latest
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -759,7 +759,7 @@ spec:
 
       containers:
         - name: contiv-crd
-          image: contivvpp/crd-arm64:2.1.2
+          image: contivvpp/crd-arm64:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCD_CONFIG

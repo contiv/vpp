@@ -158,7 +158,7 @@ crd:
     repository: contivvpp/crd
     # tag: latest
     pullPolicy: IfNotPresent
-  disableNetctlREST: false
+  disableNetctlREST: true
   updateStrategy: RollingUpdate
   validateInterval: 5  # in minutes, 0 to disable
   validateState: SB  # select one of the: "internal", "SB", "NB"

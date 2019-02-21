@@ -770,6 +770,8 @@ spec:
               value: "5"
             - name: CONTIV_CRD_VALIDATE_STATE
               value: "SB"
+            - name: DISABLE_NETCTL_REST
+              value: "true"
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd

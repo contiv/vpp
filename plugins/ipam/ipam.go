@@ -32,6 +32,7 @@ import (
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/go-errors/errors"
 	"github.com/ligato/cn-infra/servicelabel"
+	"math/big"
 	"strings"
 )
 
@@ -55,38 +56,38 @@ type IPAM struct {
 	excludedIPsfromNodeSubnet []net.IP // IPs from the NodeInterconnect Subnet that should not be assigned
 
 	/********** POD related variables **********/
-	// IPv4 subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
+	// IP subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
 	podSubnetAllNodes *net.IPNet
-	// IPv4 subnet prefix for all PODs on this node (given by nodeID), podSubnetAllNodes + nodeID ==<computation>==> podSubnetThisNode
+	// IP subnet prefix for all PODs on this node (given by nodeID), podSubnetAllNodes + nodeID ==<computation>==> podSubnetThisNode
 	podSubnetThisNode *net.IPNet
 	// gateway IP address for PODs on this node (given by nodeID)
 	podSubnetGatewayIP net.IP
 
 	/********** maps to convert between Pod and the assigned IP **********/
 	// pool of assigned POD IP addresses
-	assignedPodIPs map[uintIP]podmodel.ID
+	assignedPodIPs map[string]podmodel.ID
 	// pod -> allocated IP address
 	podToIP map[podmodel.ID]net.IP
 	// counter denoting last assigned pod IP address
 	lastPodIPAssigned int
 
 	/********** VSwitch related variables **********/
-	// IPv4 subnet used across all nodes for VPP to host Linux stack interconnect
+	// IP subnet used across all nodes for VPP to host Linux stack interconnect
 	hostInterconnectSubnetAllNodes *net.IPNet
-	// IPv4 subnet used by this node (given by nodeID) for VPP to host Linux stack interconnect,
+	// IP subnet used by this node (given by nodeID) for VPP to host Linux stack interconnect,
 	// hostInterconnectSubnetAllNodes + nodeID ==<computation>==> hostInterconnectSubnetThisNode
 	hostInterconnectSubnetThisNode *net.IPNet
-	// IPv4 address for virtual ethernet's VPP-end on this node
+	// IP address for virtual ethernet's VPP-end on this node
 	hostInterconnectIPInVpp net.IP
-	// IPv4 address for virtual ethernet's host(Linux)-end on this node
+	// IP address for virtual ethernet's host(Linux)-end on this node
 	hostInterconnectIPInLinux net.IP
 
 	/********** node related variables **********/
-	// IPv4 subnet used for for inter-node connections
+	// IP subnet used for for inter-node connections
 	nodeInterconnectSubnet *net.IPNet
-	// IPv4 subnet used for for inter-node VXLAN
+	// IP subnet used for for inter-node VXLAN
 	vxlanSubnet *net.IPNet
-	// IPv4 subnet used to allocate ClusterIPs for a service
+	// IP subnet used to allocate ClusterIPs for a service
 	serviceCIDR *net.IPNet
 }
 
@@ -98,8 +99,6 @@ type Deps struct {
 	ServiceLabel servicelabel.ReaderAPI
 	EventLoop    controller.EventLoop
 }
-
-type uintIP = uint32
 
 // Init is NOOP - the plugin is initialized during the first resync.
 func (i *IPAM) Init() (err error) {
@@ -180,10 +179,8 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 	i.vxlanSubnet = subnets.VxlanCIDR
 
 	// resync allocated IP addresses
-	networkPrefix, err := ipv4ToUint32(i.podSubnetThisNode.IP)
-	if err != nil {
-		return err
-	}
+	networkPrefix := new(big.Int).SetBytes(i.podSubnetThisNode.IP)
+
 	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
 		pod := podProto.(*podmodel.Pod)
 		// ignore pods deployed on other nodes or without IP address
@@ -193,12 +190,12 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 		}
 
 		// register address as already allocated
-		addrIndex, _ := ipv4ToUint32(podIPAddress)
+		addr := new(big.Int).SetBytes(podIPAddress)
 		podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
-		i.assignedPodIPs[addrIndex] = podID
+		i.assignedPodIPs[podIPAddress.String()] = podID
 		i.podToIP[podID] = podIPAddress
 
-		diff := int(addrIndex - networkPrefix)
+		diff := int(addr.Sub(addr, networkPrefix).Int64())
 		if i.lastPodIPAssigned < diff {
 			i.lastPodIPAssigned = diff
 		}
@@ -226,14 +223,12 @@ func (i *IPAM) initializePods(kubeStateData controller.KubeStateData, config *co
 		return
 	}
 
-	podNetworkPrefixUint32, err := ipv4ToUint32(i.podSubnetThisNode.IP)
+	i.podSubnetGatewayIP, err = cidr.Host(i.podSubnetThisNode, podGatewaySeqID)
 	if err != nil {
-		return
+		return nil
 	}
-
-	i.podSubnetGatewayIP = uint32ToIpv4(podNetworkPrefixUint32 + podGatewaySeqID)
 	i.lastPodIPAssigned = 1
-	i.assignedPodIPs = make(map[uintIP]podmodel.ID)
+	i.assignedPodIPs = make(map[string]podmodel.ID)
 	i.podToIP = make(map[podmodel.ID]net.IP)
 
 	return nil
@@ -285,12 +280,14 @@ func (i *IPAM) initializeVPPHost(config *contivconf.CustomIPAMSubnets, nodeID ui
 		return
 	}
 
-	vSwitchNetworkPrefixUint32, err := ipv4ToUint32(i.hostInterconnectSubnetThisNode.IP)
+	i.hostInterconnectIPInVpp, err = cidr.Host(i.hostInterconnectSubnetThisNode, hostInterconnectInVPPIPSeqID)
 	if err != nil {
 		return
 	}
-	i.hostInterconnectIPInVpp = uint32ToIpv4(vSwitchNetworkPrefixUint32 + hostInterconnectInVPPIPSeqID)
-	i.hostInterconnectIPInLinux = uint32ToIpv4(vSwitchNetworkPrefixUint32 + hostInterconnectInLinuxIPSeqID)
+	i.hostInterconnectIPInLinux, err = cidr.Host(i.hostInterconnectSubnetThisNode, hostInterconnectInLinuxIPSeqID)
+	if err != nil {
+		return
+	}
 	return
 }
 
@@ -337,11 +334,6 @@ func (i *IPAM) NodeIPAddress(nodeID uint32) (net.IP, *net.IPNet, error) {
 	return nodeIP, nodeIPNetwork, nil
 }
 
-// IsNodeInterconnectIPv6 returns true if nodeInterconnectSubnet is IPv6 range
-func (i *IPAM) IsNodeInterconnectIPv6() bool {
-	return strings.Contains(i.ContivConf.GetIPAMConfig().NodeInterconnectCIDR.String(), ":")
-}
-
 // VxlanIPAddress computes IP address of the VXLAN interface based on the provided node ID.
 func (i *IPAM) VxlanIPAddress(nodeID uint32) (net.IP, *net.IPNet, error) {
 	i.mutex.RLock()
@@ -352,7 +344,7 @@ func (i *IPAM) VxlanIPAddress(nodeID uint32) (net.IP, *net.IPNet, error) {
 		return net.IP{}, nil, err
 	}
 	maskSize, _ := i.vxlanSubnet.Mask.Size()
-	mask := net.CIDRMask(maskSize, 32)
+	mask := net.CIDRMask(maskSize, addrLenFromNet(i.vxlanSubnet))
 	vxlanNetwork := &net.IPNet{
 		IP:   newIP(vxlanIP).Mask(mask),
 		Mask: mask,
@@ -360,7 +352,7 @@ func (i *IPAM) VxlanIPAddress(nodeID uint32) (net.IP, *net.IPNet, error) {
 	return vxlanIP, vxlanNetwork, nil
 }
 
-// HostInterconnectIPInVPP provides the IPv4 address for the VPP-end of the VPP-to-host
+// HostInterconnectIPInVPP provides the IP address for the VPP-end of the VPP-to-host
 // interconnect.
 func (i *IPAM) HostInterconnectIPInVPP() net.IP {
 	i.mutex.RLock()
@@ -368,7 +360,7 @@ func (i *IPAM) HostInterconnectIPInVPP() net.IP {
 	return newIP(i.hostInterconnectIPInVpp)
 }
 
-// HostInterconnectIPInLinux provides the IPv4 address of the host(Linux)-end of the VPP to host interconnect.
+// HostInterconnectIPInLinux provides the IP address of the host(Linux)-end of the VPP to host interconnect.
 func (i *IPAM) HostInterconnectIPInLinux() net.IP {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
@@ -475,12 +467,6 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 		return ip.IP, nil
 	}
 
-	// get network prefix as uint32
-	networkPrefix, err := ipv4ToUint32(i.podSubnetThisNode.IP)
-	if err != nil {
-		return nil, err
-	}
-
 	last := i.lastPodIPAssigned + 1
 	// iterate over all possible IP addresses for pod network prefix
 	// start from the last assigned and take first available IP
@@ -488,7 +474,7 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 	// get the maximum sequence ID available in the provided range; the last valid unicast IP is used as "NAT-loopback"
 	maxSeqID := (1 << uint(totalBits-prefixBits)) - 2
 	for j := last; j < maxSeqID; j++ {
-		ipForAssign, success := i.tryToAllocatePodIP(j, networkPrefix, podID)
+		ipForAssign, success := i.tryToAllocatePodIP(j, i.podSubnetThisNode, podID)
 		if success {
 			i.lastPodIPAssigned = j
 			return ipForAssign, nil
@@ -497,7 +483,7 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 
 	// iterate from the range start until lastPodIPAssigned
 	for j := 1; j < last; j++ { // zero ending IP is reserved for network => skip seqID=0
-		ipForAssign, success := i.tryToAllocatePodIP(j, networkPrefix, podID)
+		ipForAssign, success := i.tryToAllocatePodIP(j, i.podSubnetThisNode, podID)
 		if success {
 			i.lastPodIPAssigned = j
 			return ipForAssign, nil
@@ -529,23 +515,25 @@ func (i *IPAM) allocateExternalPodIP(podID podmodel.ID, ipamType string, ipamDat
 }
 
 // tryToAllocatePodIP checks whether the IP at the given index is available.
-func (i *IPAM) tryToAllocatePodIP(index int, networkPrefix uint32, podID podmodel.ID) (assignedIP net.IP, success bool) {
+func (i *IPAM) tryToAllocatePodIP(index int, networkPrefix *net.IPNet, podID podmodel.ID) (assignedIP net.IP, success bool) {
 	if index == podGatewaySeqID {
 		return nil, false // gateway IP address can't be assigned as pod
 	}
-	ip := networkPrefix + uint32(index)
-	if _, found := i.assignedPodIPs[ip]; found {
+	ip, err := cidr.Host(networkPrefix, index)
+	if err != nil {
+		return nil, false
+	}
+	if _, found := i.assignedPodIPs[ip.String()]; found {
 		return nil, false // ignore already assigned IP addresses
 	}
 
-	i.assignedPodIPs[ip] = podID
+	i.assignedPodIPs[ip.String()] = podID
 
-	ipForAssign := uint32ToIpv4(ip)
-	i.podToIP[podID] = ipForAssign
-	i.Log.Infof("Assigned new pod IP %s", ipForAssign)
+	i.podToIP[podID] = ip
+	i.Log.Infof("Assigned new pod IP %s", ip)
 	i.logAssignedPodIPPool()
 
-	return ipForAssign, true
+	return ip, true
 }
 
 // GetPodIP returns the allocated pod IP, together with the mask.
@@ -555,7 +543,8 @@ func (i *IPAM) GetPodIP(podID podmodel.ID) *net.IPNet {
 	if !found {
 		return nil
 	}
-	return &net.IPNet{IP: addr, Mask: net.CIDRMask(net.IPv4len*8, net.IPv4len*8)}
+	addrLen := addrLenFromNet(i.podSubnetThisNode)
+	return &net.IPNet{IP: addr, Mask: net.CIDRMask(addrLen, addrLen)}
 }
 
 // ReleasePodIP releases the pod IP address making it available for new PODs.
@@ -577,8 +566,7 @@ func (i *IPAM) ReleasePodIP(podID podmodel.ID) error {
 		return nil
 	}
 
-	addrIndex, _ := ipv4ToUint32(addr)
-	delete(i.assignedPodIPs, addrIndex)
+	delete(i.assignedPodIPs, addr.String())
 
 	i.logAssignedPodIPPool()
 	return nil
@@ -601,22 +589,13 @@ func dissectSubnetForNode(subnetCIDR *net.IPNet, oneNodePrefixLen uint8, nodeID 
 		return
 	}
 
-	nodePartBitSize := oneNodePrefixLen - uint8(subnetPrefixLen)
-	nodeIPPart, err := convertToNodeIPPart(nodeID, nodePartBitSize)
-	if err != nil {
-		return nil, err
+	newBits := int(oneNodePrefixLen) - subnetPrefixLen
+	num := int(nodeID)
+	// the biggest num is assigned subnet with 0
+	if num == (1 << uint(newBits)) {
+		num = 0
 	}
-
-	subnetIPPartUint32, err := ipv4ToUint32(subnetCIDR.IP)
-	if err != nil {
-		return nil, err
-	}
-	nodeSubnetUint32 := subnetIPPartUint32 + (uint32(nodeIPPart) << (32 - oneNodePrefixLen))
-	nodeSubnet = &net.IPNet{
-		IP:   uint32ToIpv4(nodeSubnetUint32),
-		Mask: net.CIDRMask(int(oneNodePrefixLen), 32),
-	}
-	return
+	return cidr.Subnet(subnetCIDR, newBits, num)
 }
 
 // logAssignedPodIPPool logs assigned POD IPs.
@@ -630,10 +609,8 @@ func (i *IPAM) computeNodeIPAddress(nodeID uint32) (net.IP, error) {
 		return nil, errors.New("nodeInterconnectCIDR is undefined")
 	}
 
-	addrLen := net.IPv4len * 8
-	if i.IsNodeInterconnectIPv6() {
-		addrLen = net.IPv6len * 8
-	}
+	addrLen := addrLenFromNet(i.nodeInterconnectSubnet)
+
 	// trimming nodeID if its place in IP address is narrower than actual uint8 size
 	subnetPrefixLen, _ := i.nodeInterconnectSubnet.Mask.Size()
 	nodePartBitSize := addrLen - subnetPrefixLen
@@ -646,17 +623,15 @@ func (i *IPAM) computeNodeIPAddress(nodeID uint32) (net.IP, error) {
 		return nil, fmt.Errorf("no free address for nodeID %v", nodeID)
 	}
 
-	computedIP := addByteSlice(append([]byte(nil), i.nodeInterconnectSubnet.IP...), uint32ToIpv4(nodeIPPart))
+	computedIP, err := cidr.Host(i.nodeInterconnectSubnet, int(nodeIPPart))
+	if err != nil {
+		return nil, err
+	}
 
 	// skip excluded IPs (gateway or other invalid address)
 	for _, ex := range i.excludedIPsfromNodeSubnet {
 		if bytes.Compare(ex, computedIP) <= 0 {
-			for i := len(computedIP) - 1; i >= 0; i-- {
-				computedIP[i]++
-				if computedIP[i] != 0 {
-					break
-				}
-			}
+			computedIP = cidr.Inc(computedIP)
 		}
 	}
 
@@ -665,10 +640,11 @@ func (i *IPAM) computeNodeIPAddress(nodeID uint32) (net.IP, error) {
 
 // computeVxlanIPAddress computes IP address of the VXLAN interface based on the given node ID.
 func (i *IPAM) computeVxlanIPAddress(nodeID uint32) (net.IP, error) {
-	// trimming nodeID if its place in IP address is narrower than actual uint8 size
+	addrLen := addrLenFromNet(i.vxlanSubnet)
+
 	subnetPrefixLen, _ := i.vxlanSubnet.Mask.Size()
-	nodePartBitSize := 32 - uint8(subnetPrefixLen)
-	nodeIPPart, err := convertToNodeIPPart(nodeID, nodePartBitSize)
+	nodePartBitSize := addrLen - subnetPrefixLen
+	nodeIPPart, err := convertToNodeIPPart(nodeID, uint8(nodePartBitSize))
 	if err != nil {
 		return nil, err
 	}
@@ -678,54 +654,22 @@ func (i *IPAM) computeVxlanIPAddress(nodeID uint32) (net.IP, error) {
 	}
 
 	// combining it to get result IP address
-	networkIPPartUint32, err := ipv4ToUint32(i.vxlanSubnet.IP)
+	computedIP, err := cidr.Host(i.vxlanSubnet, int(nodeIPPart))
 	if err != nil {
 		return nil, err
 	}
-	return uint32ToIpv4(networkIPPartUint32 + uint32(nodeIPPart)), nil
+
+	return computedIP, nil
 }
 
-// addByteSlice adds two numbers represented as a slice of bytes
-// result is returned in newly allocated slice operands are unchanged.
-func addByteSlice(a, b []byte) []byte {
-	r := make([]byte, len(a)+len(b))
+func isIPv6Net(network *net.IPNet) bool {
+	return strings.Contains(network.String(), ":")
+}
 
-	ai := len(a) - 1
-	bi := len(b) - 1
-	var i int
-	for i = len(r) - 1; i >= 0; i-- {
-		if ai < 0 && bi < 0 {
-			break
-		}
-
-		res := uint16(r[i])
-		if ai >= 0 {
-			res += uint16(a[ai])
-		}
-		if bi >= 0 {
-			res += uint16(b[bi])
-		}
-
-		r[i] = byte(res & 0xFF)
-		r[i-1] = byte((res >> 8) & 0xFF)
-
-		// increment indexes
-		if ai >= 0 {
-			ai--
-		}
-
-		if bi >= 0 {
-			bi--
-		}
-
+func addrLenFromNet(network *net.IPNet) int {
+	addrLen := net.IPv4len * 8
+	if isIPv6Net(network) {
+		addrLen = net.IPv6len * 8
 	}
-
-	// adjust length of resulting slice
-	if r[i] == 0 {
-		i++
-	}
-
-	res := make([]byte, len(r)-i)
-	copy(res, r[i:])
-	return res
+	return addrLen
 }

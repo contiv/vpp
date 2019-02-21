@@ -35,33 +35,19 @@ func convertToNodeIPPart(nodeID uint32, expectedNodePartBitSize uint8) (res uint
 	return res, nil
 }
 
-// ipv4ToUint32 is simple utility function for conversion between IPv4 and uint32.
-func ipv4ToUint32(ip net.IP) (uint32, error) {
-	ip = ip.To4()
-	if ip == nil {
-		return 0, fmt.Errorf("Ip address %v is not ipv4 address (or ipv6 convertible to ipv4 address)", ip)
-	}
-	var tmp uint32
-	for _, bytePart := range ip {
-		tmp = tmp<<8 + uint32(bytePart)
-	}
-	return tmp, nil
-}
-
-// uint32ToIpv4 is simple utility function for conversion between IPv4 and uint32.
-func uint32ToIpv4(ip uint32) net.IP {
-	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip)).To4()
-}
-
 // newIPNet is simple utility function to create defend copy of net.IPNet.
 func newIPNet(ipNet *net.IPNet) *net.IPNet {
+	mask := make(net.IPMask, len(ipNet.Mask))
+	copy(mask, ipNet.Mask)
 	return &net.IPNet{
 		IP:   newIP(ipNet.IP),
-		Mask: net.IPv4Mask(ipNet.Mask[0], ipNet.Mask[1], ipNet.Mask[2], ipNet.Mask[3]),
+		Mask: mask,
 	}
 }
 
 // newIP is simple utility function to create defend copy of net.IP.
 func newIP(ip net.IP) net.IP {
-	return net.IPv4(ip[0], ip[1], ip[2], ip[3]).To4()
+	dup := make(net.IP, len(ip))
+	copy(dup, ip)
+	return dup
 }

@@ -462,7 +462,7 @@ applyVPPnetwork() {
 
   if [ "#{crd_disabled}" = "false" ]; then
     # Deploy contiv-vpp networking with CRD
-    helm template ${helm_extra_opts} --name vagrant ${stn_config} --set contiv.crd.disableNetctlREST=false --set contiv.routeServiceCIDRToVPP=true --set contiv.tapv2RxRingSize=1024 --set contiv.tapv2TxRingSize=1024 --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 --set contiv.ipamConfig.nodeInterconnectCIDR="" "#{contiv_dir}"/k8s/contiv-vpp -f "#{contiv_dir}"k8s/contiv-vpp/values.yaml,"#{contiv_dir}"k8s/contiv-vpp/values-latest.yaml > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template ${helm_extra_opts} --name vagrant ${stn_config} --set contiv.crd.disableNetctlREST=false --set contiv.routeServiceCIDRToVPP=true --set contiv.tapv2RxRingSize=1024 --set contiv.tapv2TxRingSize=1024 --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 --set contiv.ipamConfig.nodeInterconnectCIDR="" "#{contiv_dir}"/k8s/contiv-vpp -f "#{contiv_dir}"/k8s/contiv-vpp/values.yaml,"#{contiv_dir}"/k8s/contiv-vpp/values-latest.yaml > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
 
     # Wait until crd agent is ready
@@ -480,7 +480,7 @@ applyVPPnetwork() {
        gateway_config="--set contiv.ipamConfig.defaultGateway=192.168.16.100"
     fi
     # Deploy contiv-vpp networking without CRD
-    helm template ${helm_extra_opts} --name vagrant ${stn_config} ${gateway_config} --set contiv.crd.disableNetctlREST=false --set contiv.routeServiceCIDRToVPP=true --set contiv.tapv2RxRingSize=1024 --set contiv.tapv2TxRingSize=1024 "#{contiv_dir}"/k8s/contiv-vpp -f "#{contiv_dir}"k8s/contiv-vpp/values.yaml,"#{contiv_dir}"k8s/contiv-vpp/values-latest.yaml > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template ${helm_extra_opts} --name vagrant ${stn_config} ${gateway_config} --set contiv.crd.disableNetctlREST=false --set contiv.routeServiceCIDRToVPP=true --set contiv.tapv2RxRingSize=1024 --set contiv.tapv2TxRingSize=1024 "#{contiv_dir}"/k8s/contiv-vpp -f "#{contiv_dir}/"k8s/contiv-vpp/values.yaml,"#{contiv_dir}"/k8s/contiv-vpp/values-latest.yaml > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
   fi
 

@@ -115,7 +115,7 @@ etcd:
 vswitch:
   image:
     repository: contivvpp/vswitch
-    tag: latest
+    # tag: latest
     pullPolicy: IfNotPresent
   enableLivenessReadinessProbes: true
   readinessProbeInitialDelaySeconds: 15
@@ -135,13 +135,13 @@ vswitch:
 cni:
   image:
     repository: contivvpp/cni
-    tag: latest
+    # tag: latest
     pullPolicy: IfNotPresent
 
 ksr:
   image:
     repository: contivvpp/ksr
-    tag: latest
+    # tag: latest
     pullPolicy: IfNotPresent
   updateStrategy: RollingUpdate
   enableLivenessReadinessProbes: true
@@ -156,7 +156,7 @@ ksr:
 crd:
   image:
     repository: contivvpp/crd
-    tag: latest
+    # tag: latest
     pullPolicy: IfNotPresent
   disableNetctlREST: true
   updateStrategy: RollingUpdate

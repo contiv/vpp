@@ -1,0 +1,17 @@
+---
+
+vswitch:
+  image:
+    tag: latest
+
+cni:
+  image:
+    tag: latest
+
+ksr:
+  image:
+    tag: latest
+
+crd:
+  image:
+    tag: latest

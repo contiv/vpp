@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-make generate-manifest
+make helm-yaml-latest
 git diff --exit-code k8s/contiv-vpp.yaml
 
 if [ $? -ne 0 ]; then
@@ -8,7 +8,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-make generate-manifest-arm64
+make helm-yaml-arm64-latest
 git diff --exit-code k8s/contiv-vpp-arm64.yaml
 
 if [ $? -ne 0 ]; then

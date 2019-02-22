@@ -472,7 +472,12 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 	// start from the last assigned and take first available IP
 	prefixBits, totalBits := i.podSubnetThisNode.Mask.Size()
 	// get the maximum sequence ID available in the provided range; the last valid unicast IP is used as "NAT-loopback"
-	maxSeqID := (1 << uint(totalBits-prefixBits)) - 2
+	podBitSize := uint(totalBits - prefixBits)
+	// IPAM currently support up to 2^63 pods
+	if podBitSize >= 64 {
+		podBitSize = 63
+	}
+	maxSeqID := (1 << podBitSize) - 2
 	for j := last; j < maxSeqID; j++ {
 		ipForAssign, success := i.tryToAllocatePodIP(j, i.podSubnetThisNode, podID)
 		if success {

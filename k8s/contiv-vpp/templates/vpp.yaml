@@ -4,12 +4,16 @@
 #   - contiv-vswitch - deployed on each k8s node
 #   - contiv-ksr - deployed on k8s master
 
-{{- $any_addr := "0.0.0.0" -}}
-{{- $localhost_addr := "127.0.0.1" -}}
 {{- if contains ":" .Values.contiv.ipamConfig.podSubnetCIDR }}
-  {{- $any_addr = "[::]" -}}
-  {{- $localhost_addr = "[::1]" -}}
+  {{- $ignored := set . "any_addr_tmp" "[::]" }}
+  {{- $ignored := set . "localhost_addr_tmp" "[::1]" }}
+{{- else }}
+  {{- $ignored := set . "any_addr_tmp" "0.0.0.0" }}
+  {{- $ignored := set . "localhost_addr_tmp" "127.0.0.1" }}
 {{- end }}
+
+{{- $any_addr := .any_addr_tmp -}}
+{{- $localhost_addr := .localhost_addr_tmp }}
 
 ###########################################################
 #  Configuration

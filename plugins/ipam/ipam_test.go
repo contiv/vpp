@@ -249,6 +249,24 @@ func TestBasicAllocateReleasePodAddressIPv6(t *testing.T) {
 	Expect(err).To(BeNil())
 }
 
+// TestWideIPv6PodSubenet verifies pod IP allocation in cases where more than 64 bits is reserved for pod Subnet on a node
+func TestWideIPv6PodSubenet(t *testing.T) {
+	customConfig := newDefaultConfig()
+	customConfig.IPAMConfig.PodSubnetCIDR = "2001::/48"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 60
+
+	i := setup(t, customConfig)
+	Expect(i).NotTo(BeNil())
+
+	ip, err := i.AllocatePodIP(podID[0], "", "")
+	Expect(err).To(BeNil())
+	Expect(ip).NotTo(BeNil())
+	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+
+	err = i.ReleasePodIP(podID[0])
+	Expect(err).To(BeNil())
+}
+
 // TestAlreadyAllocated tests that repeated allocation for a given podID returns the same IP
 func TestAlreadyAllocatedAddress(t *testing.T) {
 	i := setup(t, newDefaultConfig())

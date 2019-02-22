@@ -27,7 +27,7 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
-	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
+	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vpp/ifplugin"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"

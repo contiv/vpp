@@ -28,7 +28,7 @@ import (
 
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/l2"
-	"github.com/ligato/vpp-agent/pkg/idxvpp2"
+	"github.com/ligato/vpp-agent/pkg/idxvpp"
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
@@ -195,7 +195,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 				Name: vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[0].Value.Name,
 			},
 		},
-		Metadata: idxvpp2.OnlyIndex{
+		Metadata: idxvpp.OnlyIndex{
 			Index: 2,
 		},
 	}

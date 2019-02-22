@@ -31,9 +31,9 @@ import (
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/remote"
-	"github.com/ligato/vpp-agent/plugins/restv2/resturl"
-	vppif "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
-	arpdescr "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/descriptor"
+	"github.com/ligato/vpp-agent/plugins/restapi/resturl"
+	vppif "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
+	arpdescr "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/descriptor"
 )
 
 type nodeData struct {

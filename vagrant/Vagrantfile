@@ -59,6 +59,7 @@ master_memory = ENV['K8S_MASTER_MEMORY'].to_i == 0 ? 4096 : ENV['K8S_MASTER_MEMO
 dep_env = ENV['K8S_DEPLOYMENT_ENV']
 dep_scenario = ENV['K8S_DEPLOYMENT_SCENARIO']
 base_ip = ENV['K8S_IP_PREFIX'] || '10.20.0.'
+base_prefix_len = ENV['K8S_IP_PREFIX_LEN'] || '24'
 provider = ENV['VAGRANT_DEFAULT_PROVIDER']
 image_tag = ENV['CONTIV_IMAGE_TAG']
 go_version= ENV['GO_VERSION']
@@ -69,9 +70,15 @@ ip_version=ENV['IP_VERSION'] || 'ipv4'
 contiv_dir="/home/vagrant/gopath/src/github.com/contiv/vpp"
 helm_extra_opts = ENV['HELM_EXTRA_OPTS'] || ''
 
-if (ip_version == 'ipv6transport'  || ip_version == 'ipv6' )
+if (ip_version == 'ipv6transport' || ip_version == 'ipv6' )
     # ipv6 requires vagrant box with a newer OS version
     node_os_release = '18.04'
+end
+
+if (ip_version == 'ipv6' && base_ip == '10.20.0.')
+    # use ipv6 mgmt address
+    base_ip = '2001:fd00::'
+    base_prefix_len = '64'
 end
 
 provision_every_node = <<SCRIPT
@@ -180,6 +187,15 @@ SCRIPT
 vbox_provision_every_node = <<SCRIPT
 set -e
 set -x
+
+# ipv6 networking setup
+if [ "#{ip_version}" == "ipv6" ]; then
+    # enable ip6 forwarding
+    sysctl -w net.ipv6.conf.all.forwarding=1
+
+    # add default ipv6 route via mgmt interface, to make kube-proxy working properly
+    ip -6 route add default via #{base_ip}1 dev enp0s9
+fi
 
 #Load uio_pci_generic driver and setup the loading on each boot up
 installPCIUIO() {
@@ -355,7 +371,7 @@ service_cidr="10.96.0.0/12"
 pod_network_cidr="10.10.0.0/16"
 if [ "#{ip_version}" == "ipv6" ]; then
   pod_network_cidr="2001::/16"
-  service_cidr="2096::/64"
+  service_cidr="2096::/110"
 elif [ "#{dep_scenario}" != 'calico' ] && [ "#{dep_scenario}" != 'calicovpp' ]; then
   pod_network_cidr="10.0.0.0/8"
 fi
@@ -476,6 +492,11 @@ applyVPPnetwork() {
   helm_opts="#{helm_extra_opts}"
   if [ "#{ip_version}" = "ipv6transport" ] || [ "#{ip_version}" = "ipv6" ]; then
     helm_opts="$helm_opts --set contiv.ipamConfig.nodeInterconnectCIDR=fe10:f00d::/90"
+  fi
+  if [ "#{ip_version}" = "ipv6" ]; then
+    helm_opts="$helm_opts --set contiv.ipamConfig.podSubnetCIDR=2001::/48 --set contiv.ipamConfig.podSubnetOneNodePrefixLen=64"
+    helm_opts="$helm_opts --set contiv.ipamConfig.vppHostSubnetCIDR=2002::/64 --set contiv.ipamConfig.vppHostSubnetOneNodePrefixLen=112"
+    helm_opts="$helm_opts --set contiv.ipamConfig.vxlanCIDR=2005::/112"
   fi
   if [ "#{crd_disabled}" = "false" ]; then
     # Deploy contiv-vpp networking with CRD
@@ -612,7 +633,12 @@ else
 fi
 
 hash=$(awk 'END {print $NF}' /vagrant/config/cert)
-kubeadm join --token "${KUBEADM_TOKEN}"  "${KUBE_MASTER_IP}":6443 --discovery-token-ca-cert-hash "$hash"
+
+if [ "#{ip_version}" != "ipv6" ]; then
+  kubeadm join --token "${KUBEADM_TOKEN}"  "${KUBE_MASTER_IP}":6443 --discovery-token-ca-cert-hash "$hash"
+else
+  kubeadm join --token "${KUBEADM_TOKEN}"  ["${KUBE_MASTER_IP}"]:6443 --discovery-token-ca-cert-hash "$hash"
+fi
 SCRIPT
 
 vbox_provision_gateway = <<SCRIPT
@@ -746,7 +772,7 @@ VAGRANTFILE_API_VERSION = "2"
           inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
       else
         k8smaster.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
-        k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
+        k8smaster.vm.network :private_network, ip: k8smaster_ip, netmask: "#{base_prefix_len}", virtualbox__intnet: "true"
       end
 
       k8smaster.vm.provider "virtualbox" do |v|
@@ -787,7 +813,7 @@ VAGRANTFILE_API_VERSION = "2"
             inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
         else
           node.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
-          node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
+          node.vm.network :private_network, ip: node_addr, netmask: "#{base_prefix_len}", virtualbox__intnet: "true"
         end
 
         node.vm.provider "virtualbox" do |v|

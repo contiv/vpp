@@ -323,7 +323,7 @@ func (n *IPv4Net) loopbackInterface(ips contivconf.IPsWithNetworks) (key string,
 // defaultRoute return configuration for default route connecting the node with the outside world.
 func (n *IPv4Net) defaultRoute(gwIP net.IP, outIfName string) (key string, config *vpp_l3.Route) {
 	route := &vpp_l3.Route{
-		DstNetwork:        ipv4NetAny,
+		DstNetwork:        anyNetAddrForAF(gwIP),
 		NextHopAddr:       gwIP.String(),
 		OutgoingInterface: outIfName,
 		VrfId:             n.ContivConf.GetRoutingConfig().MainVRFID,
@@ -342,10 +342,10 @@ func (n *IPv4Net) routesPodToMainVRF() map[string]*vpp_l3.Route {
 	// by default to go from Pod VRF via Main VRF
 	r1 := &vpp_l3.Route{
 		Type:        vpp_l3.Route_INTER_VRF,
-		DstNetwork:  ipv4NetAny,
+		DstNetwork:  anyNetAddrForAF(n.IPAM.PodGatewayIP()),
 		VrfId:       routingCfg.PodVRFID,
 		ViaVrfId:    routingCfg.MainVRFID,
-		NextHopAddr: ipv4AddrAny,
+		NextHopAddr: anyAddrForAF(n.IPAM.PodGatewayIP()),
 	}
 	r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 	routes[r1Key] = r1
@@ -358,7 +358,7 @@ func (n *IPv4Net) routesPodToMainVRF() map[string]*vpp_l3.Route {
 			DstNetwork:  n.IPAM.HostInterconnectSubnetThisNode().String(),
 			VrfId:       routingCfg.PodVRFID,
 			ViaVrfId:    routingCfg.MainVRFID,
-			NextHopAddr: ipv4AddrAny,
+			NextHopAddr: anyAddrForAF(n.IPAM.HostInterconnectSubnetThisNode().IP),
 		}
 		r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
 		routes[r2Key] = r2
@@ -379,7 +379,7 @@ func (n *IPv4Net) routesMainToPodVRF() map[string]*vpp_l3.Route {
 			DstNetwork:  n.IPAM.PodSubnetAllNodes().String(),
 			VrfId:       routingCfg.MainVRFID,
 			ViaVrfId:    routingCfg.PodVRFID,
-			NextHopAddr: ipv4AddrAny,
+			NextHopAddr: anyAddrForAF(n.IPAM.PodSubnetAllNodes().IP),
 		}
 		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 		routes[r1Key] = r1
@@ -390,7 +390,7 @@ func (n *IPv4Net) routesMainToPodVRF() map[string]*vpp_l3.Route {
 			DstNetwork:  n.IPAM.HostInterconnectSubnetAllNodes().String(),
 			VrfId:       routingCfg.MainVRFID,
 			ViaVrfId:    routingCfg.PodVRFID,
-			NextHopAddr: ipv4AddrAny,
+			NextHopAddr: anyAddrForAF(n.IPAM.HostInterconnectSubnetAllNodes().IP),
 		}
 		r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
 		routes[r2Key] = r2
@@ -401,7 +401,7 @@ func (n *IPv4Net) routesMainToPodVRF() map[string]*vpp_l3.Route {
 			DstNetwork:  n.IPAM.PodSubnetThisNode().String(),
 			VrfId:       routingCfg.MainVRFID,
 			ViaVrfId:    routingCfg.PodVRFID,
-			NextHopAddr: ipv4AddrAny,
+			NextHopAddr: anyAddrForAF(n.IPAM.PodSubnetThisNode().IP),
 		}
 		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 		routes[r1Key] = r1
@@ -439,7 +439,7 @@ func (n *IPv4Net) dropRoute(vrfID uint32, dstAddr *net.IPNet) *vpp_l3.Route {
 		Type:        vpp_l3.Route_DROP,
 		DstNetwork:  dstAddr.String(),
 		VrfId:       vrfID,
-		NextHopAddr: ipv4AddrAny,
+		NextHopAddr: anyAddrForAF(dstAddr.IP),
 	}
 }
 
@@ -624,7 +624,7 @@ func (n *IPv4Net) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (
 		return "", nil
 	}
 	route := &vpp_l3.Route{
-		DstNetwork:  managementIP.String() + "/32",
+		DstNetwork:  managementIP.String() + hostPrefixForAF(managementIP),
 		NextHopAddr: nextHopIP.String(),
 	}
 	if n.ContivConf.GetRoutingConfig().UseL2Interconnect {
@@ -643,10 +643,10 @@ func (n *IPv4Net) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (
 func (n *IPv4Net) routeToOtherNodeManagementIPViaPodVRF(managementIP net.IP) (key string, config *vpp_l3.Route) {
 	route := &vpp_l3.Route{
 		Type:        vpp_l3.Route_INTER_VRF,
-		DstNetwork:  managementIP.String() + "/32",
+		DstNetwork:  managementIP.String() + hostPrefixForAF(managementIP),
 		VrfId:       n.ContivConf.GetRoutingConfig().MainVRFID,
 		ViaVrfId:    n.ContivConf.GetRoutingConfig().PodVRFID,
-		NextHopAddr: ipv4AddrAny,
+		NextHopAddr: anyAddrForAF(managementIP),
 	}
 	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	return key, route

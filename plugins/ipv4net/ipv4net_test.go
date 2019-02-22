@@ -332,7 +332,7 @@ func TestBasicStuff(t *testing.T) {
 	txn = txnTracker.NewControllerTxn(false)
 	change, err = plugin.Update(addPodEvent, txn)
 	Expect(err).To(BeNil())
-	Expect(change).To(Equal("configure IPv4 connectivity"))
+	Expect(change).To(Equal("configure IP connectivity"))
 	err = commitTransaction(txn, false)
 	Expect(err).To(BeNil())
 	txnCount++

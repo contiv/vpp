@@ -103,23 +103,29 @@ func (n *IPv4Net) addPod(event *podmanager.AddPod, txn controller.UpdateOperatio
 
 	// 5. fill event with the attributes of the configured pod connectivity for the CNI reply
 
+	ipVersion := podmanager.IPv4
+	if isIPv6(n.IPAM.GetPodIP(pod.ID).IP) {
+		ipVersion = podmanager.IPv6
+	}
+
 	event.Interfaces = append(event.Interfaces, podmanager.PodInterface{
 		HostName: podInterfaceHostName,
 		IPAddresses: []*podmanager.IPWithGateway{
 			{
-				Version: podmanager.IPv4,
+				Version: ipVersion,
 				Address: n.IPAM.GetPodIP(pod.ID),
 				Gateway: n.IPAM.PodGatewayIP(),
 			},
 		},
 	})
-	_, anyDstNet, _ := net.ParseCIDR("0.0.0.0/0")
+	_, anyDstNet, _ := net.ParseCIDR(anyNetAddrForAF(n.IPAM.PodGatewayIP()))
+
 	event.Routes = append(event.Routes, podmanager.Route{
 		Network: anyDstNet,
 		Gateway: n.IPAM.PodGatewayIP(),
 	})
 
-	return "configure IPv4 connectivity", nil
+	return "configure IP connectivity", nil
 }
 
 // deletePod disconnects a Pod container from the network.

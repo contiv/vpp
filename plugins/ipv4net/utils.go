@@ -16,7 +16,6 @@ package ipv4net
 
 import (
 	"encoding/binary"
-	"fmt"
 	"net"
 	"strings"
 
@@ -27,6 +26,22 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/ip"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/stats"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/vpe"
+)
+
+const (
+	ipv6AddrDelimiter = ":"
+
+	// any IPv4 address
+	ipv4AddrAny = "0.0.0.0"
+	ipv4NetAny  = ipv4AddrAny + "/0"
+
+	// any IPv6 address
+	ipv6AddrAny = "::"
+	ipv6NetAny  = ipv6AddrAny + "/0"
+
+	// host prefixes
+	ipv4HostPrefix = "/32"
+	ipv6HostPrefix = "/128"
 )
 
 // getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
@@ -146,24 +161,6 @@ func ipNetToString(ipNet *net.IPNet) string {
 	return ipNet.String()
 }
 
-// ipv4ToUint32 is a simple utility function for conversion from IPv4 to uint32.
-func ipv4ToUint32(ip net.IP) (uint32, error) {
-	ip = ip.To4()
-	if ip == nil {
-		return 0, fmt.Errorf("IP address %v is not ipv4 address (or ipv6 convertible to ipv4 address)", ip)
-	}
-	var tmp uint32
-	for _, bytePart := range ip {
-		tmp = tmp<<8 + uint32(bytePart)
-	}
-	return tmp, nil
-}
-
-// uint32ToIpv4 is a simple utility function for conversion from uint32 to IPv4.
-func uint32ToIpv4(ip uint32) net.IP {
-	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip)).To4()
-}
-
 // interfaceRxModeType returns interface rx-mode type from provided string.
 func interfaceRxModeType(rxMode string) vpp_interfaces.Interface_RxModeSettings_RxModeType {
 	switch rxMode {
@@ -176,4 +173,39 @@ func interfaceRxModeType(rxMode string) vpp_interfaces.Interface_RxModeSettings_
 	default:
 		return vpp_interfaces.Interface_RxModeSettings_DEFAULT
 	}
+}
+
+// isIPv6 returns true if the IP address is an IPv6 address, false otherwise.
+func isIPv6(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	return strings.Contains(ip.String(), ipv6AddrDelimiter)
+}
+
+// hostPrefixForAF returns prefix length string to address a host
+// for address family determined from given IP address.
+func hostPrefixForAF(ip net.IP) string {
+	if isIPv6(ip) {
+		return ipv6HostPrefix
+	}
+	return ipv4HostPrefix
+}
+
+// anyAddrForAF returns IP address identifying "any" node
+// for address family determined from given IP address.
+func anyAddrForAF(ip net.IP) string {
+	if isIPv6(ip) {
+		return ipv6AddrAny
+	}
+	return ipv4AddrAny
+}
+
+// anyNetAddrForAF returns address + prefix identifying "any" node
+// for address family determined from given IP address (can be used e.g. for default routes).
+func anyNetAddrForAF(ip net.IP) string {
+	if isIPv6(ip) {
+		return ipv6NetAny
+	}
+	return ipv4NetAny
 }

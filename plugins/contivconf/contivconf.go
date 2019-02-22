@@ -394,6 +394,15 @@ func (c *ContivConf) Init() (err error) {
 			return fmt.Errorf("failed to parse default gateway %v", c.config.IPAMConfig.DefaultGateway)
 		}
 	}
+	if c.config.IPAMConfig.PodSubnetCIDR != "" && strings.Contains(c.config.IPAMConfig.PodSubnetCIDR, ":") {
+		c.ipamConfig.UseIPv6 = true
+	}
+	if c.config.IPAMConfig.ContivCIDR != "" {
+		if strings.Contains(c.config.IPAMConfig.ContivCIDR, ":") {
+			c.ipamConfig.UseIPv6 = true
+		}
+		c.ipamConfig.UseIPv6 = false
+	}
 
 	// create GoVPP channel for contiv-agent
 	if c.ContivAgentDeps != nil && c.UnitTestDeps == nil {

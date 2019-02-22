@@ -95,31 +95,33 @@ func (p *Plugin) Init() error {
 			PodManager:   p.PodManager,
 		},
 	}
+	p.processor.Init()
 
-	p.nat44Renderer = &nat44.Renderer{
-		Deps: nat44.Deps{
-			Log:        p.Log.NewLogger("-nat44Renderer"),
-			Config:     p.config,
-			ContivConf: p.ContivConf,
-			IPAM:       p.IPAM,
-			IPv4Net:    p.IPv4Net,
-			GoVPPChan:  goVppCh,
-			UpdateTxnFactory: func(change string) controller.UpdateOperations {
-				p.changes = append(p.changes, change)
-				return p.updateTxn
+	if !p.ContivConf.GetIPAMConfig().UseIPv6 {
+		p.nat44Renderer = &nat44.Renderer{
+			Deps: nat44.Deps{
+				Log:        p.Log.NewLogger("-nat44Renderer"),
+				Config:     p.config,
+				ContivConf: p.ContivConf,
+				IPAM:       p.IPAM,
+				IPv4Net:    p.IPv4Net,
+				GoVPPChan:  goVppCh,
+				UpdateTxnFactory: func(change string) controller.UpdateOperations {
+					p.changes = append(p.changes, change)
+					return p.updateTxn
+				},
+				ResyncTxnFactory: func() controller.ResyncOperations {
+					return p.resyncTxn
+				},
+				Stats: p.Stats,
 			},
-			ResyncTxnFactory: func() controller.ResyncOperations {
-				return p.resyncTxn
-			},
-			Stats: p.Stats,
-		},
+		}
+
+		p.nat44Renderer.Init(false)
+		// Register renderer.
+		p.processor.RegisterRenderer(p.nat44Renderer)
 	}
 
-	p.processor.Init()
-	p.nat44Renderer.Init(false)
-
-	// Register renderers.
-	p.processor.RegisterRenderer(p.nat44Renderer)
 	return nil
 }
 
@@ -128,7 +130,10 @@ func (p *Plugin) Init() error {
 // resync of the Contiv plugin has finished.
 func (p *Plugin) AfterInit() error {
 	p.processor.AfterInit()
-	p.nat44Renderer.AfterInit()
+
+	if p.nat44Renderer != nil {
+		p.nat44Renderer.AfterInit()
+	}
 	return nil
 }
 

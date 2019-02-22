@@ -15,7 +15,6 @@
 package ipv4net
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 
@@ -249,10 +248,10 @@ func (n *IPv4Net) interconnectVethHost() (key string, config *linux_interfaces.I
 func (n *IPv4Net) routesToHost(nextHopIP net.IP) map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)
 
-	// generate a /32 static route from VPP for each of the host's IPs
+	// generate a /32 (or /128 for ipv6) static route from VPP for each of the host's IPs
 	for _, ip := range n.hostIPs {
 		route := &vpp_l3.Route{
-			DstNetwork:        fmt.Sprintf("%s/32", ip.String()),
+			DstNetwork:        ip.String() + hostPrefixForAF(ip),
 			NextHopAddr:       nextHopIP.String(),
 			OutgoingInterface: n.hostInterconnectVPPIfName(),
 			VrfId:             n.ContivConf.GetRoutingConfig().MainVRFID,
@@ -394,7 +393,7 @@ func (n *IPv4Net) stnRoutesForVPP() map[string]*vpp_l3.Route {
 			VrfId:             n.ContivConf.GetRoutingConfig().MainVRFID,
 		}
 		if route.DstNetwork == "" {
-			route.DstNetwork = ipv4NetAny
+			route.DstNetwork = anyNetAddrForAF(net.ParseIP(stnRoute.NextHopIp))
 		}
 		key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 		routes[key] = route
@@ -419,7 +418,7 @@ func (n *IPv4Net) stnRoutesForHost() map[string]*linux_l3.Route {
 			OutgoingInterface: n.hostInterconnectLinuxIfName(),
 		}
 		if route.DstNetwork == "" {
-			route.DstNetwork = ipv4NetAny
+			route.DstNetwork = anyNetAddrForAF(net.ParseIP(stnRoute.NextHopIp))
 		}
 		key := linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
 		routes[key] = route

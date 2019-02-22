@@ -94,7 +94,7 @@ func (n *IPv4Net) podConnectivityConfig(pod *podmanager.LocalPod) (config contro
 	key, vppRoute := n.vppToPodRoute(pod)
 	config[key] = vppRoute
 
-	// /32 route from the host to POD (only in external IPAM case)
+	// /32 (or /128 for ipv6) route from the host to POD (only in external IPAM case)
 	if n.ContivConf.GetIPAMConfig().UseExternalIPAM {
 		key, route := n.hostToPodRoute(pod)
 		config[key] = route
@@ -300,7 +300,7 @@ func (n *IPv4Net) podToVPPLinkRoute(pod *podmanager.LocalPod) (key string, confi
 	route := &linux_l3.Route{
 		OutgoingInterface: linuxIfName,
 		Scope:             linux_l3.Route_LINK,
-		DstNetwork:        n.IPAM.PodGatewayIP().String() + "/32",
+		DstNetwork:        n.IPAM.PodGatewayIP().String() + hostPrefixForAF(n.IPAM.PodGatewayIP()),
 	}
 	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
 	return key, route
@@ -311,7 +311,7 @@ func (n *IPv4Net) podToVPPDefaultRoute(pod *podmanager.LocalPod) (key string, co
 	_, linuxIfName := n.podInterfaceName(pod)
 	route := &linux_l3.Route{
 		OutgoingInterface: linuxIfName,
-		DstNetwork:        ipv4NetAny,
+		DstNetwork:        anyNetAddrForAF(n.IPAM.PodGatewayIP()),
 		Scope:             linux_l3.Route_GLOBAL,
 		GwAddr:            n.IPAM.PodGatewayIP().String(),
 	}
@@ -356,7 +356,7 @@ func (n *IPv4Net) vppToPodRoute(pod *podmanager.LocalPod) (key string, config *v
 func (n *IPv4Net) hostToPodRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.Route) {
 	podIP := n.IPAM.GetPodIP(pod.ID)
 	route := &linux_l3.Route{
-		DstNetwork: fmt.Sprintf("%s/32", podIP.IP.String()),
+		DstNetwork: podIP.IP.String() + hostPrefixForAF(podIP.IP),
 		Scope:      linux_l3.Route_GLOBAL,
 	}
 	if !n.ContivConf.InSTNMode() {

@@ -496,7 +496,7 @@ applyVPPnetwork() {
   if [ "#{ip_version}" = "ipv6" ]; then
     helm_opts="$helm_opts --set contiv.ipamConfig.podSubnetCIDR=2001::/48 --set contiv.ipamConfig.podSubnetOneNodePrefixLen=64"
     helm_opts="$helm_opts --set contiv.ipamConfig.vppHostSubnetCIDR=2002::/64 --set contiv.ipamConfig.vppHostSubnetOneNodePrefixLen=112"
-    helm_opts="$helm_opts --set contiv.ipamConfig.vxlanCIDR=2005::/112"
+    helm_opts="$helm_opts --set contiv.ipamConfig.vxlanCIDR=2005::/112 --set contiv.ipamConfig.serviceCIDR=2096::/110"
   fi
   if [ "#{crd_disabled}" = "false" ]; then
     # Deploy contiv-vpp networking with CRD

@@ -5,10 +5,12 @@ Contiv-VPP supports load balancing for
 on VPP (as opposed to kube-proxy) out of the box. `LoadBalancer` services are supported
 using the [MetalLB](https://metallb.universe.tf/) external load balancer.
 
+
 [![MetalLB with Contiv-VPP](../../docs/img/metallb.png)](../../docs/img/metallb.svg)
 
-Currently, only L2 mode of MetalLB is supported in Contiv-VPP (left side of the picture). BGP
-mode (right side of the picture) is doable as well, but not supported yet.
+Currently, only the [L2 mode](https://metallb.universe.tf/concepts/layer2/) of MetalLB is supported in Contiv-VPP
+(left side of the picture). The [BGP mode](https://metallb.universe.tf/concepts/bgp/) 
+(right side of the picture) is doable as well, but not supported yet.
 
 ## Setup instructions
 For programming VPP from MetalLB, we modified the MetalLB speaker code. The code
@@ -35,10 +37,10 @@ speaker-x9tpj                 1/1     Running   0          43s
 ```
 
 ### 2. Configure L2 address pool
-Modify `metallb-l2-config-vpp.yaml` file with IP address pool from which MetalLB will be
+Modify the `metallb-l2-config-vpp.yaml` file with an IP address pool from which MetalLB will be
 assigning addresses to LoadBalancer services. This needs to match your network setup,
 and should fall into the `nodeInterconnectCIDR` subnet used for the Contiv-VPP deployment
-(the subnet used for DPDK-enabled interfaces on VPP interconnecting the nodes).
+(the subnet used for DPDK-enabled interfaces on VPP, interconnecting the nodes).
 
 ```
 $ cat metallb-l2-config-vpp.yaml
@@ -53,7 +55,7 @@ Deploy the config map:
 $ kubectl apply -f metallb-l2-config-vpp.yaml
 ```
 
-### 3. Deploy and application with LoadBalancer Service
+### 3. Deploy an application with a LoadBalancer Service
 You can use the file `nginx-service.yaml` as an example, it deploys
 3 replicas of the nginx server behind a LoadBalancer service.
 ```

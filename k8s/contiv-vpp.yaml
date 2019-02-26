@@ -268,7 +268,7 @@ data:
     dial-timeout: 10000000000
     allow-delayed-start: true
     endpoints:
-      - "HOSTIP:32379"
+      - "__HOST_IP__:32379"
 
 ---
 
@@ -286,7 +286,7 @@ data:
     allow-delayed-start: true
     reconnect-interval: 2000000000
     endpoints:
-      - "HOSTIP:32379"
+      - "__HOST_IP__:32379"
 
 ---
 
@@ -381,7 +381,7 @@ spec:
               # replace localhost IP by node IP since node port doesn't work
               # on localhost IP in a certain scenario
               cp /etc/etcd/etcd.conf /tmp/etcd.conf
-              sed -i "s/HOSTIP/$HOST_IP/g" /tmp/etcd.conf
+              sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/etcd.conf
           resources: {}
           securityContext:
             privileged: true
@@ -623,7 +623,7 @@ spec:
             - -c
             - |
               cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
-              sed -i "s/HOSTIP/$HOST_IP/g" /tmp/cfg/etcd.conf
+              sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
               until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
           volumeMounts:
             - name: tmp-cfg
@@ -778,7 +778,7 @@ spec:
             - -c
             - |
               cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
-              sed -i "s/HOSTIP/$HOST_IP/g" /tmp/cfg/etcd.conf
+              sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
               until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
           volumeMounts:
             - name: tmp-cfg

@@ -5,7 +5,7 @@ Arm64Platform: true
 etcd_arm64:
   image:
     repository: quay.io/coreos/etcd
-    tag: v3.3.10-arm64
+    tag: v3.3.11-arm64
 
 vswitch_arm64:
   image:

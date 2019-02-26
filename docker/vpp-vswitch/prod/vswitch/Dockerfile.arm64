@@ -2,7 +2,7 @@ FROM arm64v8/ubuntu:18.04
 
 RUN apt-get update \
  && apt-get install -y \
-        # vpp-agent & vpp process manger
+        # vpp-agent & vpp process manager
         python supervisor \
         # vpp requirements
         openssl libapr1 libnuma1 libmbedcrypto1 libmbedtls10 libmbedx509-0 \
@@ -12,6 +12,8 @@ RUN apt-get update \
         iproute2 iputils-ping inetutils-traceroute \
         # ability to run vpptrace.sh
         netcat-openbsd \
+        # ability to visualize graph of configured objects
+        graphviz \
  && rm -rf /var/lib/apt/lists/*
 
 # use /opt/vpp-agent/dev as the working directory

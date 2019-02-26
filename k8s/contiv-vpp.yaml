@@ -202,6 +202,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
             - name: ETCDCTL_API
               value: "3"
           command:
@@ -218,7 +222,13 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - etcdctl get --endpoints=127.0.0.1:32379 /
+                - |
+                  echo "$HOST_IP" | grep -q ':'
+                  if [ "$?" -eq "0" ];
+                  then
+                     HOST_IP="[$HOST_IP]"
+                  fi
+                  etcdctl get --endpoints=$HOST_IP:32379 /
             periodSeconds: 3
             initialDelaySeconds: 20
           resources:
@@ -268,11 +278,11 @@ data:
     dial-timeout: 10000000000
     allow-delayed-start: true
     endpoints:
-      - "127.0.0.1:32379"
+      - "__HOST_IP__:32379"
 
 ---
 
-# This config map contains ETCD configuration for connecting to the contiv-etcd defined above with auto comapact.
+# This config map contains ETCD configuration for connecting to the contiv-etcd defined above with auto compact.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -286,7 +296,7 @@ data:
     allow-delayed-start: true
     reconnect-interval: 2000000000
     endpoints:
-      - "127.0.0.1:32379"
+      - "__HOST_IP__:32379"
 
 ---
 
@@ -349,6 +359,11 @@ spec:
         - name: vpp-init
           image: contivvpp/vswitch:latest
           imagePullPolicy: IfNotPresent
+          env:
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
           command:
             - /bin/sh
           args:
@@ -373,6 +388,16 @@ spec:
               sysctl -w kernel.core_pattern="/var/contiv/dumps/%e-%t"
               ulimit -c unlimited
               echo 2 > /proc/sys/fs/suid_dumpable
+              # replace localhost IP by node IP since node port doesn't work
+              # on localhost IP in a certain scenario
+              cp /etc/etcd/etcd.conf /tmp/etcd.conf
+              set +e
+              echo "$HOST_IP" | grep -q ':'
+              if [ "$?" -eq "0" ];
+              then
+                 HOST_IP="[$HOST_IP]"
+              fi
+              sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/etcd.conf
           resources: {}
           securityContext:
             privileged: true
@@ -387,6 +412,10 @@ spec:
               mountPath: /run/vpp
             - name: contiv-run
               mountPath: /var/run/contiv
+            - name: tmp
+              mountPath: /tmp
+            - name: etcd-cfg
+              mountPath: /etc/etcd
             - name: core-dumps
               mountPath: /var/contiv/dumps
 
@@ -422,6 +451,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
             - name: CONTIV_CONFIG
               value: "/etc/contiv/contiv.conf"
             - name: CONTROLLER_CONFIG
@@ -429,7 +462,7 @@ spec:
             - name: SERVICE_CONFIG
               value: "/etc/contiv/service.conf"
             - name: ETCD_CONFIG
-              value: "/etc/etcd/etcd.conf"
+              value: "/tmp/etcd.conf"
             - name: BOLT_CONFIG
               value: "/etc/vpp-agent/bolt.conf"
             # Uncomment to log graph traversal (very verbose):
@@ -594,9 +627,31 @@ spec:
           env:
             - name: ETCDPORT
               value: "32379"
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
           image: busybox:1.29.3
           imagePullPolicy: IfNotPresent
-          command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - |
+              cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
+              echo "$HOST_IP" | grep -q ':'
+              if [ "$?" -eq "0" ];
+              then
+                 HOST_IP="[$HOST_IP]"
+              fi
+              sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
+              until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
+          volumeMounts:
+            - name: tmp-cfg
+              mountPath: /tmp/cfg
+            - name: etcd-cfg
+              mountPath: /etc/etcd
+
 
       containers:
         - name: contiv-ksr
@@ -604,12 +659,12 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCD_CONFIG
-              value: "/etc/etcd/etcd.conf"
+              value: "/tmp/cfg/etcd.conf"
             - name: HTTP_CONFIG
               value: "/etc/http/http.conf"
           volumeMounts:
-            - name: etcd-cfg
-              mountPath: /etc/etcd
+            - name: tmp-cfg
+              mountPath: /tmp/cfg
             - name: http-cfg
               mountPath: /etc/http
           readinessProbe:
@@ -636,6 +691,8 @@ spec:
         - name: etcd-cfg
           configMap:
             name: contiv-etcd-withcompact-cfg
+        - name: tmp-cfg
+          emptyDir: {}
         - name: http-cfg
           configMap:
             name: contiv-ksr-http-cfg
@@ -730,9 +787,30 @@ spec:
           env:
             - name: ETCDPORT
               value: "32379"
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
           image: busybox:1.29.3
           imagePullPolicy: IfNotPresent
-          command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - |
+              cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
+              echo "$HOST_IP" | grep -q ':'
+              if [ "$?" -eq "0" ];
+              then
+                 HOST_IP="[$HOST_IP]"
+              fi
+              sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
+              until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
+          volumeMounts:
+            - name: tmp-cfg
+              mountPath: /tmp/cfg
+            - name: etcd-cfg
+              mountPath: /etc/etcd
 
         # This init container copies contiv-netctl tool to the host.
         - name: netctl-init
@@ -761,7 +839,7 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCD_CONFIG
-              value: "/etc/etcd/etcd.conf"
+              value: "/tmp/cfg/etcd.conf"
             - name: HTTP_CONFIG
               value: "/etc/http/http.conf"
             - name: HTTP_CLIENT_CONFIG
@@ -770,9 +848,11 @@ spec:
               value: "5"
             - name: CONTIV_CRD_VALIDATE_STATE
               value: "SB"
+            - name: DISABLE_NETCTL_REST
+              value: "true"
           volumeMounts:
-            - name: etcd-cfg
-              mountPath: /etc/etcd
+            - name: tmp-cfg
+              mountPath: /tmp/cfg
             - name: http-cfg
               mountPath: /etc/http
           readinessProbe:
@@ -806,6 +886,8 @@ spec:
         - name: http-cfg
           configMap:
             name: contiv-crd-http-cfg
+        - name: tmp-cfg
+          emptyDir: {}
 ---
 
 # This cluster role defines a set of permissions required for contiv-crd.

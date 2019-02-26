@@ -3,4 +3,4 @@ name: contiv-vpp
 description: Deploys Contiv VPP networking
 icon: https://contivpp.io/img/logo.png
 home: https://contivpp.io/
-version: 2.1
+version: 2.1.2

@@ -14,6 +14,7 @@ data:
   contiv-ui.conf: |-
     port: 9500
     contivPort: 9999
+    contivCRDPort: 9090
 
 ---
 apiVersion: apps/v1

@@ -345,7 +345,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - etcdctl get --endpoints={{ $localhost_addr }}:{{ .Values.etcd.service.nodePort }} /
+                - etcdctl get --endpoints=$HOST_IP:{{ .Values.etcd.service.nodePort }} /
             periodSeconds: {{ .Values.etcd.probePeriodSeconds }}
             initialDelaySeconds: {{ .Values.etcd.livenessProbeInitialDelaySeconds }}
           {{- end }}
@@ -487,11 +487,11 @@ data:
     dial-timeout: 10000000000
     allow-delayed-start: true
     endpoints:
-      - "{{ $localhost_addr }}:{{ .Values.etcd.service.nodePort }}"
+      - "__HOST_IP__:{{ .Values.etcd.service.nodePort }}"
 
 ---
 
-# This config map contains ETCD configuration for connecting to the contiv-etcd defined above with auto comapact.
+# This config map contains ETCD configuration for connecting to the contiv-etcd defined above with auto compact.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -512,7 +512,7 @@ data:
     allow-delayed-start: true
     reconnect-interval: 2000000000
     endpoints:
-      - "{{ $localhost_addr }}:{{ .Values.etcd.service.nodePort }}"
+      - "__HOST_IP__:{{ .Values.etcd.service.nodePort }}"
 
 {{- if .Values.http.enableServerCert }}
 {{- if not .Values.http.mountFromHost }}
@@ -588,9 +588,9 @@ spec:
         # This container installs the Contiv CNI binaries and CNI network config file on each node.
         - name: contiv-cni
           {{- if .Values.Arm64Platform }}
-          image: {{ .Values.cni_arm64.image.repository }}:{{ .Values.cni.image.tag }}
+          image: {{ .Values.cni_arm64.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
           {{- else }}
-          image: {{ .Values.cni.image.repository }}:{{ .Values.cni.image.tag }}
+          image: {{ .Values.cni.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
           {{- end }}
           imagePullPolicy: IfNotPresent
           env:
@@ -614,6 +614,10 @@ spec:
             value: "32379"
           - name: ETCDCTL_API
             value: "3"
+          - name: HOST_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
           {{- if .Values.Arm64Platform }}
           image: {{ .Values.etcd_arm64.image.repository }}:{{ .Values.etcd_arm64.image.tag }}
           {{- else }}
@@ -626,10 +630,10 @@ spec:
           - |
             set -eu
           {{- if .Values.etcd.secureTransport }}
-            until /usr/local/bin/etcdctl --endpoints={{ $localhost_addr }}:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true \
+            until /usr/local/bin/etcdctl --endpoints=$HOST_IP:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true \
             --cert=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientCert }} --key=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientKey }} --cacert=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}| grep -m 1 "$HOSTNAME";
           {{- else }}
-            until /usr/local/bin/etcdctl --endpoints={{ $localhost_addr }}:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true | grep -m 1 "$HOSTNAME";
+            until /usr/local/bin/etcdctl --endpoints=$HOST_IP:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true | grep -m 1 "$HOSTNAME";
           {{- end }}
             do
               echo waiting for crd node config;
@@ -646,11 +650,16 @@ spec:
         # This init container extracts/copies default VPP config to the host and initializes VPP core dumps.
         - name: vpp-init
           {{- if .Values.Arm64Platform }}
-          image: {{ .Values.vswitch_arm64.image.repository }}:{{ .Values.vswitch.image.tag }}
+          image: {{ .Values.vswitch_arm64.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
           {{- else }}
-          image: {{ .Values.vswitch.image.repository }}:{{ .Values.vswitch.image.tag }}
+          image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
           {{- end }}
           imagePullPolicy: {{ .Values.vswitch.image.pullPolicy }}
+          env:
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
           command:
             - /bin/sh
           args:
@@ -676,6 +685,10 @@ spec:
               sysctl -w kernel.core_pattern="{{ .Values.vswitch.coreDumpsDir }}/%e-%t"
               ulimit -c unlimited
               echo 2 > /proc/sys/fs/suid_dumpable
+              # replace localhost IP by node IP since node port doesn't work
+              # on localhost IP in a certain scenario
+              cp /etc/etcd/etcd.conf /tmp/etcd.conf
+              sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/etcd.conf
               {{- end }}
           resources: {}
           securityContext:
@@ -691,6 +704,10 @@ spec:
               mountPath: /run/vpp
             - name: contiv-run
               mountPath: /var/run/contiv
+            - name: tmp
+              mountPath: /tmp
+            - name: etcd-cfg
+              mountPath: /etc/etcd
             {{- if .Values.vswitch.enableCoreDumps }}
             - name: core-dumps
               mountPath: {{ .Values.vswitch.coreDumpsDir }}
@@ -701,9 +718,9 @@ spec:
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
           {{- if .Values.Arm64Platform }}
-          image: {{ .Values.vswitch_arm64.image.repository }}:{{ .Values.vswitch.image.tag }}
+          image: {{ .Values.vswitch_arm64.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
           {{- else }}
-          image: {{ .Values.vswitch.image.repository }}:{{ .Values.vswitch.image.tag }}
+          image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
           {{- end }}
           imagePullPolicy: {{ .Values.vswitch.image.pullPolicy }}
           securityContext:
@@ -750,6 +767,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
             - name: CONTIV_CONFIG
               value: "/etc/contiv/contiv.conf"
             - name: CONTROLLER_CONFIG
@@ -757,7 +778,7 @@ spec:
             - name: SERVICE_CONFIG
               value: "/etc/contiv/service.conf"
             - name: ETCD_CONFIG
-              value: "/etc/etcd/etcd.conf"
+              value: "/tmp/etcd.conf"
             - name: BOLT_CONFIG
               value: "/etc/vpp-agent/bolt.conf"
             # Uncomment to log graph traversal (very verbose):
@@ -990,30 +1011,47 @@ spec:
           env:
             - name: ETCDPORT
               value: {{ .Values.etcd.service.nodePort | quote }}
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
           {{- if .Values.Arm64Platform }}
           image: {{ .Values.init_arm64.image.repository }}:{{ .Values.init.image.tag }}
           {{- else }}
           image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
           {{- end }}
           imagePullPolicy: IfNotPresent
-          command: ['sh', '-c', 'until nc -w 2 {{ $localhost_addr }}:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - |
+              cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
+              sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
+              until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
+          volumeMounts:
+            - name: tmp-cfg
+              mountPath: /tmp/cfg
+            - name: etcd-cfg
+              mountPath: /etc/etcd
+
 
       containers:
         - name: contiv-ksr
           {{- if .Values.Arm64Platform }}
-          image: {{ .Values.ksr_arm64.image.repository }}:{{ .Values.ksr.image.tag }}
+          image: {{ .Values.ksr_arm64.image.repository }}:{{ default .Chart.Version .Values.ksr.image.tag }}
           {{- else }}
-          image: {{ .Values.ksr.image.repository }}:{{ .Values.ksr.image.tag }}
+          image: {{ .Values.ksr.image.repository }}:{{ default .Chart.Version .Values.ksr.image.tag }}
           {{- end }}
           imagePullPolicy: {{ .Values.ksr.image.pullPolicy }}
           env:
             - name: ETCD_CONFIG
-              value: "/etc/etcd/etcd.conf"
+              value: "/tmp/cfg/etcd.conf"
             - name: HTTP_CONFIG
               value: "/etc/http/http.conf"
           volumeMounts:
-            - name: etcd-cfg
-              mountPath: /etc/etcd
+            - name: tmp-cfg
+              mountPath: /tmp/cfg
             - name: http-cfg
               mountPath: /etc/http
             {{- if .Values.etcd.secureTransport }}
@@ -1074,6 +1112,8 @@ spec:
         - name: etcd-cfg
           configMap:
             name: contiv-etcd-withcompact-cfg
+        - name: tmp-cfg
+          emptyDir: {}
         - name: http-cfg
           configMap:
             name: contiv-ksr-http-cfg
@@ -1200,20 +1240,36 @@ spec:
           env:
             - name: ETCDPORT
               value: {{ .Values.etcd.service.nodePort | quote }}
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
           {{- if .Values.Arm64Platform }}
           image: {{ .Values.init_arm64.image.repository }}:{{ .Values.init.image.tag }}
           {{- else }}
           image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
           {{- end }}
           imagePullPolicy: IfNotPresent
-          command: ['sh', '-c', 'until nc -w 2 {{ $localhost_addr }}:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - |
+              cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
+              sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
+              until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
+          volumeMounts:
+            - name: tmp-cfg
+              mountPath: /tmp/cfg
+            - name: etcd-cfg
+              mountPath: /etc/etcd
 
         # This init container copies contiv-netctl tool to the host.
         - name: netctl-init
           {{- if .Values.Arm64Platform }}
-          image: {{ .Values.crd_arm64.image.repository }}:{{ .Values.crd.image.tag }}
+          image: {{ .Values.crd_arm64.image.repository }}:{{ default .Chart.Version .Values.crd.image.tag }}
           {{- else }}
-          image: {{ .Values.crd.image.repository }}:{{ .Values.crd.image.tag }}
+          image: {{ .Values.crd.image.repository }}:{{ default .Chart.Version .Values.crd.image.tag }}
           {{- end }}
           imagePullPolicy: {{ .Values.crd.image.pullPolicy }}
           command:
@@ -1236,14 +1292,14 @@ spec:
       containers:
         - name: contiv-crd
           {{- if .Values.Arm64Platform }}
-          image: {{ .Values.crd_arm64.image.repository }}:{{ .Values.crd.image.tag }}
+          image: {{ .Values.crd_arm64.image.repository }}:{{ default .Chart.Version .Values.crd.image.tag }}
           {{- else }}
-          image: {{ .Values.crd.image.repository }}:{{ .Values.crd.image.tag }}
+          image: {{ .Values.crd.image.repository }}:{{ default .Chart.Version .Values.crd.image.tag }}
           {{- end }}
           imagePullPolicy: {{ .Values.crd.image.pullPolicy }}
           env:
             - name: ETCD_CONFIG
-              value: "/etc/etcd/etcd.conf"
+              value: "/tmp/cfg/etcd.conf"
             - name: HTTP_CONFIG
               value: "/etc/http/http.conf"
             - name: HTTP_CLIENT_CONFIG
@@ -1252,9 +1308,13 @@ spec:
               value: {{ .Values.crd.validateInterval | quote }}
             - name: CONTIV_CRD_VALIDATE_STATE
               value: {{ .Values.crd.validateState | quote }}
+          {{- if .Values.crd.disableNetctlREST }}
+            - name: DISABLE_NETCTL_REST
+              value: "true"
+          {{- end }}
           volumeMounts:
-            - name: etcd-cfg
-              mountPath: /etc/etcd
+            - name: tmp-cfg
+              mountPath: /tmp/cfg
             - name: http-cfg
               mountPath: /etc/http
             {{- if .Values.etcd.secureTransport }}
@@ -1322,6 +1382,8 @@ spec:
         - name: http-cfg
           configMap:
             name: contiv-crd-http-cfg
+        - name: tmp-cfg
+          emptyDir: {}
         {{- if .Values.etcd.secureTransport }}
         - name: etcd-secrets
           {{- if .Values.etcd.secrets.mountFromHost }}

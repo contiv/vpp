@@ -32,6 +32,7 @@ import (
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/service/processor"
+	"github.com/contiv/vpp/plugins/service/renderer/ipv6route"
 	"github.com/contiv/vpp/plugins/service/renderer/nat44"
 )
 
@@ -49,8 +50,9 @@ type Plugin struct {
 	changes   []string
 
 	// layers of the service plugin
-	processor     *processor.ServiceProcessor
-	nat44Renderer *nat44.Renderer
+	processor         *processor.ServiceProcessor
+	nat44Renderer     *nat44.Renderer
+	ipv6RouteRenderer *ipv6route.Renderer
 }
 
 // Deps defines dependencies of the service plugin.
@@ -98,6 +100,7 @@ func (p *Plugin) Init() error {
 	p.processor.Init()
 
 	if !p.ContivConf.GetIPAMConfig().UseIPv6 {
+		// use NAT44 renderer
 		p.nat44Renderer = &nat44.Renderer{
 			Deps: nat44.Deps{
 				Log:        p.Log.NewLogger("-nat44Renderer"),
@@ -120,6 +123,30 @@ func (p *Plugin) Init() error {
 		p.nat44Renderer.Init(false)
 		// Register renderer.
 		p.processor.RegisterRenderer(p.nat44Renderer)
+	} else {
+		// use IPv6 route renderer
+		p.ipv6RouteRenderer = &ipv6route.Renderer{
+			Deps: ipv6route.Deps{
+				Log:        p.Log.NewLogger("-IPv6RouteRenderer"),
+				Config:     p.config,
+				ContivConf: p.ContivConf,
+				IPAM:       p.IPAM,
+				IPv4Net:    p.IPv4Net,
+				GoVPPChan:  goVppCh,
+				UpdateTxnFactory: func(change string) controller.UpdateOperations {
+					p.changes = append(p.changes, change)
+					return p.updateTxn
+				},
+				ResyncTxnFactory: func() controller.ResyncOperations {
+					return p.resyncTxn
+				},
+				Stats: p.Stats,
+			},
+		}
+
+		p.ipv6RouteRenderer.Init(false)
+		// Register renderer.
+		p.processor.RegisterRenderer(p.ipv6RouteRenderer)
 	}
 
 	return nil

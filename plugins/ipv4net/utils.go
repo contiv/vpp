@@ -57,13 +57,21 @@ func (n *IPv4Net) getHostLinkIPs() (hostIPs []net.IP, err error) {
 		if !strings.HasPrefix(l.Attrs().Name, "lo") && !strings.HasPrefix(l.Attrs().Name, "docker") &&
 			!strings.HasPrefix(l.Attrs().Name, "virbr") && !strings.HasPrefix(l.Attrs().Name, "vpp") {
 			// not a virtual interface, list its IP addresses
-			addrList, err := netlink.AddrList(l, netlink.FAMILY_V4)
+			family := netlink.FAMILY_V4
+			if n.ContivConf.GetIPAMConfig().UseIPv6 {
+				family = netlink.FAMILY_V6
+			}
+			addrList, err := netlink.AddrList(l, family)
 			if err != nil {
 				n.Log.Error("Unable to list link IPs:", err)
 				return hostIPs, err
 			}
 			// return all IPs
 			for _, addr := range addrList {
+				if family == netlink.FAMILY_V6 && addr.Scope == int(netlink.SCOPE_LINK) {
+					// skip link-local IPv6 addresses
+					continue
+				}
 				hostIPs = append(hostIPs, addr.IP)
 			}
 		}

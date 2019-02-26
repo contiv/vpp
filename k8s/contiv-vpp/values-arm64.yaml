@@ -10,22 +10,22 @@ etcd_arm64:
 vswitch_arm64:
   image:
     repository: contivvpp/vswitch-arm64
-    tag: latest
+    # tag: latest
 
 cni_arm64:
   image:
     repository: contivvpp/cni-arm64
-    tag: latest
+    # tag: latest
 
 ksr_arm64:
   image:
     repository: contivvpp/ksr-arm64
-    tag: latest
+    # tag: latest
 
 crd_arm64:
   image:
     repository: contivvpp/crd-arm64
-    tag: latest
+    # tag: latest
 
 init_arm64:
   image:

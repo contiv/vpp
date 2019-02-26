@@ -1,3 +1,19 @@
+# Release v2.1.3 (26.2.2019)
+
+### VPP
+ - version **v18.10** (latest stable/1810)
+
+### New Features & Enhancements
+ - use helm chart version as the default tag for contiv images in the helm template
+
+### Bugfixes
+ - fixed some Contiv UI issues
+
+### Known Issues
+ - load-balancing between backends of a service is limited to the first 256 PODs
+   (the others will not receive any traffic until some of the first 256 PODs disappear)
+
+
 # Release v2.1.2 (7.2. 2019)
 
 ### VPP

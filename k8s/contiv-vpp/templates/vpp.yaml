@@ -345,7 +345,13 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - etcdctl get --endpoints=$HOST_IP:{{ .Values.etcd.service.nodePort }} /
+                - |
+                  echo "$HOST_IP" | grep -q ':'
+                  if [ "$?" -eq "0" ];
+                  then
+                     HOST_IP="[$HOST_IP]"
+                  fi
+                  etcdctl get --endpoints=$HOST_IP:{{ .Values.etcd.service.nodePort }} /
             periodSeconds: {{ .Values.etcd.probePeriodSeconds }}
             initialDelaySeconds: {{ .Values.etcd.livenessProbeInitialDelaySeconds }}
           {{- end }}
@@ -688,6 +694,11 @@ spec:
               # replace localhost IP by node IP since node port doesn't work
               # on localhost IP in a certain scenario
               cp /etc/etcd/etcd.conf /tmp/etcd.conf
+              echo "$HOST_IP" | grep -q ':'
+              if [ "$?" -eq "0" ];
+              then
+                 HOST_IP="[$HOST_IP]"
+              fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/etcd.conf
               {{- end }}
           resources: {}
@@ -1027,6 +1038,11 @@ spec:
             - -c
             - |
               cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
+              echo "$HOST_IP" | grep -q ':'
+              if [ "$?" -eq "0" ];
+              then
+                 HOST_IP="[$HOST_IP]"
+              fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
               until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
           volumeMounts:
@@ -1256,6 +1272,11 @@ spec:
             - -c
             - |
               cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
+              echo "$HOST_IP" | grep -q ':'
+              if [ "$?" -eq "0" ];
+              then
+                 HOST_IP="[$HOST_IP]"
+              fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
               until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
           volumeMounts:

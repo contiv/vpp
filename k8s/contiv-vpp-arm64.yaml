@@ -393,6 +393,7 @@ spec:
               # replace localhost IP by node IP since node port doesn't work
               # on localhost IP in a certain scenario
               cp /etc/etcd/etcd.conf /tmp/etcd.conf
+              set +e
               echo "$HOST_IP" | grep -q ':'
               if [ "$?" -eq "0" ];
               then

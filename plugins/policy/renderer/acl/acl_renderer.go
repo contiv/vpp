@@ -369,7 +369,7 @@ func (art *RendererTxn) renderInterfaces(pods cache.PodSet, ingress bool) *vpp_a
 		// Get the interface associated with the pod.
 		ifName, found := art.renderer.podInterfaces[podID] // first query local cache
 		if !found {
-			ifName, found = art.renderer.IPv4Net.GetIfName(podID.Namespace, podID.Name) // next query IPv4Net plugin
+			ifName, _, found = art.renderer.IPv4Net.GetPodIfName(podID.Namespace, podID.Name) // next query IPv4Net plugin
 			if !found {
 				// pod has been deleted in the meantime but notification from K8s
 				// has not arrived yet

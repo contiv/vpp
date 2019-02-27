@@ -299,7 +299,7 @@ func (mae *MockACLEngine) ConnectionPodToPod(srcPod podmodel.ID, dstPod podmodel
 		}
 	} else {
 		var exists bool
-		srcIfName, exists = mae.IPv4Net.GetIfName(srcPod.Namespace, srcPod.Name)
+		srcIfName, _, exists = mae.IPv4Net.GetPodIfName(srcPod.Namespace, srcPod.Name)
 		if !exists {
 			mae.Log.WithField("pod", srcPod).Error("Missing interface for source pod")
 			return ConnActionFailure
@@ -318,7 +318,7 @@ func (mae *MockACLEngine) ConnectionPodToPod(srcPod podmodel.ID, dstPod podmodel
 		}
 	} else {
 		var exists bool
-		dstIfName, exists = mae.IPv4Net.GetIfName(dstPod.Namespace, dstPod.Name)
+		dstIfName, _, exists = mae.IPv4Net.GetPodIfName(dstPod.Namespace, dstPod.Name)
 		if !exists {
 			mae.Log.WithField("pod", srcPod).Error("Missing interface for source pod")
 			return ConnActionFailure
@@ -347,7 +347,7 @@ func (mae *MockACLEngine) ConnectionPodToInternet(srcPod podmodel.ID, dstIP stri
 	}
 
 	// Get source interface.
-	srcIfName, exists := mae.IPv4Net.GetIfName(srcPod.Namespace, srcPod.Name)
+	srcIfName, _, exists := mae.IPv4Net.GetPodIfName(srcPod.Namespace, srcPod.Name)
 	if !exists {
 		mae.Log.WithField("pod", srcPod).Error("Missing interface for source pod")
 		return ConnActionFailure
@@ -409,7 +409,7 @@ func (mae *MockACLEngine) ConnectionInternetToPod(srcIP string, dstPod podmodel.
 	}
 
 	// Get destination interface.
-	dstIfName, exists := mae.IPv4Net.GetIfName(dstPod.Namespace, dstPod.Name)
+	dstIfName, _, exists := mae.IPv4Net.GetPodIfName(dstPod.Namespace, dstPod.Name)
 	if !exists {
 		mae.Log.WithField("pod", dstPod).Error("Missing interface for destination pod")
 		return ConnActionFailure

@@ -462,9 +462,9 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 	}
 
 	// check whether IP is already allocated
-	ip := i.GetPodIP(podID)
-	if ip != nil {
-		return ip.IP, nil
+	ip, found := i.podToIP[podID]
+	if found {
+		return ip, nil
 	}
 
 	last := i.lastPodIPAssigned + 1
@@ -544,12 +544,25 @@ func (i *IPAM) tryToAllocatePodIP(index int, networkPrefix *net.IPNet, podID pod
 // GetPodIP returns the allocated pod IP, together with the mask.
 // Returns nil if the pod does not have allocated IP address.
 func (i *IPAM) GetPodIP(podID podmodel.ID) *net.IPNet {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
 	addr, found := i.podToIP[podID]
 	if !found {
 		return nil
 	}
 	addrLen := addrLenFromNet(i.podSubnetThisNode)
 	return &net.IPNet{IP: addr, Mask: net.CIDRMask(addrLen, addrLen)}
+}
+
+// GetPodFromIP returns the pod information related to the allocated pod IP.
+// found is false if the provided IP address has not been allocated to any local pod.
+func (i *IPAM) GetPodFromIP(podIP net.IP) (podID podmodel.ID, found bool) {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
+	podID, found = i.assignedPodIPs[podIP.String()]
+	return
 }
 
 // ReleasePodIP releases the pod IP address making it available for new PODs.

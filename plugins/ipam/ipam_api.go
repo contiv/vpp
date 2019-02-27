@@ -80,6 +80,10 @@ type API interface {
 	// Returns nil if the pod does not have allocated IP address.
 	GetPodIP(podID podmodel.ID) *net.IPNet
 
+	// GetPodFromIP returns the pod information related to the allocated pod IP.
+	// found is false if the provided IP address has not been allocated to any local pod.
+	GetPodFromIP(podIP net.IP) (podID podmodel.ID, found bool)
+
 	// ReleasePodIP releases the pod IP address making it available for new PODs.
 	ReleasePodIP(podID podmodel.ID) error
 }

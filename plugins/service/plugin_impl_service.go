@@ -132,7 +132,6 @@ func (p *Plugin) Init() error {
 				ContivConf: p.ContivConf,
 				IPAM:       p.IPAM,
 				IPv4Net:    p.IPv4Net,
-				GoVPPChan:  goVppCh,
 				UpdateTxnFactory: func(change string) controller.UpdateOperations {
 					p.changes = append(p.changes, change)
 					return p.updateTxn
@@ -140,7 +139,6 @@ func (p *Plugin) Init() error {
 				ResyncTxnFactory: func() controller.ResyncOperations {
 					return p.resyncTxn
 				},
-				Stats: p.Stats,
 			},
 		}
 

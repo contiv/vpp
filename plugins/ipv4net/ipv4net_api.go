@@ -14,9 +14,9 @@ import (
 // Apart from GetPodByIf, these methods should not be accessed from outside of the
 // main event loop!
 type API interface {
-	// GetIfName looks up logical interface name that corresponds to the interface
-	// associated with the given pod.
-	GetIfName(podNamespace string, podName string) (name string, exists bool)
+	// GetPodIfName looks up logical interface names that correspond to the interfaces
+	// associated with the given POD name.
+	GetPodIfName(podNamespace string, podName string) (vppIfName string, linuxIfName string, exists bool)
 
 	// GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
 	// The method can be called from outside of the main event loop.

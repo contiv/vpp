@@ -18,15 +18,14 @@ package ipv6route
 
 import (
 	"fmt"
-	govpp "git.fd.io/govpp.git/api"
+	"net"
+
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipv4net"
 	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/service/renderer"
-	"github.com/contiv/vpp/plugins/statscollector"
-	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
 )
@@ -47,8 +46,6 @@ type Deps struct {
 	IPv4Net          ipv4net.API
 	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
-	GoVPPChan        govpp.Channel      /* used for direct NAT binary API calls */
-	Stats            statscollector.API /* used for exporting the statistics */
 }
 
 // Init initializes the renderer.
@@ -82,15 +79,17 @@ func (rndr *Renderer) AddService(service *renderer.ContivService) error {
 }
 
 // UpdateService updates VPP config for a changed service.
-func (rndr *Renderer) UpdateService(oldService, service *renderer.ContivService) error {
+func (rndr *Renderer) UpdateService(oldService, newService *renderer.ContivService) error {
 	if rndr.snatOnly {
 		return nil
 	}
 
-	txn := rndr.UpdateTxnFactory(fmt.Sprintf("update service '%v'", service.ID))
+	txn := rndr.UpdateTxnFactory(fmt.Sprintf("update service '%v'", newService.ID))
 
-	config := rndr.renderService(service)
+	config := rndr.renderService(newService)
 	controller.PutAll(txn, config)
+
+	// TODO: render both oldService and newService, Put diff
 
 	return nil
 }
@@ -164,32 +163,67 @@ func (rndr *Renderer) Close() error {
 }
 
 // renderService renders Contiv service to VPP configuration
-func (rndr *Renderer) renderService(service *renderer.ContivService) map[string]proto.Message {
-	config := make(map[string]proto.Message)
+func (rndr *Renderer) renderService(service *renderer.ContivService) controller.KeyValuePairs {
+	config := make(controller.KeyValuePairs)
+
+	localBackends := make([]net.IP, 0)
+	hasHostNetworkLocalBackend := false
 
 	for portName := range service.Ports {
-
-		hasLocalHostNetworkBackend := false
 		for _, backend := range service.Backends[portName] {
-			if backend.HostNetwork && backend.Local {
-				hasLocalHostNetworkBackend = true
-			}
-		}
-
-		if hasLocalHostNetworkBackend {
-			// local host-network backends are routed towards the host
-			for _, clusterIP := range service.ClusterIPs.List() {
-				route := &vpp_l3.Route{
-					DstNetwork:        clusterIP.String() + "/128",
-					NextHopAddr:       rndr.IPAM.HostInterconnectIPInLinux().String(),
-					OutgoingInterface: rndr.IPv4Net.GetHostInterconnectIfName(),
-					VrfId:             rndr.ContivConf.GetRoutingConfig().MainVRFID,
+			if backend.Local {
+				if backend.HostNetwork {
+					hasHostNetworkLocalBackend = true
+				} else {
+					localBackends = append(localBackends, backend.IP)
 				}
-				key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
-				config[key] = route
 			}
 		}
 	}
+
+	// TODO: external IPs
+
+	// for local backends with hostNetwork, route ClusterIPs towards towards the host
+	if hasHostNetworkLocalBackend {
+		for _, clusterIP := range service.ClusterIPs.List() {
+			route := &vpp_l3.Route{
+				DstNetwork:        clusterIP.String() + "/128",
+				NextHopAddr:       rndr.IPAM.HostInterconnectIPInLinux().String(),
+				OutgoingInterface: rndr.IPv4Net.GetHostInterconnectIfName(),
+				VrfId:             rndr.ContivConf.GetRoutingConfig().MainVRFID,
+			}
+			key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+			config[key] = route
+		}
+	}
+
+	//  for local backends (with non-hostNetwork), route ClusterIPs towards the PODs
+	for _, backendIP := range localBackends {
+		// connect local backend
+		podID, found := rndr.IPAM.GetPodFromIP(backendIP)
+		if found {
+			vppIfName, linuxIfName, exists := rndr.IPv4Net.GetPodIfName(podID.Namespace, podID.Name)
+			if exists {
+				for _, clusterIP := range service.ClusterIPs.List() {
+					// cluster IP in POD
+					// TODO: modify POD interface config: add clusterIP to linuxIfName
+					rndr.Log.Warnf("NOT IMPLEMENTED: add IP %v to interface %s", clusterIP, linuxIfName)
+
+					// route to POD
+					route := &vpp_l3.Route{
+						DstNetwork:        clusterIP.String() + "/128",
+						NextHopAddr:       backendIP.String(),
+						OutgoingInterface: vppIfName,
+						VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
+					}
+					key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+					config[key] = route
+				}
+			}
+		}
+	}
+
+	// TODO: (only) in case of no local backends, route to VXLANs towards nodes with some backend
 
 	return config
 }

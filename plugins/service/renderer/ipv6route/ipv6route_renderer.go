@@ -73,12 +73,10 @@ func (rndr *Renderer) AddService(service *renderer.ContivService) error {
 		return nil
 	}
 
-	config := rndr.renderService(service)
-
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("add service '%v'", service.ID))
-	for key, val := range config {
-		txn.Put(key, val)
-	}
+
+	config := rndr.renderService(service)
+	controller.PutAll(txn, config)
 
 	return nil
 }
@@ -89,12 +87,10 @@ func (rndr *Renderer) UpdateService(oldService, service *renderer.ContivService)
 		return nil
 	}
 
-	config := rndr.renderService(service)
-
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("update service '%v'", service.ID))
-	for key, val := range config {
-		txn.Put(key, val)
-	}
+
+	config := rndr.renderService(service)
+	controller.PutAll(txn, config)
 
 	return nil
 }
@@ -105,12 +101,10 @@ func (rndr *Renderer) DeleteService(service *renderer.ContivService) error {
 		return nil
 	}
 
-	config := rndr.renderService(service)
-
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("delete service '%v'", service.ID))
-	for key := range config {
-		txn.Delete(key)
-	}
+
+	config := rndr.renderService(service)
+	controller.DeleteAll(txn, config)
 
 	return nil
 }
@@ -158,10 +152,7 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	// Resync service configuration
 	for _, service := range resyncEv.Services {
 		config := rndr.renderService(service)
-
-		for key, val := range config {
-			txn.Put(key, val)
-		}
+		controller.PutAll(txn, config)
 	}
 
 	return nil

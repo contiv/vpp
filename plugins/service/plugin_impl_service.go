@@ -66,6 +66,7 @@ type Deps struct {
 	PodManager   podmanager.API     /* to get the list or running pods which determines frontend interfaces */
 	GoVPP        govppmux.API       /* used for direct NAT binary API calls */
 	Stats        statscollector.API /* used for exporting the statistics */
+	Controller   controller.ConfigRetriever
 }
 
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
@@ -130,6 +131,7 @@ func (p *Plugin) Init() error {
 				Log:        p.Log.NewLogger("-IPv6RouteRenderer"),
 				Config:     p.config,
 				ContivConf: p.ContivConf,
+				Controller: p.Controller,
 				IPAM:       p.IPAM,
 				IPv4Net:    p.IPv4Net,
 				UpdateTxnFactory: func(change string) controller.UpdateOperations {

@@ -28,6 +28,14 @@ type Transaction interface {
 	Commit(ctx context.Context) (seqNum uint64, err error)
 }
 
+// ConfigRetriever allows to read configuration in order to adjust a config item
+// by multiple event handlers.
+type ConfigRetriever interface {
+	// GetConfig returns value for the given key in the controller's transaction. If data for
+	// the key is not part of the transaction stored value from internal config is returned.
+	GetConfig(key string) proto.Message
+}
+
 // ResyncOperations lists operations needed to build transaction for Resync-type events.
 type ResyncOperations interface {
 	// Put add request to the transaction to add or modify a value.

@@ -166,6 +166,8 @@ type Controller struct {
 	wg     sync.WaitGroup
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	txn *kvSchedulerTxn // transaction associated to the event currently being processed
 }
 
 // Deps lists dependencies of the Controller.
@@ -376,6 +378,19 @@ func (c *Controller) PushEvent(event api.Event) error {
 	default:
 		return ErrEventQueueFull
 	}
+}
+
+// GetConfig returns value for the given key in the controller's transaction. If data for
+// the key is not part of the transaction stored value from internal config is returned.
+func (c *Controller) GetConfig(key string) proto.Message {
+	val, found := c.txn.values[key]
+	if !found {
+		val = c.internalConfig[key]
+	}
+	if val == nil {
+		return nil
+	}
+	return proto.Clone(val)
 }
 
 // signalStartupResyncCheck sends signal after StartupResyncDeadline to check for
@@ -659,7 +674,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 	c.printNewEvent(evRecord, eventHandlers)
 
 	// 7. execute Update/Resync to build the transaction for vpp-agent
-	txn := newTransaction(c.Scheduler)
+	c.txn = newTransaction(c.Scheduler)
 	var (
 		idx      int
 		fatalErr bool
@@ -676,12 +691,12 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 			errStr string
 		)
 		if isUpdate {
-			change, err = handler.Update(event, txn)
+			change, err = handler.Update(event, c.txn)
 			if change != "" {
 				changes[handler.String()] = change
 			}
 		} else {
-			err = handler.Resync(event, c.kubeStateData, c.resyncCount, txn)
+			err = handler.Resync(event, c.kubeStateData, c.resyncCount, c.txn)
 		}
 		if err != nil {
 			errStr = err.Error()
@@ -717,21 +732,21 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 			if extChangeEv, isExtChangeEv := event.(*api.ExternalConfigChange); isExtChangeEv {
 				for key, extVal := range extChangeEv.UpdatedKVs {
 					// merge external config change with txn or with cached internal config
-					txnVal, hasTxnVal := txn.values[key]
+					txnVal, hasTxnVal := c.txn.values[key]
 					cachedVal, hasCachedVal := c.internalConfig[key]
 					if hasTxnVal {
-						txn.merged[key] = c.mergeValues(txnVal, extVal)
+						c.txn.merged[key] = c.mergeValues(txnVal, extVal)
 					} else if hasCachedVal {
-						txn.merged[key] = c.mergeValues(cachedVal, extVal)
+						c.txn.merged[key] = c.mergeValues(cachedVal, extVal)
 					} else {
-						txn.merged[key] = extVal
+						c.txn.merged[key] = extVal
 					}
 					merged[key] = struct{}{}
 				}
 			}
 
 			// merge internal config changes with the external config
-			for key, txnVal := range txn.values {
+			for key, txnVal := range c.txn.values {
 				if _, alreadyMerged := merged[key]; alreadyMerged {
 					// already merged
 					continue
@@ -740,7 +755,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 				for source := range c.externalConfig {
 					extVal, hasExtVal := c.externalConfig[source][key]
 					if hasExtVal {
-						txn.merged[key] = c.mergeValues(txnVal, extVal)
+						c.txn.merged[key] = c.mergeValues(txnVal, extVal)
 						break
 					}
 				}
@@ -748,11 +763,11 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		} else if event.Method() != api.DownstreamResync {
 			for source := range c.externalConfig {
 				for key, extVal := range c.externalConfig[source] {
-					txnVal, hasTxnVal := txn.values[key]
+					txnVal, hasTxnVal := c.txn.values[key]
 					if hasTxnVal {
-						txn.merged[key] = c.mergeValues(txnVal, extVal)
+						c.txn.merged[key] = c.mergeValues(txnVal, extVal)
 					} else {
-						txn.merged[key] = extVal
+						c.txn.merged[key] = extVal
 					}
 				}
 			}
@@ -760,7 +775,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 	}
 
 	// 9. commit the transaction to the vpp-agent
-	emptyTxn := len(txn.values) == 0 && len(txn.merged) == 0
+	emptyTxn := len(c.txn.values) == 0 && len(c.txn.merged) == 0
 	if (!emptyTxn || !isUpdate) &&
 		(wasErr == nil || (!fatalErr && !abortErr && !withRevert)) {
 
@@ -791,7 +806,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		}
 
 		// commit transaction to vpp-agent
-		txnSeqNum, err := txn.Commit(ctx)
+		txnSeqNum, err := c.txn.Commit(ctx)
 		c.Log.Debugf("Transaction commit result: err=%v", err)
 
 		// handle transaction error
@@ -799,7 +814,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		if err != nil {
 			wasErr = err
 			if !withRevert {
-				if c.onlyExtConfigFailed(err.(*scheduler.TransactionError), txn.values) {
+				if c.onlyExtConfigFailed(err.(*scheduler.TransactionError), c.txn.values) {
 					c.Log.Debug("Only external configuration caused the transaction to fail - " +
 						"not scheduling Healing resync")
 				} else {
@@ -816,7 +831,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		// update Controller's view of internal configuration
 		if isUpdate {
 			if err == nil || !withRevert {
-				for key, value := range txn.values {
+				for key, value := range c.txn.values {
 					if value == nil {
 						delete(c.internalConfig, key)
 					} else {
@@ -825,7 +840,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 				}
 			}
 		} else if event.Method() != api.DownstreamResync {
-			c.internalConfig = txn.values
+			c.internalConfig = c.txn.values
 		}
 	}
 
@@ -868,6 +883,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		c.historyLock.Unlock()
 	}
 	event.Done(wasErr)
+	c.txn = nil
 
 	// 12. if Healing/AfterError resync has failed -> report error to status check
 	if needsHealing && isHealing && healingAfterErr != nil {

@@ -27,6 +27,7 @@ import (
 	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/ligato/cn-infra/logging"
+	linux_if "github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
 )
 
@@ -42,6 +43,7 @@ type Deps struct {
 	Log              logging.Logger
 	Config           *config.Config
 	ContivConf       contivconf.API
+	Controller       controller.ConfigRetriever
 	IPAM             ipam.API
 	IPv4Net          ipv4net.API
 	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
@@ -206,7 +208,15 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 			if exists {
 				for _, clusterIP := range service.ClusterIPs.List() {
 					// cluster IP in POD
-					// TODO: modify POD interface config: add clusterIP to linuxIfName
+					key := linux_if.InterfaceKey(linuxIfName)
+					val := rndr.Controller.GetConfig(key)
+					if val == nil {
+						rndr.Log.Warnf("Interface to pod %v/%v not found", podID.Namespace, podID.Name)
+						continue
+					}
+					intf := val.(*linux_if.Interface)
+					intf.IpAddresses = append(intf.IpAddresses, clusterIP.String()+"/128")
+					config[key] = intf
 					rndr.Log.Warnf("NOT IMPLEMENTED: add IP %v to interface %s", clusterIP, linuxIfName)
 
 					// route to POD
@@ -216,7 +226,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 						OutgoingInterface: vppIfName,
 						VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
 					}
-					key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+					key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 					config[key] = route
 				}
 			}

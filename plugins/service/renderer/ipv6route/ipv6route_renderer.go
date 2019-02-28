@@ -43,7 +43,7 @@ type Deps struct {
 	Log              logging.Logger
 	Config           *config.Config
 	ContivConf       contivconf.API
-	Controller       controller.ConfigRetriever
+	ConfigRetriever  controller.ConfigRetriever
 	IPAM             ipam.API
 	IPv4Net          ipv4net.API
 	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
@@ -209,7 +209,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 				for _, clusterIP := range service.ClusterIPs.List() {
 					// cluster IP in POD
 					key := linux_if.InterfaceKey(linuxIfName)
-					val := rndr.Controller.GetConfig(key)
+					val := rndr.ConfigRetriever.GetConfig(key)
 					if val == nil {
 						rndr.Log.Warnf("Interface to pod %v/%v not found", podID.Namespace, podID.Name)
 						continue
@@ -217,7 +217,6 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 					intf := val.(*linux_if.Interface)
 					intf.IpAddresses = append(intf.IpAddresses, clusterIP.String()+"/128")
 					config[key] = intf
-					rndr.Log.Warnf("NOT IMPLEMENTED: add IP %v to interface %s", clusterIP, linuxIfName)
 
 					// route to POD
 					route := &vpp_l3.Route{

@@ -225,7 +225,7 @@ func main() {
 	ipv4NetPlugin.EventLoop = controller
 	contivGRPC.EventLoop = controller
 	bgpReflector.EventLoop = controller
-	servicePlugin.Controller = controller
+	servicePlugin.ConfigRetriever = controller
 
 	// initialize the agent
 	contivAgent := &ContivAgent{

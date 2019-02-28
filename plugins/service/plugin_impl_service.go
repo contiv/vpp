@@ -58,14 +58,15 @@ type Plugin struct {
 // Deps defines dependencies of the service plugin.
 type Deps struct {
 	infra.PluginDeps
-	ServiceLabel servicelabel.ReaderAPI
-	ContivConf   contivconf.API
-	IPAM         ipam.API
-	IPv4Net      ipv4net.API        /* to get the Node IP and all interface names */
-	NodeSync     nodesync.API       /* to get the list of all node IPs for nodePort services */
-	PodManager   podmanager.API     /* to get the list or running pods which determines frontend interfaces */
-	GoVPP        govppmux.API       /* used for direct NAT binary API calls */
-	Stats        statscollector.API /* used for exporting the statistics */
+	ServiceLabel    servicelabel.ReaderAPI
+	ContivConf      contivconf.API
+	IPAM            ipam.API
+	IPv4Net         ipv4net.API        /* to get the Node IP and all interface names */
+	NodeSync        nodesync.API       /* to get the list of all node IPs for nodePort services */
+	PodManager      podmanager.API     /* to get the list or running pods which determines frontend interfaces */
+	GoVPP           govppmux.API       /* used for direct NAT binary API calls */
+	Stats           statscollector.API /* used for exporting the statistics */
+	ConfigRetriever controller.ConfigRetriever
 }
 
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
@@ -127,11 +128,12 @@ func (p *Plugin) Init() error {
 		// use IPv6 route renderer
 		p.ipv6RouteRenderer = &ipv6route.Renderer{
 			Deps: ipv6route.Deps{
-				Log:        p.Log.NewLogger("-IPv6RouteRenderer"),
-				Config:     p.config,
-				ContivConf: p.ContivConf,
-				IPAM:       p.IPAM,
-				IPv4Net:    p.IPv4Net,
+				Log:             p.Log.NewLogger("-IPv6RouteRenderer"),
+				Config:          p.config,
+				ContivConf:      p.ContivConf,
+				ConfigRetriever: p.ConfigRetriever,
+				IPAM:            p.IPAM,
+				IPv4Net:         p.IPv4Net,
 				UpdateTxnFactory: func(change string) controller.UpdateOperations {
 					p.changes = append(p.changes, change)
 					return p.updateTxn

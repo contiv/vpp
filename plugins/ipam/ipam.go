@@ -425,6 +425,35 @@ func (i *IPAM) PodSubnetOtherNode(nodeID uint32) (*net.IPNet, error) {
 	return newIPNet(podSubnetThisNode), nil
 }
 
+// NodeIDFromPodIP returns node ID from provided POD IP address.
+func (i *IPAM) NodeIDFromPodIP(podIP net.IP) (uint32, error) {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+
+	if !i.podSubnetAllNodes.Contains(podIP) {
+		return 0, fmt.Errorf("pod IP %v not from pod subnet %v", podIP, i.podSubnetAllNodes)
+	}
+
+	subnet := i.podSubnetAllNodes.IP
+	if !isIPv6Net(i.podSubnetAllNodes) {
+		podIP = podIP.To4()
+		subnet = subnet.To4()
+	}
+	ip := new(big.Int).SetBytes(podIP)
+	podSubnetAllNodes := new(big.Int).SetBytes(subnet)
+
+	addrLen := addrLenFromNet(i.podSubnetThisNode)
+	oneNodePrefixLen, _ := i.podSubnetThisNode.Mask.Size()
+
+	// zero pod subnet prefix for all nodes
+	ip.Xor(ip, podSubnetAllNodes)
+
+	// shift right to get rid of the node addressing part
+	ip.Rsh(ip, uint(addrLen-oneNodePrefixLen))
+
+	return uint32(ip.Uint64()), nil
+}
+
 // ServiceNetwork returns range allocated for services.
 func (i *IPAM) ServiceNetwork() *net.IPNet {
 	i.mutex.RLock()

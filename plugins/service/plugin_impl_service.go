@@ -134,6 +134,7 @@ func (p *Plugin) Init() error {
 				ConfigRetriever: p.ConfigRetriever,
 				IPAM:            p.IPAM,
 				IPv4Net:         p.IPv4Net,
+				PodManager:      p.PodManager,
 				UpdateTxnFactory: func(change string) controller.UpdateOperations {
 					p.changes = append(p.changes, change)
 					return p.updateTxn

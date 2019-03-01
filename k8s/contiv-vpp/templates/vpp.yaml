@@ -290,9 +290,13 @@ spec:
                 fieldRef:
                   fieldPath: status.podIP
             - name: HOST_IP
+            {{- if .Values.etcd.service.useNodeIP }}
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
+            {{- else }}
+              value: "127.0.0.1"
+            {{- end }}
             - name: ETCDCTL_API
               value: "3"
             {{- if .Values.Arm64Platform }}
@@ -480,7 +484,11 @@ data:
     dial-timeout: 10000000000
     allow-delayed-start: true
     endpoints:
+    {{- if .Values.etcd.service.useNodeIP }}
       - "__HOST_IP__:{{ .Values.etcd.service.nodePort }}"
+    {{- else }}
+      - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
+    {{- end }}
 
 ---
 
@@ -505,7 +513,11 @@ data:
     allow-delayed-start: true
     reconnect-interval: 2000000000
     endpoints:
+    {{- if .Values.etcd.service.useNodeIP }}
       - "__HOST_IP__:{{ .Values.etcd.service.nodePort }}"
+    {{- else }}
+      - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
+    {{- end }}
 
 {{- if .Values.http.enableServerCert }}
 {{- if not .Values.http.mountFromHost }}

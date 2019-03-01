@@ -620,9 +620,13 @@ spec:
           - name: ETCDCTL_API
             value: "3"
           - name: HOST_IP
+          {{- if .Values.etcd.service.useNodeIP }}
             valueFrom:
               fieldRef:
                 fieldPath: status.hostIP
+          {{- else }}
+            value: "127.0.0.1"
+          {{- end}}
           {{- if .Values.Arm64Platform }}
           image: {{ .Values.etcd_arm64.image.repository }}:{{ .Values.etcd_arm64.image.tag }}
           {{- else }}
@@ -1017,9 +1021,13 @@ spec:
             - name: ETCDPORT
               value: {{ .Values.etcd.service.nodePort | quote }}
             - name: HOST_IP
+            {{- if .Values.etcd.service.useNodeIP }}
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
+            {{- else }}
+              value: "127.0.0.1"
+            {{- end }}
           {{- if .Values.Arm64Platform }}
           image: {{ .Values.init_arm64.image.repository }}:{{ .Values.init.image.tag }}
           {{- else }}

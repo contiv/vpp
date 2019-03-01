@@ -51,6 +51,9 @@ type API interface {
 	// identified by nodeID.
 	HostInterconnectSubnetOtherNode(nodeID uint32) (*net.IPNet, error)
 
+	// NodeIDFromPodIP returns node ID from provided POD IP address.
+	NodeIDFromPodIP(podIP net.IP) (uint32, error)
+
 	// PodSubnetAllNodes returns POD subnet that is a base subnet for all PODs
 	// of all nodes.
 	PodSubnetAllNodes() *net.IPNet

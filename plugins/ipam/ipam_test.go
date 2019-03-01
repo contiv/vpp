@@ -180,6 +180,10 @@ func TestDynamicGetters(t *testing.T) {
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(network("1.2." + str(b10000000+int(nodeID2>>5)) + "." + str(int(nodeID2<<3)) + "/29")))
 
+	id, err := i.NodeIDFromPodIP(net.ParseIP("1.2." + str(b10000000+int(nodeID2>>5)) + "." + str(int(nodeID2<<3))))
+	Expect(err).To(BeNil())
+	Expect(id).To(BeEquivalentTo(nodeID2))
+
 	ipNet, err = i.HostInterconnectSubnetOtherNode(nodeID2)
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(network("2.3." + str(b11000000+int(nodeID2>>6)) + "." + str(int(nodeID2<<2)) + "/30")))
@@ -213,6 +217,10 @@ func TestDynamicGettersIPv6(t *testing.T) {
 	ipNet, err = i.PodSubnetOtherNode(nodeID2)
 	Expect(err).To(BeNil())
 	Expect(ipNet.String()).To(BeEquivalentTo("fe10:f00d::500/120"))
+
+	id, err := i.NodeIDFromPodIP(net.ParseIP("fe10:f00d::500"))
+	Expect(err).To(BeNil())
+	Expect(id).To(BeEquivalentTo(nodeID2))
 
 	ipNet, err = i.HostInterconnectSubnetOtherNode(nodeID2)
 	Expect(err).To(BeNil())

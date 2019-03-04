@@ -95,10 +95,11 @@ func (rndr *Renderer) UpdateService(oldService, newService *renderer.ContivServi
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("update service '%v'", newService.ID))
 
-	config := rndr.renderService(newService)
-	controller.PutAll(txn, config)
+	oldConfig := rndr.renderService(oldService)
+	newConfig := rndr.renderService(newService)
 
-	// TODO: render both oldService and newService, Put diff
+	controller.DeleteAll(txn, oldConfig)
+	controller.PutAll(txn, newConfig)
 
 	return nil
 }

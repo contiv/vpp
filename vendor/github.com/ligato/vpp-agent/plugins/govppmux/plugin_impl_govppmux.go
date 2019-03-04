@@ -46,6 +46,7 @@ type Plugin struct {
 
 	vppConn      *govpp.Connection
 	vppAdapter   adapter.VppAPI
+	statsConn    govppapi.StatsProvider
 	statsAdapter adapter.StatsAPI
 	vppConChan   chan govpp.ConnectionEvent
 
@@ -191,13 +192,17 @@ func (p *Plugin) Init() error {
 	go p.handleVPPConnectionEvents(ctx)
 
 	// Connect to VPP status socket
+	var statsSocket string
 	if p.config.StatsSocketName != "" {
-		p.statsAdapter = NewStatsAdapter(p.config.StatsSocketName)
+		statsSocket = p.config.StatsSocketName
 	} else {
-		p.statsAdapter = NewStatsAdapter(defaultStatsSocket)
+		statsSocket = defaultStatsSocket
 	}
-	if err := p.statsAdapter.Connect(); err != nil {
-		p.Log.Warnf("Unable to connect to VPP statistics socket, %v", err)
+	statsAdapter := NewStatsAdapter(statsSocket)
+	if statsAdapter == nil {
+		p.Log.Warnf("Unable to connect to the VPP statistics socket, nil stats adapter", err)
+	} else if p.statsConn, err = govpp.ConnectStats(statsAdapter); err != nil {
+		p.Log.Warnf("Unable to connect to the VPP statistics socket, %v", err)
 		p.statsAdapter = nil
 	}
 
@@ -238,7 +243,7 @@ func (p *Plugin) NewAPIChannel() (govppapi.Channel, error) {
 		p.config.RetryRequestCount,
 		p.config.RetryRequestTimeout,
 	}
-	return &goVppChan{ch, retryCfg, p.tracer}, nil
+	return newGovppChan(ch, retryCfg, p.tracer), nil
 }
 
 // NewAPIChannelBuffered returns a new API channel for communication with VPP via govpp core.
@@ -256,7 +261,7 @@ func (p *Plugin) NewAPIChannelBuffered(reqChanBufSize, replyChanBufSize int) (go
 		p.config.RetryRequestCount,
 		p.config.RetryRequestTimeout,
 	}
-	return &goVppChan{ch, retryCfg, p.tracer}, nil
+	return newGovppChan(ch, retryCfg, p.tracer), nil
 }
 
 // GetTrace returns all trace entries measured so far
@@ -282,6 +287,38 @@ func (p *Plugin) DumpStats(prefixes ...string) ([]*adapter.StatEntry, error) {
 		return nil, nil
 	}
 	return p.statsAdapter.DumpStats(prefixes...)
+}
+
+// GetSystemStats retrieves system statistics of the connected VPP instance like Vector rate, Input rate, etc.
+func (p *Plugin) GetSystemStats() (*govppapi.SystemStats, error) {
+	if p.statsConn == nil || p.statsConn.(*govpp.StatsConnection) == nil {
+		return nil, nil
+	}
+	return p.statsConn.GetSystemStats()
+}
+
+// GetNodeStats retrieves a list of Node VPP counters (vectors, clocks, ...)
+func (p *Plugin) GetNodeStats() (*govppapi.NodeStats, error) {
+	if p.statsConn == nil || p.statsConn.(*govpp.StatsConnection) == nil {
+		return nil, nil
+	}
+	return p.statsConn.GetNodeStats()
+}
+
+// GetInterfaceStats retrieves all counters related to the VPP interfaces
+func (p *Plugin) GetInterfaceStats() (*govppapi.InterfaceStats, error) {
+	if p.statsConn == nil || p.statsConn.(*govpp.StatsConnection) == nil {
+		return nil, nil
+	}
+	return p.statsConn.GetInterfaceStats()
+}
+
+// GetErrorStats retrieves VPP error counters
+func (p *Plugin) GetErrorStats(names ...string) (*govppapi.ErrorStats, error) {
+	if p.statsConn == nil || p.statsConn.(*govpp.StatsConnection) == nil {
+		return nil, nil
+	}
+	return p.statsConn.GetErrorStats()
 }
 
 // handleVPPConnectionEvents handles VPP connection events.
@@ -323,48 +360,3 @@ func (p *Plugin) handleVPPConnectionEvents(ctx context.Context) {
 		}
 	}
 }
-
-/*func (p *Plugin) retrieveVpeInfo() (*vppcalls.VpeInfo, error) {
-	vppAPIChan, err := p.vppConn.NewAPIChannel()
-	if err != nil {
-		p.Log.Error("getting new api channel failed:", err)
-		return nil, err
-	}
-	defer vppAPIChan.Close()
-
-	info, err := vppcalls.GetVpeInfo(vppAPIChan)
-	if err != nil {
-		p.Log.Warn("getting version info failed:", err)
-		return nil, err
-	}
-	p.Log.Debugf("vpp module versions: %+v", info.ModuleVersions)
-
-	return info, nil
-}
-
-func (p *Plugin) retrieveVersion() {
-	vppAPIChan, err := p.vppConn.NewAPIChannel()
-	if err != nil {
-		p.Log.Error("getting new api channel failed:", err)
-		return
-	}
-	defer vppAPIChan.Close()
-
-	version, err := vppcalls.GetVersionInfo(vppAPIChan)
-	if err != nil {
-		p.Log.Warn("getting version info failed:", err)
-		return
-	}
-
-	p.Log.Debugf("version info: %+v", version)
-	p.Log.Infof("VPP version: %q (%v)", version.Version, version.BuildDate)
-
-	// Get VPP ACL plugin version
-	var aclVersion string
-	if aclVersion, err = vppcalls.GetACLPluginVersion(vppAPIChan); err != nil {
-		p.Log.Warn("getting acl version info failed:", err)
-		return
-	}
-	p.Log.Infof("VPP ACL plugin version: %q", aclVersion)
-}
-*/

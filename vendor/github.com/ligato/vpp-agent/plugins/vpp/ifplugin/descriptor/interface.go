@@ -104,6 +104,9 @@ var (
 
 	// ErrSubInterfaceWithoutParent is returned when interface of type sub-interface is defined without parent.
 	ErrSubInterfaceWithoutParent = errors.Errorf("subinterface with no parent interface defined")
+
+	// ErrDPDKInterfaceMissing is returned when the expected DPDK interface does not exist on the VPP.
+	ErrDPDKInterfaceMissing = errors.Errorf("DPDK interface with given name does not exists")
 )
 
 // InterfaceDescriptor teaches KVScheduler how to configure VPP interfaces.
@@ -366,6 +369,9 @@ func (d *InterfaceDescriptor) Validate(key string, intf *interfaces.Interface) e
 			return kvs.NewInvalidValueError(ErrSubInterfaceWithoutParent, "link.sub.parent_name")
 		}
 	case interfaces.Interface_DPDK:
+		if _, ok := d.ethernetIfs[intf.Name]; !ok {
+			return kvs.NewInvalidValueError(ErrDPDKInterfaceMissing, "name")
+		}
 		if getRxMode(intf).GetRxMode() != interfaces.Interface_RxModeSettings_POLLING {
 			return kvs.NewInvalidValueError(ErrUnsupportedRxMode, "rx_mode_settings.rx_mode")
 		}
@@ -409,6 +415,11 @@ func (d *InterfaceDescriptor) UpdateWithRecreate(key string, oldIntf, newIntf *i
 	wasIPv4, wasIPv6 := getIPAddressVersions(oldAddrs)
 	isIPv4, isIPv6 := getIPAddressVersions(newAddrs)
 	if wasIPv4 != isIPv4 || wasIPv6 != isIPv6 {
+		return true
+	}
+
+	// case for af-packet mac update (cannot be updated directly)
+	if oldIntf.GetType() == interfaces.Interface_AF_PACKET && oldIntf.PhysAddress != newIntf.PhysAddress {
 		return true
 	}
 
@@ -638,12 +649,6 @@ func getIPAddressVersions(ipAddrs []*net.IPNet) (isIPv4, isIPv6 bool) {
 
 // setInterfaceVrf sets the interface to VRF according to versions of IP addresses configured on the interface.
 func setInterfaceVrf(ifHandler vppcalls.InterfaceVppAPI, ifName string, ifIdx uint32, vrf uint32, ipAddresses []*net.IPNet) error {
-	if vrf == 0 {
-		// explicit set to VRF 0 seems to be causing issues on VPP
-		// NOTE: because of this return, this function cannot be used to switch VRF from non-zero to zero
-		// (can be only used to put a newly created interface to a VRF)
-		return nil
-	}
 	isIPv4, isIPv6 := getIPAddressVersions(ipAddresses)
 	if isIPv4 {
 		if err := ifHandler.SetInterfaceVrf(ifIdx, vrf); err != nil {

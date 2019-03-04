@@ -147,7 +147,7 @@ func (ns *NodeSync) PublishNodeIPs(addresses contivconf.IPsWithNetworks, version
 	}
 
 	for _, addr := range addresses {
-		newAddrs = append(newAddrs, addr)
+		newAddrs = appendIfMissing(newAddrs, addr)
 	}
 
 	if equalAddrsWithNetworks(newAddrs, ns.thisNode.VppIPAddresses) {
@@ -568,4 +568,14 @@ func equalAddrsWithNetworks(addrs1, addrs2 contivconf.IPsWithNetworks) bool {
 		}
 	}
 	return true
+}
+
+// appendIfMissing is utility function to append to list only if it do not contains the data already
+func appendIfMissing(slice contivconf.IPsWithNetworks, i *contivconf.IPWithNetwork) contivconf.IPsWithNetworks {
+	for _, el := range slice {
+		if el.Version == i.Version && el.Address.Equal(i.Address) && el.Network.String() == i.Network.String() {
+			return slice
+		}
+	}
+	return append(slice, i)
 }

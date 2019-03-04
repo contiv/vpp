@@ -200,7 +200,7 @@ func (n *IPv4Net) configureMainVPPInterface(event controller.Event, txn controll
 		nodeIPs = append(nodeIPs, &contivconf.IPWithNetwork{Address: n.nodeIP, Network: n.nodeIPNet})
 	}
 	ipVersion := contivconf.IPv4
-	if n.nodeIP.To4() == nil {
+	if isIPv6(n.nodeIP) {
 		ipVersion = contivconf.IPv6
 	}
 	n.NodeSync.PublishNodeIPs(nodeIPs, ipVersion)

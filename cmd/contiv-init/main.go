@@ -200,7 +200,8 @@ func etcdConnect() (etcdConn nodesync.ClusterWideDB, err error) {
 }
 
 // boltOpen opens local Bolt db.
-func boltOpen() (protoDb *kvproto.ProtoWrapper, err error) {
+// If delete is true, the database file is deleted before opening.
+func boltOpen(delete bool) (protoDb *kvproto.ProtoWrapper, err error) {
 	boltConfig := &bolt.Config{}
 
 	// parse Bolt config file
@@ -208,6 +209,11 @@ func boltOpen() (protoDb *kvproto.ProtoWrapper, err error) {
 	if err != nil {
 		logger.Errorf("Error by parsing config YAML file: %v", err)
 		return nil, err
+	}
+
+	if delete {
+		// delete the DB file before creating the client if requested
+		os.Remove(boltConfig.DbPath)
 	}
 
 	// create bolt client
@@ -294,10 +300,18 @@ func main() {
 	}
 
 	// try to open local Bolt db
-	boltDB, err := boltOpen()
+	boltDB, err := boltOpen(false)
 	if err != nil {
-		logger.Errorf("Failed to open Bolt DB: %v", err)
-		os.Exit(-1)
+		logger.Warnf("Failed to open Bolt DB: %v, will retry with DB file delete", err)
+
+		// try to re-open after deleting the DB file
+		// This may be needed upon non-backward-compatible bolt version change.
+		boltDB, err = boltOpen(true)
+		if err != nil {
+			logger.Warnf("Failed to open Bolt DB: %v, Bolt will not be used", err)
+		} else {
+			logger.Debugf("Bolt open successful after DB file delete")
+		}
 	}
 	defer func() {
 		if boltDB != nil {

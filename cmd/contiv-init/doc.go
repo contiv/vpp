@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Contiv-init is the init process of the contiv vswitch POD. It starts VPP and
-// contiv-agent processes in the correct order (using the supervisor xmlrpc API),
+// contiv-agent processes in the correct order,
 // and does the STN (Steal the NIC) pre-configuration on VPP and in the host stack.
 //
 // In STN case, the order of contiv-init operation is:

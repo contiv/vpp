@@ -709,14 +709,6 @@
   version = "1.1.5"
 
 [[projects]]
-  branch = "master"
-  digest = "1:5870e81e8951f1b080d69341300d3c145916b494dbc693c9d12b5d745b3d27ec"
-  name = "github.com/kolo/xmlrpc"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "16bdd962781df9696f40cc2bab924f1a855a7f89"
-
-[[projects]]
   digest = "1:31e761d97c76151dde79e9d28964a812c46efc5baee4085b86f68f0c654450de"
   name = "github.com/konsorten/go-windows-terminal-sequences"
   packages = ["."]
@@ -726,7 +718,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:78d8dcc7a377eec16c2546a3da50c75ae683fb371893bac1e63cf1f38facf8fb"
+  digest = "1:8e0971ab88756246a8f682e328813e0925d3e036ca69740693824368788df863"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -750,6 +742,10 @@
     "logging/logrus",
     "logging/measure",
     "logging/measure/model/apitrace",
+    "processmanager",
+    "processmanager/status",
+    "processmanager/template",
+    "processmanager/template/model/process",
     "rpc/grpc",
     "rpc/prometheus",
     "rpc/rest",
@@ -951,13 +947,6 @@
   pruneopts = "UT"
   revision = "71ceffbeb0ba60fccc853971bb3ed4d7d90bfd04"
   version = "v1.7.4-pre"
-
-[[projects]]
-  digest = "1:304536fe76814096bef978e67d0d5bf4649b9c647094d4aeecbcb145d12cc102"
-  name = "github.com/nerdtakula/supervisor"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "857e93729bfa62df91dcdd3d36c9ac7036edf20a"
 
 [[projects]]
   digest = "1:7a137fb7718928e473b7d805434ae563ec41790d3d227cdc64e8b14d1cab8a1f"
@@ -1781,6 +1770,8 @@
     "github.com/ligato/cn-infra/logging",
     "github.com/ligato/cn-infra/logging/logmanager",
     "github.com/ligato/cn-infra/logging/logrus",
+    "github.com/ligato/cn-infra/processmanager",
+    "github.com/ligato/cn-infra/processmanager/status",
     "github.com/ligato/cn-infra/rpc/grpc",
     "github.com/ligato/cn-infra/rpc/prometheus",
     "github.com/ligato/cn-infra/rpc/rest",
@@ -1830,7 +1821,6 @@
     "github.com/ligato/vpp-agent/plugins/vpp/puntplugin",
     "github.com/ligato/vpp-agent/plugins/vpp/stnplugin",
     "github.com/namsral/flag",
-    "github.com/nerdtakula/supervisor",
     "github.com/onsi/gomega",
     "github.com/opencontainers/runc",
     "github.com/pkg/errors",

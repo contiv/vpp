@@ -25,6 +25,7 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/service/renderer"
@@ -41,7 +42,7 @@ const (
 type Renderer struct {
 	Deps
 
-	snatOnly bool /* do not render services, only dynamic SNAT */
+	snatOnly bool // do not render services, only dynamic SNAT
 }
 
 // Deps lists dependencies of the Renderer.
@@ -49,10 +50,11 @@ type Deps struct {
 	Log              logging.Logger
 	Config           *config.Config
 	ContivConf       contivconf.API
-	ConfigRetriever  controller.ConfigRetriever
+	NodeSync         nodesync.API
+	PodManager       podmanager.API
 	IPAM             ipam.API
 	IPv4Net          ipv4net.API
-	PodManager       podmanager.API
+	ConfigRetriever  controller.ConfigRetriever
 	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
 }
@@ -169,9 +171,11 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 	hasHostNetworkLocalBackend := false
 	remoteBackendNodes := make(map[uint32]bool)
 
+	// collect info about the backends
 	for portName := range service.Ports {
 		for _, backend := range service.Backends[portName] {
 			if backend.Local {
+				// collect local backend info
 				if backend.HostNetwork {
 					if rndr.isLocalNodeOrHostIP(backend.IP) {
 						hasHostNetworkLocalBackend = true
@@ -180,8 +184,14 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 					localBackends = append(localBackends, backend.IP)
 				}
 			} else {
+				// collect remote backend info
 				if backend.HostNetwork {
-					// TODO: node ID from host IP ??? / this should be already routed ???
+					nodeID, err := rndr.nodeIDFromNodeOrHostIP(backend.IP)
+					if err != nil {
+						rndr.Log.Warnf("Error by extracting node ID from host IP: %v", err)
+					} else {
+						remoteBackendNodes[nodeID] = true
+					}
 				} else {
 					nodeID, err := rndr.IPAM.NodeIDFromPodIP(backend.IP)
 					if err != nil {
@@ -297,14 +307,22 @@ func (rndr *Renderer) isLocalNodeOrHostIP(ip net.IP) bool {
 	return false
 }
 
-// contains returns tru if provided slice contains provided value, false otherwise.
-func contains(slice []string, value string) bool {
-	for _, i := range slice {
-		if i == value {
-			return true
+// nodeIDFromNodeOrHostIP returns node ID matching with the provided node (VPP) or host (mgmt) IP.
+// If no match is found for provided IP, error is returned.
+func (rndr *Renderer) nodeIDFromNodeOrHostIP(ip net.IP) (uint32, error) {
+	for _, node := range rndr.NodeSync.GetAllNodes() {
+		for _, vppIP := range node.VppIPAddresses {
+			if ip.Equal(vppIP.Address) {
+				return node.ID, nil
+			}
+		}
+		for _, mgmtIP := range node.MgmtIPAddresses {
+			if ip.Equal(mgmtIP) {
+				return node.ID, nil
+			}
 		}
 	}
-	return false
+	return 0, fmt.Errorf("node with IP %v not found", ip)
 }
 
 func addAddressToLoopback(namespace string, ip *net.IPNet) error {

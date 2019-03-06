@@ -131,10 +131,11 @@ func (p *Plugin) Init() error {
 				Log:             p.Log.NewLogger("-IPv6RouteRenderer"),
 				Config:          p.config,
 				ContivConf:      p.ContivConf,
-				ConfigRetriever: p.ConfigRetriever,
+				NodeSync:        p.NodeSync,
+				PodManager:      p.PodManager,
 				IPAM:            p.IPAM,
 				IPv4Net:         p.IPv4Net,
-				PodManager:      p.PodManager,
+				ConfigRetriever: p.ConfigRetriever,
 				UpdateTxnFactory: func(change string) controller.UpdateOperations {
 					p.changes = append(p.changes, change)
 					return p.updateTxn

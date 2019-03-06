@@ -761,7 +761,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:41cb58249599c2f0d4c42f05982f811ee2fd25905ec616294c2f4045177cc46d"
+  digest = "1:798d163e0563cb3a65a3f4aa136854ee7b5854816062f18447bfbfa294278b13"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -890,7 +890,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1901",
   ]
   pruneopts = "UT"
-  revision = "561c93efb0306535dae20b4dbd41a877b8c0051d"
+  revision = "4b8352697a2b4335f495f55d9abf5c3fe0fe3f0d"
 
 [[projects]]
   branch = "master"
@@ -1739,7 +1739,6 @@
     "github.com/containernetworking/cni/pkg/types/current",
     "github.com/containernetworking/cni/pkg/version",
     "github.com/containernetworking/plugins/pkg/ipam",
-    "github.com/containernetworking/plugins/pkg/ns",
     "github.com/docker/distribution",
     "github.com/docker/docker/api",
     "github.com/docker/swarmkit",

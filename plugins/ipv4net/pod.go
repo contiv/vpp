@@ -137,17 +137,15 @@ func (n *IPv4Net) podLinuxLoop(pod *podmanager.LocalPod) (key string, config *li
 		Name:        n.podLinuxLoopName(pod),
 		Type:        linux_interfaces.Interface_LOOPBACK,
 		Enabled:     true,
-		IpAddresses: []string{},
+		IpAddresses: []string{ipv4LoopbackAddress},
 		Namespace: &linux_namespace.NetNamespace{
 			Type:      linux_namespace.NetNamespace_FD,
 			Reference: pod.NetworkNamespace,
 		},
 	}
-	// TODO: uncomment
-	//loop.IpAddresses = append(loop.IpAddresses, ipv4LoopbackAddress)
-	//if n.ContivConf.GetIPAMConfig().UseIPv6 {
-	//	loop.IpAddresses = append(loop.IpAddresses, ipv6LoopbackAddress)
-	//}
+	if n.ContivConf.GetIPAMConfig().UseIPv6 {
+		loop.IpAddresses = append(loop.IpAddresses, ipv6LoopbackAddress)
+	}
 	key = linux_interfaces.InterfaceKey(loop.Name)
 	return key, loop
 }

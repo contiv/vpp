@@ -143,7 +143,7 @@ func (sp *ServiceProcessor) ProcessNewPod(podNamespace string, podName string) e
 
 	localEp := sp.getLocalEndpoint(podID)
 
-	ifName, _, ifExists := sp.IPv4Net.GetPodIfName(podID.Namespace, podID.Name)
+	ifName, _, _, ifExists := sp.IPv4Net.GetPodIfNames(podID.Namespace, podID.Name)
 	if !ifExists {
 		sp.Log.WithFields(logging.Fields{
 			"pod-ns":   podID.Namespace,
@@ -447,7 +447,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	// -> pods
 	for _, podID := range resyncEv.Pods {
 		// -> pod interface
-		ifName, _, ifExists := sp.IPv4Net.GetPodIfName(podID.Namespace, podID.Name)
+		ifName, _, _, ifExists := sp.IPv4Net.GetPodIfNames(podID.Namespace, podID.Name)
 		if !ifExists {
 			// not an error, this is just pod deployed in the host networking
 			continue

@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
@@ -30,8 +29,8 @@ import (
 	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/vishvananda/netlink"
 )
 
 const (
@@ -218,31 +217,21 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 		// connect local backend
 		podID, found := rndr.IPAM.GetPodFromIP(backendIP)
 		if found {
-			vppIfName, _, exists := rndr.IPv4Net.GetPodIfName(podID.Namespace, podID.Name)
+			vppIfName, _, loopIfName, exists := rndr.IPv4Net.GetPodIfNames(podID.Namespace, podID.Name)
 			if exists {
 				for _, clusterIP := range service.ClusterIPs.List() {
-					// cluster IP in POD
-					//key := linux_if.InterfaceKey(linuxIfName)
-					//val := rndr.ConfigRetriever.GetConfig(key)
-					//if val == nil {
-					//	rndr.Log.Warnf("Interface to pod %v/%v not found", podID.Namespace, podID.Name)
-					//	continue
-					//}
-					//intf := val.(*linux_if.Interface)
-					//ip := clusterIP.String() + ipv6HostPrefix
-					//if !contains(intf.IpAddresses, ip) {
-					//	intf.IpAddresses = append(intf.IpAddresses, ip)
-					//	config[key] = intf
-					//}
-					// TODO: temporary for testing, should be replaced with vpp-agent NB API
-					pod, exists := rndr.PodManager.GetLocalPods()[podID]
-					if !exists {
-						rndr.Log.Warnf("POD %v node found in local pods list", podID)
+					// cluster IP on POD loopback
+					key := linux_interfaces.InterfaceKey(loopIfName)
+					val := rndr.ConfigRetriever.GetConfig(key)
+					if val == nil {
+						rndr.Log.Warnf("Loopback interface for pod %v not found", podID)
 						continue
 					}
-					err := addAddressToLoopback(pod.NetworkNamespace, &net.IPNet{IP: clusterIP, Mask: net.CIDRMask(128, 128)})
-					if err != nil {
-						rndr.Log.Errorf("Error by adding IP to POD loopback: %v", err)
+					loop := val.(*linux_interfaces.Interface)
+					ip := clusterIP.String() + ipv6HostPrefix
+					if !contains(loop.IpAddresses, ip) {
+						loop.IpAddresses = append(loop.IpAddresses, ip)
+						config[key] = loop
 					}
 
 					// route to POD
@@ -252,7 +241,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 						OutgoingInterface: vppIfName,
 						VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
 					}
-					key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+					key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 					config[key] = route
 				}
 			}
@@ -325,24 +314,12 @@ func (rndr *Renderer) nodeIDFromNodeOrHostIP(ip net.IP) (uint32, error) {
 	return 0, fmt.Errorf("node with IP %v not found", ip)
 }
 
-func addAddressToLoopback(namespace string, ip *net.IPNet) error {
-	ifName := "lo"
-	err := ns.WithNetNSPath(namespace, func(_ ns.NetNS) error {
-		link, err := netlink.LinkByName(ifName)
-		if err != nil {
-			return err // not tested
+// contains returns true if provided slice contains provided value, false otherwise.
+func contains(slice []string, value string) bool {
+	for _, i := range slice {
+		if i == value {
+			return true
 		}
-
-		addr := &netlink.Addr{IPNet: ip}
-		err = netlink.AddrAdd(link, addr)
-		if err != nil {
-			return err // not tested
-		}
-
-		return nil
-	})
-	if err != nil {
-		return err // not tested
 	}
-	return nil
+	return false
 }

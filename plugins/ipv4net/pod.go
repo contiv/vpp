@@ -32,6 +32,9 @@ import (
 )
 
 const (
+	// prefix for logical name of the Linux loopback interface in a pod
+	podLinuxLoopLogicalNamePrefix = "linux-loop-"
+
 	// interface host name as required by Kubernetes for every pod
 	podInterfaceHostName = "eth0" // required by Kubernetes
 
@@ -51,11 +54,20 @@ const (
 	podLinuxSideTAPLogicalNamePrefix = "linux-tap-"
 )
 
+const (
+	ipv4LoopbackAddress = "127.0.0.1/8"
+	ipv6LoopbackAddress = "::1/128"
+)
+
 /****************************** Pod Configuration ******************************/
 
 // podConnectivityConfig returns configuration for VPP<->Pod connectivity.
 func (n *IPv4Net) podConnectivityConfig(pod *podmanager.LocalPod) (config controller.KeyValuePairs) {
 	config = make(controller.KeyValuePairs)
+
+	// create loopback in the POD
+	key, linuxLoop := n.podLinuxLoop(pod)
+	config[key] = linuxLoop
 
 	// create VPP to POD interconnect interface
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
@@ -110,6 +122,32 @@ func (n *IPv4Net) podInterfaceName(pod *podmanager.LocalPod) (vppIfName, linuxIf
 		return n.podVPPSideTAPName(pod), n.podLinuxSideTAPName(pod)
 	}
 	return n.podAFPacketName(pod), n.podVeth1Name(pod)
+}
+
+/******************************** loopback interface ********************************/
+
+// podVPPSideTAPName returns logical name of the TAP interface of a given Pod connected to VPP.
+func (n *IPv4Net) podLinuxLoopName(pod *podmanager.LocalPod) string {
+	return trimInterfaceName(podLinuxLoopLogicalNamePrefix+pod.ContainerID, logicalIfNameMaxLen)
+}
+
+// podLinuxLoop returns the configuration for the loopback interface in the Linux namespace of the pod.
+func (n *IPv4Net) podLinuxLoop(pod *podmanager.LocalPod) (key string, config *linux_interfaces.Interface) {
+	loop := &linux_interfaces.Interface{
+		Name:        n.podLinuxLoopName(pod),
+		Type:        linux_interfaces.Interface_LOOPBACK,
+		Enabled:     true,
+		IpAddresses: []string{ipv4LoopbackAddress},
+		Namespace: &linux_namespace.NetNamespace{
+			Type:      linux_namespace.NetNamespace_FD,
+			Reference: pod.NetworkNamespace,
+		},
+	}
+	if n.ContivConf.GetIPAMConfig().UseIPv6 {
+		loop.IpAddresses = append(loop.IpAddresses, ipv6LoopbackAddress)
+	}
+	key = linux_interfaces.InterfaceKey(loop.Name)
+	return key, loop
 }
 
 /******************************** TAP interface ********************************/

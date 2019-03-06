@@ -176,9 +176,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 			if backend.Local {
 				// collect local backend info
 				if backend.HostNetwork {
-					if rndr.isLocalNodeOrHostIP(backend.IP) {
-						hasHostNetworkLocalBackend = true
-					}
+					hasHostNetworkLocalBackend = true
 				} else {
 					localBackends = append(localBackends, backend.IP)
 				}
@@ -280,20 +278,6 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 	}
 
 	return config
-}
-
-// isLocalNodeOrHostIP returns true if the given IP is current node's node (VPP) or host (mgmt) IP, false otherwise.
-func (rndr *Renderer) isLocalNodeOrHostIP(ip net.IP) bool {
-	nodeIP, _ := rndr.IPv4Net.GetNodeIP()
-	if ip.Equal(nodeIP) {
-		return true
-	}
-	for _, hostIP := range rndr.IPv4Net.GetHostIPs() {
-		if hostIP.Equal(ip) {
-			return true
-		}
-	}
-	return false
 }
 
 // nodeIDFromNodeOrHostIP returns node ID matching with the provided node (VPP) or host (mgmt) IP.

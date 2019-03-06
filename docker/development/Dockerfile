@@ -6,4 +6,3 @@ COPY contiv-agent /usr/bin/contiv-agent
 
 # temporary
 COPY contiv-init /usr/bin/contiv-init
-COPY supervisord.conf /etc/supervisord.conf

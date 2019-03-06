@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/namsral/flag"
-	"github.com/nerdtakula/supervisor"
 	"google.golang.org/grpc"
 
 	"github.com/ligato/cn-infra/config"
@@ -33,6 +32,8 @@ import (
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/ligato/cn-infra/processmanager"
+	"github.com/ligato/cn-infra/processmanager/status"
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
@@ -44,14 +45,17 @@ import (
 )
 
 const (
-	defaultEtcdCfgFile      = "/etc/etcd/etcd.conf"
-	defaultBoltCfgFile      = "/etc/vpp-agent/bolt.conf"
-	defaultSupervisorSocket = "/run/supervisor.sock"
-	defaultStnServerSocket  = "/var/run/contiv/stn.sock"
-	defaultCNISocketFile    = "/var/run/contiv/cni.sock"
+	vppProcessName       = "vpp"
+	defaultVppBinaryPath = "/usr/bin/vpp"
+	vppStartupConfigPath = "/etc/vpp/contiv-vswitch.conf"
 
-	vppProcessName         = "vpp"
-	contivAgentProcessName = "contiv-agent"
+	agentProcessName       = "contiv-agent"
+	defaultAgentBinaryPath = "/usr/bin/contiv-agent"
+
+	defaultEtcdCfgFile     = "/etc/etcd/etcd.conf"
+	defaultBoltCfgFile     = "/etc/vpp-agent/bolt.conf"
+	defaultStnServerSocket = "/var/run/contiv/stn.sock"
+	defaultCNISocketFile   = "/var/run/contiv/cni.sock"
 
 	etcdConnectionRetries = 2 // number of retries to connect to ETCD
 
@@ -59,17 +63,20 @@ const (
 )
 
 var (
-	etcdCfgFile      = flag.String("etcd-config", defaultEtcdCfgFile, "location of the ETCD config file")
-	boltCfgFile      = flag.String("bolt-config", defaultBoltCfgFile, "location of the Bolt config file")
-	supervisorSocket = flag.String("supervisor-socket", defaultSupervisorSocket, "management API socket file of the supervisor process")
-	stnServerSocket  = flag.String("stn-server-socket", defaultStnServerSocket, "socket file where STN GRPC server listens for connections")
+	vppBinaryPath   = flag.String("vpp-bin", defaultVppBinaryPath, "location of the VPP binary")
+	agentBinaryPath = flag.String("agent-bin", defaultAgentBinaryPath, "location of the Contiv Agent binary")
+
+	etcdCfgFile     = flag.String("etcd-config", defaultEtcdCfgFile, "location of the ETCD config file")
+	boltCfgFile     = flag.String("bolt-config", defaultBoltCfgFile, "location of the Bolt config file")
+	stnServerSocket = flag.String("stn-server-socket", defaultStnServerSocket, "socket file where STN GRPC server listens for connections")
 )
 
 var logger logging.Logger // global logger
 
 // init initializes the global logger
 func init() {
-	logger = logrus.DefaultLogger()
+	logger = logrus.NewLogger("contiv-init")
+	logger.SetOutput(os.Stdout)
 	logger.SetLevel(logging.DebugLevel)
 }
 
@@ -377,12 +384,22 @@ func main() {
 		}
 	}
 
-	// connect to supervisor API
-	client := supervisor.New(*supervisorSocket, 0, "", "")
+	// release bolt DB before starting the Contiv agent
+	if boltDB != nil {
+		boltDB.Close()
+		boltDB = nil
+	}
+
+	// init process manager
+	procmgr := processmanager.NewPlugin()
 
 	// start VPP
 	logger.Debug("Starting VPP")
-	_, err = client.StartProcess(vppProcessName, false)
+	vppLogger := newVPPLogger()
+	vppStat := make(chan status.ProcessStatus)
+	vpp := procmgr.NewProcess(vppProcessName, *vppBinaryPath, processmanager.Args("-c", vppStartupConfigPath),
+		processmanager.Writer(vppLogger, vppLogger), processmanager.Notify(vppStat), processmanager.AutoTerminate())
+	err = vpp.Start()
 	if err != nil {
 		logger.Errorf("Error by starting VPP process: %v", err)
 		os.Exit(-1)
@@ -390,24 +407,50 @@ func main() {
 
 	// start contiv-agent
 	logger.Debugf("Starting contiv-agent")
-	// release bolt DB before starting the Contiv agent
-	boltDB.Close()
-	boltDB = nil
 	// remove CNI server socket file
-	// TODO: this should be done automatically by CNI-infra before socket bind, remove once implemented
 	os.Remove(defaultCNISocketFile)
-	_, err = client.StartProcess(contivAgentProcessName, false)
+	agentStat := make(chan status.ProcessStatus)
+	agent := procmgr.NewProcess(agentProcessName, *agentBinaryPath,
+		processmanager.Writer(os.Stdout, os.Stdout), processmanager.Notify(agentStat), processmanager.AutoTerminate())
+	err = agent.Start()
 	if err != nil {
 		logger.Errorf("Error by starting contiv-agent process: %v", err)
-		client.StopProcess(vppProcessName, false)
+		vpp.Stop()
 		os.Exit(-1)
 	}
 
-	// wait until SIGINT/SIGTERM signal
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-sigs
-	logger.Debugf("%v signal received, exiting", sig)
+	// subscribe to SIGTERM signal
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM)
+
+	// loop until SIGTERM / process termination
+eventLoop:
+	for {
+		select {
+		case sig := <-sigChan:
+			logger.Debugf("%v signal received, stopping contiv-agent & VPP", sig)
+			agent.Stop()
+			vpp.Stop()
+			agent.Wait()
+			vpp.Wait()
+			break eventLoop
+
+		case stat := <-vppStat:
+			if stat == status.Terminated {
+				logger.Error("VPP terminated, stopping contiv-agent")
+				agent.StopAndWait()
+				break eventLoop
+			}
+
+		case stat := <-agentStat:
+			if stat == status.Terminated {
+				logger.Error("contiv-agent terminated, stopping VPP")
+				vpp.StopAndWait()
+				break eventLoop
+			}
+		}
+	}
+	logger.Debugf("exiting")
 
 	// request releasing the NIC
 	if nicToSteal != "" {

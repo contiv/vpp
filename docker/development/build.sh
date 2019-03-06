@@ -19,7 +19,6 @@ set -e
 # copy files to replace in the image
 cp ../../cmd/contiv-init/contiv-init .
 cp ../../cmd/contiv-agent/contiv-agent .
-cp ../../docker/vpp-vswitch/prod/vswitch/supervisord.conf .
 
 # build the development vswitch
 docker build -f Dockerfile -t contivvpp/vswitch --no-cache --force-rm=true .

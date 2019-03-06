@@ -36,14 +36,11 @@ RUN cd $GOPATH/src/github.com/contiv/vpp \
  && make contiv-init \
  && make contiv-agent
 
-# add supervisord config file
-COPY docker/vpp-vswitch/dev/supervisord.conf /etc/supervisord.conf
-
 # add debug govpp.conf with larger timeouts
 COPY docker/vpp-vswitch/dev/govpp.conf /opt/vpp-agent/dev/govpp.conf
 
 # add vppctl script
 COPY docker/vpp-vswitch/prod/vswitch/vppctl /usr/local/bin/vppctl
 
-# run supervisord as the default executable
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+# run contiv-init as the default executable
+CMD ["/root/go/src/github.com/contiv/vpp/cmd/contiv-init/contiv-init", "-vpp-bin=/opt/vpp-agent/dev/vpp/build-root/install-vpp_debug-native/vpp/bin/vpp", "-agent-bin=/root/go/src/github.com/contiv/vpp/cmd/contiv-agent/contiv-agent"]

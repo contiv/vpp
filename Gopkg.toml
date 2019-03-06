@@ -129,10 +129,6 @@ required = [
   version="kubernetes-1.11.0"
 
 [[constraint]]
-  name = "github.com/nerdtakula/supervisor"
-  revision = "857e93729bfa62df91dcdd3d36c9ac7036edf20a"
-
-[[constraint]]
   name = "github.com/safchain/ethtool"
   revision = "7ff1ba29eca231991280817541cb3903f6be15d1"
 

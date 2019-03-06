@@ -6,8 +6,6 @@ RUN apt-get update \
     sudo wget git ca-certificates \
     # build tools
     make \
-    # vpp-agent & vpp process manger
-    python supervisor \
     # required for disabling TCP checksum offload in containers
     ethtool \
     # network tools

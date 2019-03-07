@@ -37,6 +37,14 @@ const (
 	ipv6HostPrefix = "/128"
 )
 
+// operation represents type of operation on a service
+type operation int
+
+const (
+	serviceAdd operation = iota
+	serviceDel
+)
+
 // Renderer implements rendering of services for IPv6 in VPP using static routes.
 type Renderer struct {
 	Deps
@@ -82,8 +90,9 @@ func (rndr *Renderer) AddService(service *renderer.ContivService) error {
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("add service '%v'", service.ID))
 
-	config := rndr.renderService(service)
-	controller.PutAll(txn, config)
+	addDelConfig, updateConfig := rndr.renderService(service, serviceAdd)
+	controller.PutAll(txn, addDelConfig)
+	controller.PutAll(txn, updateConfig)
 
 	return nil
 }
@@ -96,11 +105,13 @@ func (rndr *Renderer) UpdateService(oldService, newService *renderer.ContivServi
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("update service '%v'", newService.ID))
 
-	oldConfig := rndr.renderService(oldService)
-	newConfig := rndr.renderService(newService)
+	addDelConfig, updateConfig := rndr.renderService(oldService, serviceDel)
+	controller.DeleteAll(txn, addDelConfig)
+	controller.PutAll(txn, updateConfig)
 
-	controller.DeleteAll(txn, oldConfig)
-	controller.PutAll(txn, newConfig)
+	addDelConfig, updateConfig = rndr.renderService(newService, serviceAdd)
+	controller.PutAll(txn, addDelConfig)
+	controller.PutAll(txn, updateConfig)
 
 	return nil
 }
@@ -113,8 +124,9 @@ func (rndr *Renderer) DeleteService(service *renderer.ContivService) error {
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("delete service '%v'", service.ID))
 
-	config := rndr.renderService(service)
-	controller.DeleteAll(txn, config)
+	addDelConfig, updateConfig := rndr.renderService(service, serviceDel)
+	controller.DeleteAll(txn, addDelConfig)
+	controller.PutAll(txn, updateConfig)
 
 	return nil
 }
@@ -148,8 +160,9 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 
 	// Resync service configuration
 	for _, service := range resyncEv.Services {
-		config := rndr.renderService(service)
-		controller.PutAll(txn, config)
+		addDelConfig, updateConfig := rndr.renderService(service, serviceAdd)
+		controller.PutAll(txn, addDelConfig)
+		controller.PutAll(txn, updateConfig)
 	}
 
 	return nil
@@ -160,12 +173,15 @@ func (rndr *Renderer) Close() error {
 	return nil
 }
 
-// renderService renders Contiv service to VPP configuration
-func (rndr *Renderer) renderService(service *renderer.ContivService) controller.KeyValuePairs {
+// renderService renders Contiv service to VPP configuration.
+// addDelConfig sliceContains KV pairs that should be added/deleted, updateConfig sliceContains KV pair that should be updated.
+func (rndr *Renderer) renderService(service *renderer.ContivService, op operation) (
+	addDelConfig controller.KeyValuePairs, updateConfig controller.KeyValuePairs) {
 
 	rndr.Log.Debugf("Rendering %s", service.String())
 
-	config := make(controller.KeyValuePairs)
+	addDelConfig = make(controller.KeyValuePairs)
+	updateConfig = make(controller.KeyValuePairs)
 	localBackends := make([]net.IP, 0)
 	hasHostNetworkLocalBackend := false
 	remoteBackendNodes := make(map[uint32]bool)
@@ -227,10 +243,14 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 					}
 					loop := val.(*linux_interfaces.Interface)
 					ip := clusterIP.String() + ipv6HostPrefix
-					if !contains(loop.IpAddresses, ip) {
-						loop.IpAddresses = append(loop.IpAddresses, ip)
-						config[key] = loop
+					if op == serviceAdd {
+						if !sliceContains(loop.IpAddresses, ip) {
+							loop.IpAddresses = append(loop.IpAddresses, ip)
+						}
+					} else {
+						loop.IpAddresses = sliceRemove(loop.IpAddresses, ip)
 					}
+					updateConfig[key] = loop
 
 					// route to POD
 					route := &vpp_l3.Route{
@@ -240,7 +260,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 						VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
 					}
 					key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
-					config[key] = route
+					addDelConfig[key] = route
 				}
 			}
 		}
@@ -256,7 +276,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 				VrfId:             rndr.ContivConf.GetRoutingConfig().MainVRFID,
 			}
 			key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
-			config[key] = route
+			addDelConfig[key] = route
 		}
 	}
 
@@ -272,12 +292,12 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 					VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
 				}
 				key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
-				config[key] = route
+				addDelConfig[key] = route
 			}
 		}
 	}
 
-	return config
+	return addDelConfig, updateConfig
 }
 
 // nodeIDFromNodeOrHostIP returns node ID matching with the provided node (VPP) or host (mgmt) IP.
@@ -298,12 +318,22 @@ func (rndr *Renderer) nodeIDFromNodeOrHostIP(ip net.IP) (uint32, error) {
 	return 0, fmt.Errorf("node with IP %v not found", ip)
 }
 
-// contains returns true if provided slice contains provided value, false otherwise.
-func contains(slice []string, value string) bool {
+// sliceContains returns true if provided slice contains provided value, false otherwise.
+func sliceContains(slice []string, value string) bool {
 	for _, i := range slice {
 		if i == value {
 			return true
 		}
 	}
 	return false
+}
+
+// sliceRemove removes an item from provided slice (if it exists in the slice).
+func sliceRemove(slice []string, value string) []string {
+	for i, val := range slice {
+		if val == value {
+			return append(slice[:i], slice[i+1:]...)
+		}
+	}
+	return slice
 }

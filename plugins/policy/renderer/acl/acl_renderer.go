@@ -30,6 +30,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
+	"strings"
 )
 
 const (
@@ -291,6 +292,42 @@ func (art *RendererTxn) getNodeOutputInterfaces() []string {
 	return interfaces
 }
 
+// anyAddrForIPversion returns any addr for the IP version defined by given argument
+func anyAddrForIPversion(ip string) string {
+	if strings.Contains(ip, ":") {
+		return ipv6AddrAny
+	}
+	return ipv4AddrAny
+}
+
+// expandAnyAddr replaces empty string representing any networking in rules by explicit values
+func expandAnyAddr(rule *vpp_acl.ACL_Rule) []*vpp_acl.ACL_Rule {
+	// both networks are defined, no modification needed
+	if rule.IpRule.Ip.SourceNetwork != "" && rule.IpRule.Ip.DestinationNetwork != "" {
+		return []*vpp_acl.ACL_Rule{rule}
+	}
+	// match any version based on the filled network
+	if rule.IpRule.Ip.SourceNetwork != "" {
+		rule.IpRule.Ip.DestinationNetwork = anyAddrForIPversion(rule.IpRule.Ip.SourceNetwork)
+		return []*vpp_acl.ACL_Rule{rule}
+	}
+	if rule.IpRule.Ip.DestinationNetwork != "" {
+		rule.IpRule.Ip.SourceNetwork = anyAddrForIPversion(rule.IpRule.Ip.DestinationNetwork)
+		return []*vpp_acl.ACL_Rule{rule}
+	}
+	// create rules for IPv4 and IPv6 as well
+	rule6 := proto.Clone(rule).(*vpp_acl.ACL_Rule)
+	rule4 := proto.Clone(rule).(*vpp_acl.ACL_Rule)
+	rule4.IpRule.Ip.DestinationNetwork = ipv4AddrAny
+	rule4.IpRule.Ip.SourceNetwork = ipv4AddrAny
+
+	rule6.IpRule.Ip.DestinationNetwork = ipv6AddrAny
+	rule6.IpRule.Ip.SourceNetwork = ipv6AddrAny
+
+	return []*vpp_acl.ACL_Rule{rule4, rule6}
+
+}
+
 // renderACL renders ContivRuleTable into the equivalent ACL configuration.
 func (art *RendererTxn) renderACL(table *cache.ContivRuleTable, isReflectiveACL bool) *vpp_acl.ACL {
 	const maxPortNum = ^uint16(0)
@@ -354,7 +391,7 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable, isReflectiveACL 
 				aclRule.IpRule.Udp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
 			}
 		}
-		acl.Rules = append(acl.Rules, aclRule)
+		acl.Rules = append(acl.Rules, expandAnyAddr(aclRule)...)
 	}
 
 	table.Private = acl

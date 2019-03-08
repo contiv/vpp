@@ -144,8 +144,7 @@ func verifyReflectiveACL(engine *MockACLEngine, ipv4Net ipv4net.API, contivConf 
 	}
 	gomega.Expect(acl).ToNot(gomega.BeNil())
 	gomega.Expect(acl.Name).To(gomega.BeEquivalentTo(ACLNamePrefix + ReflectiveACLName))
-	gomega.Expect(acl.Rules).To(gomega.HaveLen(1))
-	rule := acl.Rules[0]
+	gomega.Expect(acl.Rules).To(gomega.HaveLen(2))
 	gomega.Expect(acl.Interfaces).ToNot(gomega.BeNil())
 	for _, ifName := range ifs {
 		gomega.Expect(acl.Interfaces.Ingress).To(gomega.ContainElement(ifName))
@@ -153,13 +152,26 @@ func verifyReflectiveACL(engine *MockACLEngine, ipv4Net ipv4net.API, contivConf 
 	gomega.Expect(acl.Interfaces.Egress).To(gomega.HaveLen(0))
 
 	// rule to match all traffic
+	rule := acl.Rules[0]
 	gomega.Expect(rule.Action).To(gomega.BeEquivalentTo(vpp_acl.ACL_Rule_REFLECT))
 	gomega.Expect(rule.MacipRule).To(gomega.BeNil())
 	gomega.Expect(rule.IpRule).ToNot(gomega.BeNil())
 	ipRule := rule.IpRule
 	gomega.Expect(ipRule.Ip).ToNot(gomega.BeNil())
-	gomega.Expect(ipRule.Ip.SourceNetwork).To(gomega.BeEmpty())
-	gomega.Expect(ipRule.Ip.DestinationNetwork).To(gomega.BeEmpty())
+	gomega.Expect(ipRule.Ip.SourceNetwork).To(gomega.BeEquivalentTo("0.0.0.0/0"))
+	gomega.Expect(ipRule.Ip.DestinationNetwork).To(gomega.BeEquivalentTo("0.0.0.0/0"))
+	gomega.Expect(ipRule.Icmp).To(gomega.BeNil())
+	gomega.Expect(ipRule.Tcp).To(gomega.BeNil())
+	gomega.Expect(ipRule.Udp).To(gomega.BeNil())
+
+	rule = acl.Rules[1]
+	gomega.Expect(rule.Action).To(gomega.BeEquivalentTo(vpp_acl.ACL_Rule_REFLECT))
+	gomega.Expect(rule.MacipRule).To(gomega.BeNil())
+	gomega.Expect(rule.IpRule).ToNot(gomega.BeNil())
+	ipRule = rule.IpRule
+	gomega.Expect(ipRule.Ip).ToNot(gomega.BeNil())
+	gomega.Expect(ipRule.Ip.SourceNetwork).To(gomega.BeEquivalentTo("::/0"))
+	gomega.Expect(ipRule.Ip.DestinationNetwork).To(gomega.BeEquivalentTo("::/0"))
 	gomega.Expect(ipRule.Icmp).To(gomega.BeNil())
 	gomega.Expect(ipRule.Tcp).To(gomega.BeNil())
 	gomega.Expect(ipRule.Udp).To(gomega.BeNil())

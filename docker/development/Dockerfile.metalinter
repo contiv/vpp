@@ -1,4 +1,4 @@
-FROM golang:1.10.7-alpine3.8
+FROM golang:1.11.5-alpine3.8
 
 # gometalinter.v2 --install requires git to be installed
 RUN apk add --no-cache git

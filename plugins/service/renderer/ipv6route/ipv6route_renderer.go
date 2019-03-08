@@ -19,29 +19,39 @@ package ipv6route
 import (
 	"fmt"
 	"net"
+	"os/exec"
+	"strings"
 
-	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/vishvananda/netlink"
 )
 
 const (
 	ipv6HostPrefix = "/128"
 )
 
+// operation represents type of operation on a service
+type operation int
+
+const (
+	serviceAdd operation = iota
+	serviceDel
+)
+
 // Renderer implements rendering of services for IPv6 in VPP using static routes.
 type Renderer struct {
 	Deps
 
-	snatOnly bool /* do not render services, only dynamic SNAT */
+	snatOnly bool // do not render services, only dynamic SNAT
 }
 
 // Deps lists dependencies of the Renderer.
@@ -49,12 +59,38 @@ type Deps struct {
 	Log              logging.Logger
 	Config           *config.Config
 	ContivConf       contivconf.API
-	ConfigRetriever  controller.ConfigRetriever
+	NodeSync         nodesync.API
+	PodManager       podmanager.API
 	IPAM             ipam.API
 	IPv4Net          ipv4net.API
-	PodManager       podmanager.API
+	ConfigRetriever  controller.ConfigRetriever
 	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
+}
+
+// portForward represents a port forward entry from a service port to an application port in a pod.
+type portForward struct {
+	proto renderer.ProtocolType
+	from  uint16
+	to    uint16
+}
+
+// localBackend holds information about a node-local service backend.
+type localBackend struct {
+	ip           net.IP
+	portForwards []*portForward
+}
+
+// String converts localBackend into a human-readable string.
+func (lb localBackend) String() string {
+	portForwards := ""
+	for idx, pf := range lb.portForwards {
+		portForwards += fmt.Sprintf("<proto: %v, from: %d to: %d>", pf.proto, pf.from, pf.to)
+		if idx < len(lb.portForwards)-1 {
+			portForwards += ", "
+		}
+	}
+	return fmt.Sprintf("localBackend IP: %s portForwards: %s", lb.ip.String(), portForwards)
 }
 
 // Init initializes the renderer.
@@ -81,8 +117,9 @@ func (rndr *Renderer) AddService(service *renderer.ContivService) error {
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("add service '%v'", service.ID))
 
-	config := rndr.renderService(service)
-	controller.PutAll(txn, config)
+	addDelConfig, updateConfig := rndr.renderService(service, serviceAdd)
+	controller.PutAll(txn, addDelConfig)
+	controller.PutAll(txn, updateConfig)
 
 	return nil
 }
@@ -95,11 +132,13 @@ func (rndr *Renderer) UpdateService(oldService, newService *renderer.ContivServi
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("update service '%v'", newService.ID))
 
-	oldConfig := rndr.renderService(oldService)
-	newConfig := rndr.renderService(newService)
+	addDelConfig, updateConfig := rndr.renderService(oldService, serviceDel)
+	controller.DeleteAll(txn, addDelConfig)
+	controller.PutAll(txn, updateConfig)
 
-	controller.DeleteAll(txn, oldConfig)
-	controller.PutAll(txn, newConfig)
+	addDelConfig, updateConfig = rndr.renderService(newService, serviceAdd)
+	controller.PutAll(txn, addDelConfig)
+	controller.PutAll(txn, updateConfig)
 
 	return nil
 }
@@ -112,8 +151,9 @@ func (rndr *Renderer) DeleteService(service *renderer.ContivService) error {
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("delete service '%v'", service.ID))
 
-	config := rndr.renderService(service)
-	controller.DeleteAll(txn, config)
+	addDelConfig, updateConfig := rndr.renderService(service, serviceDel)
+	controller.DeleteAll(txn, addDelConfig)
+	controller.PutAll(txn, updateConfig)
 
 	return nil
 }
@@ -147,8 +187,9 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 
 	// Resync service configuration
 	for _, service := range resyncEv.Services {
-		config := rndr.renderService(service)
-		controller.PutAll(txn, config)
+		addDelConfig, updateConfig := rndr.renderService(service, serviceAdd)
+		controller.PutAll(txn, addDelConfig)
+		controller.PutAll(txn, updateConfig)
 	}
 
 	return nil
@@ -159,29 +200,47 @@ func (rndr *Renderer) Close() error {
 	return nil
 }
 
-// renderService renders Contiv service to VPP configuration
-func (rndr *Renderer) renderService(service *renderer.ContivService) controller.KeyValuePairs {
+// renderService renders Contiv service to VPP configuration.
+// addDelConfig sliceContains KV pairs that should be added/deleted,
+// updateConfig sliceContains KV pair that should be updated.
+func (rndr *Renderer) renderService(service *renderer.ContivService, oper operation) (
+	addDelConfig controller.KeyValuePairs, updateConfig controller.KeyValuePairs) {
 
 	rndr.Log.Debugf("Rendering %s", service.String())
 
-	config := make(controller.KeyValuePairs)
-	localBackends := make([]net.IP, 0)
+	addDelConfig = make(controller.KeyValuePairs)
+	updateConfig = make(controller.KeyValuePairs)
+	localBackends := make([]*localBackend, 0)
 	hasHostNetworkLocalBackend := false
 	remoteBackendNodes := make(map[uint32]bool)
 
-	for portName := range service.Ports {
-		for _, backend := range service.Backends[portName] {
+	// collect info about the backends
+	for servicePortName, servicePort := range service.Ports {
+		for _, backend := range service.Backends[servicePortName] {
 			if backend.Local {
+				// collect local backend info
 				if backend.HostNetwork {
-					if rndr.isLocalNodeOrHostIP(backend.IP) {
-						hasHostNetworkLocalBackend = true
-					}
+					hasHostNetworkLocalBackend = true
 				} else {
-					localBackends = append(localBackends, backend.IP)
+					lb := &localBackend{ip: backend.IP}
+					if servicePort.Port != backend.Port {
+						lb.portForwards = append(lb.portForwards, &portForward{
+							proto: servicePort.Protocol,
+							from:  servicePort.Port,
+							to:    backend.Port,
+						})
+					}
+					localBackends = append(localBackends, lb)
 				}
 			} else {
+				// collect remote backend info
 				if backend.HostNetwork {
-					// TODO: node ID from host IP ??? / this should be already routed ???
+					nodeID, err := rndr.nodeIDFromNodeOrHostIP(backend.IP)
+					if err != nil {
+						rndr.Log.Warnf("Error by extracting node ID from host IP: %v", err)
+					} else {
+						remoteBackendNodes[nodeID] = true
+					}
 				} else {
 					nodeID, err := rndr.IPAM.NodeIDFromPodIP(backend.IP)
 					if err != nil {
@@ -201,104 +260,117 @@ func (rndr *Renderer) renderService(service *renderer.ContivService) controller.
 		"remoteBackendNodes":         remoteBackendNodes,
 	}).Debugf("Processing service backends")
 
-	// TODO: external IPs
+	serviceIPs := append(service.ClusterIPs.List(), service.ExternalIPs.List()...)
 
-	//  for local backends (with non-hostNetwork), route ClusterIPs towards the PODs
-	for _, backendIP := range localBackends {
+	// for local backends (with non-hostNetwork), route serviceIPs towards the pods
+	for _, backend := range localBackends {
 		// connect local backend
-		podID, found := rndr.IPAM.GetPodFromIP(backendIP)
-		if found {
-			vppIfName, _, exists := rndr.IPv4Net.GetPodIfName(podID.Namespace, podID.Name)
-			if exists {
-				for _, clusterIP := range service.ClusterIPs.List() {
-					// cluster IP in POD
-					//key := linux_if.InterfaceKey(linuxIfName)
-					//val := rndr.ConfigRetriever.GetConfig(key)
-					//if val == nil {
-					//	rndr.Log.Warnf("Interface to pod %v/%v not found", podID.Namespace, podID.Name)
-					//	continue
-					//}
-					//intf := val.(*linux_if.Interface)
-					//ip := clusterIP.String() + ipv6HostPrefix
-					//if !contains(intf.IpAddresses, ip) {
-					//	intf.IpAddresses = append(intf.IpAddresses, ip)
-					//	config[key] = intf
-					//}
-					// TODO: temporary for testing, should be replaced with vpp-agent NB API
-					pod, exists := rndr.PodManager.GetLocalPods()[podID]
-					if !exists {
-						rndr.Log.Warnf("POD %v node found in local pods list", podID)
-						continue
-					}
-					err := addAddressToLoopback(pod.NetworkNamespace, &net.IPNet{IP: clusterIP, Mask: net.CIDRMask(128, 128)})
-					if err != nil {
-						rndr.Log.Errorf("Error by adding IP to POD loopback: %v", err)
-					}
+		podID, found := rndr.IPAM.GetPodFromIP(backend.ip)
+		if !found {
+			rndr.Log.Warnf("Unable to get pod info for backend IP %v", backend.ip)
+			continue
+		}
+		vppIfName, _, loopIfName, exists := rndr.IPv4Net.GetPodIfNames(podID.Namespace, podID.Name)
+		if !exists {
+			rndr.Log.Warnf("Unable to get interfaces for pod %v", podID)
+			continue
+		}
+		for _, serviceIP := range serviceIPs {
+			// route serviceIP to pod
+			route := &vpp_l3.Route{
+				DstNetwork:        serviceIP.String() + ipv6HostPrefix,
+				NextHopAddr:       backend.ip.String(),
+				OutgoingInterface: vppIfName,
+				VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
+			}
+			key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+			addDelConfig[key] = route
 
-					// route to POD
-					route := &vpp_l3.Route{
-						DstNetwork:        clusterIP.String() + ipv6HostPrefix,
-						NextHopAddr:       backendIP.String(),
-						OutgoingInterface: vppIfName,
-						VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
-					}
-					key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
-					config[key] = route
+			// assign serviceIP on the pod loopback
+			key = linux_interfaces.InterfaceKey(loopIfName)
+			val := rndr.ConfigRetriever.GetConfig(key)
+			if val == nil {
+				rndr.Log.Warnf("Loopback interface for pod %v not found", podID)
+				continue
+			}
+			loop := val.(*linux_interfaces.Interface)
+			ip := serviceIP.String() + ipv6HostPrefix
+			if oper == serviceAdd {
+				if !sliceContains(loop.IpAddresses, ip) {
+					loop.IpAddresses = append(loop.IpAddresses, ip)
 				}
+			} else {
+				loop.IpAddresses = sliceRemove(loop.IpAddresses, ip)
+			}
+			updateConfig[key] = loop
+
+			// port forward service port to application port in pod
+			// TODO: do this using vpp-agent
+			pod, exists := rndr.PodManager.GetLocalPods()[podID]
+			if !exists {
+				rndr.Log.Warnf("pod %v not found in local pods list", podID)
+				continue
+			}
+			for _, pf := range backend.portForwards {
+				rndr.addDelPodPortForward(pf, pod.NetworkNamespace, oper)
 			}
 		}
 	}
 
-	// for local backends with hostNetwork, route ClusterIPs towards towards the host
+	// for local backends with hostNetwork, route serviceIPs towards towards the host
 	if hasHostNetworkLocalBackend {
-		for _, clusterIP := range service.ClusterIPs.List() {
+		for _, serviceIP := range serviceIPs {
 			route := &vpp_l3.Route{
-				DstNetwork:        clusterIP.String() + ipv6HostPrefix,
+				DstNetwork:        serviceIP.String() + ipv6HostPrefix,
 				NextHopAddr:       rndr.IPAM.HostInterconnectIPInLinux().String(),
 				OutgoingInterface: rndr.IPv4Net.GetHostInterconnectIfName(),
 				VrfId:             rndr.ContivConf.GetRoutingConfig().MainVRFID,
 			}
 			key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
-			config[key] = route
+			addDelConfig[key] = route
 		}
 	}
 
-	// (only) in case of no local backends, route to VXLANs towards nodes with some backend
+	// (only) in case of no local backends, route serviceIPs to VXLANs towards nodes with some backend
 	if len(localBackends) == 0 && !hasHostNetworkLocalBackend {
-		for _, clusterIP := range service.ClusterIPs.List() {
+		for _, serviceIP := range serviceIPs {
 			for nodeID := range remoteBackendNodes {
 				nextHop, _, _ := rndr.IPAM.VxlanIPAddress(nodeID)
 				route := &vpp_l3.Route{
-					DstNetwork:        clusterIP.String() + ipv6HostPrefix,
+					DstNetwork:        serviceIP.String() + ipv6HostPrefix,
 					NextHopAddr:       nextHop.String(),
 					OutgoingInterface: ipv4net.VxlanBVIInterfaceName,
 					VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
 				}
 				key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
-				config[key] = route
+				addDelConfig[key] = route
 			}
 		}
 	}
 
-	return config
+	return addDelConfig, updateConfig
 }
 
-// isLocalNodeOrHostIP returns true if the given IP is current node's node (VPP) or host (mgmt) IP, false otherwise.
-func (rndr *Renderer) isLocalNodeOrHostIP(ip net.IP) bool {
-	nodeIP, _ := rndr.IPv4Net.GetNodeIP()
-	if ip.Equal(nodeIP) {
-		return true
-	}
-	for _, hostIP := range rndr.IPv4Net.GetHostIPs() {
-		if hostIP.Equal(ip) {
-			return true
+// nodeIDFromNodeOrHostIP returns node ID matching with the provided node (VPP) or host (mgmt) IP.
+// If no match is found for provided IP, error is returned.
+func (rndr *Renderer) nodeIDFromNodeOrHostIP(ip net.IP) (uint32, error) {
+	for _, node := range rndr.NodeSync.GetAllNodes() {
+		for _, vppIP := range node.VppIPAddresses {
+			if ip.Equal(vppIP.Address) {
+				return node.ID, nil
+			}
+		}
+		for _, mgmtIP := range node.MgmtIPAddresses {
+			if ip.Equal(mgmtIP) {
+				return node.ID, nil
+			}
 		}
 	}
-	return false
+	return 0, fmt.Errorf("node with IP %v not found", ip)
 }
 
-// contains returns tru if provided slice contains provided value, false otherwise.
-func contains(slice []string, value string) bool {
+// sliceContains returns true if provided slice contains provided value, false otherwise.
+func sliceContains(slice []string, value string) bool {
 	for _, i := range slice {
 		if i == value {
 			return true
@@ -307,24 +379,52 @@ func contains(slice []string, value string) bool {
 	return false
 }
 
-func addAddressToLoopback(namespace string, ip *net.IPNet) error {
-	ifName := "lo"
-	err := ns.WithNetNSPath(namespace, func(_ ns.NetNS) error {
-		link, err := netlink.LinkByName(ifName)
-		if err != nil {
-			return err // not tested
+// sliceRemove removes an item from provided slice (if it exists in the slice).
+func sliceRemove(slice []string, value string) []string {
+	for i, val := range slice {
+		if val == value {
+			return append(slice[:i], slice[i+1:]...)
 		}
-
-		addr := &netlink.Addr{IPNet: ip}
-		err = netlink.AddrAdd(link, addr)
-		if err != nil {
-			return err // not tested
-		}
-
-		return nil
-	})
-	if err != nil {
-		return err // not tested
 	}
+	return slice
+}
+
+// addDelPodPortForward adds/deleted port forward iptables entry into a pod network namespace.
+func (rndr *Renderer) addDelPodPortForward(pf *portForward, ns string, oper operation) error {
+	var pid int
+	fmt.Sscanf(ns, "/proc/%d/ns/net", &pid)
+	if pid == 0 {
+		err := fmt.Errorf("failed to parse PID from network namespace path '%s'", ns)
+		rndr.Log.Error(err)
+		return err
+	}
+
+	proto := "tcp"
+	if pf.proto == renderer.UDP {
+		proto = "udp"
+	}
+	action := "-A"
+	if oper == serviceDel {
+		action = "-D"
+	}
+	iptEntry := fmt.Sprintf("ip6tables -t nat %s PREROUTING -p %s -m %s --dport %d -j REDIRECT --to-ports %d",
+		action, proto, proto, pf.from, pf.to)
+
+	// add iptables entry into the namespace of given PID
+	cmdStr := fmt.Sprintf("nsenter -t %d -n %s", pid, iptEntry)
+	rndr.Log.Infof("Executing CMD: %s", cmdStr)
+
+	cmdArr := strings.Split(cmdStr, " ")
+	cmd := exec.Command("nsenter", cmdArr[1:]...)
+
+	// check the output of the exec
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		rndr.Log.Errorf("CMD exec returned error: %v", err)
+		rndr.Log.Debugf("CMD output: %s", output)
+		return err
+	}
+	rndr.Log.Debugf("CMD output: %s", output)
+
 	return nil
 }

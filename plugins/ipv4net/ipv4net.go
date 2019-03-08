@@ -227,25 +227,26 @@ func (n *IPv4Net) GetPodByIf(ifName string) (podNamespace string, podName string
 	return podID.Namespace, podID.Name, true
 }
 
-// GetPodIfName looks up logical interface names that correspond to the interfaces associated with the given POD name.
-func (n *IPv4Net) GetPodIfName(podNamespace string, podName string) (vppIfName string, linuxIfName string, exists bool) {
+// GetPodIfNames looks up logical interface names that correspond to the interfaces associated with the given POD name.
+func (n *IPv4Net) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string, exists bool) {
 	// check that the pod is locally deployed
 	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 	pod, exists := n.PodManager.GetLocalPods()[podID]
 	if !exists {
-		return "", "", false
+		return "", "", "", false
 	}
 
 	// check that the pod is attached to VPP network stack
 	n.vppIfaceToPodMutex.RLock()
 	defer n.vppIfaceToPodMutex.RUnlock()
 	vppIfName, linuxIfName = n.podInterfaceName(pod)
+	loopIfName = n.podLinuxLoopName(pod)
 	_, configured := n.vppIfaceToPod[vppIfName]
 	if !configured {
-		return "", "", false
+		return "", "", "", false
 	}
 
-	return vppIfName, linuxIfName, true
+	return vppIfName, linuxIfName, loopIfName, true
 }
 
 // GetNodeIP returns the IP address of this node.

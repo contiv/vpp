@@ -85,7 +85,7 @@
   revision = "2bd8b58cf4275aeb086ade613de226773e29e853"
 
 [[projects]]
-  digest = "1:932e9f872100b000ce58af3ec731e6b0f8721e79829477d034dbc85ec9d42e25"
+  digest = "1:f7d87534782813b925f7297f89e598e0b6d4eeec97f81aadf8ab09e755d9db6e"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -119,8 +119,8 @@
     "service/sts",
   ]
   pruneopts = "UT"
-  revision = "f2bb620afb315242706942e6ca4c7d26ee5ed627"
-  version = "v1.17.9"
+  revision = "754d07f5dfb0a42be29df8da4a5428a321377cb3"
+  version = "v1.17.11"
 
 [[projects]]
   branch = "master"
@@ -718,7 +718,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:9e1178d88b2afd3cfc9769fd71c30ea9791fe07e1360a59386cbfafa2fffdf22"
+  digest = "1:8e0971ab88756246a8f682e328813e0925d3e036ca69740693824368788df863"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -757,11 +757,11 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "b4f6aad50a06803d5408bc71c9209e5ae5525a88"
+  revision = "02ff3e3fb6fe48b59be09a61de87972921f3dbaa"
 
 [[projects]]
   branch = "dev"
-  digest = "1:39ac585d7c6745409db5484a9a6152125d94bd87a027e62bf644ccc57bd09f53"
+  digest = "1:798d163e0563cb3a65a3f4aa136854ee7b5854816062f18447bfbfa294278b13"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -890,7 +890,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1901",
   ]
   pruneopts = "UT"
-  revision = "8fa61d754a16f1f76f1079293c355b56061770ff"
+  revision = "4b8352697a2b4335f495f55d9abf5c3fe0fe3f0d"
 
 [[projects]]
   branch = "master"
@@ -1308,14 +1308,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4331a1ccaa56cb90dba6ddd13797c221205af5ba719cbdbd701f44532dde19ea"
+  digest = "1:656fbe057a9902db8ea93e55e317f5be272f8901be139b003509e338ce58d1a7"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "UT"
-  revision = "c2f5717e611cf8e89a852a41081355194d80c943"
+  revision = "a98ae47d97a5abb3a3e9045da36315f9f8312970"
 
 [[projects]]
   digest = "1:436b24586f8fee329e0dd65fd67c817681420cda1d7f934345c13fe78c212a73"
@@ -1380,7 +1380,7 @@
     "internal/semver",
   ]
   pruneopts = "UT"
-  revision = "589c23e65e65055d47b9ad4a99723bc389136265"
+  revision = "f8c04913dfb7b2339a756441456bdbe0af6eb508"
 
 [[projects]]
   digest = "1:97f6ccdb896c63238019656bd64fa3164537a8cdc807872f6ef77a861dacb743"
@@ -1417,7 +1417,7 @@
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
   pruneopts = "UT"
-  revision = "4f5b463f9597cbe0dd13a6a2cd4f85e788d27508"
+  revision = "c21a8b77f9f040598af1c8c5c0870568f1959df3"
 
 [[projects]]
   digest = "1:73344d5dea2db9e6de56a90125c180b53aa63084edc01a350519f092a88f801e"
@@ -1694,7 +1694,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:61024ed77a53ac618effed55043bf6a9afbdeb64136bd6a5b0c992d4c0363766"
+  digest = "1:462e6076bc1fde8da364901873fde3a9e66160d853d766b797a657d66e4b2cc4"
   name = "k8s.io/gengo"
   packages = [
     "args",
@@ -1707,7 +1707,7 @@
     "types",
   ]
   pruneopts = "UT"
-  revision = "0689ccc1d7d65d9dd1bedcc3b0b1ed7df91ba266"
+  revision = "7a1b7fb0289f3b6f206589cdcfcad73009b6e840"
 
 [[projects]]
   digest = "1:72fd56341405f53c745377e0ebc4abeff87f1a048e0eea6568a20212650f5a82"
@@ -1719,11 +1719,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:03a96603922fc1f6895ae083e1e16d943b55ef0656b56965351bd87e7d90485f"
+  digest = "1:20ca56a1299fe3787b1cf86c3a0388fbc11d08604783b32a258eca7a947a7fdb"
   name = "k8s.io/kube-openapi"
   packages = ["pkg/util/proto"]
   pruneopts = "UT"
-  revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
+  revision = "15615b16d372105f0c69ff47dfe7402926a65aaa"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -1739,7 +1739,6 @@
     "github.com/containernetworking/cni/pkg/types/current",
     "github.com/containernetworking/cni/pkg/version",
     "github.com/containernetworking/plugins/pkg/ipam",
-    "github.com/containernetworking/plugins/pkg/ns",
     "github.com/docker/distribution",
     "github.com/docker/docker/api",
     "github.com/docker/swarmkit",

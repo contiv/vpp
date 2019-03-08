@@ -67,9 +67,9 @@ func (mn *MockIPv4Net) SetHostIPs(ips []net.IP) {
 }
 
 // GetIfName returns pod's interface name as set previously using SetPodIfName.
-func (mn *MockIPv4Net) GetPodIfName(podNamespace string, podName string) (vppIfName string, linuxIfName string, exists bool) {
+func (mn *MockIPv4Net) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string, exists bool) {
 	vppIfName, exists = mn.podIf[podmodel.ID{Name: podName, Namespace: podNamespace}]
-	return vppIfName, "", exists
+	return vppIfName, "", "", exists
 }
 
 // GetPodByIf looks up podName and podNamespace that is associated with logical interface name.

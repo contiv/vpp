@@ -15,6 +15,9 @@
 package kvscheduler
 
 import (
+	"context"
+	"runtime/trace"
+	"sync/atomic"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -30,6 +33,7 @@ import (
 // Once finalized, it is recorded as instance of RecordedTxn and these data
 // are thrown away.
 type transaction struct {
+	ctx     context.Context
 	seqNum  uint64
 	txnType kvs.TxnType
 	values  []kvForTxn
@@ -88,6 +92,7 @@ func (s *Scheduler) consumeTransactions() {
 			return
 		}
 		s.processTransaction(txn)
+		atomic.AddUint64(&stats.TransactionsProcessed, 1)
 	}
 }
 
@@ -104,17 +109,12 @@ func (s *Scheduler) consumeTransactions() {
 //     state updates to the subscribers and returning error/nil to the caller
 //     of blocking commit
 func (s *Scheduler) processTransaction(txn *transaction) {
-	var (
-		simulatedOps kvs.RecordedTxnOps
-		executedOps  kvs.RecordedTxnOps
-		startTime    time.Time
-		stopTime     time.Time
-	)
 	s.txnLock.Lock()
 	defer s.txnLock.Unlock()
 
+	startTime := time.Now()
+
 	// 1. Pre-processing:
-	startTime = time.Now()
 	skipTxnExec := s.preProcessTransaction(txn)
 
 	// 2. Ordering:
@@ -123,6 +123,7 @@ func (s *Scheduler) processTransaction(txn *transaction) {
 	}
 
 	// 3. Simulation:
+	var simulatedOps kvs.RecordedTxnOps
 	if !skipTxnExec {
 		simulatedOps = s.executeTransaction(txn, true)
 	}
@@ -131,13 +132,15 @@ func (s *Scheduler) processTransaction(txn *transaction) {
 	preTxnRecord := s.preRecordTransaction(txn, simulatedOps)
 
 	// 5. Execution:
+	var executedOps kvs.RecordedTxnOps
 	if !skipTxnExec {
 		executedOps = s.executeTransaction(txn, false)
 	}
-	stopTime = time.Now()
+
+	stopTime := time.Now()
 
 	// 6. Recording:
-	s.recordTransaction(preTxnRecord, executedOps, startTime, stopTime)
+	s.recordTransaction(txn, preTxnRecord, executedOps, startTime, stopTime)
 
 	// 7. Post-processing:
 	s.postProcessTransaction(txn, executedOps)
@@ -146,6 +149,8 @@ func (s *Scheduler) processTransaction(txn *transaction) {
 // preProcessTransaction initializes transaction parameters, filters obsolete retry
 // operations and refreshes the graph for resync.
 func (s *Scheduler) preProcessTransaction(txn *transaction) (skip bool) {
+	defer trace.StartRegion(txn.ctx, "preProcessTransaction").End()
+
 	// allocate new transaction sequence number
 	txn.seqNum = s.txnSeqNumber
 	s.txnSeqNumber++
@@ -278,9 +283,12 @@ func (s *Scheduler) preProcessRetryTxn(txn *transaction) (skip bool) {
 // value state updates to the subscribers and error/nil to the caller of a blocking
 // commit.
 func (s *Scheduler) postProcessTransaction(txn *transaction, executed kvs.RecordedTxnOps) {
+	defer trace.StartRegion(txn.ctx, "postProcessTransaction").End()
+
 	// collect new failures (combining derived with base)
 	toRetry := utils.NewSliceBasedKeySet()
 	toRefresh := utils.NewSliceBasedKeySet()
+
 	var verboseRefresh bool
 	graphR := s.graph.Read()
 	for _, op := range executed {

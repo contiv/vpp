@@ -11,19 +11,21 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:6d4ba3afd9ae4707614a6e2d8ce0e250cdaf6ddfe70e7a7eef7d7d7b14a47389"
+  digest = "1:808d034530795a2ea29e0872ae8f3f954f77efe3dd265e2500c8763a257b75bc"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
     "adapter/mock",
     "adapter/mock/binapi",
+    "adapter/socketclient",
     "adapter/vppapiclient",
     "api",
     "codec",
     "core",
+    "examples/bin_api/memclnt",
   ]
   pruneopts = "UT"
-  revision = "45e38494c1d65ad9178ad15f4048c0ab16f98b77"
+  revision = "6dd658f579ae4e1d9704e14380b69fe906c57ad2"
   source = "github.com/FDio/govpp"
 
 [[projects]]
@@ -761,7 +763,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:798d163e0563cb3a65a3f4aa136854ee7b5854816062f18447bfbfa294278b13"
+  digest = "1:98841d47181f8b9b1995ac5d6afc96b1a74eac533a38408d1f8c102e9b6e9bad"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -890,7 +892,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1901",
   ]
   pruneopts = "UT"
-  revision = "4b8352697a2b4335f495f55d9abf5c3fe0fe3f0d"
+  revision = "cbbb72e9b33d80a037579ec23e6adbb18bc5cb66"
 
 [[projects]]
   branch = "master"

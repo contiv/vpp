@@ -16,6 +16,7 @@ package kvscheduler
 
 import (
 	"fmt"
+	"runtime/trace"
 	"sort"
 	"strings"
 
@@ -54,11 +55,13 @@ type applyValueArgs struct {
 // If <dry-run> is enabled, Validate/Create/Delete/Update operations will not be executed
 // and the graph will be returned to its original state at the end.
 func (s *Scheduler) executeTransaction(txn *transaction, dryRun bool) (executed kvs.RecordedTxnOps) {
+	op := "execute transaction"
+	if dryRun {
+		op = "simulate transaction"
+	}
+	defer trace.StartRegion(txn.ctx, op).End()
+
 	if s.logGraphWalk {
-		op := "execute transaction"
-		if dryRun {
-			op = "simulate transaction"
-		}
 		msg := fmt.Sprintf("%s (seqNum=%d)", op, txn.seqNum)
 		fmt.Printf("%s %s\n", nodeVisitBeginMark, msg)
 		defer fmt.Printf("%s %s\n", nodeVisitEndMark, msg)
@@ -200,6 +203,15 @@ func (s *Scheduler) applyValue(args *applyValueArgs) (executed kvs.RecordedTxnOp
 		// inherit retry arguments from the last NB txn for this value
 		lastUpdateFlag.retryEnabled = prevUpdate.retryEnabled
 		lastUpdateFlag.retryArgs = prevUpdate.retryArgs
+	} else if args.isDerived {
+		// inherit from the parent value
+		parentNode := args.graphW.GetNode(args.baseKey)
+		prevParentUpdate := getNodeLastUpdate(parentNode)
+		if prevParentUpdate != nil {
+			lastUpdateFlag.retryEnabled = prevParentUpdate.retryEnabled
+			lastUpdateFlag.retryArgs = prevParentUpdate.retryArgs
+		}
+
 	}
 	node.SetFlags(lastUpdateFlag)
 
@@ -255,10 +267,12 @@ func (s *Scheduler) applyDelete(node graph.NodeRW, txnOp *kvs.RecordedTxnOp, arg
 		inheritedErr error
 		retriableErr bool
 	)
+	prevState := getNodeState(node)
 	defer func() {
 		if inheritedErr != nil {
 			// revert back to available, derived value failed instead
 			node.DelFlags(UnavailValueFlagName)
+			s.updateNodeState(node, prevState, args)
 			return
 		}
 		if err == nil {
@@ -279,7 +293,7 @@ func (s *Scheduler) applyDelete(node graph.NodeRW, txnOp *kvs.RecordedTxnOp, arg
 		} else {
 			txnOp.NewErr = err
 			txnOp.NewState = s.markFailedValue(node, args, err, retriableErr)
-			if !args.applied.Has(node.GetKey()) {
+			if !args.applied.Has(getNodeBaseKey(node)) {
 				// value removal not originating from this transaction
 				err = nil
 			}
@@ -312,7 +326,8 @@ func (s *Scheduler) applyDelete(node graph.NodeRW, txnOp *kvs.RecordedTxnOp, arg
 				isRevert: args.kv.isRevert,
 			})
 		}
-		derExecs, inheritedErr := s.applyDerived(derivedVals, args, false)
+		var derExecs kvs.RecordedTxnOps
+		derExecs, inheritedErr = s.applyDerived(derivedVals, args, false)
 		executed = append(executed, derExecs...)
 		if inheritedErr != nil {
 			err = inheritedErr
@@ -393,7 +408,7 @@ func (s *Scheduler) applyCreate(node graph.NodeRW, txnOp *kvs.RecordedTxnOp, arg
 			txnOp.NOOP = true
 			s.updateNodeState(node, txnOp.NewState, args)
 			node.SetFlags(&ErrorFlag{err: err, retriable: false})
-			if !args.applied.Has(node.GetKey()) {
+			if !args.applied.Has(getNodeBaseKey(node)) {
 				// invalid value not originating from this transaction
 				err = nil
 			}
@@ -441,7 +456,7 @@ func (s *Scheduler) applyCreate(node graph.NodeRW, txnOp *kvs.RecordedTxnOp, arg
 			retriableErr := handler.isRetriableFailure(err)
 			txnOp.NewErr = err
 			txnOp.NewState = s.markFailedValue(node, args, err, retriableErr)
-			if !args.applied.Has(node.GetKey()) {
+			if !args.applied.Has(getNodeBaseKey(node)) {
 				// value not originating from this transaction
 				err = nil
 			}
@@ -519,7 +534,7 @@ func (s *Scheduler) applyUpdate(node graph.NodeRW, txnOp *kvs.RecordedTxnOp, arg
 			txnOp.NOOP = true
 			s.updateNodeState(node, txnOp.NewState, args)
 			node.SetFlags(&ErrorFlag{err: err, retriable: false})
-			if !args.applied.Has(node.GetKey()) {
+			if !args.applied.Has(getNodeBaseKey(node)) {
 				// invalid value not originating from this transaction
 				err = nil
 			}
@@ -599,7 +614,7 @@ func (s *Scheduler) applyUpdate(node graph.NodeRW, txnOp *kvs.RecordedTxnOp, arg
 			txnOp.NewErr = err
 			txnOp.NewState = s.markFailedValue(node, args, err, retriableErr)
 			executed = append(executed, txnOp)
-			if !args.applied.Has(node.GetKey()) {
+			if !args.applied.Has(getNodeBaseKey(node)) {
 				// update not originating from this transaction
 				err = nil
 			}

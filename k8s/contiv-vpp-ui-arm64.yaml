@@ -1,3 +1,5 @@
+---
+# Source: contiv-vpp-ui/templates/ui.yaml
 #  Contiv-vpp-ui
 #
 #
@@ -11,16 +13,8 @@ metadata:
 data:
   contiv-ui.conf: |-
     port: 9500
-    contivCRDport: {{ .Values.contiv.CRDport }}
-    contivPort: {{ .Values.contiv.APIport }}
-    {{- if  .Values.contiv.useHTTPS }}
-    contivHTTPSEnabled: {{ .Values.contiv.useHTTPS }}
-    contivInsecureSkipVerify: {{ not .Values.contiv.validateServerCert }}
-    {{- end }}
-    {{- if .Values.contiv.useBasicAuth }}
-    contivBasicAuthUser: {{ .Values.contiv.basicAuthUser }}
-    contivBasicAuthPass: {{ .Values.contiv.basicAuthPass }}
-    {{- end }}
+    contivCRDport: 9090
+    contivPort: 9999
 
 ---
 apiVersion: apps/v1
@@ -48,15 +42,11 @@ spec:
         node-role.kubernetes.io/master: ""
       containers:
         - name: ui
-          {{- if .Values.Arm64Platform }}
-          image: {{ .Values.image_arm64.repository}}:{{ .Values.image_arm64.tag }}
-          {{- else }}
-          image: {{ .Values.image.repository}}:{{ .Values.image.tag }}
-          {{- end }}
+          image: contivvpp/ui-arm64:latest
           env:
             - name: CONTIV_UI_CONF
               value: "/etc/contiv-ui/contiv-ui.conf"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9500
           volumeMounts:
@@ -77,7 +67,7 @@ spec:
   type: NodePort
   ports:
     - port: 9500
-      nodePort: {{ .Values.uiService.nodePort}}
+      nodePort: 32500
       protocol: TCP
   selector:
     run: contiv-ui
@@ -124,3 +114,4 @@ roleRef:
   kind: ClusterRole
   name: contiv-ui
   apiGroup: rbac.authorization.k8s.io
+

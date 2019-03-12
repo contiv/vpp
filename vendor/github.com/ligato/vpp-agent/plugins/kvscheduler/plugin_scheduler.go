@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"runtime/trace"
 	"sync"
 	"time"
 
@@ -210,6 +211,8 @@ func (s *Scheduler) RegisterKVDescriptor(descriptor *kvs.KVDescriptor) error {
 		return kvs.ErrDescriptorExists
 	}
 
+	stats.addDescriptor(descriptor.Name)
+
 	s.registry.RegisterDescriptor(descriptor)
 	if descriptor.NBKeyPrefix != "" {
 		s.keyPrefixes = append(s.keyPrefixes, descriptor.NBKeyPrefix)
@@ -397,9 +400,13 @@ func (txn *SchedulerTxn) SetValue(key string, value proto.Message) kvs.Txn {
 // Operations with unmet dependencies will get postponed and possibly
 // executed later.
 func (txn *SchedulerTxn) Commit(ctx context.Context) (txnSeqNum uint64, err error) {
+	ctx, task := trace.NewTask(ctx, "scheduler.Commit")
+	defer task.End()
+
 	txnSeqNum = ^uint64(0)
 
 	txnData := &transaction{
+		ctx:     ctx,
 		txnType: kvs.NBTransaction,
 		nb:      &nbTxn{},
 		values:  make([]kvForTxn, 0, len(txn.values)),
@@ -433,6 +440,7 @@ func (txn *SchedulerTxn) Commit(ctx context.Context) (txnSeqNum uint64, err erro
 	if txnData.nb.isBlocking {
 		txnData.nb.resultChan = make(chan txnResult, 1)
 	}
+
 	err = txn.scheduler.enqueueTxn(txnData)
 	if err != nil {
 		return txnSeqNum, kvs.NewTransactionError(err, nil)
@@ -445,6 +453,7 @@ func (txn *SchedulerTxn) Commit(ctx context.Context) (txnSeqNum uint64, err erro
 			return txnSeqNum, kvs.NewTransactionError(kvs.ErrTxnWaitCanceled, nil)
 		case txnResult := <-txnData.nb.resultChan:
 			close(txnData.nb.resultChan)
+			trace.Logf(ctx, "txnSeqNum", "%d", txnResult.txnSeqNum)
 			return txnResult.txnSeqNum, txnResult.err
 		}
 	}

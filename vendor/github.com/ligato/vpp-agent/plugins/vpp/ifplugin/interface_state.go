@@ -109,7 +109,7 @@ func (c *InterfaceStateUpdater) Init(ctx context.Context, logger logging.PluginL
 	c.ifMetaChan = make(chan ifaceidx.IfaceMetadataDto, 1000)
 	swIfIndexes.WatchInterfaces("ifplugin_ifstate", c.ifMetaChan)
 
-	c.ifEvents = make(chan *vppcalls.InterfaceEvent)
+	c.ifEvents = make(chan *vppcalls.InterfaceEvent, 1000)
 
 	// Create child context
 	var childCtx context.Context
@@ -181,7 +181,8 @@ func (c *InterfaceStateUpdater) watchVPPNotifications(ctx context.Context) {
 			if ifMetaDto.Del {
 				c.setIfStateDeleted(ifMetaDto.Metadata.SwIfIndex, ifMetaDto.Name)
 			} else if !ifMetaDto.Update {
-				ifaces, err := c.ifHandler.DumpInterfaces()
+				// FIXME: dumping should be avoided here
+				/*ifaces, err := c.ifHandler.DumpInterfaces()
 				if err != nil {
 					c.log.Warnf("dump interfaces failed: %v", err)
 					continue
@@ -192,7 +193,7 @@ func (c *InterfaceStateUpdater) watchVPPNotifications(ctx context.Context) {
 						continue
 					}
 					c.updateIfStateDetails(ifaceDetails)
-				}
+				}*/
 			}
 
 		case <-ctx.Done():

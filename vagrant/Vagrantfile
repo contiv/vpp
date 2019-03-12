@@ -491,7 +491,6 @@ applyVPPnetwork() {
     helm_opts="${helm_opts} --set vswitch.image.tag=#{image_tag} --set cni.image.tag=#{image_tag} --set ksr.image.tag=#{image_tag} --set crd.image.tag=#{image_tag}"
   fi
 
-  helm_opts="#{helm_extra_opts}"
   if [ "#{ip_version}" = "ipv6transport" ] || [ "#{ip_version}" = "ipv6" ]; then
     helm_opts="$helm_opts --set contiv.ipamConfig.nodeInterconnectCIDR=fe10:f00d::/90"
   fi

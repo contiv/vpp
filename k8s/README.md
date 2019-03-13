@@ -148,6 +148,9 @@ acl-plugin {
 dpdk {
    dev 0000:00:09.0
 }
+socksvr {
+   default
+}
 
 File /etc/vpp/contiv-vswitch.conf will be modified, do you want to proceed? [Y/n] y
 Do you want to pull the latest images? [Y/n] y

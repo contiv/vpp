@@ -45,6 +45,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/ligato/vpp-agent/plugins/kvscheduler"
 	linux_ifplugin "github.com/ligato/vpp-agent/plugins/linux/ifplugin"
+	linux_iptablesplugin "github.com/ligato/vpp-agent/plugins/linux/iptablesplugin"
 	linux_l3plugin "github.com/ligato/vpp-agent/plugins/linux/l3plugin"
 	linux_nsplugin "github.com/ligato/vpp-agent/plugins/linux/nsplugin"
 	rest_plugin "github.com/ligato/vpp-agent/plugins/restapi"
@@ -75,16 +76,17 @@ type ContivAgent struct {
 	KVScheduler *kvscheduler.Scheduler
 	Stats       *statscollector.Plugin
 
-	GoVPP         *govppmux.Plugin
-	LinuxIfPlugin *linux_ifplugin.IfPlugin
-	LinuxL3Plugin *linux_l3plugin.L3Plugin
-	VPPIfPlugin   *vpp_ifplugin.IfPlugin
-	VPPL2Plugin   *vpp_l2plugin.L2Plugin
-	VPPL3Plugin   *vpp_l3plugin.L3Plugin
-	VPPNATPlugin  *vpp_natplugin.NATPlugin
-	VPPACLPlugin  *vpp_aclplugin.ACLPlugin
-	VPPSTNPlugin  *vpp_stnplugin.STNPlugin
-	VPPPuntPlugin *vpp_puntplugin.PuntPlugin
+	GoVPP               *govppmux.Plugin
+	LinuxIfPlugin       *linux_ifplugin.IfPlugin
+	LinuxL3Plugin       *linux_l3plugin.L3Plugin
+	LinuxIPTablesPlugin *linux_iptablesplugin.IPTablesPlugin
+	VPPIfPlugin         *vpp_ifplugin.IfPlugin
+	VPPL2Plugin         *vpp_l2plugin.L2Plugin
+	VPPL3Plugin         *vpp_l3plugin.L3Plugin
+	VPPNATPlugin        *vpp_natplugin.NATPlugin
+	VPPACLPlugin        *vpp_aclplugin.ACLPlugin
+	VPPSTNPlugin        *vpp_stnplugin.STNPlugin
+	VPPPuntPlugin       *vpp_puntplugin.PuntPlugin
 
 	Telemetry *telemetry.Plugin
 	GRPC      *grpc.Plugin
@@ -229,35 +231,36 @@ func main() {
 
 	// initialize the agent
 	contivAgent := &ContivAgent{
-		LogManager:    &logmanager.DefaultPlugin,
-		HTTP:          &rest.DefaultPlugin,
-		HealthProbe:   &probe.DefaultPlugin,
-		Prometheus:    &prometheus.DefaultPlugin,
-		KVScheduler:   &kvscheduler.DefaultPlugin,
-		Stats:         statsCollector,
-		GoVPP:         &govppmux.DefaultPlugin,
-		LinuxIfPlugin: &linux_ifplugin.DefaultPlugin,
-		LinuxL3Plugin: &linux_l3plugin.DefaultPlugin,
-		VPPIfPlugin:   &vpp_ifplugin.DefaultPlugin,
-		VPPL2Plugin:   &vpp_l2plugin.DefaultPlugin,
-		VPPL3Plugin:   &vpp_l3plugin.DefaultPlugin,
-		VPPNATPlugin:  &vpp_natplugin.DefaultPlugin,
-		VPPACLPlugin:  &vpp_aclplugin.DefaultPlugin,
-		VPPSTNPlugin:  &vpp_stnplugin.DefaultPlugin,
-		VPPPuntPlugin: &vpp_puntplugin.DefaultPlugin,
-		Telemetry:     &telemetry.DefaultPlugin,
-		GRPC:          &grpc.DefaultPlugin,
-		REST:          &rest_plugin.DefaultPlugin,
-		Controller:    controller,
-		ContivConf:    contivConf,
-		ContivGRPC:    contivGRPC,
-		NodeSync:      nodeSyncPlugin,
-		PodManager:    podManager,
-		IPAM:          ipamPlugin,
-		IPv4Net:       ipv4NetPlugin,
-		Policy:        policyPlugin,
-		Service:       servicePlugin,
-		BGPReflector:  bgpReflector,
+		LogManager:          &logmanager.DefaultPlugin,
+		HTTP:                &rest.DefaultPlugin,
+		HealthProbe:         &probe.DefaultPlugin,
+		Prometheus:          &prometheus.DefaultPlugin,
+		KVScheduler:         &kvscheduler.DefaultPlugin,
+		Stats:               statsCollector,
+		GoVPP:               &govppmux.DefaultPlugin,
+		LinuxIfPlugin:       &linux_ifplugin.DefaultPlugin,
+		LinuxL3Plugin:       &linux_l3plugin.DefaultPlugin,
+		LinuxIPTablesPlugin: &linux_iptablesplugin.DefaultPlugin,
+		VPPIfPlugin:         &vpp_ifplugin.DefaultPlugin,
+		VPPL2Plugin:         &vpp_l2plugin.DefaultPlugin,
+		VPPL3Plugin:         &vpp_l3plugin.DefaultPlugin,
+		VPPNATPlugin:        &vpp_natplugin.DefaultPlugin,
+		VPPACLPlugin:        &vpp_aclplugin.DefaultPlugin,
+		VPPSTNPlugin:        &vpp_stnplugin.DefaultPlugin,
+		VPPPuntPlugin:       &vpp_puntplugin.DefaultPlugin,
+		Telemetry:           &telemetry.DefaultPlugin,
+		GRPC:                &grpc.DefaultPlugin,
+		REST:                &rest_plugin.DefaultPlugin,
+		Controller:          controller,
+		ContivConf:          contivConf,
+		ContivGRPC:          contivGRPC,
+		NodeSync:            nodeSyncPlugin,
+		PodManager:          podManager,
+		IPAM:                ipamPlugin,
+		IPv4Net:             ipv4NetPlugin,
+		Policy:              policyPlugin,
+		Service:             servicePlugin,
+		BGPReflector:        bgpReflector,
 	}
 
 	a := agent.NewAgent(agent.AllPlugins(contivAgent), agent.StartTimeout(getStartupTimeout()))

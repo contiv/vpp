@@ -19,8 +19,6 @@ package ipv6route
 import (
 	"fmt"
 	"net"
-	"os/exec"
-	"strings"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -32,6 +30,8 @@ import (
 	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
+	"github.com/ligato/vpp-agent/api/models/linux/iptables"
+	"github.com/ligato/vpp-agent/api/models/linux/namespace"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
 )
 
@@ -296,23 +296,35 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 			loop := val.(*linux_interfaces.Interface)
 			ip := serviceIP.String() + ipv6HostPrefix
 			if oper == serviceAdd {
-				if !sliceContains(loop.IpAddresses, ip) {
-					loop.IpAddresses = append(loop.IpAddresses, ip)
-				}
+				loop.IpAddresses = sliceAddIfNotExists(loop.IpAddresses, ip)
 			} else {
 				loop.IpAddresses = sliceRemove(loop.IpAddresses, ip)
 			}
 			updateConfig[key] = loop
 
 			// port forward service port to application port in pod
-			// TODO: do this using vpp-agent
 			pod, exists := rndr.PodManager.GetLocalPods()[podID]
 			if !exists {
 				rndr.Log.Warnf("pod %v not found in local pods list", podID)
 				continue
 			}
 			for _, pf := range backend.portForwards {
-				rndr.addDelPodPortForward(pf, pod.NetworkNamespace, oper)
+				// add / del an iptables rule into pod's PREROUTING chain (external traffic)
+				// and OUTPUT chain (local, pod-to-itself traffic)
+				extRuleCh := rndr.getPodPFRuleChain(pod, linux_iptables.RuleChain_PREROUTING)
+				localRuleCh := rndr.getPodPFRuleChain(pod, linux_iptables.RuleChain_OUTPUT)
+				rule := rndr.getServicePortForwardRule(serviceIP, pf)
+				if oper == serviceAdd {
+					extRuleCh.Rules = sliceAddIfNotExists(extRuleCh.Rules, rule)
+					localRuleCh.Rules = sliceAddIfNotExists(localRuleCh.Rules, rule)
+				} else {
+					extRuleCh.Rules = sliceRemove(extRuleCh.Rules, rule)
+					localRuleCh.Rules = sliceRemove(localRuleCh.Rules, rule)
+				}
+				key = linux_iptables.RuleChainKey(extRuleCh.Name)
+				updateConfig[key] = extRuleCh
+				key = linux_iptables.RuleChainKey(localRuleCh.Name)
+				updateConfig[key] = localRuleCh
 			}
 		}
 	}
@@ -369,6 +381,44 @@ func (rndr *Renderer) nodeIDFromNodeOrHostIP(ip net.IP) (uint32, error) {
 	return 0, fmt.Errorf("node with IP %v not found", ip)
 }
 
+// getPodPFRuleChain returns the config of the pod-local iptables rule chain of given chain type -
+// either retrieved from the controller (if it already exists), or an empty one.
+func (rndr *Renderer) getPodPFRuleChain(
+	pod *podmanager.LocalPod, chainType linux_iptables.RuleChain_ChainType) *linux_iptables.RuleChain {
+
+	rchName := fmt.Sprintf("port-forward-%s-%s", pod.ContainerID, chainType.String())
+
+	// retrieve the rule chainType if it already exists
+	key := linux_iptables.RuleChainKey(rchName)
+	val := rndr.ConfigRetriever.GetConfig(key)
+	if val != nil {
+		return val.(*linux_iptables.RuleChain)
+	}
+
+	// return empty chainType if not retrieved
+	ruleChain := &linux_iptables.RuleChain{
+		Name: rchName,
+		Namespace: &linux_namespace.NetNamespace{
+			Type:      linux_namespace.NetNamespace_FD,
+			Reference: pod.NetworkNamespace,
+		},
+		Protocol:  linux_iptables.RuleChain_IPv6,
+		Table:     linux_iptables.RuleChain_NAT,
+		ChainType: chainType,
+	}
+	return ruleChain
+}
+
+// getServicePortForwardRule returns iptables port forward rule for specified service IP and port forward data.
+func (rndr *Renderer) getServicePortForwardRule(serviceIP net.IP, pf *portForward) string {
+	proto := "tcp"
+	if pf.proto == renderer.UDP {
+		proto = "udp"
+	}
+	return fmt.Sprintf("-d %s -p %s -m %s --dport %d -j REDIRECT --to-ports %d",
+		serviceIP.String()+ipv6HostPrefix, proto, proto, pf.from, pf.to)
+}
+
 // sliceContains returns true if provided slice contains provided value, false otherwise.
 func sliceContains(slice []string, value string) bool {
 	for _, i := range slice {
@@ -379,6 +429,14 @@ func sliceContains(slice []string, value string) bool {
 	return false
 }
 
+// sliceAddIfNotExists adds an item into the provided slice (if it does not already exists in the slice).
+func sliceAddIfNotExists(slice []string, value string) []string {
+	if !sliceContains(slice, value) {
+		slice = append(slice, value)
+	}
+	return slice
+}
+
 // sliceRemove removes an item from provided slice (if it exists in the slice).
 func sliceRemove(slice []string, value string) []string {
 	for i, val := range slice {
@@ -387,44 +445,4 @@ func sliceRemove(slice []string, value string) []string {
 		}
 	}
 	return slice
-}
-
-// addDelPodPortForward adds/deleted port forward iptables entry into a pod network namespace.
-func (rndr *Renderer) addDelPodPortForward(pf *portForward, ns string, oper operation) error {
-	var pid int
-	fmt.Sscanf(ns, "/proc/%d/ns/net", &pid)
-	if pid == 0 {
-		err := fmt.Errorf("failed to parse PID from network namespace path '%s'", ns)
-		rndr.Log.Error(err)
-		return err
-	}
-
-	proto := "tcp"
-	if pf.proto == renderer.UDP {
-		proto = "udp"
-	}
-	action := "-A"
-	if oper == serviceDel {
-		action = "-D"
-	}
-	iptEntry := fmt.Sprintf("ip6tables -t nat %s PREROUTING -p %s -m %s --dport %d -j REDIRECT --to-ports %d",
-		action, proto, proto, pf.from, pf.to)
-
-	// add iptables entry into the namespace of given PID
-	cmdStr := fmt.Sprintf("nsenter -t %d -n %s", pid, iptEntry)
-	rndr.Log.Infof("Executing CMD: %s", cmdStr)
-
-	cmdArr := strings.Split(cmdStr, " ")
-	cmd := exec.Command("nsenter", cmdArr[1:]...)
-
-	// check the output of the exec
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		rndr.Log.Errorf("CMD exec returned error: %v", err)
-		rndr.Log.Debugf("CMD output: %s", output)
-		return err
-	}
-	rndr.Log.Debugf("CMD output: %s", output)
-
-	return nil
 }

@@ -763,11 +763,12 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:ee3437b3bc0e076a6c667eb51346e0fae4578fc8a60c7a45344e72adf0860def"
+  digest = "1:7db67b6b1a8eb3b00839fd04c3358f2f7cb094e75130ed3637c7bc37fe646218"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
     "api/models/linux/interfaces",
+    "api/models/linux/iptables",
     "api/models/linux/l3",
     "api/models/linux/namespace",
     "api/models/vpp",
@@ -797,6 +798,10 @@
     "plugins/linux/ifplugin/descriptor/adapter",
     "plugins/linux/ifplugin/ifaceidx",
     "plugins/linux/ifplugin/linuxcalls",
+    "plugins/linux/iptablesplugin",
+    "plugins/linux/iptablesplugin/descriptor",
+    "plugins/linux/iptablesplugin/descriptor/adapter",
+    "plugins/linux/iptablesplugin/linuxcalls",
     "plugins/linux/l3plugin",
     "plugins/linux/l3plugin/descriptor",
     "plugins/linux/l3plugin/descriptor/adapter",
@@ -892,7 +897,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1901",
   ]
   pruneopts = "UT"
-  revision = "77f2114ae4c9ac71869f49f77b3957921ef62c34"
+  revision = "b1ebdc5316a3b66abf487392506f2558e0b6b51d"
 
 [[projects]]
   branch = "master"
@@ -1779,6 +1784,7 @@
     "github.com/ligato/cn-infra/servicelabel",
     "github.com/ligato/cn-infra/utils/safeclose",
     "github.com/ligato/vpp-agent/api/models/linux/interfaces",
+    "github.com/ligato/vpp-agent/api/models/linux/iptables",
     "github.com/ligato/vpp-agent/api/models/linux/l3",
     "github.com/ligato/vpp-agent/api/models/linux/namespace",
     "github.com/ligato/vpp-agent/api/models/vpp/acl",
@@ -1799,6 +1805,7 @@
     "github.com/ligato/vpp-agent/plugins/linux/ifplugin",
     "github.com/ligato/vpp-agent/plugins/linux/ifplugin/descriptor",
     "github.com/ligato/vpp-agent/plugins/linux/ifplugin/ifaceidx",
+    "github.com/ligato/vpp-agent/plugins/linux/iptablesplugin",
     "github.com/ligato/vpp-agent/plugins/linux/l3plugin",
     "github.com/ligato/vpp-agent/plugins/linux/nsplugin",
     "github.com/ligato/vpp-agent/plugins/restapi",

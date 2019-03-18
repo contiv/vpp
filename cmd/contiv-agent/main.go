@@ -185,6 +185,7 @@ func main() {
 		deps.ContivConf = contivConf
 		deps.IPAM = ipamPlugin
 		deps.IPv4Net = ipv4NetPlugin
+		deps.PodManager = podManager
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {

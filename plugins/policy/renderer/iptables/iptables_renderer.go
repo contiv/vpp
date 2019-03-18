@@ -28,6 +28,8 @@ import (
 	"strings"
 )
 
+const reflexiveRule = "-m state --state RELATED,ESTABLISHED -j ACCEPT"
+
 // Renderer renders Contiv Rules into iptables rules.
 // The configuration changes are transported into iptables plugin via localclient.
 type Renderer struct {
@@ -48,11 +50,6 @@ type RendererTxn struct {
 	Log      logging.Logger
 	renderer *Renderer
 	resync   bool
-}
-
-// Init initializes the iptables Renderer.
-func (r *Renderer) Init() error {
-	return nil
 }
 
 // NewTxn starts a new transaction. The rendering executes only after Commit()
@@ -79,19 +76,17 @@ func (rt *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*rend
 		"egress-count":  len(egress),
 		"removed":       removed,
 	}).Debug("iptables RendererTxn Render()")
-	if removed {
+	if rt.resync {
+		txn := rt.renderer.ResyncTxn()
+		controller.PutAll(txn, rt.renderRuleChains(pod, podIP, ingress, egress))
+	} else {
 		txn := rt.renderer.UpdateTxn()
-		// delete both chains - ingress and eagress
+		ruleChains := rt.renderRuleChains(pod, podIP, ingress, egress)
+		// delete both chains - ingress and egress
 		txn.Delete(linux_iptables.RuleChainKey(rt.chainName(pod, true)))
 		txn.Delete(linux_iptables.RuleChainKey(rt.chainName(pod, false)))
-	} else {
-		if rt.resync {
-			txn := rt.renderer.ResyncTxn()
-			controller.PutAll(txn, rt.renderRuleChains(pod, podIP, ingress, egress))
-		} else {
-			txn := rt.renderer.UpdateTxn()
-			controller.PutAll(txn, rt.renderRuleChains(pod, podIP, ingress, egress))
-		}
+		// put new config
+		controller.PutAll(txn, ruleChains)
 	}
 
 	return rt
@@ -123,6 +118,7 @@ func (rt *RendererTxn) renderRuleChains(podID podmodel.ID, podIP *net.IPNet, ing
 		c.Protocol = rt.ruleChainProtocolForIP(podIP)
 		c.Table = linux_iptables.RuleChain_FILTER
 		c.ChainType = linux_iptables.RuleChain_OUTPUT
+		c.Rules = append(c.Rules, reflexiveRule)
 		for _, i := range ingress {
 			c.Rules = append(c.Rules, rt.contivRuleToIPtables(i))
 		}
@@ -139,6 +135,7 @@ func (rt *RendererTxn) renderRuleChains(podID podmodel.ID, podIP *net.IPNet, ing
 		c.Protocol = rt.ruleChainProtocolForIP(podIP)
 		c.Table = linux_iptables.RuleChain_FILTER
 		c.ChainType = linux_iptables.RuleChain_INPUT
+		c.Rules = append(c.Rules, reflexiveRule)
 		for _, e := range egress {
 			c.Rules = append(c.Rules, rt.contivRuleToIPtables(e))
 		}
@@ -176,9 +173,9 @@ func (rt *RendererTxn) chainName(pod podmodel.ID, isIngress bool) string {
 	if isIngress {
 		name += "ingress-"
 	} else {
-		name += "eagress-"
+		name += "egress-"
 	}
-	name += pod.Namespace + pod.Name
+	name += pod.Namespace + "-" + pod.Name
 	return name
 }
 

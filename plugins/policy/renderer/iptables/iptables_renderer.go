@@ -151,6 +151,9 @@ func (rt *RendererTxn) renderRuleChains(podID podmodel.ID, podIP *net.IPNet, ing
 // contivRuleToIPtables transforms single ContiveRule to iptables rule
 func (rt *RendererTxn) contivRuleToIPtables(rule *renderer.ContivRule) string {
 	var parts []string
+	// protocol must listed before --dport argument
+	parts = append(parts, fmt.Sprintf("-p %v", rt.protocolToStr(rule.Protocol)))
+
 	if rule.SrcNetwork != nil && len(rule.SrcNetwork.IP) > 0 {
 		parts = append(parts, fmt.Sprintf("-s %v", rule.SrcNetwork.String()))
 	}
@@ -162,9 +165,6 @@ func (rt *RendererTxn) contivRuleToIPtables(rule *renderer.ContivRule) string {
 	}
 	if rule.DestPort != 0 {
 		parts = append(parts, fmt.Sprintf("--dport %v", rule.DestPort))
-	}
-	if rule.Protocol != renderer.ANY {
-		parts = append(parts, fmt.Sprintf("-p %v", rt.protocolToStr(rule.Protocol)))
 	}
 	parts = append(parts, fmt.Sprintf("-j %v", rt.actionToStr(rule.Action)))
 	return strings.Join(parts, " ")

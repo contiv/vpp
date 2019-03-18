@@ -91,7 +91,7 @@ must be defined for the vSwitch container.
 
 (a) To disable huge pages, perform the following steps as root:
 * Using your favorite editor, disable huge pages in the kubelet configuration
-  file (`/etc/default/kubelet` or `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` for versions below 1.11):
+  file `/etc/default/kubelet` (or `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` for versions below 1.11):
 ```
 KUBELET_EXTRA_ARGS=--feature-gates HugePages=false
 ```

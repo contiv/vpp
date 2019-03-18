@@ -311,8 +311,8 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 			for _, pf := range backend.portForwards {
 				// add / del an iptables rule into pod's PREROUTING chain (external traffic)
 				// and OUTPUT chain (local, pod-to-itself traffic)
-				extRuleCh := rndr.getPodPFRuleChain(pod, linux_iptables.RuleChain_PREROUTING)
-				localRuleCh := rndr.getPodPFRuleChain(pod, linux_iptables.RuleChain_OUTPUT)
+				extRuleCh := rndr.getPodPFRuleChain(pod, linux_iptables.RuleChain_PREROUTING, updateConfig)
+				localRuleCh := rndr.getPodPFRuleChain(pod, linux_iptables.RuleChain_OUTPUT, updateConfig)
 				rule := rndr.getServicePortForwardRule(serviceIP, pf)
 				if oper == serviceAdd {
 					extRuleCh.Rules = sliceAddIfNotExists(extRuleCh.Rules, rule)
@@ -382,15 +382,22 @@ func (rndr *Renderer) nodeIDFromNodeOrHostIP(ip net.IP) (uint32, error) {
 }
 
 // getPodPFRuleChain returns the config of the pod-local iptables rule chain of given chain type -
-// either retrieved from the controller (if it already exists), or an empty one.
+// At first it is looked up in currentConfig. If it is not found it's
+// retrieved from the controller (if it already exists), or an empty one.
 func (rndr *Renderer) getPodPFRuleChain(
-	pod *podmanager.LocalPod, chainType linux_iptables.RuleChain_ChainType) *linux_iptables.RuleChain {
+	pod *podmanager.LocalPod, chainType linux_iptables.RuleChain_ChainType, currentConfig controller.KeyValuePairs) *linux_iptables.RuleChain {
 
 	rchName := fmt.Sprintf("port-forward-%s-%s", pod.ContainerID, chainType.String())
 
 	// retrieve the rule chainType if it already exists
 	key := linux_iptables.RuleChainKey(rchName)
-	val := rndr.ConfigRetriever.GetConfig(key)
+
+	val, exists := currentConfig[key]
+	if exists && val != nil {
+		return val.(*linux_iptables.RuleChain)
+	}
+
+	val = rndr.ConfigRetriever.GetConfig(key)
 	if val != nil {
 		return val.(*linux_iptables.RuleChain)
 	}

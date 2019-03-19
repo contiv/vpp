@@ -6,6 +6,8 @@ RUN apt-get update \
         openssl libapr1 libnuma1 libmbedcrypto1 libmbedtls10 libmbedx509-0 \
         # required for disabling TCP checksum offload in containers
         ethtool \
+        # required for ipv6 services implementation
+        iptables \
         # network tools
         iproute2 iputils-ping inetutils-traceroute \
         # ability to run vpptrace.sh

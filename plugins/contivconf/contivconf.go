@@ -89,6 +89,8 @@ const (
 	// vmxnet3
 	vmxnet3KernelDriver    = "vmxnet3"  // name of the kernel driver for vmxnet3 interfaces
 	vmxnet3InterfacePrefix = "vmxnet3-" // prefix matching all vmxnet3 interfaces on VPP
+
+	ipv6AddrDelimiter = ":"
 )
 
 // ContivConf plugins simplifies the Contiv configuration processing for other
@@ -394,11 +396,11 @@ func (c *ContivConf) Init() (err error) {
 			return fmt.Errorf("failed to parse default gateway %v", c.config.IPAMConfig.DefaultGateway)
 		}
 	}
-	if c.config.IPAMConfig.PodSubnetCIDR != "" && strings.Contains(c.config.IPAMConfig.PodSubnetCIDR, ":") {
+	if c.config.IPAMConfig.PodSubnetCIDR != "" && isIPv6AddrString(c.config.IPAMConfig.PodSubnetCIDR) {
 		c.ipamConfig.UseIPv6 = true
 	}
 	if c.config.IPAMConfig.ContivCIDR != "" {
-		if strings.Contains(c.config.IPAMConfig.ContivCIDR, ":") {
+		if isIPv6AddrString(c.config.IPAMConfig.ContivCIDR) {
 			c.ipamConfig.UseIPv6 = true
 		}
 		c.ipamConfig.UseIPv6 = false
@@ -907,6 +909,12 @@ func (c *ContivConf) loadSTNHostConfig(ifName string) error {
 			c.Log.Errorf("Failed to parse IP address returned by STN GRPC: %v", err)
 			return err
 		}
+		if c.ipamConfig.UseIPv6 && !isIPv6AddrString(address) {
+			continue
+		}
+		if !c.ipamConfig.UseIPv6 && isIPv6AddrString(address) {
+			continue
+		}
 		c.stnIPAddresses = append(c.stnIPAddresses, ipNet)
 	}
 
@@ -1012,4 +1020,12 @@ func vmxnet3PCIFromName(ifName string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%04x:%02x:%02x.%0x", domain, bus, slot, function), nil
+}
+
+// isIPv6AddrString returns true if the provided string contains an IPv6 address, false otherwise.
+func isIPv6AddrString(ip string) bool {
+	if ip == "" {
+		return false
+	}
+	return strings.Contains(ip, ipv6AddrDelimiter)
 }

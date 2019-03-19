@@ -241,19 +241,18 @@ func (s *stnServer) unconfigureLink(l netlink.Link) (*interfaceData, error) {
 		return nil, err
 	}
 
-	// list & unconfigure routes
-	routes, err := netlink.RouteList(l, netlink.FAMILY_V4)
+	// list routes
+	routes, err := netlink.RouteList(l, netlink.FAMILY_ALL)
 	if err != nil {
 		log.Printf("Error by listing interface %s routes: %v", ifData.name, err)
 		return nil, err
 	}
-	for _, r := range routes {
-		ifData.routes = append(ifData.routes, r)
-		err = netlink.RouteDel(&r)
-		if err != nil {
-			log.Printf("Error by deleting interface %s route: %v", ifData.name, err)
-			return nil, err
-		}
+
+	// list the IP addresses
+	ifData.addresses, err = netlink.AddrList(l, netlink.FAMILY_ALL)
+	if err != nil {
+		log.Printf("Error by listing interface %s addresses: %v", ifData.name, err)
+		return nil, err
 	}
 
 	// shut down the interface
@@ -263,17 +262,22 @@ func (s *stnServer) unconfigureLink(l netlink.Link) (*interfaceData, error) {
 		return nil, err
 	}
 
-	// list & unconfigure IP addresses (after shutting down, otherwise DHCP may return the IP back)
-	ifData.addresses, err = netlink.AddrList(l, netlink.FAMILY_V4)
-	if err != nil {
-		log.Printf("Error by listing interface %s addresses: %v", ifData.name, err)
-		return nil, err
+	// unconfigure routes (after shutting down, otherwise DHCP may return the IP back)
+	for _, r := range routes {
+		ifData.routes = append(ifData.routes, r)
+		err = netlink.RouteDel(&r)
+		if err != nil {
+			log.Printf("(non-fatal) error by deleting interface %s route to %v: %v", ifData.name, r.Dst, err)
+			// continue, the link will be unbound from the kernel driver anyway
+		}
 	}
+
+	// unconfigure IP addresses (after shutting down, otherwise DHCP may return the IP back)
 	for _, addr := range ifData.addresses {
 		err = netlink.AddrDel(l, &addr)
 		if err != nil {
-			log.Printf("Error by deleting interface %s IP: %v", ifData.name, err)
-			return nil, err
+			log.Printf("(non-fatal) error by deleting interface %s IP %v: %v", ifData.name, addr, err)
+			// continue, the link will be unbound from the kernel driver anyway
 		}
 	}
 
@@ -383,7 +387,7 @@ func (s *stnServer) checkLinkState(ifData *interfaceData) {
 	// check interface IP
 	for _, addr := range ifData.addresses {
 		matched := false
-		addrs, err := netlink.AddrList(l, netlink.FAMILY_V4)
+		addrs, err := netlink.AddrList(l, netlink.FAMILY_ALL)
 		if err == nil {
 			for _, a := range addrs {
 				if a.Equal(addr) {
@@ -408,7 +412,7 @@ func (s *stnServer) checkLinkState(ifData *interfaceData) {
 	for _, route := range ifData.routes {
 		s.updateLinkInRoute(&route, ifData.linkIndex, l.Attrs().Index)
 		matched := false
-		routes, err := netlink.RouteList(l, netlink.FAMILY_V4)
+		routes, err := netlink.RouteList(l, netlink.FAMILY_ALL)
 		if err == nil {
 			for _, r := range routes {
 				if r.String() == route.String() {
@@ -507,7 +511,7 @@ func (s *stnServer) setLinkIP(link netlink.Link, addr netlink.Addr) error {
 		}
 
 		// check whether address has been configured properly
-		addrs, err := netlink.AddrList(link, netlink.FAMILY_V4)
+		addrs, err := netlink.AddrList(link, netlink.FAMILY_ALL)
 		if err == nil {
 			for _, a := range addrs {
 				if a.Equal(addr) {
@@ -550,7 +554,7 @@ func (s *stnServer) addLinkRoute(link netlink.Link, route netlink.Route) error {
 		}
 
 		// check whether the route has been configured properly
-		routes, err := netlink.RouteList(link, netlink.FAMILY_V4)
+		routes, err := netlink.RouteList(link, netlink.FAMILY_ALL)
 		if err == nil {
 			for _, r := range routes {
 				if r.String() == route.String() {

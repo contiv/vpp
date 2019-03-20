@@ -47,7 +47,7 @@ if [ -z "$(validate_docker_tag contivvpp/vswitch-${BUILDARCH} ${TAG})" ]; then
   ./extract.sh contivvpp/dev-vswitch-${BUILDARCH}:${TAG}
 
   # build the production images
-  docker build -t contivvpp/vswitch-${BUILDARCH}:${TAG} ${DOCKER_BUILD_ARGS} -f vswitch/${DOCKERFILE} .
+  docker build -t contivvpp/vswitch-${BUILDARCH}:${TAG} --pull ${DOCKER_BUILD_ARGS} -f vswitch/${DOCKERFILE} .
 fi
 
 if [ ${BUILDARCH} = "amd64" ] ; then

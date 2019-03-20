@@ -20,6 +20,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/policy/renderer"
+	"github.com/contiv/vpp/plugins/policy/renderer/cache"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/api/models/linux/iptables"
@@ -34,6 +35,7 @@ const reflexiveRule = "-m state --state RELATED,ESTABLISHED -j ACCEPT"
 // The configuration changes are transported into iptables plugin via localclient.
 type Renderer struct {
 	Deps
+	cache *cache.RendererCache
 }
 
 // Deps lists dependencies of Renderer.
@@ -49,7 +51,20 @@ type Deps struct {
 type RendererTxn struct {
 	Log      logging.Logger
 	renderer *Renderer
+	cacheTxn cache.Txn
 	resync   bool
+}
+
+// Init initializes the ACL Renderer.
+func (r *Renderer) Init() error {
+	r.cache = &cache.RendererCache{}
+	if r.LogFactory != nil {
+		r.cache.Log = r.LogFactory.NewLogger("-aclCache")
+	} else {
+		r.cache.Log = r.Log
+	}
+	r.cache.Init(cache.EgressOrientation)
+	return nil
 }
 
 // NewTxn starts a new transaction. The rendering executes only after Commit()
@@ -60,6 +75,7 @@ type RendererTxn struct {
 func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 	txn := &RendererTxn{
 		Log:      r.Log,
+		cacheTxn: r.cache.NewTxn(),
 		renderer: r,
 		resync:   resync,
 	}
@@ -72,30 +88,88 @@ func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 func (rt *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule, removed bool) renderer.Txn {
 	rt.renderer.Log.WithFields(logging.Fields{
 		"pod":           pod,
-		"ingress-count": len(ingress),
-		"egress-count":  len(egress),
+		"ingress-count": ingress,
+		"egress-count":  egress,
 		"removed":       removed,
 	}).Debug("iptables RendererTxn Render()")
-	if rt.resync {
-		txn := rt.renderer.ResyncTxn()
-		controller.PutAll(txn, rt.renderRuleChains(pod, podIP, ingress, egress))
-	} else {
-		txn := rt.renderer.UpdateTxn()
-		ruleChains := rt.renderRuleChains(pod, podIP, ingress, egress)
-		// delete both chains - ingress and egress
-		txn.Delete(linux_iptables.RuleChainKey(rt.chainName(pod, true)))
-		txn.Delete(linux_iptables.RuleChainKey(rt.chainName(pod, false)))
-		// put new config
-		controller.PutAll(txn, ruleChains)
-	}
-
+	rt.cacheTxn.Update(pod, &cache.PodConfig{PodIP: podIP, Ingress: ingress, Egress: egress, Removed: removed})
 	return rt
 }
 
 // Commit is currently NOOP since the config was added into the event transaction in render phase,
 // it will be committed as a part of the event transaction.
 func (rt *RendererTxn) Commit() error {
-	return nil
+	if rt.resync {
+		return rt.commitResync()
+	}
+
+	pods := make(cache.PodSet)
+	for _, change := range rt.cacheTxn.GetChanges() {
+		symDiff := change.PreviousPods.SymDiff(change.Table.Pods)
+		pods.Join(symDiff)
+	}
+
+	for podID := range pods {
+		_, found := rt.renderer.PodManager.GetLocalPods()[podID]
+		if !found {
+			// skip pods on other nodes
+			continue
+		}
+		pod := rt.cacheTxn.GetPodConfig(podID)
+		var ruleChains controller.KeyValuePairs
+		localTable := rt.cacheTxn.GetLocalTableByPod(podID)
+		if localTable != nil {
+			rules := localTable.Rules[:localTable.NumOfRules]
+			ruleChains = rt.renderRuleChains(podID, pod.PodIP, nil, rules)
+		}
+
+		txn := rt.renderer.UpdateTxn()
+
+		// delete both chains - ingress and egress
+		txn.Delete(linux_iptables.RuleChainKey(rt.chainName(podID, true)))
+		txn.Delete(linux_iptables.RuleChainKey(rt.chainName(podID, false)))
+		// put new config
+		controller.PutAll(txn, ruleChains)
+	}
+
+	// Save changes into the cache.
+	return rt.cacheTxn.Commit()
+}
+
+// commitResync commits full iptables configuration for re-synchronization.
+func (rt *RendererTxn) commitResync() error {
+	txn := rt.renderer.ResyncTxn()
+
+	// reset the cache and the renderer internal state first
+	rt.renderer.cache.Flush()
+
+	pods := make(cache.PodSet)
+	for _, change := range rt.cacheTxn.GetChanges() {
+		symDiff := change.PreviousPods.SymDiff(change.Table.Pods)
+		pods.Join(symDiff)
+	}
+
+	// after the flush, changes == all newly created
+	for podID := range pods {
+		_, found := rt.renderer.PodManager.GetLocalPods()[podID]
+		if !found {
+			// skip pods on other nodes
+			continue
+		}
+		table := rt.cacheTxn.GetLocalTableByPod(podID)
+		if table == nil {
+			continue
+		}
+		rules := table.Rules[:table.NumOfRules]
+
+		pod := rt.cacheTxn.GetPodConfig(podID)
+
+		chains := rt.renderRuleChains(podID, pod.PodIP, nil, rules)
+		controller.PutAll(txn, chains)
+	}
+
+	// save changes into the cache.
+	return rt.cacheTxn.Commit()
 }
 
 // renderRuleChains transform set of rules for a given pod into iptables rule

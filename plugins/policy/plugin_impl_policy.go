@@ -160,10 +160,9 @@ func (p *Plugin) Init() error {
 
 	if !p.ContivConf.GetIPAMConfig().UseIPv6 {
 		p.aclRenderer.Init()
-
-		// Register renderers.
 		p.configurator.RegisterRenderer(p.aclRenderer)
 	} else {
+		p.iptablesRenderer.Init()
 		p.configurator.RegisterRenderer(p.iptablesRenderer)
 	}
 	return nil

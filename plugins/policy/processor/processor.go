@@ -78,7 +78,7 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 	pods = utils.RemoveDuplicatePodIDs(pods)
 
 	// Re-configure only pods that belong to the current node.
-	pods = pp.filterHostPods(pods)
+	//pods = pp.filterHostPods(pods)
 	if len(pods) == 0 {
 		return nil
 	}

@@ -55,7 +55,7 @@ echo
 
 echo 'Please choose deployment scenario: '
 PS3='--> '
-options=("Without StealTheNIC" "With StealTheNIC" "IPv6" "IPv6 Transport" "Calico" "Calico-VPP" "Quit")
+options=("Without StealTheNIC" "With StealTheNIC" "IPv6" "IPv6 Transport" "IPv6 STN" "Calico" "Calico-VPP" "Quit")
 select opt in "${options[@]}"
 do
     case $opt in
@@ -79,6 +79,12 @@ do
             echo "You chose deployment with IPv6 Transport Only"
             export K8S_DEPLOYMENT_SCENARIO="nostn"
             export IP_VERSION="ipv6transport"
+            break
+            ;;
+        "IPv6 STN")
+            echo "You chose deployment with StealTheNIC and IPv6"
+            export K8S_DEPLOYMENT_SCENARIO="stn"
+            export IP_VERSION="ipv6"
             break
             ;;
         "Calico")

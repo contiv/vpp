@@ -84,6 +84,9 @@ etcd:
   service:
     # nodePort where contiv-etcd can be reached on any node.
     nodePort: 32379
+    # if set to true <NodeIP>:<nodeport> will be used to access service,
+    # <localhost>:<nodeport> if set to false
+    useNodeIP: true
   enableLivenessProbe: true
   livenessProbeInitialDelaySeconds: 20
   probePeriodSeconds: 3

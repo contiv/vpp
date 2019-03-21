@@ -18,6 +18,12 @@ helm template --name my-release ../contiv-vpp-ui > manifest.yaml
 kubectl apply -f manifest.yaml
 ```
 
+For arm64, you can generate the manifest from this chart and install via kubectl:
+
+```console
+helm template --name my-release ../contiv-vpp-ui -f ./values-arm64.yaml,./values.yaml > manifest-arm64.yaml
+kubectl apply -f manifest-arm64.yaml
+```
 With tiller running in the cluster the chart can be installed with typical helm commands.
 
 To install the chart with the release name `my-release`:

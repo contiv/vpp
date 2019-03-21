@@ -1,3 +1,19 @@
+# Release v2.1.4 (21.3.2019)
+
+### VPP
+ - version **v18.10** (latest stable/1810)
+
+### New Features & Enhancements
+ - added `etcd.service.useNodeIP` HELM option
+
+### Bugfixes
+ - vswitch base image updated to the newest ubuntu:18.04 build, which fixes some security vulnerabilities
+
+### Known Issues
+ - load-balancing between backends of a service is limited to the first 256 PODs
+   (the others will not receive any traffic until some of the first 256 PODs disappear)
+
+
 # Release v2.1.3 (26.2.2019)
 
 ### VPP

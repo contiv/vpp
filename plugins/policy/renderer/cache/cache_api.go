@@ -439,6 +439,22 @@ func (set PodSet) Equals(set2 PodSet) bool {
 	return true
 }
 
+// SymDiff returns a new set that is symmetric difference of the sets.
+func (set PodSet) SymDiff(set2 PodSet) PodSet {
+	res := NewPodSet()
+	for e := range set {
+		if !set2.Has(e) {
+			res.Add(e)
+		}
+	}
+	for e := range set2 {
+		if !set.Has(e) {
+			res.Add(e)
+		}
+	}
+	return res
+}
+
 // String returns a human-readable string representation of the set.
 func (set PodSet) String() string {
 	str := "{"

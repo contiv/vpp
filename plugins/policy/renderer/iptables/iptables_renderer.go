@@ -64,7 +64,7 @@ type RendererTxn struct {
 func (r *Renderer) Init() error {
 	r.cache = &cache.RendererCache{}
 	if r.LogFactory != nil {
-		r.cache.Log = r.LogFactory.NewLogger("-aclCache")
+		r.cache.Log = r.LogFactory.NewLogger("-iptablesCache")
 	} else {
 		r.cache.Log = r.Log
 	}

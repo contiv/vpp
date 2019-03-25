@@ -125,6 +125,7 @@ func (p *Plugin) Init() error {
 				Log:        p.Log.NewLogger("-iptablesRenderer"),
 				LogFactory: p.Log,
 				PodManager: p.PodManager,
+				IPAM:       p.IPAM,
 				UpdateTxn: func() controller.UpdateOperations {
 					p.withChange = true
 					return p.updateTxn

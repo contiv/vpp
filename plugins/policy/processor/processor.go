@@ -77,8 +77,11 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 	// Remove duplicate pods first.
 	pods = utils.RemoveDuplicatePodIDs(pods)
 
-	// Re-configure only pods that belong to the current node.
-	//pods = pp.filterHostPods(pods)
+	// In case of ipv6 take into account all pods
+	if pp.IPAM.PodSubnetThisNode().IP.To16() == nil {
+		// Re-configure only pods that belong to the current node.
+		pods = pp.filterHostPods(pods)
+	}
 	if len(pods) == 0 {
 		return nil
 	}

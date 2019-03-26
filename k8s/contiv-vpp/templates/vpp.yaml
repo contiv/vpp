@@ -77,14 +77,14 @@ data:
       {{- if .Values.contiv.ipamConfig.defaultGateway }}
       defaultGateway: {{ .Values.contiv.ipamConfig.defaultGateway }}
       {{- end }}
-      {{- if .Values.contiv.ipamConfig.serviceCIDR }}
-      serviceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
-      {{- end }}
       podSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       podSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.podSubnetOneNodePrefixLen }}
       vppHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
       vppHostSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.vppHostSubnetOneNodePrefixLen }}
       vxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}
+      {{- end }}
+      {{- if .Values.contiv.ipamConfig.serviceCIDR }}
+      serviceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
       {{- end }}
     {{- if .Values.contiv.nodeConfig }}
     nodeConfig:
@@ -642,7 +642,7 @@ spec:
               fieldRef:
                 fieldPath: status.hostIP
           {{- else }}
-            value: "127.0.0.1"
+            value:  {{ $localhost_addr | quote }}
           {{- end}}
           {{- if .Values.Arm64Platform }}
           image: {{ .Values.etcd_arm64.image.repository }}:{{ .Values.etcd_arm64.image.tag }}
@@ -655,6 +655,11 @@ spec:
           - -c
           - |
             set -eu
+            echo "$HOST_IP" | grep -q ':'
+            if [ "$?" -eq "0" ];
+            then
+               HOST_IP="[$HOST_IP]"
+            fi
           {{- if .Values.etcd.secureTransport }}
             until /usr/local/bin/etcdctl --endpoints=$HOST_IP:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true \
             --cert=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientCert }} --key=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientKey }} --cacert=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}| grep -m 1 "$HOSTNAME";

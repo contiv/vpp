@@ -407,6 +407,19 @@ func (n *IPv4Net) routesMainToPodVRF() map[string]*vpp_l3.Route {
 		routes[r1Key] = r1
 	}
 
+	if n.ContivConf.GetIPAMConfig().UseIPv6 {
+		// service subnet routed from Main VRF to Pod VRF
+		r1 := &vpp_l3.Route{
+			Type:        vpp_l3.Route_INTER_VRF,
+			DstNetwork:  n.IPAM.ServiceNetwork().String(),
+			VrfId:       routingCfg.MainVRFID,
+			ViaVrfId:    routingCfg.PodVRFID,
+			NextHopAddr: anyAddrForAF(n.IPAM.ServiceNetwork().IP),
+		}
+		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+		routes[r1Key] = r1
+	}
+
 	return routes
 }
 
@@ -415,20 +428,24 @@ func (n *IPv4Net) dropRoutesIntoPodVRF() map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)
 	routingCfg := n.ContivConf.GetRoutingConfig()
 
-	if routingCfg.UseL2Interconnect {
-		// no drop routes needed
-		return routes
+	if n.ContivConf.GetIPAMConfig().UseIPv6 {
+		// drop packets destined to service subnet with no more specific routes
+		r1 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.ServiceNetwork())
+		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+		routes[r1Key] = r1
 	}
 
-	// drop packets destined to pods no longer deployed
-	r1 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.PodSubnetAllNodes())
-	r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
-	routes[r1Key] = r1
+	if !routingCfg.UseL2Interconnect {
+		// drop packets destined to pods no longer deployed
+		r1 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.PodSubnetAllNodes())
+		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+		routes[r1Key] = r1
 
-	// drop packets destined to nodes no longer deployed
-	r2 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.HostInterconnectSubnetAllNodes())
-	r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
-	routes[r2Key] = r2
+		// drop packets destined to nodes no longer deployed
+		r2 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.HostInterconnectSubnetAllNodes())
+		r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
+		routes[r2Key] = r2
+	}
 
 	return routes
 }

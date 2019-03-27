@@ -37,6 +37,7 @@ import (
 
 const (
 	ipv6HostPrefix = "/128"
+	ipv6AddrAny    = "::"
 )
 
 // operation represents type of operation on a service
@@ -332,30 +333,66 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 	// for local backends with hostNetwork, route serviceIPs towards towards the host
 	if hasHostNetworkLocalBackend {
 		for _, serviceIP := range serviceIPs {
+			// route from pod VRF to main VRF
 			route := &vpp_l3.Route{
+				Type:        vpp_l3.Route_INTER_VRF,
+				DstNetwork:  serviceIP.String() + ipv6HostPrefix,
+				VrfId:       rndr.ContivConf.GetRoutingConfig().PodVRFID,
+				ViaVrfId:    rndr.ContivConf.GetRoutingConfig().MainVRFID,
+				NextHopAddr: ipv6AddrAny,
+			}
+			key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+			addDelConfig[key] = route
+
+			// route from main VRF to host
+			route = &vpp_l3.Route{
 				DstNetwork:        serviceIP.String() + ipv6HostPrefix,
 				NextHopAddr:       rndr.IPAM.HostInterconnectIPInLinux().String(),
 				OutgoingInterface: rndr.IPv4Net.GetHostInterconnectIfName(),
 				VrfId:             rndr.ContivConf.GetRoutingConfig().MainVRFID,
 			}
-			key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+			key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 			addDelConfig[key] = route
 		}
 	}
 
-	// (only) in case of no local backends, route serviceIPs to VXLANs towards nodes with some backend
-	if len(localBackends) == 0 && !hasHostNetworkLocalBackend {
+	// (only) in case of no local backends, route serviceIPs towards the nodes with some backend
+	if service.TrafficPolicy == renderer.ClusterWide && len(localBackends) == 0 && !hasHostNetworkLocalBackend {
 		for _, serviceIP := range serviceIPs {
 			for nodeID := range remoteBackendNodes {
-				nextHop, _, _ := rndr.IPAM.VxlanIPAddress(nodeID)
-				route := &vpp_l3.Route{
-					DstNetwork:        serviceIP.String() + ipv6HostPrefix,
-					NextHopAddr:       nextHop.String(),
-					OutgoingInterface: ipv4net.VxlanBVIInterfaceName,
-					VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
+				if !rndr.ContivConf.GetRoutingConfig().UseL2Interconnect {
+					// route via the VXLAN
+					nextHop, _, _ := rndr.IPAM.VxlanIPAddress(nodeID)
+					route := &vpp_l3.Route{
+						DstNetwork:        serviceIP.String() + ipv6HostPrefix,
+						NextHopAddr:       nextHop.String(),
+						OutgoingInterface: ipv4net.VxlanBVIInterfaceName,
+						VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
+					}
+					key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+					addDelConfig[key] = route
+				} else {
+					// route from pod VRF to main VRF
+					route := &vpp_l3.Route{
+						Type:        vpp_l3.Route_INTER_VRF,
+						DstNetwork:  serviceIP.String() + ipv6HostPrefix,
+						VrfId:       rndr.ContivConf.GetRoutingConfig().PodVRFID,
+						ViaVrfId:    rndr.ContivConf.GetRoutingConfig().MainVRFID,
+						NextHopAddr: ipv6AddrAny,
+					}
+					key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+					addDelConfig[key] = route
+
+					// route from main VRF towards the other node IP
+					nextHop, _ := rndr.nodeIPAddress(nodeID)
+					route = &vpp_l3.Route{
+						DstNetwork:  serviceIP.String() + ipv6HostPrefix,
+						NextHopAddr: nextHop.String(),
+						VrfId:       rndr.ContivConf.GetRoutingConfig().MainVRFID,
+					}
+					key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+					addDelConfig[key] = route
 				}
-				key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
-				addDelConfig[key] = route
 			}
 		}
 	}
@@ -379,6 +416,20 @@ func (rndr *Renderer) nodeIDFromNodeOrHostIP(ip net.IP) (uint32, error) {
 		}
 	}
 	return 0, fmt.Errorf("node with IP %v not found", ip)
+}
+
+// nodeIPAddress returns IP address of the node node that can be used to forward the traffic to that node.
+func (rndr *Renderer) nodeIPAddress(nodeID uint32) (net.IP, error) {
+	for _, node := range rndr.NodeSync.GetAllNodes() {
+		if node.ID == nodeID {
+			if len(node.VppIPAddresses) > 0 {
+				return node.VppIPAddresses[0].Address, nil
+			}
+			nextHop, _, err := rndr.IPAM.NodeIPAddress(node.ID)
+			return nextHop, err
+		}
+	}
+	return nil, fmt.Errorf("node with ID %d not found", nodeID)
 }
 
 // getPodPFRuleChain returns the config of the pod-local iptables rule chain of given chain type -

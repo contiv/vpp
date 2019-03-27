@@ -142,3 +142,38 @@ $ curl [2001::105]
 </body>
 </html>
 ```
+
+
+### Deploying & testing a service on top of the example application
+Expose the nginx deployment from the previous step as a k8s service:
+```
+$ kubectl expose deployment nginx --type=ClusterIP --port=80
+```
+
+Get the cluster IP assigned for the nginx service:
+
+```
+$ kubectl get services
+NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+kubernetes   ClusterIP   2096::1      <none>        443/TCP   12m
+nginx        ClusterIP   2096::b43f   <none>        80/TCP    12s
+```
+
+Test accessing the deployment using the assigned ClusterIP from the host:
+```
+$ curl [2096::b43f]
+<!DOCTYPE html>
+<html>
+<head>
+...
+```
+
+Test accessing the deployment using the assigned ClusterIP from a pod:
+```
+$ kubectl run -it alpine --image=alpine sh
+If you don't see a command prompt, try pressing enter.
+/ # wget [2096::b43f]
+Connecting to [2096::b43f] ([2096::b43f]:80)
+index.html           100% |********************************************************************************************************************************************************************|   352  0:00:00 ETA
+/ #
+```

@@ -69,7 +69,7 @@ data:
       {{- end }}
       {{- if .Values.contiv.ipamConfig.contivCIDR }}
       contivCIDR: {{ .Values.contiv.ipamConfig.contivCIDR }}
-      {{ else }}
+      {{- else }}
       nodeInterconnectDHCP: {{ .Values.contiv.ipamConfig.nodeInterconnectDHCP }}
       {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
       nodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}

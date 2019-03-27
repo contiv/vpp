@@ -15,9 +15,11 @@
 package descriptor
 
 import (
-	"bytes"
-	"fmt"
+	"strings"
+
 	"github.com/gogo/protobuf/proto"
+	"github.com/pkg/errors"
+
 	"github.com/ligato/cn-infra/logging"
 	ifmodel "github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/linux/iptables"
@@ -28,11 +30,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/linux/iptablesplugin/linuxcalls"
 	"github.com/ligato/vpp-agent/plugins/linux/nsplugin"
 	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linux/nsplugin/linuxcalls"
-	"github.com/pkg/errors"
-	"os/exec"
-	"strings"
-	"sync"
-	"time"
 )
 
 const (
@@ -72,9 +69,6 @@ type RuleChainDescriptor struct {
 
 	// parallelization of the Retrieve operation
 	goRoutinesCnt int
-
-	nsAccess sync.Map
-	parallel bool
 }
 
 // NewRuleChainDescriptor creates a new instance of the iptables RuleChain descriptor.
@@ -88,8 +82,6 @@ func NewRuleChainDescriptor(
 		nsPlugin:        nsPlugin,
 		goRoutinesCnt:   goRoutinesCnt,
 		log:             log.NewLogger("ipt-rulechain-descriptor"),
-		nsAccess:        sync.Map{},
-		parallel:        true,
 	}
 
 	typedDescr := &adapter.RuleChainDescriptor{
@@ -102,9 +94,7 @@ func NewRuleChainDescriptor(
 		Validate:             descrCtx.Validate,
 		Create:               descrCtx.Create,
 		Delete:               descrCtx.Delete,
-		Update:               descrCtx.Update,
 		Retrieve:             descrCtx.Retrieve,
-		UpdateWithRecreate:   descrCtx.UpdateWithRecreate,
 		Dependencies:         descrCtx.Dependencies,
 		RetrieveDependencies: []string{ifdescriptor.InterfaceDescriptorName},
 	}
@@ -180,219 +170,88 @@ func (d *RuleChainDescriptor) Create(key string, rch *linux_iptables.RuleChain) 
 
 	d.log.Debugf("CREATE IPT rule chain %s: %v", key, rch)
 
-	if d.parallel && rch.Table == linux_iptables.RuleChain_FILTER {
-		go func() {
-			s := time.Now()
-
-			var (
-				pid    int
-				cmdStr string
-			)
-
-			if rch.Namespace != nil {
-				fmt.Sscanf(rch.Namespace.Reference, "/proc/%d/ns/net", &pid)
-				if pid == 0 {
-					d.log.Error(fmt.Errorf("failed to parse PID from network namespace path '%v'",
-						rch.Namespace))
-					return
-				}
-				cmdStr = fmt.Sprintf("nsenter -t %d -n ", pid)
-			} else {
-				cmdStr = "nsenter -t 1 -n"
-			}
-
-			lock, _ := d.nsAccess.LoadOrStore(pid, &sync.Mutex{})
-			lock.(*sync.Mutex).Lock()
-			defer lock.(*sync.Mutex).Unlock()
-
-			cmdStr += fmt.Sprintf("ip6tables-restore -T %v -n --noflush", tableNameStr(rch))
-			//cmdStr += "cat"
-			d.log.Infof("Executing CMD: %s", cmdStr)
-
-			var data string
-			// tableName
-			data = fmt.Sprintf("*%v\n", tableNameStr(rch))
-			for _, r := range rch.Rules {
-				data += fmt.Sprintf("-A %v %v\n", chainNameStr(rch), r)
-			}
-			data += "COMMIT\n"
-
-			cmdArr := strings.Split(cmdStr, " ")
-			cmd := exec.Command(cmdArr[0], cmdArr[1:]...)
-
-			cmd.Stdin = bytes.NewBuffer([]byte(data))
-
-			// check the output of the exec
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				d.log.Errorf("CMD exec returned error: %v", err)
-				d.log.WithField("name", rch.Name).Debug("data:", data)
-			}
-			d.log.Infof("CMD output: %s", output)
-			d.log.Debug("!!,Exec restore", time.Since(s))
-		}()
+	// switch network namespace
+	nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
+	nsRevert, err := d.nsPlugin.SwitchToNamespace(nsCtx, rch.Namespace)
+	if err != nil {
+		d.log.WithFields(logging.Fields{
+			"err":       err,
+			"namespace": rch.Namespace,
+		}).Warn("Failed to switch the namespace")
 		return nil, err
 	}
+	// revert network namespace after returning
+	defer nsRevert()
 
-	go func(s time.Time) {
-		lock, _ := d.nsAccess.LoadOrStore(rch.Namespace.Reference, &sync.Mutex{})
-		lock.(*sync.Mutex).Lock()
-		defer lock.(*sync.Mutex).Unlock()
-		l := time.Since(s)
-		start := time.Now()
-
-		// switch network namespace
-		nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
-		nsRevert, err := d.nsPlugin.SwitchToNamespace(nsCtx, rch.Namespace)
+	// create custom chain if needed
+	if rch.ChainType == linux_iptables.RuleChain_CUSTOM {
+		err := d.ipTablesHandler.CreateChain(protocolType(rch), tableNameStr(rch), chainNameStr(rch))
 		if err != nil {
-			d.log.WithFields(logging.Fields{
-				"err":       err,
-				"namespace": rch.Namespace,
-			}).Warn("Failed to switch the namespace")
-			//return nil, err
+			d.log.Warnf("Error by creating iptables chain: %v", err)
+			// try to continue, the chain may already exist
 		}
-		// revert network namespace after returning
-		defer nsRevert()
-		sw := time.Since(start)
-		start = time.Now()
-
-		// create custom chain if needed
-		if rch.ChainType == linux_iptables.RuleChain_CUSTOM {
-			err := d.ipTablesHandler.CreateChain(protocolType(rch), tableNameStr(rch), chainNameStr(rch))
-			if err != nil {
-				d.log.Warnf("Error by creating iptables chain: %v", err)
-				// try to continue, the chain may already exist
-			}
-		}
-
-		// for FILTER tables, change the default policy if it is set
-		if rch.Table == linux_iptables.RuleChain_FILTER && rch.DefaultPolicy != linux_iptables.RuleChain_NONE {
-			err = d.ipTablesHandler.SetChainDefaultPolicy(protocolType(rch), tableNameStr(rch), chainNameStr(rch), chainPolicyStr(rch))
-			if err != nil {
-				d.log.Errorf("Error by setting iptables default policy: %v", err)
-				//return nil, err
-			}
-		}
-
-		// wipe all rules in the chain that may have existed before
-		err = d.ipTablesHandler.DeleteAllRules(protocolType(rch), tableNameStr(rch), chainNameStr(rch))
-		if err != nil {
-			d.log.Warnf("Error by wiping iptables rules: %v", err)
-		}
-
-		del := time.Since(start)
-		start = time.Now()
-
-		// append all rules
-		for _, rule := range rch.Rules {
-			err := d.ipTablesHandler.AppendRule(protocolType(rch), tableNameStr(rch), chainNameStr(rch), rule)
-			if err != nil {
-				d.log.Errorf("Error by appending iptables rule: %v", err)
-				break
-			}
-		}
-		a := time.Since(start)
-		d.log.WithField("name", rch.Name).Info("!!Configuration of rule set took", l, "", sw, " ", del, " ", a)
-	}(time.Now())
-	return nil, err
-}
-
-func (d *RuleChainDescriptor) Update(key string, oldValue, rch *linux_iptables.RuleChain, oldMetadata interface{}) (newMetadata interface{}, err error) {
-	go func() {
-		s := time.Now()
-
-		var (
-			pid    int
-			cmdStr string
-		)
-
-		if rch.Namespace != nil {
-			fmt.Sscanf(rch.Namespace.Reference, "/proc/%d/ns/net", &pid)
-			if pid == 0 {
-				d.log.Error(fmt.Errorf("failed to parse PID from network namespace path '%v'",
-					rch.Namespace))
-				return
-			}
-			cmdStr = fmt.Sprintf("nsenter -t %d -n ", pid)
-		} else {
-			cmdStr = "nsenter -t 1 -n"
-		}
-		lock, _ := d.nsAccess.LoadOrStore(pid, &sync.Mutex{})
-		lock.(*sync.Mutex).Lock()
-		defer lock.(*sync.Mutex).Unlock()
-
-		cmdStr += fmt.Sprintf("ip6tables-restore -T %v -n", tableNameStr(rch))
-		d.log.Infof("Executing CMD: %s", cmdStr)
-
-		var data string
-		// tableName
-		data = fmt.Sprintf("*%v\n", tableNameStr(rch))
-		for _, r := range rch.Rules {
-			data += fmt.Sprintf("-A %v %v\n", chainNameStr(rch), r)
-		}
-		data += "COMMIT\n"
-
-		cmdArr := strings.Split(cmdStr, " ")
-		cmd := exec.Command(cmdArr[0], cmdArr[1:]...)
-
-		cmd.Stdin = bytes.NewBuffer([]byte(data))
-
-		// check the output of the exec
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			d.log.Errorf("CMD exec returned error: %v", err)
-			d.log.WithField("name", rch.Name).Debug("data:", data)
-		}
-		d.log.Infof("CMD output: %s", output)
-		d.log.Debug("!!,Exec restore", time.Since(s))
-	}()
-	return nil, err
-}
-
-func (d *RuleChainDescriptor) UpdateWithRecreate(key string, oldValue, newValue *linux_iptables.RuleChain, metadata interface{}) bool {
-	if d.parallel && oldValue.Table == linux_iptables.RuleChain_FILTER && oldValue.Table == newValue.Table {
-		return false
 	}
-	return true
+
+	// for FILTER tables, change the default policy if it is set
+	if rch.Table == linux_iptables.RuleChain_FILTER && rch.DefaultPolicy != linux_iptables.RuleChain_NONE {
+		err = d.ipTablesHandler.SetChainDefaultPolicy(protocolType(rch), tableNameStr(rch), chainNameStr(rch), chainPolicyStr(rch))
+		if err != nil {
+			d.log.Errorf("Error by setting iptables default policy: %v", err)
+			return nil, err
+		}
+	}
+
+	// wipe all rules in the chain that may have existed before
+	err = d.ipTablesHandler.DeleteAllRules(protocolType(rch), tableNameStr(rch), chainNameStr(rch))
+	if err != nil {
+		d.log.Warnf("Error by wiping iptables rules: %v", err)
+	}
+
+	// append all rules
+	for _, rule := range rch.Rules {
+		err := d.ipTablesHandler.AppendRule(protocolType(rch), tableNameStr(rch), chainNameStr(rch), rule)
+		if err != nil {
+			d.log.Errorf("Error by appending iptables rule: %v", err)
+			break
+		}
+	}
+
+	return nil, err
 }
 
 // Delete removes iptables rule chain.
 func (d *RuleChainDescriptor) Delete(key string, rch *linux_iptables.RuleChain, metadata interface{}) error {
-	go func() {
-		lock, _ := d.nsAccess.LoadOrStore(rch.Namespace.Reference, &sync.Mutex{})
-		lock.(*sync.Mutex).Lock()
-		defer lock.(*sync.Mutex).Unlock()
 
-		d.log.Debugf("DELETE IPT rule chain %s: %v", key, rch)
+	d.log.Debugf("DELETE IPT rule chain %s: %v", key, rch)
 
-		// switch network namespace
-		nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
-		nsRevert, err := d.nsPlugin.SwitchToNamespace(nsCtx, rch.Namespace)
+	// switch network namespace
+	nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
+	nsRevert, err := d.nsPlugin.SwitchToNamespace(nsCtx, rch.Namespace)
+	if err != nil {
+		d.log.WithFields(logging.Fields{
+			"err":       err,
+			"namespace": rch.Namespace,
+		}).Warn("Failed to switch the namespace")
+		return err
+	}
+	// revert network namespace after returning
+	defer nsRevert()
+
+	// delete all rules in the chain
+	err = d.ipTablesHandler.DeleteAllRules(protocolType(rch), tableNameStr(rch), chainNameStr(rch))
+	if err != nil {
+		d.log.Errorf("Error by deleting iptables rules: %v", err)
+	}
+
+	// delete the chain if it was custom-defined
+	if rch.ChainType == linux_iptables.RuleChain_CUSTOM {
+		err := d.ipTablesHandler.DeleteChain(protocolType(rch), tableNameStr(rch), chainNameStr(rch))
 		if err != nil {
-			d.log.WithFields(logging.Fields{
-				"err":       err,
-				"namespace": rch.Namespace,
-			}).Warn("Failed to switch the namespace")
-			//return err
+			d.log.Errorf("Error by deleting iptables chain: %v", err)
+			return err
 		}
-		// revert network namespace after returning
-		defer nsRevert()
+	}
 
-		// delete all rules in the chain
-		err = d.ipTablesHandler.DeleteAllRules(protocolType(rch), tableNameStr(rch), chainNameStr(rch))
-		if err != nil {
-			d.log.Errorf("Error by deleting iptables rules: %v", err)
-		}
-
-		// delete the chain if it was custom-defined
-		if rch.ChainType == linux_iptables.RuleChain_CUSTOM {
-			err := d.ipTablesHandler.DeleteChain(protocolType(rch), tableNameStr(rch), chainNameStr(rch))
-			if err != nil {
-				d.log.Errorf("Error by deleting iptables chain: %v", err)
-				//return err
-			}
-		}
-	}()
 	return nil
 }
 

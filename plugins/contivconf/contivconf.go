@@ -402,8 +402,9 @@ func (c *ContivConf) Init() (err error) {
 	if c.config.IPAMConfig.ContivCIDR != "" {
 		if isIPv6AddrString(c.config.IPAMConfig.ContivCIDR) {
 			c.ipamConfig.UseIPv6 = true
+		} else {
+			c.ipamConfig.UseIPv6 = false
 		}
-		c.ipamConfig.UseIPv6 = false
 	}
 
 	// create GoVPP channel for contiv-agent

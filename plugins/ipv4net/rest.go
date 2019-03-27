@@ -63,7 +63,7 @@ func (n *IPv4Net) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
 			NodeIP:            nodeIP.String(),
 			PodSubnetThisNode: n.IPAM.PodSubnetThisNode().String(),
 			VppHostNetwork:    n.IPAM.HostInterconnectSubnetThisNode().String(),
-			Config:            n.ContivConf.GetIPAMConfigForJSON(),
+			Config:            n.IPAM.GetIPAMConfigForJSON(),
 		})
 	}
 }

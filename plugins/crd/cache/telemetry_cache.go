@@ -388,6 +388,9 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 
 // getAgentURL creates the URL for the data we're trying to retrieve
 func (ctc *ContivTelemetryCache) getAgentURL(ipAddr string, url string) string {
+	if strings.Contains(ipAddr, ":") {
+		ipAddr = "[" + ipAddr + "]"
+	}
 	return "http://" + ipAddr + ctc.agentPort + url
 }
 

@@ -1,0 +1,7 @@
+---
+Arm64Platform: true
+
+image_arm64:
+  repository: contivvpp/ui-arm64
+  tag: latest
+  pullPolicy: IfNotPresent

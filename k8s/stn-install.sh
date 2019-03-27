@@ -43,6 +43,14 @@ else
     echo "Uninstalling Contiv STN daemon."
 fi
 
+ISARM64ARCH=`uname -m`
+
+if [ ${ISARM64ARCH} = "aarch64" ] ; then
+  ISARM64ARCH="-arm64"
+else
+  ISARM64ARCH=""
+fi
+
 if [ ${UNINSTALL} == 0 ] ; then
     # Install - start the Docker container with STN, with autorestart turned on.
     echo "Starting contiv-stn Docker container:"
@@ -54,7 +62,8 @@ if [ ${UNINSTALL} == 0 ] ; then
         -v /sys:/sys:rw \
         -v /var/run:/var/run:rw \
         -v /var/log:/var/log:shared \
-        contivvpp/stn
+        contivvpp/stn${ISARM64ARCH:-}
+
 else
     # Uninstall - stop the Docker container with STN, disable autorestart.
     echo "Stopping contiv-stn Docker container:"

@@ -619,6 +619,30 @@ func (i *IPAM) ReleasePodIP(podID podmodel.ID) error {
 	return nil
 }
 
+func (i *IPAM) GetIPAMConfigForJSON() *contivconf.IPAMConfigForJSON {
+	c := i.ContivConf.GetIPAMConfigForJSON()
+	res := &contivconf.IPAMConfigForJSON{
+		UseExternalIPAM:      c.UseExternalIPAM,
+		ContivCIDR:           c.ContivCIDR,
+		ServiceCIDR:          c.ServiceCIDR,
+		DefaultGateway:       c.DefaultGateway,
+		NodeInterconnectDHCP: c.NodeInterconnectDHCP,
+		NodeInterconnectCIDR: i.nodeInterconnectSubnet.String(),
+		PodSubnetCIDR:        i.PodSubnetAllNodes().String(),
+		VPPHostSubnetCIDR:    i.HostInterconnectSubnetAllNodes().String(),
+	}
+	if i.vxlanSubnet != nil {
+		res.VxlanCIDR = i.vxlanSubnet.String()
+	}
+	s, _ := i.PodSubnetThisNode().Mask.Size()
+	res.PodSubnetOneNodePrefixLen = uint8(s)
+
+	s, _ = i.HostInterconnectSubnetThisNode().Mask.Size()
+	res.VPPHostSubnetOneNodePrefixLen = uint8(s)
+
+	return res
+}
+
 // Close is NOOP.
 func (i *IPAM) Close() error {
 	return nil

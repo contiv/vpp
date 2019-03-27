@@ -323,9 +323,23 @@ func (n *IPv4Net) configureSTNConnectivity(txn controller.ResyncOperations) {
 			txn.Put(key, stnrule)
 		}
 
-		// proxy ARP for ARP requests from the host
-		key, proxyarp := n.proxyArpForSTNGateway()
-		txn.Put(key, proxyarp)
+		if !n.ContivConf.GetIPAMConfig().UseIPv6 {
+			// proxy ARP for ARP requests from the host
+			key, proxyarp := n.proxyArpForSTNGateway()
+			txn.Put(key, proxyarp)
+		} else {
+			// For IPv6, we assign /127 subnet to the stolen interface
+			// and set the other IP from that subnet as the gateway IP for Linux.
+			// The original subnet is routed towards VPP.
+
+			// linux static ARP mapping the gateway IP to VPP MAC address
+			key, arp := n.staticArpForSTNGateway()
+			txn.Put(key, arp)
+
+			// linux route pointing the original subnet of the stolen interface towards VPP
+			key, route := n.routeToOriginalSTNSubnet()
+			txn.Put(key, route)
+		}
 
 		// VPP ARP entry for the host interface
 		if n.ContivConf.GetSTNConfig().STNVersion == 2 {

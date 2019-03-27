@@ -345,9 +345,13 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 			addDelConfig[key] = route
 
 			// route from main VRF to host
+			nextHop := rndr.IPAM.HostInterconnectIPInLinux()
+			if rndr.ContivConf.InSTNMode() {
+				nextHop, _ = rndr.IPv4Net.GetNodeIP()
+			}
 			route = &vpp_l3.Route{
 				DstNetwork:        serviceIP.String() + ipv6HostPrefix,
-				NextHopAddr:       rndr.IPAM.HostInterconnectIPInLinux().String(),
+				NextHopAddr:       nextHop.String(),
 				OutgoingInterface: rndr.IPv4Net.GetHostInterconnectIfName(),
 				VrfId:             rndr.ContivConf.GetRoutingConfig().MainVRFID,
 			}

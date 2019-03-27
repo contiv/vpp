@@ -151,7 +151,14 @@ func (n *IPv4Net) interconnectTapHost() (key string, config *linux_interfaces.In
 		tap.PhysAddress = hostInterconnectMACinLinuxSTN
 
 		if len(n.nodeIP) > 0 {
-			tap.IpAddresses = []string{combineAddrWithNet(n.nodeIP, n.nodeIPNet).String()}
+			if n.ContivConf.GetIPAMConfig().UseIPv6 {
+				// For IPv6, we assign /127 subnet to the stolen interface
+				// and set the other IP from that subnet as the gateway IP.
+				// The original subnet is routed towards VPP in routeToOriginalSTNSubnet()
+				tap.IpAddresses = []string{n.nodeIP.String() + "/127"}
+			} else {
+				tap.IpAddresses = []string{combineAddrWithNet(n.nodeIP, n.nodeIPNet).String()}
+			}
 		}
 	} else {
 		tap.IpAddresses = []string{n.IPAM.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)}
@@ -231,7 +238,14 @@ func (n *IPv4Net) interconnectVethHost() (key string, config *linux_interfaces.I
 		veth.PhysAddress = hostInterconnectMACinLinuxSTN
 
 		if len(n.nodeIP) > 0 {
-			veth.IpAddresses = []string{combineAddrWithNet(n.nodeIP, n.nodeIPNet).String()}
+			if n.ContivConf.GetIPAMConfig().UseIPv6 {
+				// For IPv6, we assign /127 subnet to the stolen interface
+				// and set the other IP from that subnet as the gateway IP.
+				// The original subnet is routed towards VPP in routeToOriginalSTNSubnet()
+				veth.IpAddresses = []string{n.nodeIP.String() + "/127"}
+			} else {
+				veth.IpAddresses = []string{combineAddrWithNet(n.nodeIP, n.nodeIPNet).String()}
+			}
 		}
 	} else {
 		veth.IpAddresses = []string{n.IPAM.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)}
@@ -349,9 +363,21 @@ func (n *IPv4Net) proxyArpForSTNGateway() (key string, config *vpp_l3.ProxyARP) 
 	return key, proxyarp
 }
 
+// staticArpForSTNGateway returns configuration of a static ARP entry for the host mapping
+// the STN gateway IP to VPP MAC address.
+func (n *IPv4Net) staticArpForSTNGateway() (key string, arp *linux_l3.ARPEntry) {
+	arp = &linux_l3.ARPEntry{
+		Interface: HostInterconnectTAPinLinuxLogicalName,
+		IpAddress: n.stnGwIPForHost().String(),
+		HwAddress: hwAddrForNodeInterface(n.NodeSync.GetNodeID(), hostInterconnectHwAddrPrefix),
+	}
+	key = linux_l3.ArpKey(arp.Interface, arp.IpAddress)
+	return key, arp
+}
+
 // staticArpForSTNHostInterface creates a static ARP entry for for the host stack interface on VPP.
-func (n *IPv4Net) staticArpForSTNHostInterface() (key string, config *vpp_l3.ARPEntry) {
-	arp := &vpp_l3.ARPEntry{
+func (n *IPv4Net) staticArpForSTNHostInterface() (key string, arp *vpp_l3.ARPEntry) {
+	arp = &vpp_l3.ARPEntry{
 		Interface:   n.hostInterconnectVPPIfName(),
 		IpAddress:   n.nodeIP.String(),
 		PhysAddress: hostInterconnectMACinLinuxSTN,
@@ -361,9 +387,32 @@ func (n *IPv4Net) staticArpForSTNHostInterface() (key string, config *vpp_l3.ARP
 	return key, arp
 }
 
+// routeToOriginalSTNSubnet creates a linux route pointing the original subnet of the stolen interface towards VPP.
+func (n *IPv4Net) routeToOriginalSTNSubnet() (key string, route *linux_l3.Route) {
+	route = &linux_l3.Route{
+		DstNetwork:        n.nodeIPNet.String(),
+		GwAddr:            n.stnGwIPForHost().String(),
+		Scope:             linux_l3.Route_GLOBAL,
+		OutgoingInterface: n.hostInterconnectLinuxIfName(),
+	}
+	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
+	return key, route
+}
+
 // stnGwIPForHost returns gateway IP address used in the host stack for routes pointing towards VPP
 // (in the STN scenario).
 func (n *IPv4Net) stnGwIPForHost() net.IP {
+	if n.ContivConf.GetIPAMConfig().UseIPv6 {
+		// for IPv6, we assign /127 subnet to the stolen interface
+		// and return the other IP from that subnet as the gateway IP
+		ipNet := &net.IPNet{IP: n.nodeIP, Mask: net.CIDRMask(127, 128)}
+		firstIP, lastIP := cidr.AddressRange(ipNet)
+		if !cidr.Inc(firstIP).Equal(n.nodeIP) {
+			return cidr.Inc(firstIP)
+		}
+		return cidr.Dec(lastIP)
+	}
+
 	nh := n.ContivConf.GetStaticDefaultGW()
 	if nh == nil || nh.IsUnspecified() {
 		// no default gateway, calculate fake gateway address for routes pointing to VPP

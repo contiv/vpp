@@ -784,12 +784,12 @@ VAGRANTFILE_API_VERSION = "2"
       gw.vm.box_version = "1.0.0"
       if dep_scenario == 'nostn'
         if crd_disabled == 'false'
-          gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp"
+          gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
         else
-          gw.vm.network :private_network, ip: "192.168.16.100", netmask: "255.255.255.0", virtualbox__intnet: "vpp"
+          gw.vm.network :private_network, ip: "192.168.16.100", netmask: "255.255.255.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
         end
       else
-        gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"
+        gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp", nic_type: "82540EM"
       end
       if dep_scenario == 'calico'
         gw_ip = base_ip + "1"
@@ -813,7 +813,7 @@ VAGRANTFILE_API_VERSION = "2"
 
       if dep_scenario != 'nostn'
         if ip_version != 'ipv6'
-          k8smaster.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
+          k8smaster.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp", nic_type: "82540EM"
           # default router
           k8smaster.vm.provision "shell",
             run: "always",
@@ -823,10 +823,10 @@ VAGRANTFILE_API_VERSION = "2"
             run: "always",
             inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
         else
-          k8smaster.vm.network :private_network, ip: k8smaster_ip, netmask: "#{base_prefix_len}", virtualbox__intnet: "vpp"
+          k8smaster.vm.network :private_network, ip: k8smaster_ip, netmask: "#{base_prefix_len}", virtualbox__intnet: "vpp", nic_type: "82540EM"
         end
       else
-        k8smaster.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
+        k8smaster.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp", nic_type: "82540EM"
         k8smaster.vm.network :private_network, ip: k8smaster_ip, netmask: "#{base_prefix_len}", virtualbox__intnet: "true"
       end
 
@@ -859,7 +859,7 @@ VAGRANTFILE_API_VERSION = "2"
         # Interface for K8s Cluster
         if dep_scenario != 'nostn'
           if ip_version != 'ipv6'
-            node.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
+            node.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp", nic_type: "82540EM"
             # default router
             node.vm.provision "shell",
               run: "always",
@@ -869,10 +869,10 @@ VAGRANTFILE_API_VERSION = "2"
               run: "always",
               inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
           else
-            node.vm.network :private_network, ip: node_addr, netmask: "#{base_prefix_len}", virtualbox__intnet: "vpp"
+            node.vm.network :private_network, ip: node_addr, netmask: "#{base_prefix_len}", virtualbox__intnet: "vpp", nic_type: "82540EM"
           end
         else
-          node.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
+          node.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp", nic_type: "82540EM"
           node.vm.network :private_network, ip: node_addr, netmask: "#{base_prefix_len}", virtualbox__intnet: "true"
         end
 

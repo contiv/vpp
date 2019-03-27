@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -89,6 +90,12 @@ type API interface {
 
 	// ReleasePodIP releases the pod IP address making it available for new PODs.
 	ReleasePodIP(podID podmodel.ID) error
+
+	// GetIPAMConfigForJSON returns IPAM configuration in format suitable
+	// for marshalling to JSON (subnets not converted to net.IPNet + defined
+	// JSON flag for every option). If contivCIDR is used it returns actual
+	// dissected subnets.
+	GetIPAMConfigForJSON() *contivconf.IPAMConfigForJSON
 }
 
 // PodCIDRChange is triggered when CIDR for PODs on the current node changes.

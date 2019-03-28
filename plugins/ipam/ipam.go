@@ -619,6 +619,8 @@ func (i *IPAM) ReleasePodIP(podID podmodel.ID) error {
 	return nil
 }
 
+// GetIPAMConfigForJSON returns actual (contivCIDR dissected
+// into ranges, if  used) IPAM configuration
 func (i *IPAM) GetIPAMConfigForJSON() *contivconf.IPAMConfigForJSON {
 	c := i.ContivConf.GetIPAMConfigForJSON()
 	res := &contivconf.IPAMConfigForJSON{

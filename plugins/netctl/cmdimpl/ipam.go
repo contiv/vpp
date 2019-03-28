@@ -27,7 +27,7 @@ import (
 	vppifdescr "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	"github.com/contiv/vpp/plugins/netctl/remote"
 )
 
@@ -62,7 +62,7 @@ func nodeIpamCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, w *tab
 		return
 	}
 
-	ipam := ipv4net.IPAMData{}
+	ipam := ipnet.IPAMData{}
 	err = json.Unmarshal(b, &ipam)
 	if err != nil {
 		fmt.Println(err)
@@ -75,7 +75,7 @@ func nodeIpamCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, w *tab
 		intfs := make(telemetrymodel.NodeInterfaces, 0)
 		if err := json.Unmarshal(b, &intfs); err == nil {
 			for _, ifc := range intfs {
-				if ifc.Value.Name == ipv4net.VxlanBVIInterfaceName {
+				if ifc.Value.Name == ipnet.VxlanBVIInterfaceName {
 					bviIP = strings.Split(ifc.Value.IpAddresses[0], "/")[0]
 				}
 			}

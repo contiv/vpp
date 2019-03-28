@@ -26,7 +26,7 @@ import (
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 )
 
 //VppDataStore holds various maps which all take different keys but point to the same underlying value.
@@ -94,7 +94,7 @@ func (vds *VppDataStore) DeleteNode(nodeName string) error {
 	for _, node := range vds.NodeMap {
 		if node.ID == uint32(nodeID) {
 			for _, intf := range node.NodeInterfaces {
-				if intf.Value.Name == ipv4net.VxlanBVIInterfaceName {
+				if intf.Value.Name == ipnet.VxlanBVIInterfaceName {
 					delete(vds.LoopMACMap, intf.Value.PhysAddress)
 					for _, ip := range intf.Value.IpAddresses {
 						delete(vds.LoopIPMap, ip)
@@ -312,7 +312,7 @@ func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps telemetrymodel.Nod
 }
 
 // SetNodeIPam is a simple function to set the node with the given node name's ipam
-func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam ipv4net.IPAMData) error {
+func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam ipnet.IPAMData) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -416,7 +416,7 @@ func (vds *VppDataStore) RetrieveNodeByGigEIPAddr(ipAddress string) (*telemetrym
 // GetNodeLoopIFInfo gets the loop interface for the given node
 func GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface, error) {
 	for _, ifs := range node.NodeInterfaces {
-		if ifs.Value.Name == ipv4net.VxlanBVIInterfaceName {
+		if ifs.Value.Name == ipnet.VxlanBVIInterfaceName {
 			return &ifs, nil
 		}
 	}

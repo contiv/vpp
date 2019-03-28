@@ -207,11 +207,11 @@ func (s *Service) Refresh() {
 
 // isLocalNodeOrHostIP returns true if the given IP is current node's node (VPP) or host (mgmt) IP, false otherwise.
 func (s *Service) isLocalNodeOrHostIP(ip net.IP) bool {
-	nodeIP, _ := s.sp.IPv4Net.GetNodeIP()
+	nodeIP, _ := s.sp.IPNet.GetNodeIP()
 	if ip.Equal(nodeIP) {
 		return true
 	}
-	for _, hostIP := range s.sp.IPv4Net.GetHostIPs() {
+	for _, hostIP := range s.sp.IPNet.GetHostIPs() {
 		if hostIP.Equal(ip) {
 			return true
 		}

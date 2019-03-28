@@ -26,7 +26,7 @@ import (
 
 	"fmt"
 	"github.com/contiv/vpp/mock/localclient"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/ligato/cn-infra/datasync/syncbase"
@@ -77,7 +77,7 @@ type MockACLEngine struct {
 	sync.Mutex
 
 	Log        logging.Logger
-	IPv4Net    ipv4net.API   /* for GetIfName(), GetVxlanBVIIfName() */
+	IPNet      ipnet.API     /* for GetIfName(), GetVxlanBVIIfName() */
 	ContivConf ContivConfAPI /* for GetMainInterfaceName() */
 
 	pods      map[podmodel.ID]*PodConfig
@@ -104,10 +104,10 @@ type InterfaceACLs struct {
 }
 
 // NewMockACLEngine is a constructor for MockACLEngine.
-func NewMockACLEngine(log logging.Logger, ipv4Net ipv4net.API, contivConf ContivConfAPI) *MockACLEngine {
+func NewMockACLEngine(log logging.Logger, ipNet ipnet.API, contivConf ContivConfAPI) *MockACLEngine {
 	return &MockACLEngine{
 		Log:        log,
-		IPv4Net:    ipv4Net,
+		IPNet:      ipNet,
 		ContivConf: contivConf,
 		pods:       make(map[podmodel.ID]*PodConfig),
 		aclConfig:  NewACLConfig(),
@@ -289,7 +289,7 @@ func (mae *MockACLEngine) ConnectionPodToPod(srcPod podmodel.ID, dstPod podmodel
 
 	// Get source interface.
 	if srcPodCfg.anotherNode {
-		srcIfName = mae.IPv4Net.GetVxlanBVIIfName()
+		srcIfName = mae.IPNet.GetVxlanBVIIfName()
 		if srcIfName == "" {
 			srcIfName = mae.ContivConf.GetMainInterfaceName()
 		}
@@ -299,7 +299,7 @@ func (mae *MockACLEngine) ConnectionPodToPod(srcPod podmodel.ID, dstPod podmodel
 		}
 	} else {
 		var exists bool
-		srcIfName, _, _, exists = mae.IPv4Net.GetPodIfNames(srcPod.Namespace, srcPod.Name)
+		srcIfName, _, _, exists = mae.IPNet.GetPodIfNames(srcPod.Namespace, srcPod.Name)
 		if !exists {
 			mae.Log.WithField("pod", srcPod).Error("Missing interface for source pod")
 			return ConnActionFailure
@@ -308,7 +308,7 @@ func (mae *MockACLEngine) ConnectionPodToPod(srcPod podmodel.ID, dstPod podmodel
 
 	// Get destination interface.
 	if dstPodCfg.anotherNode {
-		dstIfName = mae.IPv4Net.GetVxlanBVIIfName()
+		dstIfName = mae.IPNet.GetVxlanBVIIfName()
 		if dstIfName == "" {
 			dstIfName = mae.ContivConf.GetMainInterfaceName()
 		}
@@ -318,7 +318,7 @@ func (mae *MockACLEngine) ConnectionPodToPod(srcPod podmodel.ID, dstPod podmodel
 		}
 	} else {
 		var exists bool
-		dstIfName, _, _, exists = mae.IPv4Net.GetPodIfNames(dstPod.Namespace, dstPod.Name)
+		dstIfName, _, _, exists = mae.IPNet.GetPodIfNames(dstPod.Namespace, dstPod.Name)
 		if !exists {
 			mae.Log.WithField("pod", srcPod).Error("Missing interface for source pod")
 			return ConnActionFailure
@@ -347,14 +347,14 @@ func (mae *MockACLEngine) ConnectionPodToInternet(srcPod podmodel.ID, dstIP stri
 	}
 
 	// Get source interface.
-	srcIfName, _, _, exists := mae.IPv4Net.GetPodIfNames(srcPod.Namespace, srcPod.Name)
+	srcIfName, _, _, exists := mae.IPNet.GetPodIfNames(srcPod.Namespace, srcPod.Name)
 	if !exists {
 		mae.Log.WithField("pod", srcPod).Error("Missing interface for source pod")
 		return ConnActionFailure
 	}
 
 	// Get destination interface.
-	dstIfName := mae.IPv4Net.GetVxlanBVIIfName()
+	dstIfName := mae.IPNet.GetVxlanBVIIfName()
 	if dstIfName == "" {
 		dstIfName = mae.ContivConf.GetMainInterfaceName()
 	}
@@ -392,7 +392,7 @@ func (mae *MockACLEngine) ConnectionInternetToPod(srcIP string, dstPod podmodel.
 	}
 
 	// Get source interface.
-	srcIfName := mae.IPv4Net.GetVxlanBVIIfName()
+	srcIfName := mae.IPNet.GetVxlanBVIIfName()
 	if srcIfName == "" {
 		srcIfName = mae.ContivConf.GetMainInterfaceName()
 	}
@@ -409,7 +409,7 @@ func (mae *MockACLEngine) ConnectionInternetToPod(srcIP string, dstPod podmodel.
 	}
 
 	// Get destination interface.
-	dstIfName, _, _, exists := mae.IPv4Net.GetPodIfNames(dstPod.Namespace, dstPod.Name)
+	dstIfName, _, _, exists := mae.IPNet.GetPodIfNames(dstPod.Namespace, dstPod.Name)
 	if !exists {
 		mae.Log.WithField("pod", dstPod).Error("Missing interface for destination pod")
 		return ConnActionFailure

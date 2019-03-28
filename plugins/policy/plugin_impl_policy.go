@@ -20,7 +20,7 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	"github.com/contiv/vpp/plugins/ksr/model/namespace"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/ksr/model/policy"
@@ -69,7 +69,7 @@ type Deps struct {
 	infra.PluginDeps
 	ContivConf contivconf.API
 	IPAM       ipam.API
-	IPv4Net    ipv4net.API /* for GetIfName() */
+	IPNet      ipnet.API /* for GetIfName() */
 	PodManager podmanager.API
 
 	// Note: L4 was removed from Contiv but may be re-added in the future
@@ -109,7 +109,7 @@ func (p *Plugin) Init() error {
 				Log:        p.Log.NewLogger("-aclRenderer"),
 				LogFactory: p.Log,
 				ContivConf: p.ContivConf,
-				IPv4Net:    p.IPv4Net,
+				IPNet:      p.IPNet,
 				UpdateTxnFactory: func() controller.UpdateOperations {
 					p.withChange = true
 					return p.updateTxn

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package ipnet
 
 import (
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
@@ -27,7 +27,7 @@ import (
 // re-synchronization.
 // For startup resync, resyncCount is 1. Higher counter values identify
 // run-time resync.
-func (n *IPv4Net) Resync(event controller.Event, kubeStateData controller.KubeStateData,
+func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStateData,
 	resyncCount int, txn controller.ResyncOperations) error {
 	var wasErr error
 
@@ -67,7 +67,7 @@ func (n *IPv4Net) Resync(event controller.Event, kubeStateData controller.KubeSt
 		controller.PutAll(txn, config)
 	}
 
-	n.Log.Infof("IPv4Net plugin internal state after RESYNC: %s",
+	n.Log.Infof("IPNet plugin internal state after RESYNC: %s",
 		n.internalState.StateToString())
 	return wasErr
 }
@@ -81,7 +81,7 @@ func (n *IPv4Net) Resync(event controller.Event, kubeStateData controller.KubeSt
 //  - one route in the host stack to direct traffic destined to services via VPP
 //  - inter-VRF routing
 //  - IP neighbor scanning
-func (n *IPv4Net) configureVswitchConnectivity(event controller.Event, txn controller.ResyncOperations) error {
+func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn controller.ResyncOperations) error {
 	if !n.test {
 		// explicitly create POD VRF using binary API
 		// TODO: just temporary, until VRF will be a separate NB API entity of vpp-agent,
@@ -134,7 +134,7 @@ func (n *IPv4Net) configureVswitchConnectivity(event controller.Event, txn contr
 
 // configureVswitchNICs configures vswitch NICs - main NIC for node interconnect
 // and other NICs optionally specified in the contiv plugin YAML configuration.
-func (n *IPv4Net) configureVswitchNICs(event controller.Event, txn controller.ResyncOperations) error {
+func (n *IPNet) configureVswitchNICs(event controller.Event, txn controller.ResyncOperations) error {
 	// configure the main VPP NIC interface
 	err := n.configureMainVPPInterface(event, txn)
 	if err != nil {
@@ -156,7 +156,7 @@ func (n *IPv4Net) configureVswitchNICs(event controller.Event, txn controller.Re
 }
 
 // configureMainVPPInterface configures the main NIC used for node interconnect on vswitch VPP.
-func (n *IPv4Net) configureMainVPPInterface(event controller.Event, txn controller.ResyncOperations) error {
+func (n *IPNet) configureMainVPPInterface(event controller.Event, txn controller.ResyncOperations) error {
 	// 1. Obtain the main interface name
 
 	nicName := n.ContivConf.GetMainInterfaceName()
@@ -216,7 +216,7 @@ func (n *IPv4Net) configureMainVPPInterface(event controller.Event, txn controll
 			nic.SetDhcpClient = true
 			if !n.watchingDHCP {
 				// start watching of DHCP notifications
-				n.dhcpIndex.Watch("ipv4net", n.handleDHCPNotification)
+				n.dhcpIndex.Watch("ipnet", n.handleDHCPNotification)
 				n.watchingDHCP = true
 			}
 		}
@@ -241,7 +241,7 @@ func (n *IPv4Net) configureMainVPPInterface(event controller.Event, txn controll
 }
 
 // configureOtherVPPInterfaces configure all physical interfaces defined in the config but the main one.
-func (n *IPv4Net) configureOtherVPPInterfaces(txn controller.ResyncOperations) error {
+func (n *IPNet) configureOtherVPPInterfaces(txn controller.ResyncOperations) error {
 	for _, physicalIface := range n.ContivConf.GetOtherVPPInterfaces() {
 		key, iface := n.physicalInterface(physicalIface.InterfaceName, physicalIface.IPs)
 		iface.SetDhcpClient = physicalIface.UseDHCP
@@ -251,7 +251,7 @@ func (n *IPv4Net) configureOtherVPPInterfaces(txn controller.ResyncOperations) e
 }
 
 // configureVswitchHostConnectivity configures vswitch VPP to Linux host interconnect.
-func (n *IPv4Net) configureVswitchHostConnectivity(txn controller.ResyncOperations) (err error) {
+func (n *IPNet) configureVswitchHostConnectivity(txn controller.ResyncOperations) (err error) {
 	var key string
 
 	// list all IPs assigned to host interfaces
@@ -312,7 +312,7 @@ func (n *IPv4Net) configureVswitchHostConnectivity(txn controller.ResyncOperatio
 }
 
 // configureSTNConnectivity configures vswitch VPP to operate in the STN mode.
-func (n *IPv4Net) configureSTNConnectivity(txn controller.ResyncOperations) {
+func (n *IPNet) configureSTNConnectivity(txn controller.ResyncOperations) {
 	if len(n.nodeIP) > 0 {
 		// STN rule
 		if n.ContivConf.GetSTNConfig().STNVersion == 2 {
@@ -360,7 +360,7 @@ func (n *IPv4Net) configureSTNConnectivity(txn controller.ResyncOperations) {
 }
 
 // configureVswitchVrfRoutes configures inter-VRF routing
-func (n *IPv4Net) configureVswitchVrfRoutes(txn controller.ResyncOperations) {
+func (n *IPNet) configureVswitchVrfRoutes(txn controller.ResyncOperations) {
 	// routes from main towards POD VRF: PodSubnet + VPPHostSubnet
 	routes := n.routesMainToPodVRF()
 	for key, route := range routes {
@@ -383,7 +383,7 @@ func (n *IPv4Net) configureVswitchVrfRoutes(txn controller.ResyncOperations) {
 }
 
 // otherNodesResync re-synchronizes connectivity to other nodes.
-func (n *IPv4Net) otherNodesResync(txn controller.ResyncOperations) error {
+func (n *IPNet) otherNodesResync(txn controller.ResyncOperations) error {
 	// collect other node IDs and configuration for connectivity with each of them
 	for _, node := range n.NodeSync.GetAllNodes() {
 		// ignore for this node

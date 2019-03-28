@@ -25,7 +25,7 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/nodesync"
@@ -61,7 +61,7 @@ type Deps struct {
 	ServiceLabel    servicelabel.ReaderAPI
 	ContivConf      contivconf.API
 	IPAM            ipam.API
-	IPv4Net         ipv4net.API        /* to get the Node IP and all interface names */
+	IPNet           ipnet.API          /* to get the Node IP and all interface names */
 	NodeSync        nodesync.API       /* to get the list of all node IPs for nodePort services */
 	PodManager      podmanager.API     /* to get the list or running pods which determines frontend interfaces */
 	GoVPP           govppmux.API       /* used for direct NAT binary API calls */
@@ -93,7 +93,7 @@ func (p *Plugin) Init() error {
 			ServiceLabel: p.ServiceLabel,
 			ContivConf:   p.ContivConf,
 			IPAM:         p.IPAM,
-			IPv4Net:      p.IPv4Net,
+			IPNet:        p.IPNet,
 			NodeSync:     p.NodeSync,
 			PodManager:   p.PodManager,
 		},
@@ -108,7 +108,7 @@ func (p *Plugin) Init() error {
 				Config:     p.config,
 				ContivConf: p.ContivConf,
 				IPAM:       p.IPAM,
-				IPv4Net:    p.IPv4Net,
+				IPNet:      p.IPNet,
 				GoVPPChan:  goVppCh,
 				UpdateTxnFactory: func(change string) controller.UpdateOperations {
 					p.changes = append(p.changes, change)
@@ -134,7 +134,7 @@ func (p *Plugin) Init() error {
 				NodeSync:        p.NodeSync,
 				PodManager:      p.PodManager,
 				IPAM:            p.IPAM,
-				IPv4Net:         p.IPv4Net,
+				IPNet:           p.IPNet,
 				ConfigRetriever: p.ConfigRetriever,
 				UpdateTxnFactory: func(change string) controller.UpdateOperations {
 					p.changes = append(p.changes, change)

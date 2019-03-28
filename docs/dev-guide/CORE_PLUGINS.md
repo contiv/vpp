@@ -13,7 +13,7 @@ plugins with a clear API defined in-between, allows to even replace an original
 implementation of a core plugin and provide customized solution tailor-made for
 a specific application. One may, for example, to replace the default [IPAM](#ipam)
 plugin and provide custom IP address allocation mechanism. Even wiring between
-pods is implemented by a separate [plugin](#ipv4net) and can be therefore easily
+pods is implemented by a separate [plugin](#ipnet) and can be therefore easily
 substituted with an alternative solution to the problem of connectivity.
 
 Furthermore, the underlying [event loop][event-loop-guide] allows to plug-in new
@@ -254,7 +254,7 @@ the REST API:
 ```
 GET "/contiv/v1/ipam"
 ```
-Note: The IPAM REST API is actually implemented byt the [IPv4Net plugin](#ipv4net),
+Note: The IPAM REST API is actually implemented byt the [IPNet plugin](#ipnet),
 which extends the set of exposed information with some attributes specific to
 network connectivity.
 
@@ -263,19 +263,19 @@ therefore the IPAM plugin must iterate through Kubernetes state data for Pods
 carried by the `DBResync`, learn the IP address assignments from the previous run
 and re-populate the cache.
 
-## IPv4Net
+## IPNet
 
-[IPv4Net plugin][ipv4net-plugin] builds VPP and Linux network configuration
-to be applied by [ligato/VPP-Agent][ligato-vpp-agent] for VPP-based IPv4 network
-connectivity between Kubernetes pods and nodes.
+[IPNet plugin][ipnet-plugin] builds VPP and Linux network configuration
+to be applied by [ligato/VPP-Agent][ligato-vpp-agent] for VPP-based IP 
+(v4 or v6) network connectivity between Kubernetes pods and nodes.
 
 Already with the first resync, the plugin must ensure [connectivity between VPP
-and the host stack][ipv4net-host].
+and the host stack][ipnet-host].
 The plugin reacts to `AddPod`/`DeletePod` events to create or remove [link
-between pod and VPP vswitch][ipv4net-pod], using `TAP` or `VETH`+`AF-PACKET`
+between pod and VPP vswitch][ipnet-pod], using `TAP` or `VETH`+`AF-PACKET`
 interfaces.
 It also needs to handle `NodeUpdate` events, to (re-)establish [connectivity
-between the local and an updated remote node][ipv4net-node] in the cluster
+between the local and an updated remote node][ipnet-node] in the cluster
 (e.g. to establish/update VXLAN tunnels).
 Finally, `Shutdown` event is processed to make sure that Contiv-specific
 configuration items are removed from the Linux network stack when Contiv is
@@ -283,7 +283,7 @@ un-deployed.
 
 ### Events
 
-IPv4Net plugin defines and publishes only one new event: `NodeIPv4Change`,
+IPNet plugin defines and publishes only one new event: `NodeIPv4Change`,
 triggered when DHCP-assigned IPv4 address of the node changes. It is handled
 using the [UpstreamResync][event-guide] as the implied configuration changes
 are too complex to be determined and applied incrementally, instead it is far
@@ -327,10 +327,10 @@ Developer guide for GRPC plugin can be found in a [separate document][external-c
 [contivconf-plugin]: https://github.com/contiv/vpp/tree/master/plugins/contivconf
 [podmanager-plugin]: https://github.com/contiv/vpp/tree/master/plugins/podmanager
 [nodesync-plugin]: https://github.com/contiv/vpp/tree/master/plugins/nodesync
-[ipv4net-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipv4net
-[ipv4net-host]: https://github.com/contiv/vpp/blob/master/plugins/ipv4net/host.go
-[ipv4net-node]: https://github.com/contiv/vpp/blob/master/plugins/ipv4net/node.go
-[ipv4net-pod]: https://github.com/contiv/vpp/blob/master/plugins/ipv4net/pod.go
+[ipnet-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipnet
+[ipnet-host]: https://github.com/contiv/vpp/blob/master/plugins/ipnet/host.go
+[ipnet-node]: https://github.com/contiv/vpp/blob/master/plugins/ipnet/node.go
+[ipnet-pod]: https://github.com/contiv/vpp/blob/master/plugins/ipnet/pod.go
 [statscollector-plugin]: https://github.com/contiv/vpp/tree/master/plugins/statscollector
 [ipam-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipam
 [db-resources]: https://github.com/contiv/vpp/tree/master/dbresources

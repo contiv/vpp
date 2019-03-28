@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package ipv4net configures VPP-based IPv4 network connectivity between Kubernetes
+// Package ipnet configures VPP-based IPv4 network connectivity between Kubernetes
 // pods and nodes.
 //
 // TODO: cleanup config
@@ -127,4 +127,4 @@
 //        "podSubnetThisNode": "10.1.1.0/24",
 //        "vppHostNetwork": "172.30.1.0/24"
 //      }
-package ipv4net
+package ipnet

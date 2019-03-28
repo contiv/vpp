@@ -26,7 +26,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
@@ -60,7 +60,7 @@ type Renderer struct {
 type Deps struct {
 	Log              logging.Logger
 	LogFactory       logging.LoggerFactory /* optional */
-	IPv4Net          ipv4net.API           /* for GetIfName() */
+	IPNet            ipnet.API             /* for GetIfName() */
 	ContivConf       ContivConf
 	UpdateTxnFactory func() (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
@@ -277,7 +277,7 @@ func (art *RendererTxn) reflectiveACL() *vpp_acl.ACL {
 // with the outside world.
 func (art *RendererTxn) getNodeOutputInterfaces() []string {
 	interfaces := []string{}
-	interfaces = append(interfaces, art.renderer.IPv4Net.GetHostInterconnectIfName())
+	interfaces = append(interfaces, art.renderer.IPNet.GetHostInterconnectIfName())
 	mainIface := art.renderer.ContivConf.GetMainInterfaceName()
 	if mainIface != "" {
 		interfaces = append(interfaces, mainIface)
@@ -285,7 +285,7 @@ func (art *RendererTxn) getNodeOutputInterfaces() []string {
 	for _, otherIface := range art.renderer.ContivConf.GetOtherVPPInterfaces() {
 		interfaces = append(interfaces, otherIface.InterfaceName)
 	}
-	vxlanBVI := art.renderer.IPv4Net.GetVxlanBVIIfName()
+	vxlanBVI := art.renderer.IPNet.GetVxlanBVIIfName()
 	if vxlanBVI != "" {
 		interfaces = append(interfaces, vxlanBVI)
 	}
@@ -406,7 +406,7 @@ func (art *RendererTxn) renderInterfaces(pods cache.PodSet, ingress bool) *vpp_a
 		// Get the interface associated with the pod.
 		ifName, found := art.renderer.podInterfaces[podID] // first query local cache
 		if !found {
-			ifName, _, _, found = art.renderer.IPv4Net.GetPodIfNames(podID.Namespace, podID.Name) // next query IPv4Net plugin
+			ifName, _, _, found = art.renderer.IPNet.GetPodIfNames(podID.Namespace, podID.Name) // next query IPNet plugin
 			if !found {
 				// pod has been deleted in the meantime but notification from K8s
 				// has not arrived yet

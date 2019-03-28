@@ -1,4 +1,4 @@
-package ipv4net
+package ipnet
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 
 /********************************* Plugin API *********************************/
 
-// API defines methods provided by IPv4Net plugin for use by other plugins to query
+// API defines methods provided by IPNet plugin for use by other plugins to query
 // IPv4 network-related information.
 // Apart from GetPodByIf, these methods should not be accessed from outside of the
 // main event loop!

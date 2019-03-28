@@ -23,7 +23,7 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/service/config"
@@ -63,7 +63,7 @@ type Deps struct {
 	NodeSync         nodesync.API
 	PodManager       podmanager.API
 	IPAM             ipam.API
-	IPv4Net          ipv4net.API
+	IPNet            ipnet.API
 	ConfigRetriever  controller.ConfigRetriever
 	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
@@ -271,7 +271,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 			rndr.Log.Warnf("Unable to get pod info for backend IP %v", backend.ip)
 			continue
 		}
-		vppIfName, _, loopIfName, exists := rndr.IPv4Net.GetPodIfNames(podID.Namespace, podID.Name)
+		vppIfName, _, loopIfName, exists := rndr.IPNet.GetPodIfNames(podID.Namespace, podID.Name)
 		if !exists {
 			rndr.Log.Warnf("Unable to get interfaces for pod %v", podID)
 			continue
@@ -347,12 +347,12 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 			// route from main VRF to host
 			nextHop := rndr.IPAM.HostInterconnectIPInLinux()
 			if rndr.ContivConf.InSTNMode() {
-				nextHop, _ = rndr.IPv4Net.GetNodeIP()
+				nextHop, _ = rndr.IPNet.GetNodeIP()
 			}
 			route = &vpp_l3.Route{
 				DstNetwork:        serviceIP.String() + ipv6HostPrefix,
 				NextHopAddr:       nextHop.String(),
-				OutgoingInterface: rndr.IPv4Net.GetHostInterconnectIfName(),
+				OutgoingInterface: rndr.IPNet.GetHostInterconnectIfName(),
 				VrfId:             rndr.ContivConf.GetRoutingConfig().MainVRFID,
 			}
 			key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
@@ -370,7 +370,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 					route := &vpp_l3.Route{
 						DstNetwork:        serviceIP.String() + ipv6HostPrefix,
 						NextHopAddr:       nextHop.String(),
-						OutgoingInterface: ipv4net.VxlanBVIInterfaceName,
+						OutgoingInterface: ipnet.VxlanBVIInterfaceName,
 						VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
 					}
 					key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)

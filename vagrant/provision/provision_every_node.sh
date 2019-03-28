@@ -14,40 +14,49 @@ EOF
 
 source /etc/profile.d/envvar.sh
 
-echo "Updating apt lists..."
-sudo -E apt-get update
+if [ $1 = "install" ];then
+    echo "Updating apt lists..."
+    sudo -E apt-get update
 
-echo "Installing dependency packages..."
-sudo -E apt-get install -y apt-transport-https \
-                  ca-certificates \
-                  curl \
-                  software-properties-common \
-                  htop
+    echo "Installing dependency packages..."
+    sudo -E apt-get install -y apt-transport-https \
+                      ca-certificates \
+                      curl \
+                      software-properties-common \
+                      htop
 
-echo "Adding Kubernetes repo..."
-curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo -E apt-key add -
-sudo -E add-apt-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+    echo "Adding Kubernetes repo..."
+    curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo -E apt-key add -
+    sudo -E add-apt-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
 
-if [ "${node_os_release}" == "16.04" ] ; then
-  echo "Adding Docker repo..."
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo -E apt-key add -
-  sudo -E add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
-fi
-
-echo "Updating apt lists..."
-sudo -E apt-get update -q
-
-echo "Installing Kubernetes Components..."
-sudo -E apt-get install -qy kubelet=${k8s_version}-00 \
-                  kubectl=${k8s_version}-00 \
-                  kubeadm=${k8s_version}-00
-
-echo "Installing Docker..."
-if [ "${node_os_release}" == "16.04" ] ; then
-  sudo -E apt-get install -y docker-ce=${docker_version}~ubuntu
-else
-  sudo -E apt-get install -y docker.io=18.06.1-0ubuntu1.2~18.04.1
+    if [ "${node_os_release}" == "16.04" ] ; then
+      echo "Adding Docker repo..."
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo -E apt-key add -
+      sudo -E add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
     fi
+
+    echo "Updating apt lists..."
+    sudo -E apt-get update -q
+
+    echo "Installing Kubernetes Components..."
+    sudo -E apt-get install -qy kubelet=${k8s_version}-00 \
+                      kubectl=${k8s_version}-00 \
+                      kubeadm=${k8s_version}-00
+
+    echo "Installing Docker..."
+    if [ "${node_os_release}" == "16.04" ] ; then
+      sudo -E apt-get install -y docker-ce=${docker_version}~ubuntu
+    else
+      sudo -E apt-get install -y docker.io=18.06.1-0ubuntu1.2~18.04.1
+    fi
+
+    systemctl stop docker
+    modprobe overlay
+
+    echo '{"storage-driver": "overlay2"}' > /etc/docker/daemon.json
+    rm -rf /var/lib/docker/*
+    systemctl start docker
+fi
 
 #Setup the proxy if needed
 if [ "${http_proxy}" != "" ] ; then
@@ -65,13 +74,13 @@ Environment=\"HTTPS_PROXY='${https_proxy}'"" >> /etc/systemd/system/docker.servi
   sudo systemctl restart docker
 fi
 
-# more docker stuff
-systemctl stop docker
-modprobe overlay
-
-echo '{"storage-driver": "overlay2"}' > /etc/docker/daemon.json
-rm -rf /var/lib/docker/*
-systemctl start docker
+## more docker stuff
+#systemctl stop docker
+#modprobe overlay
+#
+#echo '{"storage-driver": "overlay2"}' > /etc/docker/daemon.json
+#rm -rf /var/lib/docker/*
+#systemctl start docker
 
 #explicitly set max number of concurrent ssh connections
 echo 'MaxStartups 20' >> /etc/ssh/sshd_config
@@ -106,7 +115,7 @@ if [ "${ip_version}" == "ipv6" ]; then
     # enable ip6 forwarding
     sysctl -w net.ipv6.conf.all.forwarding=1
 
-    # add default ipv6 route via mgmt interface, to make kube-proxy working properly
+    # add default ipv6 route via mgmt interface, to make kube-proxy work properly
     if [ "${dep_scenario}" == "nostn" ]; then
         ip -6 route add default via ${base_ip}1 dev enp0s9 || true
     else

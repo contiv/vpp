@@ -3,21 +3,6 @@ set -ex
 
 echo Args passed: [[ $@ ]]
 
-sudo -E apt-get install -y python-pip \
-                   python-dev \
-                   python-virtualenv \
-                   build-essential
-
-#Install pip
-sudo -E pip install --upgrade pip
-sudo -E pip install --upgrade virtualenv
-
-#Install helm
-echo "Downloading and installing Helm..."
-curl -sL https://storage.googleapis.com/kubernetes-helm/helm-v"${helm_version}"-linux-amd64.tar.gz > /tmp/helm.tgz
-tar -zxvf /tmp/helm.tgz -C /tmp
-mv /tmp/linux-amd64/helm /usr/local/bin/helm
-
 # --------------------------------------------------------
 # ---> Build Contiv/VPP-vswitch Development Image <---
 # --------------------------------------------------------
@@ -76,10 +61,6 @@ source /home/vagrant/.profile
 
 # Based on kubernetes version, disable hugepages in Kubelet
 # Initialize Kubernetes master
-
-echo "Pulling k8s images..."
-echo "$(kubeadm config images pull --kubernetes-version=v"${k8s_version}")"
-
 
 service_cidr="10.96.0.0/12"
 pod_network_cidr="10.10.0.0/16"

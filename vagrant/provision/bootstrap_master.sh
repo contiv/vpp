@@ -3,6 +3,15 @@ set -ex
 
 echo Args passed: [[ $@ ]]
 
+# Pull images if not present
+if [ -f /vagrant/images.tar ]; then
+    echo 'Found saved images at /vagrant/images.tar'
+    docker load -i /vagrant/images.tar
+elif [ "${dep_scenario}" != "calico" ]; then
+  echo "Pulling Contiv-VPP plugin images..."
+  sudo -E ${contiv_dir}/k8s/pull-images.sh -b "${image_tag}"
+fi
+
 # --------------------------------------------------------
 # ---> Build Contiv/VPP-vswitch Development Image <---
 # --------------------------------------------------------

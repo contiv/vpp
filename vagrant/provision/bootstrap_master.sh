@@ -218,7 +218,8 @@ applyVPPnetwork() {
   fi
   if [ "${crd_disabled}" = "false" ]; then
     # Deploy contiv-vpp networking with CRD
-     helm template --name vagrant $helm_opts $stn_config --set contiv.routeServiceCIDRToVPP=true --set contiv.tapv2RxRingSize=1024 --set contiv.tapv2TxRingSize=1024 --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.nodeInterconnectCIDR="" "${contiv_dir}"/k8s/contiv-vpp -f "${contiv_dir}"/k8s/contiv-vpp/values.yaml,"${contiv_dir}"/k8s/contiv-vpp/values-latest.yaml > "${contiv_dir}"/k8s/contiv-vpp/manifest.yaml    kubectl apply -f ${contiv_dir}/k8s/contiv-vpp/manifest.yaml
+     helm template --name vagrant $helm_opts $stn_config --set contiv.routeServiceCIDRToVPP=true --set contiv.tapv2RxRingSize=1024 --set contiv.tapv2TxRingSize=1024 --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.nodeInterconnectCIDR="" "${contiv_dir}"/k8s/contiv-vpp -f "${contiv_dir}"/k8s/contiv-vpp/values.yaml,"${contiv_dir}"/k8s/contiv-vpp/values-latest.yaml > "${contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+     kubectl apply -f ${contiv_dir}/k8s/contiv-vpp/manifest.yaml
 
     # Wait until crd agent is ready
     crd_ready="";

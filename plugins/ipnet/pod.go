@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package ipnet
 
 import (
 	"fmt"
@@ -62,7 +62,7 @@ const (
 /****************************** Pod Configuration ******************************/
 
 // podConnectivityConfig returns configuration for VPP<->Pod connectivity.
-func (n *IPv4Net) podConnectivityConfig(pod *podmanager.LocalPod) (config controller.KeyValuePairs) {
+func (n *IPNet) podConnectivityConfig(pod *podmanager.LocalPod) (config controller.KeyValuePairs) {
 	config = make(controller.KeyValuePairs)
 
 	// create loopback in the POD
@@ -117,7 +117,7 @@ func (n *IPv4Net) podConnectivityConfig(pod *podmanager.LocalPod) (config contro
 
 // podInterfaceName returns logical names of interfaces on both sides
 // of the interconnection between VPP and the given Pod.
-func (n *IPv4Net) podInterfaceName(pod *podmanager.LocalPod) (vppIfName, linuxIfName string) {
+func (n *IPNet) podInterfaceName(pod *podmanager.LocalPod) (vppIfName, linuxIfName string) {
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		return n.podVPPSideTAPName(pod), n.podLinuxSideTAPName(pod)
 	}
@@ -127,12 +127,12 @@ func (n *IPv4Net) podInterfaceName(pod *podmanager.LocalPod) (vppIfName, linuxIf
 /******************************** loopback interface ********************************/
 
 // podVPPSideTAPName returns logical name of the TAP interface of a given Pod connected to VPP.
-func (n *IPv4Net) podLinuxLoopName(pod *podmanager.LocalPod) string {
+func (n *IPNet) podLinuxLoopName(pod *podmanager.LocalPod) string {
 	return trimInterfaceName(podLinuxLoopLogicalNamePrefix+pod.ContainerID, logicalIfNameMaxLen)
 }
 
 // podLinuxLoop returns the configuration for the loopback interface in the Linux namespace of the pod.
-func (n *IPv4Net) podLinuxLoop(pod *podmanager.LocalPod) (key string, config *linux_interfaces.Interface) {
+func (n *IPNet) podLinuxLoop(pod *podmanager.LocalPod) (key string, config *linux_interfaces.Interface) {
 	loop := &linux_interfaces.Interface{
 		Name:        n.podLinuxLoopName(pod),
 		Type:        linux_interfaces.Interface_LOOPBACK,
@@ -153,18 +153,18 @@ func (n *IPv4Net) podLinuxLoop(pod *podmanager.LocalPod) (key string, config *li
 /******************************** TAP interface ********************************/
 
 // podVPPSideTAPName returns logical name of the TAP interface on VPP connected to a given pod.
-func (n *IPv4Net) podVPPSideTAPName(pod *podmanager.LocalPod) string {
+func (n *IPNet) podVPPSideTAPName(pod *podmanager.LocalPod) string {
 	return trimInterfaceName(podVPPSideTAPLogicalNamePrefix+pod.ContainerID, logicalIfNameMaxLen)
 }
 
 // podVPPSideTAPName returns logical name of the TAP interface of a given Pod connected to VPP.
-func (n *IPv4Net) podLinuxSideTAPName(pod *podmanager.LocalPod) string {
+func (n *IPNet) podLinuxSideTAPName(pod *podmanager.LocalPod) string {
 	return trimInterfaceName(podLinuxSideTAPLogicalNamePrefix+pod.ContainerID, logicalIfNameMaxLen)
 }
 
 // podVPPTap returns the configuration for TAP interface on the VPP side
 // connecting a given Pod.
-func (n *IPv4Net) podVPPTap(pod *podmanager.LocalPod) (key string, config *vpp_interfaces.Interface) {
+func (n *IPNet) podVPPTap(pod *podmanager.LocalPod) (key string, config *vpp_interfaces.Interface) {
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	tap := &vpp_interfaces.Interface{
 		Name:        n.podVPPSideTAPName(pod),
@@ -196,7 +196,7 @@ func (n *IPv4Net) podVPPTap(pod *podmanager.LocalPod) (key string, config *vpp_i
 
 // podLinuxTAP returns the configuration for TAP interface on the Linux side
 // connecting a given Pod to VPP.
-func (n *IPv4Net) podLinuxTAP(pod *podmanager.LocalPod) (key string, config *linux_interfaces.Interface) {
+func (n *IPNet) podLinuxTAP(pod *podmanager.LocalPod) (key string, config *linux_interfaces.Interface) {
 	tap := &linux_interfaces.Interface{
 		Name:        n.podLinuxSideTAPName(pod),
 		Type:        linux_interfaces.Interface_TAP_TO_VPP,
@@ -222,30 +222,30 @@ func (n *IPv4Net) podLinuxTAP(pod *podmanager.LocalPod) (key string, config *lin
 /************************* AF-Packet + VETH interfaces *************************/
 
 // podAFPacketName returns logical name of AF-Packet interface connecting VPP with a given Pod.
-func (n *IPv4Net) podAFPacketName(pod *podmanager.LocalPod) string {
+func (n *IPNet) podAFPacketName(pod *podmanager.LocalPod) string {
 	return trimInterfaceName(podAFPacketLogicalNamePrefix+n.podVeth2Name(pod), logicalIfNameMaxLen)
 }
 
 // podVeth1Name returns logical name of the VETH interface in the namespace of the given pod.
-func (n *IPv4Net) podVeth1Name(pod *podmanager.LocalPod) string {
+func (n *IPNet) podVeth1Name(pod *podmanager.LocalPod) string {
 	return trimInterfaceName(podVETH1LogicalNamePrefix+pod.ContainerID, logicalIfNameMaxLen)
 }
 
 // podVeth1Name returns logical name of the VETH interface in the default namespace
 // connecting the given pod.
-func (n *IPv4Net) podVeth2Name(pod *podmanager.LocalPod) string {
+func (n *IPNet) podVeth2Name(pod *podmanager.LocalPod) string {
 	return trimInterfaceName(podVETH2LogicalNamePrefix+pod.ContainerID, logicalIfNameMaxLen)
 }
 
 // podVeth2HostIfName returns host name of the VETH interface in the default namespace
 // connecting the given pod.
-func (n *IPv4Net) podVeth2HostIfName(pod *podmanager.LocalPod) string {
+func (n *IPNet) podVeth2HostIfName(pod *podmanager.LocalPod) string {
 	return trimInterfaceName(pod.ContainerID, linuxIfNameMaxLen)
 }
 
 // podVeth1 returns the configuration for pod-side of the VETH interface
 // connecting the given pod with VPP.
-func (n *IPv4Net) podVeth1(pod *podmanager.LocalPod) (key string, config *linux_interfaces.Interface) {
+func (n *IPNet) podVeth1(pod *podmanager.LocalPod) (key string, config *linux_interfaces.Interface) {
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	veth := &linux_interfaces.Interface{
 		Name:        n.podVeth1Name(pod),
@@ -273,7 +273,7 @@ func (n *IPv4Net) podVeth1(pod *podmanager.LocalPod) (key string, config *linux_
 
 // podVeth2 returns the configuration for vswitch-side of the VETH interface
 // connecting the given pod with VPP.
-func (n *IPv4Net) podVeth2(pod *podmanager.LocalPod) (key string, config *linux_interfaces.Interface) {
+func (n *IPNet) podVeth2(pod *podmanager.LocalPod) (key string, config *linux_interfaces.Interface) {
 	veth := &linux_interfaces.Interface{
 		Name:       n.podVeth2Name(pod),
 		Type:       linux_interfaces.Interface_VETH,
@@ -288,7 +288,7 @@ func (n *IPv4Net) podVeth2(pod *podmanager.LocalPod) (key string, config *linux_
 	return key, veth
 }
 
-func (n *IPv4Net) podAfPacket(pod *podmanager.LocalPod) (key string, config *vpp_interfaces.Interface) {
+func (n *IPNet) podAfPacket(pod *podmanager.LocalPod) (key string, config *vpp_interfaces.Interface) {
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	afpacket := &vpp_interfaces.Interface{
 		Name:        n.podAFPacketName(pod),
@@ -319,7 +319,7 @@ func (n *IPv4Net) podAfPacket(pod *podmanager.LocalPod) (key string, config *vpp
 
 // podToVPPArpEntry returns configuration for ARP entry resolving hardware address
 // for pod gateway IP from VPP.
-func (n *IPv4Net) podToVPPArpEntry(pod *podmanager.LocalPod) (key string, config *linux_l3.ARPEntry) {
+func (n *IPNet) podToVPPArpEntry(pod *podmanager.LocalPod) (key string, config *linux_l3.ARPEntry) {
 	_, linuxIfName := n.podInterfaceName(pod)
 	arp := &linux_l3.ARPEntry{
 		Interface: linuxIfName,
@@ -333,7 +333,7 @@ func (n *IPv4Net) podToVPPArpEntry(pod *podmanager.LocalPod) (key string, config
 // podToVPPLinkRoute returns configuration for route that puts pod's default GW behind
 // the interface connecting pod with VPP (even though the GW IP does not fall into
 // the pod IP address network).
-func (n *IPv4Net) podToVPPLinkRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.Route) {
+func (n *IPNet) podToVPPLinkRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.Route) {
 	_, linuxIfName := n.podInterfaceName(pod)
 	route := &linux_l3.Route{
 		OutgoingInterface: linuxIfName,
@@ -345,7 +345,7 @@ func (n *IPv4Net) podToVPPLinkRoute(pod *podmanager.LocalPod) (key string, confi
 }
 
 // podToVPPLinkRoute returns configuration for the default route of the given pod.
-func (n *IPv4Net) podToVPPDefaultRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.Route) {
+func (n *IPNet) podToVPPDefaultRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.Route) {
 	_, linuxIfName := n.podInterfaceName(pod)
 	route := &linux_l3.Route{
 		OutgoingInterface: linuxIfName,
@@ -361,7 +361,7 @@ func (n *IPv4Net) podToVPPDefaultRoute(pod *podmanager.LocalPod) (key string, co
 
 // vppToPodArpEntry return configuration for ARP entry used in VPP to resolve
 // hardware address from the IP address of the given pod.
-func (n *IPv4Net) vppToPodArpEntry(pod *podmanager.LocalPod) (key string, config *vpp_l3.ARPEntry) {
+func (n *IPNet) vppToPodArpEntry(pod *podmanager.LocalPod) (key string, config *vpp_l3.ARPEntry) {
 	vppIfName, _ := n.podInterfaceName(pod)
 	arp := &vpp_l3.ARPEntry{
 		Interface:   vppIfName,
@@ -375,7 +375,7 @@ func (n *IPv4Net) vppToPodArpEntry(pod *podmanager.LocalPod) (key string, config
 
 // vppToPodRoute return configuration for route used in VPP to direct traffic destinated
 // to the IP address of the given pod.
-func (n *IPv4Net) vppToPodRoute(pod *podmanager.LocalPod) (key string, config *vpp_l3.Route) {
+func (n *IPNet) vppToPodRoute(pod *podmanager.LocalPod) (key string, config *vpp_l3.Route) {
 	podVPPIfName, _ := n.podInterfaceName(pod)
 	podIP := n.IPAM.GetPodIP(pod.ID)
 	route := &vpp_l3.Route{
@@ -391,7 +391,7 @@ func (n *IPv4Net) vppToPodRoute(pod *podmanager.LocalPod) (key string, config *v
 /**************************** Host routes ******************************/
 
 // hostToPodRoute returns configuration for the route pointing to the pod IP from the linux host (main namespace).
-func (n *IPv4Net) hostToPodRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.Route) {
+func (n *IPNet) hostToPodRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.Route) {
 	podIP := n.IPAM.GetPodIP(pod.ID)
 	route := &linux_l3.Route{
 		DstNetwork: podIP.IP.String() + hostPrefixForAF(podIP.IP),
@@ -416,7 +416,7 @@ func (n *IPv4Net) hostToPodRoute(pod *podmanager.LocalPod) (key string, config *
 // generateHwAddrForPod generates hardware address for Pod interface on the VPP
 // side or on the host (Linux) side.
 // TODO: Safer may be to use node ID + pod IP address index
-func (n *IPv4Net) hwAddrForPod(pod *podmanager.LocalPod, vppSide bool) string {
+func (n *IPNet) hwAddrForPod(pod *podmanager.LocalPod, vppSide bool) string {
 	hwAddr := make(net.HardwareAddr, 6)
 	h := fnv.New32a()
 	h.Write([]byte(pod.ContainerID))
@@ -436,7 +436,7 @@ func (n *IPv4Net) hwAddrForPod(pod *podmanager.LocalPod, vppSide bool) string {
 /************************************ IPv6 ************************************/
 
 // enableIPv6 enables IPv6 in the destination pod.
-func (n *IPv4Net) enableIPv6(pod *podmanager.LocalPod) error {
+func (n *IPNet) enableIPv6(pod *podmanager.LocalPod) error {
 	var pid int
 	fmt.Sscanf(pod.NetworkNamespace, "/proc/%d/ns/net", &pid)
 	if pid == 0 {

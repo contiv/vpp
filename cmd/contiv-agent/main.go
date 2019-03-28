@@ -36,7 +36,7 @@ import (
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
 	contivgrpc "github.com/contiv/vpp/plugins/grpc"
 	"github.com/contiv/vpp/plugins/ipam"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/policy"
@@ -98,7 +98,7 @@ type ContivAgent struct {
 	NodeSync     *nodesync.NodeSync
 	PodManager   *podmanager.PodManager
 	IPAM         ipam.API
-	IPv4Net      *ipv4net.IPv4Net
+	IPNet        *ipnet.IPNet
 	Policy       *policy.Plugin
 	Service      *service.Plugin
 	BGPReflector *bgpreflector.BGPReflector
@@ -169,7 +169,7 @@ func main() {
 		deps.NodeSync = nodeSyncPlugin
 	}))
 
-	ipv4NetPlugin := ipv4net.NewPlugin(ipv4net.UseDeps(func(deps *ipv4net.Deps) {
+	ipNetPlugin := ipnet.NewPlugin(ipnet.UseDeps(func(deps *ipnet.Deps) {
 		deps.GoVPP = &govppmux.DefaultPlugin
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.ContivConf = contivConf
@@ -179,19 +179,19 @@ func main() {
 	}))
 
 	statsCollector := &statscollector.DefaultPlugin
-	statsCollector.IPv4Net = ipv4NetPlugin
+	statsCollector.IPNet = ipNetPlugin
 
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
 		deps.ContivConf = contivConf
 		deps.IPAM = ipamPlugin
-		deps.IPv4Net = ipv4NetPlugin
+		deps.IPNet = ipNetPlugin
 		deps.PodManager = podManager
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
 		deps.ContivConf = contivConf
 		deps.IPAM = ipamPlugin
-		deps.IPv4Net = ipv4NetPlugin
+		deps.IPNet = ipNetPlugin
 		deps.NodeSync = nodeSyncPlugin
 		deps.PodManager = podManager
 	}))
@@ -208,7 +208,7 @@ func main() {
 			nodeSyncPlugin,
 			podManager,
 			ipamPlugin,
-			ipv4NetPlugin,
+			ipNetPlugin,
 			servicePlugin,
 			policyPlugin,
 			bgpReflector,
@@ -225,7 +225,7 @@ func main() {
 	nodeSyncPlugin.EventLoop = controller
 	podManager.EventLoop = controller
 	ipamPlugin.EventLoop = controller
-	ipv4NetPlugin.EventLoop = controller
+	ipNetPlugin.EventLoop = controller
 	contivGRPC.EventLoop = controller
 	bgpReflector.EventLoop = controller
 	servicePlugin.ConfigRetriever = controller
@@ -258,7 +258,7 @@ func main() {
 		NodeSync:            nodeSyncPlugin,
 		PodManager:          podManager,
 		IPAM:                ipamPlugin,
-		IPv4Net:             ipv4NetPlugin,
+		IPNet:               ipNetPlugin,
 		Policy:              policyPlugin,
 		Service:             servicePlugin,
 		BGPReflector:        bgpReflector,

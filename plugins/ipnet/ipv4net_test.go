@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package ipnet
 
 import (
 	"context"
@@ -210,7 +210,7 @@ func TestBasicStuff(t *testing.T) {
 	}
 	Expect(ipamPlugin.Init()).To(BeNil())
 
-	// ipv4Net plugin
+	// ipNet plugin
 	externalState := &externalState{
 		test:      true,
 		dhcpIndex: dhcpIndexes,
@@ -220,7 +220,7 @@ func TestBasicStuff(t *testing.T) {
 	}
 	deps := Deps{
 		PluginDeps: infra.PluginDeps{
-			Log: logging.ForPlugin("ipv4net"),
+			Log: logging.ForPlugin("ipnet"),
 		},
 		EventLoop:    eventLoop,
 		ServiceLabel: serviceLabel,
@@ -229,7 +229,7 @@ func TestBasicStuff(t *testing.T) {
 		NodeSync:     nodeSync,
 		PodManager:   podManager,
 	}
-	plugin := IPv4Net{
+	plugin := IPNet{
 		Deps:          deps,
 		internalState: &internalState{},
 		externalState: externalState,
@@ -362,7 +362,7 @@ func TestBasicStuff(t *testing.T) {
 	fmt.Println("Restart (without node IP) --------------------------------")
 
 	// restart
-	plugin = IPv4Net{
+	plugin = IPNet{
 		Deps:          deps,
 		internalState: &internalState{},
 		externalState: externalState,

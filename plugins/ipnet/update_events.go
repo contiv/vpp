@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package ipnet
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ import (
 //   - AddPod and DeletePod
 //   - NodeUpdate for other nodes
 //   - Shutdown event
-func (n *IPv4Net) Update(event controller.Event, txn controller.UpdateOperations) (change string, err error) {
+func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) (change string, err error) {
 	if addPod, isAddPod := event.(*podmanager.AddPod); isAddPod {
 		return n.addPod(addPod, txn)
 	}
@@ -48,7 +48,7 @@ func (n *IPv4Net) Update(event controller.Event, txn controller.UpdateOperations
 }
 
 // Revert is called for AddPod.
-func (n *IPv4Net) Revert(event controller.Event) error {
+func (n *IPNet) Revert(event controller.Event) error {
 	addPod := event.(*podmanager.AddPod)
 	pod := n.PodManager.GetLocalPods()[addPod.Pod]
 	n.IPAM.ReleasePodIP(pod.ID)
@@ -61,7 +61,7 @@ func (n *IPv4Net) Revert(event controller.Event) error {
 }
 
 // addPod connects a Pod container to the network.
-func (n *IPv4Net) addPod(event *podmanager.AddPod, txn controller.UpdateOperations) (change string, err error) {
+func (n *IPNet) addPod(event *podmanager.AddPod, txn controller.UpdateOperations) (change string, err error) {
 	pod := n.PodManager.GetLocalPods()[event.Pod]
 
 	// 1. try to allocate an IP address for this pod
@@ -129,7 +129,7 @@ func (n *IPv4Net) addPod(event *podmanager.AddPod, txn controller.UpdateOperatio
 }
 
 // deletePod disconnects a Pod container from the network.
-func (n *IPv4Net) deletePod(event *podmanager.DeletePod, txn controller.UpdateOperations) (change string, err error) {
+func (n *IPNet) deletePod(event *podmanager.DeletePod, txn controller.UpdateOperations) (change string, err error) {
 	pod, podExists := n.PodManager.GetLocalPods()[event.Pod]
 	if !podExists {
 		return "", nil
@@ -161,7 +161,7 @@ func (n *IPv4Net) deletePod(event *podmanager.DeletePod, txn controller.UpdateOp
 }
 
 // processNodeUpdateEvent reacts to an update of *another* node.
-func (n *IPv4Net) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn controller.UpdateOperations) (change string, err error) {
+func (n *IPNet) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn controller.UpdateOperations) (change string, err error) {
 	// read the other node ID
 	var otherNodeID uint32
 	if nodeUpdate.NewState != nil {
@@ -241,7 +241,7 @@ func (n *IPv4Net) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn co
 
 // cleanupVswitchConnectivity cleans up base vSwitch VPP connectivity
 // configuration in the host IP stack.
-func (n *IPv4Net) cleanupVswitchConnectivity(txn controller.UpdateOperations) (change string, err error) {
+func (n *IPNet) cleanupVswitchConnectivity(txn controller.UpdateOperations) (change string, err error) {
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		// everything configured in the host will disappear automatically
 		return

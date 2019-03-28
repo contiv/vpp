@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package ipnet
 
 import (
 	"github.com/contiv/vpp/plugins/contivconf"
@@ -37,7 +37,7 @@ type IPAMData struct {
 	Config            *contivconf.IPAMConfigForJSON `json:"config"`
 }
 
-func (n *IPv4Net) registerRESTHandlers() {
+func (n *IPNet) registerRESTHandlers() {
 	if n.HTTPHandlers == nil {
 		n.Log.Warnf("No http handler provided or getNodeIP callback, skipping registration of IPAM REST handlers")
 		return
@@ -47,7 +47,7 @@ func (n *IPv4Net) registerRESTHandlers() {
 	n.Log.Infof("IPAM REST handler registered: GET %v", PluginURL)
 }
 
-func (n *IPv4Net) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
+func (n *IPNet) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		n.Log.Debug("Getting IPAM data")
 		nodeIP, _ := n.GetNodeIP()

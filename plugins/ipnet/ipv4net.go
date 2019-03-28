@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package ipnet
 
 import (
 	"fmt"
@@ -46,9 +46,9 @@ const (
 	logicalIfNameMaxLen = 63
 )
 
-// IPv4Net plugin builds configuration to be applied by ligato/VPP-agent for VPP-based
-// IPv4 network connectivity between Kubernetes pods and nodes.
-type IPv4Net struct {
+// IPNet plugin builds configuration to be applied by ligato/VPP-agent for VPP-based
+// IP network connectivity between Kubernetes pods and nodes.
+type IPNet struct {
 	Deps
 
 	*externalState
@@ -107,7 +107,7 @@ type Deps struct {
 }
 
 // GoVPP is the interface of govppmux plugin replicated here to avoid direct
-// dependency on vppapiclient.h for other plugins that import ipv4net just to
+// dependency on vppapiclient.h for other plugins that import ipnet just to
 // read some constants etc.
 type GoVPP interface {
 	// NewAPIChannel returns a new API channel for communication with VPP via govpp.
@@ -125,7 +125,7 @@ type HostLinkIPsDumpClb func() ([]net.IP, error)
 
 // Init initializes attributes/callbacks used to access the plugin-external state.
 // Internal state is initialized later by the first resync.
-func (n *IPv4Net) Init() error {
+func (n *IPNet) Init() error {
 	n.internalState = &internalState{}
 	n.externalState = &externalState{}
 
@@ -153,7 +153,7 @@ func (n *IPv4Net) Init() error {
 	return nil
 }
 
-// StateToString returns human-readable string representation of the ipv4net
+// StateToString returns human-readable string representation of the ipnet
 // plugin internal state.
 // The method cannot be called String(), otherwise it overloads the Stringer
 // from PluginDeps.
@@ -179,7 +179,7 @@ func (s *internalState) StateToString() string {
 
 // Close is called by the plugin infra upon agent cleanup.
 // It cleans up the resources allocated by the plugin.
-func (n *IPv4Net) Close() error {
+func (n *IPNet) Close() error {
 	_, err := safeclose.CloseAll(n.govppCh)
 	return err
 }
@@ -191,7 +191,7 @@ func (n *IPv4Net) Close() error {
 //   - AddPod and DeletePod
 //   - NodeUpdate for other nodes
 //   - Shutdown event
-func (n *IPv4Net) HandlesEvent(event controller.Event) bool {
+func (n *IPNet) HandlesEvent(event controller.Event) bool {
 	if event.Method() != controller.Update {
 		return true
 	}
@@ -212,11 +212,11 @@ func (n *IPv4Net) HandlesEvent(event controller.Event) bool {
 	return false
 }
 
-/**************************** IPv4Net plugin API ******************************/
+/**************************** IPNet plugin API ******************************/
 
 // GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
 // The method can be called from outside of the main event loop.
-func (n *IPv4Net) GetPodByIf(ifName string) (podNamespace string, podName string, exists bool) {
+func (n *IPNet) GetPodByIf(ifName string) (podNamespace string, podName string, exists bool) {
 	n.vppIfaceToPodMutex.RLock()
 	defer n.vppIfaceToPodMutex.RUnlock()
 
@@ -228,7 +228,7 @@ func (n *IPv4Net) GetPodByIf(ifName string) (podNamespace string, podName string
 }
 
 // GetPodIfNames looks up logical interface names that correspond to the interfaces associated with the given POD name.
-func (n *IPv4Net) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string, exists bool) {
+func (n *IPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string, exists bool) {
 	// check that the pod is locally deployed
 	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 	pod, exists := n.PodManager.GetLocalPods()[podID]
@@ -250,24 +250,24 @@ func (n *IPv4Net) GetPodIfNames(podNamespace string, podName string) (vppIfName,
 }
 
 // GetNodeIP returns the IP address of this node.
-func (n *IPv4Net) GetNodeIP() (ip net.IP, network *net.IPNet) {
+func (n *IPNet) GetNodeIP() (ip net.IP, network *net.IPNet) {
 	return n.nodeIP, n.nodeIPNet
 }
 
 // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
-func (n *IPv4Net) GetHostIPs() []net.IP {
+func (n *IPNet) GetHostIPs() []net.IP {
 	return n.hostIPs
 }
 
 // GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
 // interconnecting VPP with the host stack.
-func (n *IPv4Net) GetHostInterconnectIfName() string {
+func (n *IPNet) GetHostInterconnectIfName() string {
 	return n.hostInterconnectVPPIfName()
 }
 
 // GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
 // Returns an empty string if VXLAN is not used (in L2 interconnect mode).
-func (n *IPv4Net) GetVxlanBVIIfName() string {
+func (n *IPNet) GetVxlanBVIIfName() string {
 	if n.ContivConf.GetRoutingConfig().UseL2Interconnect {
 		return ""
 	}

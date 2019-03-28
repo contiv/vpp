@@ -30,7 +30,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/validator/utils"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 )
 
 const (
@@ -257,7 +257,7 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 
 	// Check for existence of local vxlanBVI - this will be the outgoing interface
 	// for routes to Pod and host subnets on remote nodes
-	_, err := findInterface(ipv4net.VxlanBVIInterfaceName, node.NodeInterfaces)
+	_, err := findInterface(ipnet.VxlanBVIInterfaceName, node.NodeInterfaces)
 	if err != nil {
 		numErrs++
 		errString := fmt.Sprintf("local vxlanBVI lookup failed, error %s; "+
@@ -290,7 +290,7 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 
 		// Validate routes to remote nodes
 		// Find the remote node's BVI interface
-		ifc, err := findInterface(ipv4net.VxlanBVIInterfaceName, othNode.NodeInterfaces)
+		ifc, err := findInterface(ipnet.VxlanBVIInterfaceName, othNode.NodeInterfaces)
 		if err != nil {
 			numErrs++
 			errString := fmt.Sprintf("failed to validate route %s VRF%d - "+
@@ -309,7 +309,7 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 			// node. The outgoing interface should be the local vxlanBVI interface
 			// (i.e. the path to the remote node should be through the vxlan tunnel).
 			numErrs += v.validateRoute(othNode.NodeIPam.VppHostNetwork, 1, vrfMap, routeMap, node.Name,
-				ipv4net.VxlanBVIInterfaceName, bviAddr, 0, vpp_l3.Route_INTRA_VRF)
+				ipnet.VxlanBVIInterfaceName, bviAddr, 0, vpp_l3.Route_INTRA_VRF)
 
 			// Validate route from VRF0 to Host IP address (Management IP address)
 			// on a remote node. It should point to VRF1.
@@ -321,7 +321,7 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 			// vxlanBVI interface on the remote node and its outgoing interface
 			// should be the local vxlanBVI interface.
 			numErrs += v.validateRoute(othNode.ManIPAddr+"/32", 1, vrfMap, routeMap, node.Name,
-				ipv4net.VxlanBVIInterfaceName, bviAddr, 0, vpp_l3.Route_INTRA_VRF)
+				ipnet.VxlanBVIInterfaceName, bviAddr, 0, vpp_l3.Route_INTRA_VRF)
 		} else {
 			numErrs++
 			v.Report.AppendToNodeReport(node.Name, err.Error())
@@ -338,7 +338,7 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 			// interface (i.e. the path to the remote node should be through
 			// the vxlan tunnel).
 			numErrs += v.validateRoute(othNode.NodeIPam.PodSubnetThisNode, 1, vrfMap, routeMap, node.Name,
-				ipv4net.VxlanBVIInterfaceName, bviAddr, 0, vpp_l3.Route_INTRA_VRF)
+				ipnet.VxlanBVIInterfaceName, bviAddr, 0, vpp_l3.Route_INTRA_VRF)
 		} else {
 			numErrs++
 			v.Report.AppendToNodeReport(node.Name, err.Error())
@@ -455,7 +455,7 @@ func (v *Validator) validateRouteToLocalVxlanBVI(node *telemetrymodel.Node, vrfM
 	routeMap map[uint32]map[string]int) int {
 
 	numErrs := 0
-	loopIf, err := findInterface(ipv4net.VxlanBVIInterfaceName, node.NodeInterfaces)
+	loopIf, err := findInterface(ipnet.VxlanBVIInterfaceName, node.NodeInterfaces)
 	if err != nil {
 		numErrs++
 		v.Report.AppendToNodeReport(node.Name, err.Error())

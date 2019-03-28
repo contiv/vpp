@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package ipnet
 
 import (
 	"encoding/binary"
@@ -46,7 +46,7 @@ const (
 
 // getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
 // network stack.
-func (n *IPv4Net) getHostLinkIPs() (hostIPs []net.IP, err error) {
+func (n *IPNet) getHostLinkIPs() (hostIPs []net.IP, err error) {
 	links, err := netlink.LinkList()
 	if err != nil {
 		n.Log.Error("Unable to list host links:", err)
@@ -80,7 +80,7 @@ func (n *IPv4Net) getHostLinkIPs() (hostIPs []net.IP, err error) {
 }
 
 // executeDebugCLI executes VPP CLI command
-func (n *IPv4Net) executeDebugCLI(cmd string) (string, error) {
+func (n *IPNet) executeDebugCLI(cmd string) (string, error) {
 	n.Log.Infof("Executing debug CLI: %s", cmd)
 
 	req := &vpe.CliInband{
@@ -98,7 +98,7 @@ func (n *IPv4Net) executeDebugCLI(cmd string) (string, error) {
 }
 
 // createVrf creates provided VRF using binary API
-func (n *IPv4Net) createVrf(vrfID uint32) error {
+func (n *IPNet) createVrf(vrfID uint32) error {
 	n.Log.Info("Creating VRF 1")
 
 	req := &ip.IPTableAddDel{
@@ -116,7 +116,7 @@ func (n *IPv4Net) createVrf(vrfID uint32) error {
 	return err
 }
 
-func (n *IPv4Net) subscribeVnetFibCounters() error {
+func (n *IPNet) subscribeVnetFibCounters() error {
 	notifChan := make(chan api.Message, 1)
 	_, err := n.govppCh.SubscribeNotification(notifChan, &stats.VnetIP4FibCounters{})
 

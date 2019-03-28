@@ -419,7 +419,7 @@ transformed data further down the stack.
 
 Additionally, the plugin itself is an [event handler][event-handler], registered
 into the main [event loop][event-loop-guide] of the Contiv agent *after* the
-[ipv4net plugin][ipv4net-plugin]. This ensures that connectivity between pods
+[ipnet plugin][ipnet-plugin]. This ensures that connectivity between pods
 and the VPP is established before any NAT rules are installed.
 
 The Service plugin reads the state of 2 Kubernetes [resources][db-resources]
@@ -460,7 +460,7 @@ BVI interface in the BD where all VXLAN tunnels are terminated. A service may
 have one or more endpoints deployed on another node, which makes `loop0` a
 potential Backend. Likewise, `tap0` is an entry point for potential endpoints
 in the host networking, thus we automatically mark it as Backend during resync.
-The processor learns the names of all VPP interfaces from the [ipv4net plugin][ipv4net-plugin].
+The processor learns the names of all VPP interfaces from the [ipnet plugin][ipnet-plugin].
 
 The processor outputs pre-processed service data to the layer below - renderers.
 The [processor API][processor-api] allows to register one or more renderers
@@ -532,7 +532,7 @@ periodically cleaning up inactive NAT sessions.
 [eps-model]: https://github.com/contiv/vpp/blob/master/plugins/ksr/model/endpoints/endpoints.proto
 [nodesync-plugin]: https://github.com/contiv/vpp/tree/master/plugins/nodesync
 [contiv-cni-conflist]: https://github.com/contiv/vpp/blob/master/docker/vpp-cni/10-contiv-vpp.conflist
-[ipv4net-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipv4net
+[ipnet-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipnet
 [ipam-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipam
 [local-client]: https://github.com/ligato/vpp-agent/tree/dev/clientv2
 [event-loop-guide]: EVENT_LOOP.md

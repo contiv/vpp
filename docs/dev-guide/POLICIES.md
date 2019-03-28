@@ -58,7 +58,7 @@ the stack.
 
 Additionally, the plugin itself is an [event handler][event-handler], registered
 into the main [event loop][event-loop-guide] of the Contiv agent *after* the
-[ipv4net plugin][ipv4net-plugin]. This ensures that connectivity between pods
+[ipnet plugin][ipnet-plugin]. This ensures that connectivity between pods
 and the VPP is established before any rules are installed.
 
 The Policy plugin reads the state of 3 Kubernetes [resources][db-resources]
@@ -479,7 +479,7 @@ the configuration of K8s policies.
 [policy-plugin]: http://github.com/contiv/vpp/tree/master/plugins/policy/plugin_impl_policy.go
 [controller-plugin]: https://github.com/contiv/vpp/blob/master/plugins/controller/plugin_controller.go
 [transaction-api]: https://github.com/contiv/vpp/blob/master/plugins/controller/api/txn.go
-[ipv4net-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipv4net
+[ipnet-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipnet
 [cn-infra]: http://github.com/ligato/cn-infra
 [policy-model]: http://github.com/contiv/vpp/blob/master/plugins/ksr/model/policy/policy.proto
 [db-resources]: https://github.com/contiv/vpp/tree/master/dbresources

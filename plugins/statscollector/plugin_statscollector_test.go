@@ -20,7 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/contiv/vpp/mock/ipv4net"
+	"github.com/contiv/vpp/mock/ipnet"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
@@ -41,9 +41,9 @@ type mockPrometheus struct {
 }
 
 type CollectorTestVars struct {
-	plugin  *Plugin
-	pmts    *mockPrometheus
-	ipv4Net *ipv4net.MockIPv4Net
+	plugin *Plugin
+	pmts   *mockPrometheus
+	ipNet  *ipnet.MockIPNet
 }
 
 var testVars = CollectorTestVars{
@@ -52,7 +52,7 @@ var testVars = CollectorTestVars{
 		newRegistryError: nil,
 		registerError:    nil,
 	},
-	ipv4Net: ipv4net.NewMockIPv4Net(),
+	ipNet: ipnet.NewMockIPNet(),
 }
 
 // TestStatsCollector tests the Statistics collector
@@ -62,7 +62,7 @@ func TestStatsCollector(t *testing.T) {
 	testVars.plugin = &Plugin{
 		Deps: Deps{
 			ServiceLabel: servicelabel.NewPlugin(),
-			IPv4Net:      testVars.ipv4Net,
+			IPNet:        testVars.ipNet,
 			Prometheus:   testVars.pmts,
 			PluginDeps: infra.PluginDeps{
 				Log: logging.ForPlugin("stats-test"),
@@ -89,7 +89,7 @@ func TestStatsCollector(t *testing.T) {
 	err = testVars.plugin.Init()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	testVars.ipv4Net.SetPodIfName(pod.ID{"test-pod", "test-namespace"}, testIfPodName)
+	testVars.ipNet.SetPodIfName(pod.ID{"test-pod", "test-namespace"}, testIfPodName)
 
 	t.Run("testPutWithWrongArgumentType", testPutWithWrongArgumentType)
 	t.Run("testPutNewPodEntry", testPutNewPodEntry)

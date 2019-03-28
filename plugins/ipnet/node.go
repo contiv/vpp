@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package ipnet
 
 import (
 	"fmt"
@@ -63,7 +63,7 @@ var vxlanBVIHwAddrPrefix = []byte{0x12, 0x2b}
 /********************** Node Connectivity Configuration ***********************/
 
 // nodeConnectivityConfig return configuration used to connect this node with the given other node.
-func (n *IPv4Net) nodeConnectivityConfig(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
+func (n *IPNet) nodeConnectivityConfig(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
 	config = make(controller.KeyValuePairs)
 
 	// configuration for VXLAN tunnel
@@ -116,7 +116,7 @@ func nodeHasIPAddress(node *nodesync.Node) bool {
 }
 
 // routesToNode returns configuration of routes used for routing traffic destined to the given other node.
-func (n *IPv4Net) routesToNode(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
+func (n *IPNet) routesToNode(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
 	config = make(controller.KeyValuePairs)
 
 	var nextHop net.IP
@@ -186,7 +186,7 @@ var (
 )
 
 // handleDHCPNotifications handles DHCP state change notifications
-func (n *IPv4Net) handleDHCPNotification(notif idxmap.NamedMappingGenericEvent) {
+func (n *IPNet) handleDHCPNotification(notif idxmap.NamedMappingGenericEvent) {
 	n.Log.Info("DHCP notification received")
 
 	// check for validity of the DHCP event
@@ -236,7 +236,7 @@ func (n *IPv4Net) handleDHCPNotification(notif idxmap.NamedMappingGenericEvent) 
 }
 
 // parseDHCPLease parses fields of a DHCP lease.
-func (n *IPv4Net) parseDHCPLease(lease *vpp_interfaces.DHCPLease) (hostAddr net.IP, hostNet *net.IPNet, defaultGw net.IP, err error) {
+func (n *IPNet) parseDHCPLease(lease *vpp_interfaces.DHCPLease) (hostAddr net.IP, hostNet *net.IPNet, defaultGw net.IP, err error) {
 	// parse IP address of the default gateway
 	if lease.RouterIpAddress != "" {
 		defaultGw, _, err = net.ParseCIDR(lease.RouterIpAddress)
@@ -261,7 +261,7 @@ func (n *IPv4Net) parseDHCPLease(lease *vpp_interfaces.DHCPLease) (hostAddr net.
 
 // enabledIPNeighborScan returns configuration for enabled IP neighbor scanning
 // (used to clean up old ARP entries).
-func (n *IPv4Net) enabledIPNeighborScan() (key string, config *vpp_l3.IPScanNeighbor) {
+func (n *IPNet) enabledIPNeighborScan() (key string, config *vpp_l3.IPScanNeighbor) {
 	ipScanConfig := n.ContivConf.GetIPNeighborScanConfig()
 	config = &vpp_l3.IPScanNeighbor{
 		Mode:           vpp_l3.IPScanNeighbor_IPv4,
@@ -277,7 +277,7 @@ func (n *IPv4Net) enabledIPNeighborScan() (key string, config *vpp_l3.IPScanNeig
 // physicalInterface returns configuration for physical interface - either the main interface
 // connecting node with the rest of the cluster or an extra physical interface requested
 // in the config file.
-func (n *IPv4Net) physicalInterface(name string, ips contivconf.IPsWithNetworks) (key string, config *vpp_interfaces.Interface) {
+func (n *IPNet) physicalInterface(name string, ips contivconf.IPsWithNetworks) (key string, config *vpp_interfaces.Interface) {
 	ifConfig := n.ContivConf.GetInterfaceConfig()
 	iface := &vpp_interfaces.Interface{
 		Name:    name,
@@ -306,7 +306,7 @@ func (n *IPv4Net) physicalInterface(name string, ips contivconf.IPsWithNetworks)
 
 // loopbackInterface returns configuration for loopback created when no physical interfaces
 // are configured.
-func (n *IPv4Net) loopbackInterface(ips contivconf.IPsWithNetworks) (key string, config *vpp_interfaces.Interface) {
+func (n *IPNet) loopbackInterface(ips contivconf.IPsWithNetworks) (key string, config *vpp_interfaces.Interface) {
 	iface := &vpp_interfaces.Interface{
 		Name:    loopbackNICLogicalName,
 		Type:    vpp_interfaces.Interface_SOFTWARE_LOOPBACK,
@@ -321,7 +321,7 @@ func (n *IPv4Net) loopbackInterface(ips contivconf.IPsWithNetworks) (key string,
 }
 
 // defaultRoute return configuration for default route connecting the node with the outside world.
-func (n *IPv4Net) defaultRoute(gwIP net.IP, outIfName string) (key string, config *vpp_l3.Route) {
+func (n *IPNet) defaultRoute(gwIP net.IP, outIfName string) (key string, config *vpp_l3.Route) {
 	route := &vpp_l3.Route{
 		DstNetwork:        anyNetAddrForAF(gwIP),
 		NextHopAddr:       gwIP.String(),
@@ -335,7 +335,7 @@ func (n *IPv4Net) defaultRoute(gwIP net.IP, outIfName string) (key string, confi
 /************************************ VRFs ************************************/
 
 // routesPodToMainVRF returns non-drop routes from Pod VRF to Main VRF.
-func (n *IPv4Net) routesPodToMainVRF() map[string]*vpp_l3.Route {
+func (n *IPNet) routesPodToMainVRF() map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)
 	routingCfg := n.ContivConf.GetRoutingConfig()
 
@@ -368,7 +368,7 @@ func (n *IPv4Net) routesPodToMainVRF() map[string]*vpp_l3.Route {
 }
 
 // routesMainToPodVRF returns non-drop routes from Main VRF to Pod VRF.
-func (n *IPv4Net) routesMainToPodVRF() map[string]*vpp_l3.Route {
+func (n *IPNet) routesMainToPodVRF() map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)
 	routingCfg := n.ContivConf.GetRoutingConfig()
 
@@ -424,7 +424,7 @@ func (n *IPv4Net) routesMainToPodVRF() map[string]*vpp_l3.Route {
 }
 
 // dropRoutesIntoPodVRF returns drop routes for Pod VRF.
-func (n *IPv4Net) dropRoutesIntoPodVRF() map[string]*vpp_l3.Route {
+func (n *IPNet) dropRoutesIntoPodVRF() map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)
 	routingCfg := n.ContivConf.GetRoutingConfig()
 
@@ -451,7 +451,7 @@ func (n *IPv4Net) dropRoutesIntoPodVRF() map[string]*vpp_l3.Route {
 }
 
 // dropRoute is a helper method to construct drop route.
-func (n *IPv4Net) dropRoute(vrfID uint32, dstAddr *net.IPNet) *vpp_l3.Route {
+func (n *IPNet) dropRoute(vrfID uint32, dstAddr *net.IPNet) *vpp_l3.Route {
 	return &vpp_l3.Route{
 		Type:        vpp_l3.Route_DROP,
 		DstNetwork:  dstAddr.String(),
@@ -462,7 +462,7 @@ func (n *IPv4Net) dropRoute(vrfID uint32, dstAddr *net.IPNet) *vpp_l3.Route {
 
 // podGwLoopback returns configuration of the loopback interface used in the POD VRF
 // to respond on POD gateway IP address.
-func (n *IPv4Net) podGwLoopback() (key string, config *vpp_interfaces.Interface) {
+func (n *IPNet) podGwLoopback() (key string, config *vpp_interfaces.Interface) {
 	lo := &vpp_interfaces.Interface{
 		Name:        podGwLoopbackInterfaceName,
 		Type:        vpp_interfaces.Interface_SOFTWARE_LOOPBACK,
@@ -478,7 +478,7 @@ func (n *IPv4Net) podGwLoopback() (key string, config *vpp_interfaces.Interface)
 
 // vxlanBVILoopback returns configuration of the loopback interfaces acting as BVI
 // for the bridge domain with VXLAN interfaces.
-func (n *IPv4Net) vxlanBVILoopback() (key string, config *vpp_interfaces.Interface, err error) {
+func (n *IPNet) vxlanBVILoopback() (key string, config *vpp_interfaces.Interface, err error) {
 	vxlanIP, vxlanIPNet, err := n.IPAM.VxlanIPAddress(n.NodeSync.GetNodeID())
 	if err != nil {
 		return "", nil, err
@@ -496,7 +496,7 @@ func (n *IPv4Net) vxlanBVILoopback() (key string, config *vpp_interfaces.Interfa
 }
 
 // vxlanBridgeDomain returns configuration for the bridge domain with VXLAN interfaces.
-func (n *IPv4Net) vxlanBridgeDomain() (key string, config *vpp_l2.BridgeDomain) {
+func (n *IPNet) vxlanBridgeDomain() (key string, config *vpp_l2.BridgeDomain) {
 	bd := &vpp_l2.BridgeDomain{
 		Name:                vxlanBDName,
 		Learn:               false,
@@ -532,13 +532,13 @@ func (n *IPv4Net) vxlanBridgeDomain() (key string, config *vpp_l2.BridgeDomain) 
 
 // nameForVxlanToOtherNode returns logical name to use for VXLAN interface
 // connecting this node with the given other node.
-func (n *IPv4Net) nameForVxlanToOtherNode(otherNodeID uint32) string {
+func (n *IPNet) nameForVxlanToOtherNode(otherNodeID uint32) string {
 	return fmt.Sprintf("vxlan%d", otherNodeID)
 }
 
 // vxlanIfToOtherNode returns configuration for VXLAN interface connecting this node
 // with the given other node.
-func (n *IPv4Net) vxlanIfToOtherNode(otherNodeID uint32, otherNodeIP net.IP) (key string, config *vpp_interfaces.Interface) {
+func (n *IPNet) vxlanIfToOtherNode(otherNodeID uint32, otherNodeIP net.IP) (key string, config *vpp_interfaces.Interface) {
 	vxlan := &vpp_interfaces.Interface{
 		Name: n.nameForVxlanToOtherNode(otherNodeID),
 		Type: vpp_interfaces.Interface_VXLAN_TUNNEL,
@@ -558,7 +558,7 @@ func (n *IPv4Net) vxlanIfToOtherNode(otherNodeID uint32, otherNodeIP net.IP) (ke
 
 // vxlanArpEntry returns configuration for ARP entry resolving hardware address
 // of the VXLAN BVI interface of another node.
-func (n *IPv4Net) vxlanArpEntry(otherNodeID uint32, vxlanIP net.IP) (key string, config *vpp_l3.ARPEntry) {
+func (n *IPNet) vxlanArpEntry(otherNodeID uint32, vxlanIP net.IP) (key string, config *vpp_l3.ARPEntry) {
 	arp := &vpp_l3.ARPEntry{
 		Interface:   VxlanBVIInterfaceName,
 		IpAddress:   vxlanIP.String(),
@@ -571,7 +571,7 @@ func (n *IPv4Net) vxlanArpEntry(otherNodeID uint32, vxlanIP net.IP) (key string,
 
 // vxlanFibEntry returns configuration for L2 FIB used inside the bridge domain with VXLANs
 // to route traffic destinated to the given other node through the right VXLAN interface.
-func (n *IPv4Net) vxlanFibEntry(otherNodeID uint32) (key string, config *vpp_l2.FIBEntry) {
+func (n *IPNet) vxlanFibEntry(otherNodeID uint32) (key string, config *vpp_l2.FIBEntry) {
 	fib := &vpp_l2.FIBEntry{
 		BridgeDomain:            vxlanBDName,
 		PhysAddress:             hwAddrForNodeInterface(otherNodeID, vxlanBVIHwAddrPrefix),
@@ -585,7 +585,7 @@ func (n *IPv4Net) vxlanFibEntry(otherNodeID uint32) (key string, config *vpp_l2.
 }
 
 // otherNodeIP calculates the (statically selected) IP address of the given other node
-func (n *IPv4Net) otherNodeIP(otherNodeID uint32) (net.IP, error) {
+func (n *IPNet) otherNodeIP(otherNodeID uint32) (net.IP, error) {
 	nodeIP, _, err := n.IPAM.NodeIPAddress(otherNodeID)
 	if err != nil {
 		err := fmt.Errorf("Failed to get Node IP address for node ID %v, error: %v ",
@@ -598,7 +598,7 @@ func (n *IPv4Net) otherNodeIP(otherNodeID uint32) (net.IP, error) {
 
 // routeToOtherNodePods returns configuration for route applied to traffic destined
 // to pods of another node.
-func (n *IPv4Net) routeToOtherNodePods(otherNodeID uint32, nextHopIP net.IP) (key string, config *vpp_l3.Route, err error) {
+func (n *IPNet) routeToOtherNodePods(otherNodeID uint32, nextHopIP net.IP) (key string, config *vpp_l3.Route, err error) {
 	podNetwork, err := n.IPAM.PodSubnetOtherNode(otherNodeID)
 	if err != nil {
 		return "", nil, fmt.Errorf("Failed to compute pod network for node ID %v, error: %v ", otherNodeID, err)
@@ -609,7 +609,7 @@ func (n *IPv4Net) routeToOtherNodePods(otherNodeID uint32, nextHopIP net.IP) (ke
 
 // routeToOtherNodeHostStack returns configuration for route applied to traffic destined
 // to the host stack of another node.
-func (n *IPv4Net) routeToOtherNodeHostStack(otherNodeID uint32, nextHopIP net.IP) (key string, config *vpp_l3.Route, err error) {
+func (n *IPNet) routeToOtherNodeHostStack(otherNodeID uint32, nextHopIP net.IP) (key string, config *vpp_l3.Route, err error) {
 	hostNetwork, err := n.IPAM.HostInterconnectSubnetOtherNode(otherNodeID)
 	if err != nil {
 		return "", nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", otherNodeID, err)
@@ -619,7 +619,7 @@ func (n *IPv4Net) routeToOtherNodeHostStack(otherNodeID uint32, nextHopIP net.IP
 }
 
 // routeToOtherNodeNetworks is a helper function to build route for traffic destined to another node.
-func (n *IPv4Net) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net.IP) (key string, config *vpp_l3.Route) {
+func (n *IPNet) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net.IP) (key string, config *vpp_l3.Route) {
 	route := &vpp_l3.Route{
 		DstNetwork:  destNetwork.String(),
 		NextHopAddr: nextHopIP.String(),
@@ -636,7 +636,7 @@ func (n *IPv4Net) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net
 
 // routeToOtherNodeManagementIP returns configuration for route applied to traffic destined
 // to a management IP of another node.
-func (n *IPv4Net) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (key string, config *vpp_l3.Route) {
+func (n *IPNet) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (key string, config *vpp_l3.Route) {
 	if managementIP.Equal(nextHopIP) {
 		return "", nil
 	}
@@ -657,7 +657,7 @@ func (n *IPv4Net) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (
 // routeToOtherNodeManagementIPViaPodVRF returns configuration for route used
 // in Main VRF to direct traffic destined to management IP of another node
 // to go via Pod VRF (and then further via VXLANs).
-func (n *IPv4Net) routeToOtherNodeManagementIPViaPodVRF(managementIP net.IP) (key string, config *vpp_l3.Route) {
+func (n *IPNet) routeToOtherNodeManagementIPViaPodVRF(managementIP net.IP) (key string, config *vpp_l3.Route) {
 	route := &vpp_l3.Route{
 		Type:        vpp_l3.Route_INTER_VRF,
 		DstNetwork:  managementIP.String() + hostPrefixForAF(managementIP),

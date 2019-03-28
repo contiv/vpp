@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ipv4net
+package ipnet
 
 import (
 	"net"
@@ -77,7 +77,7 @@ var hostInterconnectHwAddrPrefix = []byte{0x34, 0x3c}
 
 // hostInterconnectVPPIfName returns the logical name of the VPP-host interconnect
 // interface on the VPP side.
-func (n *IPv4Net) hostInterconnectVPPIfName() string {
+func (n *IPNet) hostInterconnectVPPIfName() string {
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		return HostInterconnectTAPinVPPLogicalName
 	}
@@ -86,7 +86,7 @@ func (n *IPv4Net) hostInterconnectVPPIfName() string {
 
 // hostInterconnectLinuxIfName returns the logical name of the VPP-host interconnect
 // interface on the Linux side.
-func (n *IPv4Net) hostInterconnectLinuxIfName() string {
+func (n *IPNet) hostInterconnectLinuxIfName() string {
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		return HostInterconnectTAPinLinuxLogicalName
 	}
@@ -95,7 +95,7 @@ func (n *IPv4Net) hostInterconnectLinuxIfName() string {
 
 // interconnectTapVPP returns configuration for the VPP-side of the TAP interface
 // connecting VPP with the host stack.
-func (n *IPv4Net) interconnectTapVPP() (key string, config *vpp_interfaces.Interface) {
+func (n *IPNet) interconnectTapVPP() (key string, config *vpp_interfaces.Interface) {
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	size, _ := n.IPAM.HostInterconnectSubnetThisNode().Mask.Size()
 	tap := &vpp_interfaces.Interface{
@@ -132,7 +132,7 @@ func (n *IPv4Net) interconnectTapVPP() (key string, config *vpp_interfaces.Inter
 
 // interconnectTapHost returns configuration for the Host-side of the TAP interface
 // connecting VPP with the host stack.
-func (n *IPv4Net) interconnectTapHost() (key string, config *linux_interfaces.Interface) {
+func (n *IPNet) interconnectTapHost() (key string, config *linux_interfaces.Interface) {
 	size, _ := n.IPAM.HostInterconnectSubnetThisNode().Mask.Size()
 	tap := &linux_interfaces.Interface{
 		Name: HostInterconnectTAPinLinuxLogicalName,
@@ -169,7 +169,7 @@ func (n *IPv4Net) interconnectTapHost() (key string, config *linux_interfaces.In
 
 // interconnectAfpacket returns configuration for the AF-Packet interface attached
 // to interconnectVethVpp (see below)
-func (n *IPv4Net) interconnectAfpacket() (key string, config *vpp_interfaces.Interface) {
+func (n *IPNet) interconnectAfpacket() (key string, config *vpp_interfaces.Interface) {
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	size, _ := n.IPAM.HostInterconnectSubnetThisNode().Mask.Size()
 	afpacket := &vpp_interfaces.Interface{
@@ -203,7 +203,7 @@ func (n *IPv4Net) interconnectAfpacket() (key string, config *vpp_interfaces.Int
 
 // interconnectVethVpp returns configuration for VPP-side of the VETH pipe connecting
 // vswitch with the host stack.
-func (n *IPv4Net) interconnectVethVpp() (key string, config *linux_interfaces.Interface) {
+func (n *IPNet) interconnectVethVpp() (key string, config *linux_interfaces.Interface) {
 	veth := &linux_interfaces.Interface{
 		Name: hostInterconnectVETH2LogicalName,
 		Type: linux_interfaces.Interface_VETH,
@@ -220,7 +220,7 @@ func (n *IPv4Net) interconnectVethVpp() (key string, config *linux_interfaces.In
 
 // interconnectVethHost returns configuration for host-side of the VETH pipe connecting
 // vswitch with the host stack.
-func (n *IPv4Net) interconnectVethHost() (key string, config *linux_interfaces.Interface) {
+func (n *IPNet) interconnectVethHost() (key string, config *linux_interfaces.Interface) {
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	size, _ := n.IPAM.HostInterconnectSubnetThisNode().Mask.Size()
 	veth := &linux_interfaces.Interface{
@@ -259,7 +259,7 @@ func (n *IPv4Net) interconnectVethHost() (key string, config *linux_interfaces.I
 }
 
 // routesToHost return one route to configure on VPP for every host interface.
-func (n *IPv4Net) routesToHost(nextHopIP net.IP) map[string]*vpp_l3.Route {
+func (n *IPNet) routesToHost(nextHopIP net.IP) map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)
 
 	// generate a /32 (or /128 for ipv6) static route from VPP for each of the host's IPs
@@ -279,7 +279,7 @@ func (n *IPv4Net) routesToHost(nextHopIP net.IP) map[string]*vpp_l3.Route {
 
 // routePODsFromHost returns configuration for route for the host stack to direct
 // traffic destined to pods via VPP.
-func (n *IPv4Net) routePODsFromHost(nextHopIP net.IP) (key string, config *linux_l3.Route) {
+func (n *IPNet) routePODsFromHost(nextHopIP net.IP) (key string, config *linux_l3.Route) {
 	route := &linux_l3.Route{
 		OutgoingInterface: hostInterconnectVETH1LogicalName,
 		Scope:             linux_l3.Route_GLOBAL,
@@ -295,7 +295,7 @@ func (n *IPv4Net) routePODsFromHost(nextHopIP net.IP) (key string, config *linux
 
 // routeServicesFromHost returns configuration for route for the host stack to direct
 // traffic destined to services via VPP.
-func (n *IPv4Net) routeServicesFromHost(nextHopIP net.IP) (key string, config *linux_l3.Route) {
+func (n *IPNet) routeServicesFromHost(nextHopIP net.IP) (key string, config *linux_l3.Route) {
 	route := &linux_l3.Route{
 		OutgoingInterface: hostInterconnectVETH1LogicalName,
 		Scope:             linux_l3.Route_GLOBAL,
@@ -314,7 +314,7 @@ func (n *IPv4Net) routeServicesFromHost(nextHopIP net.IP) (key string, config *l
 // stnRule returns configuration for STN rule, used to forward all traffic not matched
 // in VPP to host via interconnect interface.
 // The method assumes that node has IP address allocated!
-func (n *IPv4Net) stnRule() (key string, config *vpp_stn.Rule) {
+func (n *IPNet) stnRule() (key string, config *vpp_stn.Rule) {
 	rule := &vpp_stn.Rule{
 		IpAddress: n.nodeIP.String(),
 		Interface: n.hostInterconnectVPPIfName(),
@@ -326,7 +326,7 @@ func (n *IPv4Net) stnRule() (key string, config *vpp_stn.Rule) {
 // ipRedirectRule returns configuration for ip_redirect flavor of STN rule, used to forward all traffic not matched
 // in VPP to host via interconnect interface. in is another alternative of the stnRule() functionality.
 // The method assumes that node has IP address allocated!
-func (n *IPv4Net) ipRedirectRule() (key string, config *vpp_punt.IPRedirect) {
+func (n *IPNet) ipRedirectRule() (key string, config *vpp_punt.IPRedirect) {
 	rule := &vpp_punt.IPRedirect{
 		L3Protocol:  vpp_punt.L3Protocol_ALL,
 		TxInterface: n.hostInterconnectVPPIfName(),
@@ -338,7 +338,7 @@ func (n *IPv4Net) ipRedirectRule() (key string, config *vpp_punt.IPRedirect) {
 
 // proxyArpForSTNGateway configures proxy ARP used in the STN case to let VPP to answer
 // to ARP requests coming from the host stack.
-func (n *IPv4Net) proxyArpForSTNGateway() (key string, config *vpp_l3.ProxyARP) {
+func (n *IPNet) proxyArpForSTNGateway() (key string, config *vpp_l3.ProxyARP) {
 	firstIP, lastIP := cidr.AddressRange(n.nodeIPNet)
 
 	// If larger than a /31, remove network and broadcast addresses
@@ -365,7 +365,7 @@ func (n *IPv4Net) proxyArpForSTNGateway() (key string, config *vpp_l3.ProxyARP) 
 
 // staticArpForSTNGateway returns configuration of a static ARP entry for the host mapping
 // the STN gateway IP to VPP MAC address.
-func (n *IPv4Net) staticArpForSTNGateway() (key string, arp *linux_l3.ARPEntry) {
+func (n *IPNet) staticArpForSTNGateway() (key string, arp *linux_l3.ARPEntry) {
 	arp = &linux_l3.ARPEntry{
 		Interface: HostInterconnectTAPinLinuxLogicalName,
 		IpAddress: n.stnGwIPForHost().String(),
@@ -376,7 +376,7 @@ func (n *IPv4Net) staticArpForSTNGateway() (key string, arp *linux_l3.ARPEntry) 
 }
 
 // staticArpForSTNHostInterface creates a static ARP entry for for the host stack interface on VPP.
-func (n *IPv4Net) staticArpForSTNHostInterface() (key string, arp *vpp_l3.ARPEntry) {
+func (n *IPNet) staticArpForSTNHostInterface() (key string, arp *vpp_l3.ARPEntry) {
 	arp = &vpp_l3.ARPEntry{
 		Interface:   n.hostInterconnectVPPIfName(),
 		IpAddress:   n.nodeIP.String(),
@@ -388,7 +388,7 @@ func (n *IPv4Net) staticArpForSTNHostInterface() (key string, arp *vpp_l3.ARPEnt
 }
 
 // routeToOriginalSTNSubnet creates a linux route pointing the original subnet of the stolen interface towards VPP.
-func (n *IPv4Net) routeToOriginalSTNSubnet() (key string, route *linux_l3.Route) {
+func (n *IPNet) routeToOriginalSTNSubnet() (key string, route *linux_l3.Route) {
 	route = &linux_l3.Route{
 		DstNetwork:        n.nodeIPNet.String(),
 		GwAddr:            n.stnGwIPForHost().String(),
@@ -401,7 +401,7 @@ func (n *IPv4Net) routeToOriginalSTNSubnet() (key string, route *linux_l3.Route)
 
 // stnGwIPForHost returns gateway IP address used in the host stack for routes pointing towards VPP
 // (in the STN scenario).
-func (n *IPv4Net) stnGwIPForHost() net.IP {
+func (n *IPNet) stnGwIPForHost() net.IP {
 	if n.ContivConf.GetIPAMConfig().UseIPv6 {
 		// for IPv6, we assign /127 subnet to the stolen interface
 		// and return the other IP from that subnet as the gateway IP
@@ -428,7 +428,7 @@ func (n *IPv4Net) stnGwIPForHost() net.IP {
 
 // stnRoutesForVPP returns VPP routes mirroring Host routes that were associated
 // with the stolen interface.
-func (n *IPv4Net) stnRoutesForVPP() map[string]*vpp_l3.Route {
+func (n *IPNet) stnRoutesForVPP() map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)
 
 	for _, stnRoute := range n.ContivConf.GetSTNConfig().STNRoutes {
@@ -453,7 +453,7 @@ func (n *IPv4Net) stnRoutesForVPP() map[string]*vpp_l3.Route {
 
 // stnRoutesForHost returns configuration of routes that were associated
 // with the stolen interface, now updated to route via host-interconnect.
-func (n *IPv4Net) stnRoutesForHost() map[string]*linux_l3.Route {
+func (n *IPNet) stnRoutesForHost() map[string]*linux_l3.Route {
 	routes := make(map[string]*linux_l3.Route)
 
 	for _, stnRoute := range n.ContivConf.GetSTNConfig().STNRoutes {

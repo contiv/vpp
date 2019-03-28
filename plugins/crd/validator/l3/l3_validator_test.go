@@ -30,7 +30,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/contiv/vpp/plugins/crd/testdata"
 	"github.com/contiv/vpp/plugins/crd/validator/l2"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -485,7 +485,7 @@ func testValidateInterfaceLookup(t *testing.T) {
 	// --------------------------------------------------
 	// INJECT FAULT:
 	// - Bad vlxanBVI interface name
-	bviIfc, err := findInterface(ipv4net.VxlanBVIInterfaceName, vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces)
+	bviIfc, err := findInterface(ipnet.VxlanBVIInterfaceName, vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces)
 	oldBviIfName := gigeIfc.Value.Name
 	bviIfc.Value.Name = "SomeInterface"
 	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[bviIfc.Metadata.SwIfIndex] = *bviIfc

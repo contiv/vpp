@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"runtime/trace"
 	"sync"
 	"time"
 
@@ -54,6 +55,10 @@ const (
 	// by default, transactions from the first hour of runtime stay permanently
 	// recorded
 	defaultPermanentlyRecordedInitPeriod = 60 // in minutes
+
+	// by default, all NB transactions and SB notifications are run without
+	// simulation (Retries are always first simulated)
+	defaultEnableTxnSimulation = false
 
 	// name of the environment variable used to enable verification after every transaction
 	verifyModeEnv = "KVSCHED_VERIFY_MODE"
@@ -116,6 +121,7 @@ type Config struct {
 	RecordTransactionHistory      bool   `json:"record-transaction-history"`
 	TransactionHistoryAgeLimit    uint32 `json:"transaction-history-age-limit"`    // in minutes
 	PermanentlyRecordedInitPeriod uint32 `json:"permanently-recorded-init-period"` // in minutes
+	EnableTxnSimulation           bool   `json:"enable-txn-simulation"`
 }
 
 // SchedulerTxn implements transaction for the KV scheduler.
@@ -138,6 +144,7 @@ func (s *Scheduler) Init() error {
 		RecordTransactionHistory:      defaultRecordTransactionHistory,
 		TransactionHistoryAgeLimit:    defaultTransactionHistoryAgeLimit,
 		PermanentlyRecordedInitPeriod: defaultPermanentlyRecordedInitPeriod,
+		EnableTxnSimulation:           defaultEnableTxnSimulation,
 	}
 
 	// load configuration
@@ -146,13 +153,18 @@ func (s *Scheduler) Init() error {
 		s.Log.Error(err)
 		return err
 	}
-	s.Log.Infof("KVScheduler configuration: %+v", *s.config)
+	s.Log.Debugf("KVScheduler configuration: %+v", *s.config)
 
 	// prepare context for all go routines
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	// initialize graph for in-memory storage of key-value pairs
-	s.graph = graph.NewGraph(s.config.RecordTransactionHistory, s.config.TransactionHistoryAgeLimit,
-		s.config.PermanentlyRecordedInitPeriod)
+	graphOpts := graph.Opts{
+		RecordOldRevs:       s.config.RecordTransactionHistory,
+		RecordAgeLimit:      s.config.TransactionHistoryAgeLimit,
+		PermanentInitPeriod: s.config.PermanentlyRecordedInitPeriod,
+		MethodTracker:       trackGraphMethod,
+	}
+	s.graph = graph.NewGraph(graphOpts)
 	// initialize registry for key->descriptor lookups
 	s.registry = registry.NewRegistry()
 	// prepare channel for serializing transactions
@@ -206,6 +218,11 @@ func (s *Scheduler) Close() error {
 // (none for derived values expressing properties).
 func (s *Scheduler) RegisterKVDescriptor(descriptor *kvs.KVDescriptor) error {
 	// TODO: validate descriptor
+	if s.registry.GetDescriptor(descriptor.Name) != nil {
+		return kvs.ErrDescriptorExists
+	}
+
+	stats.addDescriptor(descriptor.Name)
 
 	s.registry.RegisterDescriptor(descriptor)
 	if descriptor.NBKeyPrefix != "" {
@@ -219,9 +236,8 @@ func (s *Scheduler) RegisterKVDescriptor(descriptor *kvs.KVDescriptor) error {
 		} else {
 			metadataMap = mem.NewNamedMapping(s.Log, descriptor.Name, nil)
 		}
-		graphW := s.graph.Write(false)
+		graphW := s.graph.Write(true, false)
 		graphW.RegisterMetadataMap(descriptor.Name, metadataMap)
-		graphW.Save()
 		graphW.Release()
 	}
 	return nil
@@ -394,9 +410,13 @@ func (txn *SchedulerTxn) SetValue(key string, value proto.Message) kvs.Txn {
 // Operations with unmet dependencies will get postponed and possibly
 // executed later.
 func (txn *SchedulerTxn) Commit(ctx context.Context) (txnSeqNum uint64, err error) {
+	ctx, task := trace.NewTask(ctx, "scheduler.Commit")
+	defer task.End()
+
 	txnSeqNum = ^uint64(0)
 
 	txnData := &transaction{
+		ctx:     ctx,
 		txnType: kvs.NBTransaction,
 		nb:      &nbTxn{},
 		values:  make([]kvForTxn, 0, len(txn.values)),
@@ -417,6 +437,7 @@ func (txn *SchedulerTxn) Commit(ctx context.Context) (txnSeqNum uint64, err erro
 	txnData.nb.retryArgs, txnData.nb.retryEnabled = kvs.IsWithRetry(ctx)
 	txnData.nb.revertOnFailure = kvs.IsWithRevert(ctx)
 	txnData.nb.description, _ = kvs.IsWithDescription(ctx)
+	txnData.nb.withSimulation = txn.scheduler.config.EnableTxnSimulation || kvs.IsWithSimulation(ctx)
 
 	// validate transaction options
 	if txnData.nb.resyncType == kvs.DownstreamResync && len(txnData.values) > 0 {
@@ -430,6 +451,7 @@ func (txn *SchedulerTxn) Commit(ctx context.Context) (txnSeqNum uint64, err erro
 	if txnData.nb.isBlocking {
 		txnData.nb.resultChan = make(chan txnResult, 1)
 	}
+
 	err = txn.scheduler.enqueueTxn(txnData)
 	if err != nil {
 		return txnSeqNum, kvs.NewTransactionError(err, nil)
@@ -442,6 +464,7 @@ func (txn *SchedulerTxn) Commit(ctx context.Context) (txnSeqNum uint64, err erro
 			return txnSeqNum, kvs.NewTransactionError(kvs.ErrTxnWaitCanceled, nil)
 		case txnResult := <-txnData.nb.resultChan:
 			close(txnData.nb.resultChan)
+			trace.Logf(ctx, "txnSeqNum", "%d", txnResult.txnSeqNum)
 			return txnResult.txnSeqNum, txnResult.err
 		}
 	}

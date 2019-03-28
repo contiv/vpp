@@ -170,11 +170,14 @@ func (s *Service) Refresh() {
 				}).Warn("Failed to parse endpoint IP")
 				continue
 			}
-			if epAddr.GetNodeName() == "" || epAddr.GetNodeName() == s.sp.ServiceLabel.GetAgentLabel() {
+			if s.sp.IPAM.PodSubnetThisNode().Contains(epIP) {
 				local = true
 			}
 			if !s.sp.IPAM.PodSubnetAllNodes().Contains(epIP) {
 				hostNetwork = true
+				if s.isLocalNodeOrHostIP(epIP) {
+					local = true
+				}
 			}
 
 			for _, epPort := range epPorts {
@@ -200,4 +203,18 @@ func (s *Service) Refresh() {
 	}
 
 	s.refreshed = true
+}
+
+// isLocalNodeOrHostIP returns true if the given IP is current node's node (VPP) or host (mgmt) IP, false otherwise.
+func (s *Service) isLocalNodeOrHostIP(ip net.IP) bool {
+	nodeIP, _ := s.sp.IPNet.GetNodeIP()
+	if ip.Equal(nodeIP) {
+		return true
+	}
+	for _, hostIP := range s.sp.IPNet.GetHostIPs() {
+		if hostIP.Equal(ip) {
+			return true
+		}
+	}
+	return false
 }

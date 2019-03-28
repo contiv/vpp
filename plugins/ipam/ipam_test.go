@@ -159,7 +159,7 @@ func TestStaticGetters(t *testing.T) {
 	Expect(expectedVSwitchNetwork.Contains(i.HostInterconnectIPInVPP())).To(BeTrue(), "HostInterconnectIPInVPP is not in range of vSwitch network for given host.")
 }
 
-// TestDynamicGetters tests proper working IMAP API that provides data based on new input (func parameters)
+// TestDynamicGetters tests proper working IPAM API that provides data based on new input (func parameters)
 func TestDynamicGetters(t *testing.T) {
 	i := setup(t, newDefaultConfig())
 	ip, _, err := i.NodeIPAddress(nodeID2)
@@ -180,14 +180,92 @@ func TestDynamicGetters(t *testing.T) {
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(network("1.2." + str(b10000000+int(nodeID2>>5)) + "." + str(int(nodeID2<<3)) + "/29")))
 
+	id, err := i.NodeIDFromPodIP(net.ParseIP("1.2." + str(b10000000+int(nodeID2>>5)) + "." + str(int(nodeID2<<3))))
+	Expect(err).To(BeNil())
+	Expect(id).To(BeEquivalentTo(nodeID2))
+
 	ipNet, err = i.HostInterconnectSubnetOtherNode(nodeID2)
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(network("2.3." + str(b11000000+int(nodeID2>>6)) + "." + str(int(nodeID2<<2)) + "/30")))
 }
 
+// TestDynamicGettersIPv6 tests proper working IPAM API that provides data based on new input (func parameters)
+func TestDynamicGettersIPv6(t *testing.T) {
+
+	customConfig := newDefaultConfig()
+	customConfig.IPAMConfig.NodeInterconnectCIDR = "fe10:f00d::/90"
+	customConfig.IPAMConfig.VxlanCIDR = "fe20:f00d::/120"
+	customConfig.IPAMConfig.VPPHostSubnetCIDR = "fe30:f00d::/90"
+	customConfig.IPAMConfig.VPPHostSubnetOneNodePrefixLen = 126
+	customConfig.IPAMConfig.PodSubnetCIDR = "fe10:f00d::/90"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 120
+
+	i := setup(t, customConfig)
+	Expect(i).NotTo(BeNil())
+
+	ip, ipNet, err := i.NodeIPAddress(nodeID2)
+	Expect(err).To(BeNil())
+	Expect(ip.String()).To(BeEquivalentTo("fe10:f00d::5"))
+	Expect(ipNet.String()).To(BeEquivalentTo("fe10:f00d::/90"))
+
+	ip, ipNet, err = i.VxlanIPAddress(nodeID2)
+	Expect(err).To(BeNil())
+	size, _ := ipNet.Mask.Size()
+	Expect(size).To(BeEquivalentTo(120))
+	Expect(ip.String()).To(BeEquivalentTo("fe20:f00d::5"))
+
+	ipNet, err = i.PodSubnetOtherNode(nodeID2)
+	Expect(err).To(BeNil())
+	Expect(ipNet.String()).To(BeEquivalentTo("fe10:f00d::500/120"))
+
+	id, err := i.NodeIDFromPodIP(net.ParseIP("fe10:f00d::500"))
+	Expect(err).To(BeNil())
+	Expect(id).To(BeEquivalentTo(nodeID2))
+
+	ipNet, err = i.HostInterconnectSubnetOtherNode(nodeID2)
+	Expect(err).To(BeNil())
+	Expect(ipNet.String()).To(BeEquivalentTo("fe30:f00d::14/126"))
+}
+
 // TestBasicAllocateReleasePodAddress test simple happy path scenario for getting 1 pod address and releasing it
 func TestBasicAllocateReleasePodAddress(t *testing.T) {
 	i := setup(t, newDefaultConfig())
+	ip, err := i.AllocatePodIP(podID[0], "", "")
+	Expect(err).To(BeNil())
+	Expect(ip).NotTo(BeNil())
+	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+
+	err = i.ReleasePodIP(podID[0])
+	Expect(err).To(BeNil())
+}
+
+// TestBasicAllocateReleasePodAddressIPv6 test simple happy path scenario for getting 1 pod address and releasing it
+func TestBasicAllocateReleasePodAddressIPv6(t *testing.T) {
+	customConfig := newDefaultConfig()
+	customConfig.IPAMConfig.PodSubnetCIDR = "fe10:f00d::/90"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 120
+
+	i := setup(t, customConfig)
+	Expect(i).NotTo(BeNil())
+
+	ip, err := i.AllocatePodIP(podID[0], "", "")
+	Expect(err).To(BeNil())
+	Expect(ip).NotTo(BeNil())
+	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+
+	err = i.ReleasePodIP(podID[0])
+	Expect(err).To(BeNil())
+}
+
+// TestWideIPv6PodSubenet verifies pod IP allocation in cases where more than 64 bits is reserved for pod Subnet on a node
+func TestWideIPv6PodSubenet(t *testing.T) {
+	customConfig := newDefaultConfig()
+	customConfig.IPAMConfig.PodSubnetCIDR = "2001::/48"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 60
+
+	i := setup(t, customConfig)
+	Expect(i).NotTo(BeNil())
+
 	ip, err := i.AllocatePodIP(podID[0], "", "")
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
@@ -417,6 +495,24 @@ func TestExceededNodeIPRange(t *testing.T) {
 	_, _, err = last.NodeIPAddress(17)
 	fmt.Println(err)
 	Expect(err).NotTo(BeNil())
+
+}
+
+func TestNodeCIDRIPv6(t *testing.T) {
+	RegisterTestingT(t)
+
+	customConfig := newDefaultConfig()
+	customConfig.IPAMConfig.NodeInterconnectCIDR = "fe10:f00d::/90"
+
+	i, err := newIPAM(customConfig, 1)
+	Expect(err).To(BeNil())
+	Expect(i).NotTo(BeNil())
+
+	ip, net, err := i.NodeIPAddress(1)
+
+	Expect(err).To(BeNil())
+	Expect(ip.String()).To(BeEquivalentTo("fe10:f00d::1"))
+	Expect(net.String()).To(BeEquivalentTo("fe10:f00d::/90"))
 
 }
 

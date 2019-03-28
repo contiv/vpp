@@ -55,7 +55,7 @@ echo
 
 echo 'Please choose deployment scenario: '
 PS3='--> '
-options=("Without StealTheNIC" "With StealTheNIC" "Calico" "Calico-VPP" "Quit")
+options=("Without StealTheNIC" "With StealTheNIC" "IPv6" "IPv6 Transport" "IPv6 STN" "Calico" "Calico-VPP" "Quit")
 select opt in "${options[@]}"
 do
     case $opt in
@@ -67,6 +67,24 @@ do
         "With StealTheNIC")
             echo "You chose deployment with StealTheNIC"
             export K8S_DEPLOYMENT_SCENARIO="stn"
+            break
+            ;;
+        "IPv6")
+            echo "You chose deployment with IPv6"
+            export K8S_DEPLOYMENT_SCENARIO="nostn"
+            export IP_VERSION="ipv6"
+            break
+            ;;
+        "IPv6 Transport")
+            echo "You chose deployment with IPv6 Transport Only"
+            export K8S_DEPLOYMENT_SCENARIO="nostn"
+            export IP_VERSION="ipv6transport"
+            break
+            ;;
+        "IPv6 STN")
+            echo "You chose deployment with StealTheNIC and IPv6"
+            export K8S_DEPLOYMENT_SCENARIO="stn"
+            export IP_VERSION="ipv6"
             break
             ;;
         "Calico")
@@ -98,6 +116,11 @@ if [ "$K8S_DEPLOYMENT_SCENARIO" == "nostn" ]; then
 else 
     DEP_SCEN="with STN"
 fi
+
+if [ "$IP_VERSION" == "ipv6" ] || [ "$IP_VERSION" == "ipv6transport" ] ; then
+    DEP_SCEN="with $IP_VERSION"
+fi
+
 echo
 echo "Creating a $DEP_ENV environment, $DEP_SCEN and $K8S_NODES worker node(s)"
 echo 

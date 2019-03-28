@@ -96,7 +96,7 @@ data:
     force-socket-removal: true
     permission: 700
   http.conf: |
-    endpoint: 0.0.0.0:9999
+    endpoint: "0.0.0.0:9999"
   bolt.conf: |
     db-path: /var/bolt/bolt.db
     file-mode: 432
@@ -222,7 +222,13 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - etcdctl get --endpoints=$HOST_IP:32379 /
+                - |
+                  echo "$HOST_IP" | grep -q ':'
+                  if [ "$?" -eq "0" ];
+                  then
+                     HOST_IP="[$HOST_IP]"
+                  fi
+                  etcdctl get --endpoints=$HOST_IP:32379 /
             periodSeconds: 3
             initialDelaySeconds: 20
           resources:
@@ -257,7 +263,7 @@ metadata:
   namespace: kube-system
 data:
   http.conf: |
-    endpoint: 0.0.0.0:9191
+    endpoint: "0.0.0.0:9191"
 
 ---
 # This config map contains ETCD configuration for connecting to the contiv-etcd defined above.
@@ -385,6 +391,12 @@ spec:
               # replace localhost IP by node IP since node port doesn't work
               # on localhost IP in a certain scenario
               cp /etc/etcd/etcd.conf /tmp/etcd.conf
+              set +e
+              echo "$HOST_IP" | grep -q ':'
+              if [ "$?" -eq "0" ];
+              then
+                 HOST_IP="[$HOST_IP]"
+              fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/etcd.conf
           resources: {}
           securityContext:
@@ -627,6 +639,11 @@ spec:
             - -c
             - |
               cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
+              echo "$HOST_IP" | grep -q ':'
+              if [ "$?" -eq "0" ];
+              then
+                 HOST_IP="[$HOST_IP]"
+              fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
               until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
           volumeMounts:
@@ -782,6 +799,11 @@ spec:
             - -c
             - |
               cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
+              echo "$HOST_IP" | grep -q ':'
+              if [ "$?" -eq "0" ];
+              then
+                 HOST_IP="[$HOST_IP]"
+              fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
               until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
           volumeMounts:
@@ -920,7 +942,7 @@ metadata:
   namespace: kube-system
 data:
   http.conf: |
-    endpoint: 0.0.0.0:9090
+    endpoint: "0.0.0.0:9090"
   http.client.conf: |
     port: 9999
     use-https: false

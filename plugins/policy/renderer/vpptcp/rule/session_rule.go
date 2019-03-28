@@ -85,9 +85,9 @@ type SessionRule struct {
 	Tag            [64]byte
 }
 
-// IPv4Net interface lists methods (formerly) provided by IPv4Net plugin, which
+// IPNet interface lists methods (formerly) provided by IPNet plugin, which
 // are needed by VPPTCP Renderer.
-type IPv4Net interface {
+type IPNet interface {
 	// GetNsIndex returns application namespace related to the given pod.
 	GetNsIndex(podNamespace, podName string) (nsIndex uint32, exists bool)
 	// GetPodByAppNsIndex returns pod related to the given application namespace.
@@ -210,7 +210,7 @@ func (sr *SessionRule) Compare(sr2 *SessionRule, compareTag bool) int {
 
 // ExportSessionRules converts Contiv rules into the corresponding set of session rules.
 // Set *podID* to nil if the rules are from the global table.
-func ExportSessionRules(rules []*renderer.ContivRule, podID *podmodel.ID, podIP net.IP, ipv4net IPv4Net, log logging.Logger) []*SessionRule {
+func ExportSessionRules(rules []*renderer.ContivRule, podID *podmodel.ID, podIP net.IP, ipnet IPNet, log logging.Logger) []*SessionRule {
 	global := podID == nil
 	// Construct Session rules.
 	sessionRules := []*SessionRule{}
@@ -219,7 +219,7 @@ func ExportSessionRules(rules []*renderer.ContivRule, podID *podmodel.ID, podIP 
 	if !global {
 		// Get the target namespace index.
 		var found bool
-		nsIndex, found = ipv4net.GetNsIndex(podID.Namespace, podID.Name)
+		nsIndex, found = ipnet.GetNsIndex(podID.Namespace, podID.Name)
 		if !found {
 			log.WithField("pod", podID).Warn("Unable to get the namespace index of the Pod")
 			return sessionRules
@@ -362,7 +362,7 @@ func convertContivRule(rule *renderer.ContivRule, global bool, nsIndex uint32, t
 
 // ImportSessionRules imports a list of session rules into a newly created
 // list of ContivRule tables, suitable for Resync with the cache.
-func ImportSessionRules(rules []*SessionRule, ipv4net IPv4Net, log logging.Logger) (tables []*cache.ContivRuleTable) {
+func ImportSessionRules(rules []*SessionRule, ipnet IPNet, log logging.Logger) (tables []*cache.ContivRuleTable) {
 	globalTable := cache.NewContivRuleTable(cache.Global)
 	localTables := make(map[podmodel.ID]*cache.ContivRuleTable)
 
@@ -454,7 +454,7 @@ func ImportSessionRules(rules []*SessionRule, ipv4net IPv4Net, log logging.Logge
 			globalTable.InsertRule(contivRule)
 		} else {
 			// Get ID of the pod to which this rule is associated.
-			podNamespace, podName, exists := ipv4net.GetPodByAppNsIndex(rule.AppnsIndex)
+			podNamespace, podName, exists := ipnet.GetPodByAppNsIndex(rule.AppnsIndex)
 			if !exists {
 				log.WithField("rule", rule).Warn("Failed to get pod corresponding to NS index from the session rule")
 				continue

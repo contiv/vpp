@@ -59,595 +59,43 @@ master_memory = ENV['K8S_MASTER_MEMORY'].to_i == 0 ? 4096 : ENV['K8S_MASTER_MEMO
 dep_env = ENV['K8S_DEPLOYMENT_ENV']
 dep_scenario = ENV['K8S_DEPLOYMENT_SCENARIO']
 base_ip = ENV['K8S_IP_PREFIX'] || '10.20.0.'
+base_prefix_len = ENV['K8S_IP_PREFIX_LEN'] || '24'
 provider = ENV['VAGRANT_DEFAULT_PROVIDER']
 image_tag = ENV['CONTIV_IMAGE_TAG']
-go_version= ENV['GO_VERSION']
-goland_version= ENV['GOLAND_VERSION']
-helm_version= ENV['HELM_VERSION']
-crd_disabled=ENV['CRD_DISABLED']
-contiv_dir="/home/vagrant/gopath/src/github.com/contiv/vpp"
+go_version = ENV['GO_VERSION']
+goland_version = ENV['GOLAND_VERSION']
+helm_version = ENV['HELM_VERSION']
+crd_disabled = ENV['CRD_DISABLED']
+ip_version = ENV['IP_VERSION'] || 'ipv4'
+contiv_dir = "/home/vagrant/gopath/src/github.com/contiv/vpp"
 helm_extra_opts = ENV['HELM_EXTRA_OPTS'] || ''
 
-provision_every_node = <<SCRIPT
-set -e
-set -x
-# setup the environment file. Export the env-vars passed as args to 'vagrant up'
-# This script will also: add keys, update and install pre-requisites
-
-echo Args passed: [[ $@ ]]
-
-cat <<EOF >/etc/profile.d/envvar.sh
-export http_proxy='#{http_proxy}'
-export https_proxy='#{https_proxy}'
-export HTTP_PROXY='#{http_proxy}'
-export HTTPS_PROXY='#{https_proxy}'
-EOF
-
-source /etc/profile.d/envvar.sh
-echo "Updating apt lists..."
-sudo -E apt-get update
-
-echo "Installing dependency packages..."
-sudo -E apt-get install -y apt-transport-https \
-                  ca-certificates \
-                  curl \
-                  software-properties-common \
-                  htop
-
-echo "Adding Kubernetes repo..."
-curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo -E apt-key add -
-sudo -E add-apt-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
-
-if [ "#{node_os_release}" == "16.04" ] ; then
-  echo "Adding Docker repo..."
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo -E apt-key add -
-  sudo -E add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
-fi
-
-echo "Updating apt lists..."
-sudo -E apt-get update -q
-
-echo "Installing Kubernetes Components..."
-sudo -E apt-get install -qy kubelet=#{k8s_version}-00 \
-                  kubectl=#{k8s_version}-00 \
-                  kubeadm=#{k8s_version}-00
-
-echo "Installing Docker..."
-if [ "#{node_os_release}" == "16.04" ] ; then
-  sudo -E apt-get install -y docker-ce=#{docker_version}~ubuntu
-else
-  sudo -E apt-get install -y docker.io=18.06.1-0ubuntu1.2~18.04.1
-fi
-
-#Setup the proxy if needed
-if [ "#{http_proxy}" != "" ] ; then
-  sudo mkdir -p /etc/systemd/system/docker.service.d
-  sudo echo "[Service]
-Environment=\"HTTP_PROXY='#{http_proxy}'"" >> /etc/systemd/system/docker.service.d/http-proxy.conf
-  sudo systemctl daemon-reload
-  sudo systemctl restart docker
-fi
-if [ "#{https_proxy}" != "" ] ; then
-  sudo mkdir -p /etc/systemd/system/docker.service.d
-  sudo echo "[Service]
-Environment=\"HTTPS_PROXY='#{https_proxy}'"" >> /etc/systemd/system/docker.service.d/http-proxy.conf
-  sudo systemctl daemon-reload
-  sudo systemctl restart docker
-fi
-
-systemctl stop docker
-modprobe overlay
-
-echo '{"storage-driver": "overlay2"}' > /etc/docker/daemon.json
-rm -rf /var/lib/docker/*
-systemctl start docker
-
-#explicitely set max number of concurrent ssh connections
-echo 'MaxStartups 20' >> /etc/ssh/sshd_config
-sudo service sshd restart
-
-if [ "#{dep_env}" == "dev" ]; then 
-  echo "Downloading Go '#{go_version}'..."
-  curl --silent https://storage.googleapis.com/golang/go'#{go_version}'.linux-amd64.tar.gz > /tmp/go.tar.gz
-
-  echo "Extracting Go..."
-  tar -xvzf /tmp/go.tar.gz --directory /home/vagrant >/dev/null 2>&1
-
-  echo "Setting Go environment variables..."
-  mkdir -p /home/vagrant/gopath/bin
-  mkdir -p /home/vagrant/gopath/pkg
-  chmod -R 777 /home/vagrant/gopath
-
-  echo 'export GOROOT="/home/vagrant/go"' >> /home/vagrant/.bashrc
-  echo 'export GOPATH="/home/vagrant/gopath"' >> /home/vagrant/.bashrc
-  echo 'export PATH="$PATH:$GOROOT/bin:$GOPATH/bin"' >> /home/vagrant/.bashrc
-
-  update-locale LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
-  echo 'All done!'
-fi
-
-#Disable swap
-swapoff -a
-sed -e '/swap/ s/^#*/#/' -i /etc/fstab
-SCRIPT
-
-vbox_provision_every_node = <<SCRIPT
-set -e
-set -x
-
-#Load uio_pci_generic driver and setup the loading on each boot up
-installPCIUIO() {
-   modprobe uio_pci_generic
-      # check if the driver is not already added into the file
-      if ! grep -q "uio_pci_generic" /etc/modules; then
-         echo uio_pci_generic >> /etc/modules
-         echo "Module uio_pci_generic was added into /etc/modules"
-      fi
-}
-
-#Load vfio_pci driver and setup the loading on each boot up
-installPCIVFIO() {
-   modprobe vfio_pci
-      # check if the driver is not already added into the file
-      if ! grep -q "vfio_pci" /etc/modules; then
-         echo vfio_pci >> /etc/modules
-         echo "Module vfio_pci was added into /etc/modules"
-      fi
-}
-
-#Selects an interface that will be used for node interconnect
-createVPPconfig() {
-mkdir -p /etc/vpp
-touch /etc/vpp/contiv-vswitch.conf
-  cat <<EOF >/etc/vpp/contiv-vswitch.conf
-unix {
-   nodaemon
-   cli-listen /run/vpp/cli.sock
-   cli-no-pager
-   coredump-size unlimited
-   full-coredump
-   poll-sleep-usec 100
-}
-dpdk {
-   num-mbufs 131072
-   dev 0000:00:08.0
-}
-nat {
-   endpoint-dependent
-   translation hash buckets 1048576
-   translation hash memory 268435456
-   user hash buckets 1024
-   max translations per user 10000
-}
-acl-plugin {
-   hash lookup heap size 512M
-   hash lookup hash memory 512M
-   use tuple merge 0
-}
-api-trace {
-   on
-   nitems 5000
-}
-EOF
-}
-
-createVPPconfig
-split_node_os_release="$(cut -d "." -f 1 <<< '#{node_os_release}')"
-if [ "$split_node_os_release" = '16' ]; then
-  kernelModule=$(lsmod | grep uio_pci_generic | wc -l)
-  if [[ $kernelModule -gt 0 ]]; then
-    echo "PCI UIO driver is loaded"
-  else
-    installPCIUIO
-  fi
-  if [ "#{dep_scenario}" = 'nostn' ]; then
-      #shutdown interface
-      ip link set enp0s8 down
-      echo "#auto enp0s8" >> /etc/network/interfaces
-  fi
-else
-  kernelModule=$(lsmod | grep vfio_pci | wc -l)
-  if [[ $kernelModule -gt 0 ]]; then
-    echo "PCI VFIO driver is loaded"
-  else
-    installPCIVFIO
-  fi
-  if [ "#{dep_scenario}" = 'nostn' ]; then
-    #shutdown interface
-    ip link set enp0s8 down
-  fi
-fi
-SCRIPT
-
-vbox_bootstrap_master = <<SCRIPT
-set -e
-set -x
-
-echo Args passed: [[ $@ ]]
-
-sudo -E apt-get install -y python-pip \
-                   python-dev \
-                   python-virtualenv \
-                   build-essential 
-
-#Install pip
-sudo -E pip install --upgrade pip
-sudo -E pip install --upgrade virtualenv
-
-# Pull images if not present
-if [ -f /vagrant/images.tar ]; then
-    echo "Found saved images at /vagrant/images.tar"
-    docker load -i /vagrant/images.tar
-elif [ "#{dep_scenario}" != 'calico' ]; then
-  echo "Pulling Contiv-VPP plugin images..."
-  sudo -E #{contiv_dir}/k8s/pull-images.sh -b '#{image_tag}'
-fi
-
-#Install helm
-echo "Downloading and installing Helm..."
-curl -sL https://storage.googleapis.com/kubernetes-helm/helm-v'#{helm_version}'-linux-amd64.tar.gz > /tmp/helm.tgz
-tar -zxvf /tmp/helm.tgz -C /tmp
-mv /tmp/linux-amd64/helm /usr/local/bin/helm
-
-# --------------------------------------------------------
-# ---> Build Contiv/VPP-vswitch Development Image <---
-# --------------------------------------------------------
-
-if [ "#{dep_env}" = "dev" ]; then
-    sudo -E apt-get install -y xorg \
-                            openbox
-
-    echo "Downloading and installing Goland..."
-    curl -sL https://download.jetbrains.com/go/goland-'#{goland_version}'.tar.gz > /tmp/goland.tar.gz
-    tar -xvzf /tmp/goland.tar.gz --directory /home/vagrant >/dev/null 2>&1
-
-    if [ -f /vagrant/dev-contiv-vswitch.tar ]; then
-        echo "Found saved dev image at /vagrant/dev-contiv-vswitch.tar"
-        docker load -i /vagrant/dev-contiv-vswitch.tar
-    else
-        echo "vagrant" >> #{contiv_dir}/.dockerignore
-        echo "Building development contivpp/vswitch image..."
-        cd #{contiv_dir}/docker; ./build-all.sh
-    fi
-fi
-
-# --------------------------------------------------------
-# ---> Create token and export it with kube master IP <---
-# --------------------------------------------------------
-
-echo "Exporting Kube Master IP and Kubeadm Token..."
-echo "export KUBEADM_TOKEN=$(kubeadm token generate)" >> /vagrant/config/init
-
-if [ "#{dep_scenario}" != 'nostn' ]; then
-  echo "export KUBE_MASTER_IP=$(hostname -I | cut -f2 -d' ')" >> /vagrant/config/init
-  source /vagrant/config/init
-  sed 's/127\.0\.1\.1.*k8s.*/'"$KUBE_MASTER_IP"' '"$1"'/' -i /etc/hosts
-  echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
-  echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
-else
-  echo "export KUBE_MASTER_IP=$2" >> /vagrant/config/init
-  source /vagrant/config/init
-  sed 's/127\.0\.1\.1.*k8s.*/'"$2"' '"$1"'/' -i /etc/hosts
-  echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
-  echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
-fi
-
-source /etc/profile.d/envvar.sh
-source /home/vagrant/.profile
-
-# --------------------------------------------------------
-# --------------> Kubeadm & Networking <------------------
-# --------------------------------------------------------
-
-# Based on kubernetes version, disable hugepages in Kubelet
-# Initialize Kubernetes master
-
-echo "Pulling k8s images..."
-echo "$(kubeadm config images pull --kubernetes-version=v"#{k8s_version}")"
-
-split_k8s_version="$(cut -d "." -f 2 <<< '#{k8s_version}')"
-if [ $split_k8s_version -gt 10 ] ; then
-  if [ "#{node_os_release}" == "16.04" ] ; then
-    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
-  else
-    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false --resolv-conf=\\/run\\/systemd\\/resolve\\/resolv.conf/' /etc/default/kubelet
-  fi
-  systemctl daemon-reload
-  systemctl restart kubelet
-  if [ "#{dep_scenario}" != 'calico' ] && [ "#{dep_scenario}" != 'calicovpp' ]; then
-    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
-  else
-    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="10.10.0.0/16" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
-  fi
-else
-  sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
-  systemctl daemon-reload
-  systemctl restart kubelet
-  echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
-fi
-
-echo "Create folder to store kubernetes and network configuration"
-mkdir -p /home/vagrant/.kube
-sudo cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config
-sudo chown vagrant:vagrant -R /home/vagrant/.kube
-sleep 2;
-
-applySTNScenario() {
-  if [ "#{dep_scenario}" = "nostn" ]; then
-
-    # Generate node config for use with CRD
-    cat > #{contiv_dir}/k8s/node-config/crd.yaml <<EOL
-# Configuration for node config in the cluster
-apiVersion: nodeconfig.contiv.vpp/v1
-kind: NodeConfig
-metadata:
-  name: k8s-master
-spec:
-  mainVPPInterface:
-    interfaceName: "GigabitEthernet0/8/0"
-  gateway: "10.130.1.254"
-
----
-EOL
-    counter=1;
-    until ((counter > "#{num_nodes}"))
-    do
-
-       # Generate node config for use with CRD
-      cat <<EOL >> #{contiv_dir}/k8s/node-config/crd.yaml
-# Configuration for node config in the cluster
-apiVersion: nodeconfig.contiv.vpp/v1
-kind: NodeConfig
-metadata:
-  name: k8s-worker$counter
-spec:
-  mainVPPInterface:
-    interfaceName: "GigabitEthernet0/8/0"
-  gateway: "10.130.1.254"
-
----
-EOL
-
-    ((counter++))
-    done
-  else
-    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh > /tmp/contiv-stn.sh
-    chmod +x /tmp/contiv-stn.sh
-    sudo /tmp/contiv-stn.sh
-    # For use without CRD
-    stn_config="--set contiv.stealInterface=enp0s8"
-
-    # Generate node config for use with CRD
-    cat > #{contiv_dir}/k8s/node-config/crd.yaml <<EOL
-# Configuration for node config in the cluster
-apiVersion: nodeconfig.contiv.vpp/v1
-kind: NodeConfig
-metadata:
-  name: k8s-master
-spec:
-  mainVPPInterface:
-    interfaceName: "GigabitEthernet0/8/0"
-
----
-EOL
-
-    counter=1;
-    until ((counter > "#{num_nodes}"))
-    do
-      # Generate node config for use with CRD
-      cat <<EOL >> #{contiv_dir}/k8s/node-config/crd.yaml
-# Configuration for node config in the cluster
-apiVersion: nodeconfig.contiv.vpp/v1
-kind: NodeConfig
-metadata:
-  name: k8s-worker$counter
-spec:
-  mainVPPInterface:
-    interfaceName: "GigabitEthernet0/8/0"
-
----
-EOL
-
-      ((counter++))
-    done
-  fi
-}
-
-applyVPPnetwork() {
-  helm_extra_opts="#{helm_extra_opts}"
-
-  if [ "#{image_tag}" != "latest" ]; then
-    helm_extra_opts="${helm_extra_opts} --set vswitch.image.tag=#{image_tag} --set cni.image.tag=#{image_tag} --set ksr.image.tag=#{image_tag} --set crd.image.tag=#{image_tag}"
-  fi
-
-  if [ "#{crd_disabled}" = "false" ]; then
-    # Deploy contiv-vpp networking with CRD
-    helm template ${helm_extra_opts} --name vagrant ${stn_config} --set contiv.crd.disableNetctlREST=false --set contiv.routeServiceCIDRToVPP=true --set contiv.tapv2RxRingSize=1024 --set contiv.tapv2TxRingSize=1024 --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 --set contiv.ipamConfig.nodeInterconnectCIDR="" "#{contiv_dir}"/k8s/contiv-vpp -f "#{contiv_dir}"/k8s/contiv-vpp/values.yaml,"#{contiv_dir}"/k8s/contiv-vpp/values-latest.yaml > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
-    kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
-
-    # Wait until crd agent is ready
-    crd_ready="";
-    while [ "$crd_ready" != "1" ];
-    do
-      echo "Waiting for crd agent to come up...";
-      crd_ready=$(kubectl get daemonset contiv-crd -n kube-system --template={{.status.numberReady}});
-      sleep 5;
-    done;
-
-      kubectl apply -f #{contiv_dir}/k8s/node-config/crd.yaml
-  else
-    if [ "#{dep_scenario}" = "nostn" ]; then
-       gateway_config="--set contiv.ipamConfig.defaultGateway=192.168.16.100"
-    fi
-    # Deploy contiv-vpp networking without CRD
-    helm template ${helm_extra_opts} --name vagrant ${stn_config} ${gateway_config} --set contiv.crd.disableNetctlREST=false --set contiv.routeServiceCIDRToVPP=true --set contiv.tapv2RxRingSize=1024 --set contiv.tapv2TxRingSize=1024 "#{contiv_dir}"/k8s/contiv-vpp -f "#{contiv_dir}/"k8s/contiv-vpp/values.yaml,"#{contiv_dir}"/k8s/contiv-vpp/values-latest.yaml > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
-    kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
-  fi
-
-  echo "Schedule Pods on master"
-  kubectl taint nodes --all node-role.kubernetes.io/master-
-
-  echo "Deploy contiv UI"
-  kubectl apply -f #{contiv_dir}/k8s/contiv-vpp-ui.yaml
-}
-
-applyCalicoNetwork() {
-  echo "Deploy Calico"
-  kubectl apply -f https://docs.projectcalico.org/v3.3/getting-started/kubernetes/installation/hosted/rbac-kdd.yaml
-  kubectl apply -f https://docs.projectcalico.org/v3.3/getting-started/kubernetes/installation/hosted/kubernetes-datastore/calico-networking/1.7/calico.yaml
-
-  echo "Schedule Pods on master"
-  kubectl taint nodes --all node-role.kubernetes.io/master-
-}
-
-applyCalicoVPPNetwork() {
-  echo "Deploy CalicoVPP"
-  kubectl apply -f #{contiv_dir}/vagrant/calico-vpp/rbac-kdd.yaml
-  kubectl apply -f #{contiv_dir}/vagrant/calico-vpp/calico.yaml
-  kubectl apply -f #{contiv_dir}/vagrant/calico-vpp/calico-vpp.yaml
-
-  echo "Label master with cni-type=calico"
-  kubectl label nodes k8s-master cni-type=calico
-
-  echo "Install calicoctl"
-  wget --progress=bar:force https://github.com/projectcalico/calicoctl/releases/download/v3.3.2/calicoctl
-  chmod +x calicoctl
-  sudo mv calicoctl /usr/local/bin/
-  sudo mkdir /etc/calico/
-  sudo cp #{contiv_dir}/vagrant/calico-vpp/calicoctl.cfg /etc/calico/
-
-  echo "Configure BGP"
-  until sudo calicoctl apply -f #{contiv_dir}/vagrant/calico-vpp/bgp.yaml
-  do
-      sleep 1
-      echo "retry..."
-  done
-}
-
-stn_config=""
-export stn_config
-applySTNScenario
-
-if [ "#{dep_scenario}" == 'calico' ]; then
-  export -f applyCalicoNetwork
-  su vagrant -c "bash -c applyCalicoNetwork"
-elif [ "#{dep_scenario}" == 'calicovpp' ]; then
-  export stn_config="${stn_config} --set contiv.useL2Interconnect=true --set contiv.ipamConfig.useExternalIPAM=true --set contiv.ipamConfig.podSubnetCIDR=10.10.0.0/16 --set vswitch.useNodeAffinity=true"
-  export -f applyVPPnetwork
-  su vagrant -c "bash -c applyVPPnetwork"
-  export -f applyCalicoVPPNetwork
-  su vagrant -c "bash -c applyCalicoVPPNetwork"
-else
-  # nostn / stn
-  export -f applyVPPnetwork
-  su vagrant -c "bash -c applyVPPnetwork"
-fi
-
-SCRIPT
-
-vbox_bootstrap_worker = <<SCRIPT
-set -e
-set -x
-
-echo Args passed: [[ $@ ]]
-
-# Load images if present
-if [ -f /vagrant/images.tar ]; then
-    echo "Found saved images at /vagrant/images.tar"
-    docker load -i /vagrant/images.tar
-fi
-
-source /vagrant/config/init
-
-if [ "#{dep_scenario}" != 'nostn' ]; then
-  export KUBE_WORKER_IP=$(hostname -I | cut -f2 -d' ')
-else
-  export KUBE_WORKER_IP=$2
-fi
-
-sed 's/127\.0\.1\.1.*k8s.*/'"$KUBE_WORKER_IP"' '"$1"'/' -i /etc/hosts
-echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
-echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
-source /etc/profile.d/envvar.sh
-source /home/vagrant/.profile
-
-if [ "#{dep_scenario}" != 'nostn' ]; then
-  curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh > /tmp/contiv-stn.sh
-  chmod +x /tmp/contiv-stn.sh
-  sudo /tmp/contiv-stn.sh
-fi
-
-# Based on kubernetes version, disable hugepages in Kubelet
-# Join the kubernetes cluster
-split_k8s_version="$(cut -d "." -f 2 <<< "'#{k8s_version}'")"
-if [ $split_k8s_version -gt 10 ] ; then
-  if [ "#{node_os_release}" == "16.04" ] ; then
-    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
-  else
-    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--resolv-conf=\\/run\\/systemd\\/resolve\\/resolv.conf --node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
-  fi
-  systemctl daemon-reload
-  systemctl restart kubelet
-else
-  sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
-  systemctl daemon-reload
-  systemctl restart kubelet
-fi
-
-hash=$(awk 'END {print $NF}' /vagrant/config/cert)
-kubeadm join --token "${KUBEADM_TOKEN}"  "${KUBE_MASTER_IP}":6443 --discovery-token-ca-cert-hash "$hash"
-SCRIPT
-
-vbox_provision_gateway = <<SCRIPT
-set -e
-set -x
-
-sed -i '/net.ipv4.ip_forward/s/^#//g' /etc/sysctl.conf
-sysctl -p /etc/sysctl.conf
-
-iptables --table nat --append POSTROUTING --out-interface enp0s3 -j MASQUERADE
-iptables --append FORWARD --in-interface enp0s8 -j ACCEPT
-
-# Load iptables rules on boot.
-iptables-save >/etc/iptables-rules-v4.conf
-cat<<'EOF'>/etc/network/if-pre-up.d/iptables-restore
-#!/bin/sh
-iptables-restore </etc/iptables-rules-v4.conf
-EOF
-
-chmod +x /etc/network/if-pre-up.d/iptables-restore
-if [ "#{node_os_release}" == "16.04" ] ; then
-    sudo /sbin/ifdown enp0s8 && sudo /sbin/ifup enp0s8
-fi
-
-if [ "#{dep_scenario}" == 'calicovpp' ]; then
-    echo "Deploy bird BGP router"
-
-    # generate BGP config into /etc/bird/bird.conf
-    sudo mkdir /etc/bird
-    sudo cp /vagrant/bird/bird.conf /etc/bird
-
-    counter=2;
-    until ((counter-1 > "#{num_nodes}"))
-    do
-      sudo cat << EOL >> /etc/bird/bird.conf
-protocol bgp {
-        debug all;
-        import all;
-        export all;
-        local as 63400;
-        neighbor 192.168.16.$counter as 63400;
-}
-EOL
-    ((counter++))
-    done
-
-    # install docker & deploy bird container
-    sudo -E apt-get install -y docker.io
-    sudo /vagrant/bird/run.sh
-fi
-
-SCRIPT
+if (k8s_version == "1.12.3" && docker_version == "18.03.0~ce-0")
+    prebuilt = true;
+end
+
+if (ip_version == 'ipv6transport' || ip_version == 'ipv6' )
+    # ipv6 requires vagrant box with a newer OS version
+    node_os_release = '18.04'
+end
+
+if (ip_version == 'ipv6' && base_ip == '10.20.0.')
+    # use ipv6 mgmt address
+    base_ip = '2001:fd00::'
+    base_prefix_len = '64'
+end
+
+env = { }
+# Do not modify env variables after this step
+VARIABLES = ['http_proxy', 'https_proxy', 'k8s_version', 'docker_version',
+'node_os', 'node_os_release', 'node_cpus', 'node_memory', 'num_nodes', 'master_cpus',
+'master_memory', 'dep_env', 'dep_scenario', 'base_ip', 'base_prefix_len', 'provider',
+'image_tag', 'go_version', 'goland_version', 'helm_version', 'crd_disabled',
+'ip_version', 'contiv_dir', 'helm_extra_opts']
+
+VARIABLES.each do |x|
+  env[x] = eval x
+end
 
 VAGRANTFILE_API_VERSION = "2"
   Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
@@ -656,16 +104,31 @@ VAGRANTFILE_API_VERSION = "2"
         config.vbguest.auto_update = false
     end
     if node_os == "ubuntu" then
-      case node_os_release
-      when "16.04"
-        config.vm.box = "puppetlabs/ubuntu-16.04-64-nocm"
-        config.vm.box_version = "1.0.0"
-      when "18.04"
-        config.vm.box = "ubuntu/bionic64"
-        config.vm.box_version = "20181008.0.0"
+      if prebuilt then
+          # use custom images with k8s preinstalled
+          case node_os_release
+            when "16.04"
+              config.vm.box = "samelias/contiv-ubuntu16-k8s12"
+              config.vm.box_version = "0.1.0"
+            when "18.04"
+              config.vm.box = "samelias/contiv-ubuntu18-k8s12"
+              config.vm.box_version = "0.1.0"
+            else
+              puts "Wrong node os release #{node_os_release} -- Aborting"
+              abort
+            end
       else
-        puts "Wrong node os release #{node_os_release} -- Aborting"
-        abort
+          case node_os_release
+            when "16.04"
+              config.vm.box = "puppetlabs/ubuntu-16.04-64-nocm"
+              config.vm.box_version = "1.0.0"
+            when "18.04"
+              config.vm.box = "ubuntu/bionic64"
+              config.vm.box_version = "20181008.0.0"
+            else
+              puts "Wrong node os release #{node_os_release} -- Aborting"
+              abort
+            end
       end
     else
         # Nothing for now, later add more OS
@@ -688,14 +151,16 @@ VAGRANTFILE_API_VERSION = "2"
     config.vm.define "k8s-gateway" do |gw|
       gw.vm.hostname = "k8s-gateway"
       # Interface for K8s Cluster
+      gw.vm.box = "puppetlabs/ubuntu-16.04-64-nocm"
+      gw.vm.box_version = "1.0.0"
       if dep_scenario == 'nostn'
         if crd_disabled == 'false'
-          gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp"
+          gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
         else
-          gw.vm.network :private_network, ip: "192.168.16.100", netmask: "255.255.255.0", virtualbox__intnet: "vpp"
+          gw.vm.network :private_network, ip: "192.168.16.100", netmask: "255.255.255.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
         end
       else
-        gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"
+        gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp", nic_type: "82540EM"
       end
       if dep_scenario == 'calico'
         gw_ip = base_ip + "1"
@@ -707,7 +172,8 @@ VAGRANTFILE_API_VERSION = "2"
         v.cpus = 1
       end
       gw.vm.provision "shell" do |s|
-        s.inline = vbox_provision_gateway
+        s.path = "provision/provision_gateway.sh"
+        s.env = env
       end
     end
 
@@ -718,18 +184,22 @@ VAGRANTFILE_API_VERSION = "2"
       k8smaster.vm.synced_folder "../", "#{contiv_dir}"
 
       if dep_scenario != 'nostn'
-        k8smaster.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
-        # default router
-        k8smaster.vm.provision "shell",
-          run: "always",
-          inline: "route add default gw 192.168.16.100"
-        # delete default gw on eth0
-        k8smaster.vm.provision "shell",
-          run: "always",
-          inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
+        if ip_version != 'ipv6'
+          k8smaster.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp", nic_type: "82540EM"
+          # default router
+          k8smaster.vm.provision "shell",
+            run: "always",
+            inline: "route add default gw 192.168.16.100"
+          # delete default gw on eth0
+          k8smaster.vm.provision "shell",
+            run: "always",
+            inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
+        else
+          k8smaster.vm.network :private_network, ip: k8smaster_ip, netmask: "#{base_prefix_len}", virtualbox__intnet: "vpp", nic_type: "82540EM"
+        end
       else
-        k8smaster.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
-        k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
+        k8smaster.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp", nic_type: "82540EM"
+        k8smaster.vm.network :private_network, ip: k8smaster_ip, netmask: "#{base_prefix_len}", virtualbox__intnet: "true"
       end
 
       k8smaster.vm.provider "virtualbox" do |v|
@@ -737,16 +207,27 @@ VAGRANTFILE_API_VERSION = "2"
         #v.customize ["modifyvm", :id, "--vram", "128"]
         v.memory = master_memory
         v.cpus = master_cpus
+        v.customize [ "modifyvm", :id, "--uartmode1", "disconnected" ]
       end
       k8smaster.vm.provision "shell" do |s|
-        s.inline = provision_every_node
+        if prebuilt then
+          s.path = "provision/provision_every_node.sh"
+        else
+          s.path = "provision/provision_every_node.sh"
+          s.args = ["install"]
+        end
+        s.env = env
+      end
+      if !prebuilt then
+        k8smaster.vm.provision "shell" do |s|
+          s.path = "provision/install_requirements_master.sh"
+          s.env = env
+        end
       end
       k8smaster.vm.provision "shell" do |s|
-        s.inline = vbox_provision_every_node
-      end
-      k8smaster.vm.provision "shell" do |s|
-        s.inline = vbox_bootstrap_master
+        s.path = "provision/bootstrap_master.sh"
         s.args = ["k8s-master", k8smaster_ip]
+        s.env = env
       end
     end
 
@@ -759,34 +240,43 @@ VAGRANTFILE_API_VERSION = "2"
         node.vm.hostname = node_name
         # Interface for K8s Cluster
         if dep_scenario != 'nostn'
-          node.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
-          # default router
-          node.vm.provision "shell",
-            run: "always",
-            inline: "route add default gw 192.168.16.100"
-          # delete default gw on eth0
-          node.vm.provision "shell",
-            run: "always",
-            inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
+          if ip_version != 'ipv6'
+            node.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp", nic_type: "82540EM"
+            # default router
+            node.vm.provision "shell",
+              run: "always",
+              inline: "route add default gw 192.168.16.100"
+            # delete default gw on eth0
+            node.vm.provision "shell",
+              run: "always",
+              inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
+          else
+            node.vm.network :private_network, ip: node_addr, netmask: "#{base_prefix_len}", virtualbox__intnet: "vpp", nic_type: "82540EM"
+          end
         else
-          node.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
-          node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
+          node.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp", nic_type: "82540EM"
+          node.vm.network :private_network, ip: node_addr, netmask: "#{base_prefix_len}", virtualbox__intnet: "true"
         end
 
         node.vm.provider "virtualbox" do |v|
           v.customize ["modifyvm", :id, "--ioapic", "on"]
           v.memory = node_memory
           v.cpus = node_cpus
+          v.customize [ "modifyvm", :id, "--uartmode1", "disconnected" ]
         end
         node.vm.provision "shell" do |s|
-          s.inline = provision_every_node
+          if prebuilt then
+            s.path = "provision/provision_every_node.sh"
+          else
+            s.path = "provision/provision_every_node.sh"
+            s.args = ["install"]
+          end
+          s.env = env
         end
         node.vm.provision "shell" do |s|
-          s.inline = vbox_provision_every_node
-        end
-        node.vm.provision "shell" do |s|
-          s.inline = vbox_bootstrap_worker
+          s.path = "provision/bootstrap_worker.sh"
           s.args = [node_name, node_addr, dep_scenario, k8s_version]
+          s.env = env
         end
       end
   end

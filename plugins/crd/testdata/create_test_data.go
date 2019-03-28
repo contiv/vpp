@@ -25,7 +25,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	vppnodemodel "github.com/contiv/vpp/plugins/nodesync/vppnode"
@@ -74,7 +74,7 @@ func CreateNodeTestData(vppCache api.VppCache) error {
 			return fmt.Errorf("failed to unmarshall node interfaces, err %s", err)
 		}
 
-		nipe := ipv4net.IPAMData{}
+		nipe := ipnet.IPAMData{}
 		if err := json.Unmarshal([]byte(data["ipam"]), &nipe); err != nil {
 			return fmt.Errorf("failed to unmarshall node ipam, err %s", err)
 		}

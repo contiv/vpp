@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -51,6 +52,9 @@ type API interface {
 	// identified by nodeID.
 	HostInterconnectSubnetOtherNode(nodeID uint32) (*net.IPNet, error)
 
+	// NodeIDFromPodIP returns node ID from provided POD IP address.
+	NodeIDFromPodIP(podIP net.IP) (uint32, error)
+
 	// PodSubnetAllNodes returns POD subnet that is a base subnet for all PODs
 	// of all nodes.
 	PodSubnetAllNodes() *net.IPNet
@@ -80,8 +84,18 @@ type API interface {
 	// Returns nil if the pod does not have allocated IP address.
 	GetPodIP(podID podmodel.ID) *net.IPNet
 
+	// GetPodFromIP returns the pod information related to the allocated pod IP.
+	// found is false if the provided IP address has not been allocated to any local pod.
+	GetPodFromIP(podIP net.IP) (podID podmodel.ID, found bool)
+
 	// ReleasePodIP releases the pod IP address making it available for new PODs.
 	ReleasePodIP(podID podmodel.ID) error
+
+	// GetIPAMConfigForJSON returns IPAM configuration in format suitable
+	// for marshalling to JSON (subnets not converted to net.IPNet + defined
+	// JSON flag for every option). If contivCIDR is used it returns actual
+	// dissected subnets.
+	GetIPAMConfigForJSON() *contivconf.IPAMConfigForJSON
 }
 
 // PodCIDRChange is triggered when CIDR for PODs on the current node changes.

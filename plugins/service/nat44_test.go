@@ -28,7 +28,7 @@ import (
 	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 
 	. "github.com/contiv/vpp/mock/datasync"
-	. "github.com/contiv/vpp/mock/ipv4net"
+	. "github.com/contiv/vpp/mock/ipnet"
 	. "github.com/contiv/vpp/mock/natplugin"
 	. "github.com/contiv/vpp/mock/nodesync"
 	. "github.com/contiv/vpp/mock/podmanager"
@@ -202,7 +202,7 @@ type plugins struct {
 	podManager   *MockPodManager
 	natPlugin    *MockNatPlugin
 	txnTracker   *localclient.TxnTracker
-	ipv4Net      *MockIPv4Net
+	ipNet        *MockIPNet
 	svcProcessor *svc_processor.ServiceProcessor
 	renderer     *nat44.Renderer
 }
@@ -279,14 +279,14 @@ func initPlugins(testName string, config *contivconf.Config, localEndpointWeight
 	// transactions
 	plugins.txnTracker = localclient.NewTxnTracker(plugins.natPlugin.ApplyTxn)
 
-	// IPv4Net plugin
-	plugins.ipv4Net = NewMockIPv4Net()
-	plugins.ipv4Net.SetNodeIP(nodeIP)
-	plugins.ipv4Net.SetVxlanBVIIfName(vxlanIfName)
-	plugins.ipv4Net.SetHostInterconnectIfName(hostInterIfName)
-	plugins.ipv4Net.SetPodIfName(pod1, pod1If)
-	plugins.ipv4Net.SetPodIfName(pod2, pod2If)
-	plugins.ipv4Net.SetHostIPs([]net.IP{mgmtIP})
+	// IPNet plugin
+	plugins.ipNet = NewMockIPNet()
+	plugins.ipNet.SetNodeIP(nodeIP)
+	plugins.ipNet.SetVxlanBVIIfName(vxlanIfName)
+	plugins.ipNet.SetHostInterconnectIfName(hostInterIfName)
+	plugins.ipNet.SetPodIfName(pod1, pod1If)
+	plugins.ipNet.SetPodIfName(pod2, pod2If)
+	plugins.ipNet.SetHostIPs([]net.IP{mgmtIP})
 
 	// Prepare processor.
 	plugins.svcProcessor = &svc_processor.ServiceProcessor{
@@ -295,7 +295,7 @@ func initPlugins(testName string, config *contivconf.Config, localEndpointWeight
 			ServiceLabel: plugins.serviceLabel,
 			ContivConf:   plugins.contivConf,
 			IPAM:         plugins.ipam,
-			IPv4Net:      plugins.ipv4Net,
+			IPNet:        plugins.ipNet,
 			NodeSync:     plugins.nodeSync,
 			PodManager:   plugins.podManager,
 		},
@@ -308,7 +308,7 @@ func initPlugins(testName string, config *contivconf.Config, localEndpointWeight
 			Config:           &svc_config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
 			ContivConf:       plugins.contivConf,
 			IPAM:             plugins.ipam,
-			IPv4Net:          plugins.ipv4Net,
+			IPNet:            plugins.ipNet,
 			ResyncTxnFactory: resyncTxnFactory(plugins.txnTracker),
 			UpdateTxnFactory: updateTxnFactory(plugins.txnTracker),
 		},
@@ -1127,7 +1127,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			ServiceLabel: plugins.serviceLabel,
 			ContivConf:   plugins.contivConf,
 			IPAM:         plugins.ipam,
-			IPv4Net:      plugins.ipv4Net,
+			IPNet:        plugins.ipNet,
 			NodeSync:     plugins.nodeSync,
 			PodManager:   plugins.podManager,
 		},
@@ -1138,7 +1138,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			Config:           &svc_config.Config{ServiceLocalEndpointWeight: localEndpointWeight},
 			ContivConf:       plugins.contivConf,
 			IPAM:             plugins.ipam,
-			IPv4Net:          plugins.ipv4Net,
+			IPNet:            plugins.ipNet,
 			ResyncTxnFactory: resyncTxnFactory(plugins.txnTracker),
 			UpdateTxnFactory: updateTxnFactory(plugins.txnTracker),
 		},
@@ -1250,7 +1250,7 @@ func TestWithoutVXLAN(t *testing.T) {
 	RegisterTestingT(t)
 	config := defaultConfig(false)
 	plugins := initPlugins("TestWithoutVXLAN", config, 1, false)
-	plugins.ipv4Net.SetVxlanBVIIfName("")
+	plugins.ipNet.SetVxlanBVIIfName("")
 
 	// Resync from empty VPP.
 	resyncEv, _ := plugins.datasync.ResyncEvent(keyPrefixes...)
@@ -1337,7 +1337,7 @@ func TestWithoutNodeIP(t *testing.T) {
 	RegisterTestingT(t)
 	config := defaultConfig(false)
 	plugins := initPlugins("TestWithoutNodeIP", config, 1, false)
-	plugins.ipv4Net.SetNodeIP(nil)
+	plugins.ipNet.SetNodeIP(nil)
 
 	// Resync from empty VPP.
 	resyncEv, _ := plugins.datasync.ResyncEvent(keyPrefixes...)

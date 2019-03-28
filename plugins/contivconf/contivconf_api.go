@@ -101,6 +101,9 @@ type IPAMConfig struct {
 	// UseExternalIPAM is true if IPAM is provided by an external IPAM plugin instead of Contiv.
 	UseExternalIPAM bool
 
+	// UseIPv6 is true if IPv6 networking should be used instead of IPv4.
+	UseIPv6 bool
+
 	// CIDR to use for all IP address allocations.
 	// If defined (non-nil), the manually selected subnets (CustomIPAMSubnets, see below)
 	// should be ignored - i.e. this field takes precedence.

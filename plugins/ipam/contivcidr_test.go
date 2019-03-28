@@ -39,6 +39,7 @@ func TestValidator(t *testing.T) {
 
 	// Do the testing
 	t.Run("testApplyIPAM", testApplyIPAM)
+	t.Run("testIPv6", testIPv6)
 }
 
 func ipNet(network string) *net.IPNet {
@@ -58,7 +59,7 @@ func testApplyIPAM(t *testing.T) {
 	}
 	// Try with /14 subnet mask
 	configData3 := &contivconf.IPAMConfig{
-		ContivCIDR: ipNet("192.254.0.0/12"),
+		ContivCIDR: ipNet("192.240.0.0/12"),
 	}
 
 	// Try with overridden NodeInterconnectCIDR
@@ -109,4 +110,26 @@ func testApplyIPAM(t *testing.T) {
 	gomega.Expect(subnets.VPPHostSubnetCIDR.String()).To(gomega.Equal("10.129.0.0/16"))
 	gomega.Expect(subnets.NodeInterconnectCIDR).To(gomega.BeNil())
 	gomega.Expect(subnets.VxlanCIDR.String()).To(gomega.Equal("10.130.2.0/23"))
+}
+
+func testIPv6(t *testing.T) {
+	configData1 := &contivconf.IPAMConfig{
+		ContivCIDR: ipNet("fe10::/64"),
+	}
+
+	subnets, err := dissectContivCIDR(configData1)
+	gomega.Expect(err).To(gomega.BeNil())
+
+	gomega.Expect(subnets.PodSubnetCIDR.String()).To(gomega.Equal("fe10::/112"))
+	gomega.Expect(subnets.VPPHostSubnetCIDR.String()).To(gomega.Equal("fe10::1:0/112"))
+	gomega.Expect(subnets.NodeInterconnectCIDR.String()).To(gomega.Equal("fe10::2:0/119"))
+	gomega.Expect(subnets.VxlanCIDR.String()).To(gomega.Equal("fe10::2:200/119"))
+
+	configData2 := &contivconf.IPAMConfig{
+		ContivCIDR: ipNet("fe10::/120"),
+	}
+
+	_, err = dissectContivCIDR(configData2)
+	gomega.Expect(err).NotTo(gomega.BeNil())
+
 }

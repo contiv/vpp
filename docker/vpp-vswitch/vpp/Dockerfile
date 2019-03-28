@@ -6,8 +6,6 @@ RUN apt-get update \
     sudo wget git ca-certificates \
     # build tools
     make \
-    # vpp-agent & vpp process manger
-    python supervisor \
     # required for disabling TCP checksum offload in containers
     ethtool \
     # network tools
@@ -19,7 +17,7 @@ RUN apt-get update \
  && mkdir -p /opt/vpp-agent/dev/vpp /opt/vpp-agent/plugin
 
 # install Go
-ENV GOLANG_VERSION 1.10.7
+ENV GOLANG_VERSION 1.11.5
 RUN wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz" \
  && tar -C /usr/local -xzf go.tgz \
  && rm go.tgz

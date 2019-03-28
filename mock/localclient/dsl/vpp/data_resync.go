@@ -12,8 +12,6 @@ import (
 	"github.com/ligato/vpp-agent/api/models/vpp/nat"
 	"github.com/ligato/vpp-agent/api/models/vpp/punt"
 	"github.com/ligato/vpp-agent/api/models/vpp/stn"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/l4"
 )
 
 // MockDataResyncDSL is mock for DataResyncDSL.
@@ -29,30 +27,6 @@ func NewMockDataResyncDSL(commitFunc dsl.CommitFunc) *MockDataResyncDSL {
 // Interface adds interface to the RESYNC request.
 func (d *MockDataResyncDSL) Interface(val *vpp_interfaces.Interface) vppclient.DataResyncDSL {
 	key := vpp_interfaces.InterfaceKey(val.Name)
-	d.Values[key] = val
-	return d
-}
-
-// BfdSession adds VPP bidirectional forwarding detection session to the mock
-// RESYNC request.
-func (d *MockDataResyncDSL) BfdSession(val *bfd.SingleHopBFD_Session) vppclient.DataResyncDSL {
-	key := bfd.SessionKey(val.Interface)
-	d.Values[key] = val
-	return d
-}
-
-// BfdAuthKeys adds VPP bidirectional forwarding detection key to the mock RESYNC
-// request.
-func (d *MockDataResyncDSL) BfdAuthKeys(val *bfd.SingleHopBFD_Key) vppclient.DataResyncDSL {
-	key := bfd.AuthKeysKey(string(val.Id))
-	d.Values[key] = val
-	return d
-}
-
-// BfdEchoFunction adds VPP bidirectional forwarding detection echo function
-// mock to the RESYNC request.
-func (d *MockDataResyncDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) vppclient.DataResyncDSL {
-	key := bfd.EchoFunctionKey(val.EchoSourceInterface)
 	d.Values[key] = val
 	return d
 }
@@ -109,20 +83,6 @@ func (d *MockDataResyncDSL) ProxyArp(val *vpp_l3.ProxyARP) vppclient.DataResyncD
 // IPScanNeighbor adds L3 IP Scan Neighbor to the RESYNC request.
 func (d *MockDataResyncDSL) IPScanNeighbor(val *vpp_l3.IPScanNeighbor) vppclient.DataResyncDSL {
 	key := vpp_l3.IPScanNeighborKey()
-	d.Values[key] = val
-	return d
-}
-
-// L4Features adds L4 features to the RESYNC request
-func (d *MockDataResyncDSL) L4Features(val *l4.L4Features) vppclient.DataResyncDSL {
-	key := l4.FeatureKey()
-	d.Values[key] = val
-	return d
-}
-
-// AppNamespace adds VPP Application namespaces to the RESYNC request
-func (d *MockDataResyncDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) vppclient.DataResyncDSL {
-	key := l4.AppNamespacesKey(val.NamespaceId)
 	d.Values[key] = val
 	return d
 }

@@ -36,6 +36,8 @@ type depNode struct {
 func (s *Scheduler) dotGraphHandler(formatter *render.Render) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		args := req.URL.Query()
+		s.txnLock.Lock()
+		defer s.txnLock.Unlock()
 		graphRead := s.graph.Read()
 		defer graphRead.Release()
 
@@ -148,7 +150,7 @@ func (s *Scheduler) renderDotOutput(graphNodes []*graph.RecordedNode, txn *kvs.R
 
 		label := graphNode.Label
 		var descriptorName string
-		if descriptorFlag := graphNode.GetFlag(DescriptorFlagName); descriptorFlag != nil {
+		if descriptorFlag := graphNode.GetFlag(DescriptorFlagIndex); descriptorFlag != nil {
 			descriptorName = descriptorFlag.GetValue()
 		} else {
 			// for missing dependencies
@@ -169,7 +171,7 @@ func (s *Scheduler) renderDotOutput(graphNodes []*graph.RecordedNode, txn *kvs.R
 
 			if _, ok := c.Clusters[descriptorName]; !ok {
 				c.Clusters[descriptorName] = &dotCluster{
-					ID:       key,
+					ID:       descriptorName,
 					Clusters: make(map[string]*dotCluster),
 					Attrs: dotAttrs{
 						"penwidth":  "0.8",
@@ -183,32 +185,38 @@ func (s *Scheduler) renderDotOutput(graphNodes []*graph.RecordedNode, txn *kvs.R
 			c = c.Clusters[descriptorName]
 		}
 
-		var valueState kvs.ValueState
-		stateFlag := graphNode.GetFlag(ValueStateFlagName)
+		var (
+			dashedStyle bool
+			valueState  kvs.ValueState
+		)
+		isDerived := graphNode.GetFlag(DerivedFlagIndex) != nil
+		stateFlag := graphNode.GetFlag(ValueStateFlagIndex)
 		if stateFlag != nil {
 			valueState = stateFlag.(*ValueStateFlag).valueState
 		}
+
+		// set colors
 		switch valueState {
 		case kvs.ValueState_NONEXISTENT:
 			attrs["fontcolor"] = "White"
 			attrs["fillcolor"] = "Black"
 		case kvs.ValueState_MISSING:
 			attrs["fillcolor"] = "Dimgray"
-			attrs["style"] = "dashed,filled"
+			dashedStyle = true
 		case kvs.ValueState_UNIMPLEMENTED:
 			attrs["fillcolor"] = "Darkkhaki"
-			attrs["style"] = "dashed,filled"
+			dashedStyle = true
 		case kvs.ValueState_REMOVED:
 			attrs["fontcolor"] = "White"
 			attrs["fillcolor"] = "Black"
-			attrs["style"] = "dashed,filled"
+			dashedStyle = true
 		// case kvs.ValueState_CONFIGURED // leave default
 		case kvs.ValueState_OBTAINED:
 			attrs["fillcolor"] = "LightCyan"
 		case kvs.ValueState_DISCOVERED:
 			attrs["fillcolor"] = "Lime"
 		case kvs.ValueState_PENDING:
-			attrs["style"] = "dashed,filled"
+			dashedStyle = true
 			attrs["fillcolor"] = "Pink"
 		case kvs.ValueState_INVALID:
 			attrs["fontcolor"] = "White"
@@ -217,6 +225,21 @@ func (s *Scheduler) renderDotOutput(graphNodes []*graph.RecordedNode, txn *kvs.R
 			attrs["fillcolor"] = "Orangered"
 		case kvs.ValueState_RETRYING:
 			attrs["fillcolor"] = "Deeppink"
+		}
+		if isDerived && ((valueState == kvs.ValueState_CONFIGURED) ||
+			(valueState == kvs.ValueState_OBTAINED) ||
+			(valueState == kvs.ValueState_DISCOVERED)) {
+			attrs["fillcolor"] = "LightYellow"
+			attrs["color"] = "bisque4"
+		}
+
+		// set style
+		attrs["style"] = "filled"
+		if isDerived {
+			attrs["style"] += ",rounded"
+		}
+		if dashedStyle {
+			attrs["style"] += ",dashed"
 		}
 
 		value := graphNode.Value
@@ -244,49 +267,48 @@ func (s *Scheduler) renderDotOutput(graphNodes []*graph.RecordedNode, txn *kvs.R
 
 	for _, graphNode := range graphNodes {
 		n := processGraphNode(graphNode)
+		targets := graphNode.Targets
 
-		derived := graphNode.Targets.GetTargetsForRelation(DerivesRelation)
-		if derived != nil {
-			for _, target := range derived.Targets {
-				for _, dKey := range target.MatchingKeys.Iterate() {
-					dn := processGraphNode(getGraphNode(dKey))
-					dn.Attrs["fillcolor"] = "LightYellow"
-					dn.Attrs["color"] = "bisque4"
-					dn.Attrs["style"] = "rounded,filled"
-					attrs := make(dotAttrs)
-					attrs["color"] = "bisque4"
-					attrs["arrowhead"] = "invempty"
-					e := &dotEdge{
-						From:  n,
-						To:    dn,
-						Attrs: attrs,
-					}
-					addEdge(e)
+		for i := targets.RelationBegin(DerivesRelation); i < len(targets); i++ {
+			if targets[i].Relation != DerivesRelation {
+				break
+			}
+			for _, dKey := range targets[i].MatchingKeys.Iterate() {
+				dn := processGraphNode(getGraphNode(dKey))
+				attrs := make(dotAttrs)
+				attrs["color"] = "bisque4"
+				attrs["arrowhead"] = "invempty"
+				e := &dotEdge{
+					From:  n,
+					To:    dn,
+					Attrs: attrs,
 				}
+				addEdge(e)
 			}
 		}
 
-		dependencies := graphNode.Targets.GetTargetsForRelation(DependencyRelation)
-		if dependencies != nil {
+		for i := targets.RelationBegin(DependencyRelation); i < len(targets); i++ {
+			target := targets[i]
+			if target.Relation != DependencyRelation {
+				break
+			}
 			var deps []depNode
-			for _, target := range dependencies.Targets {
-				if target.MatchingKeys.Length() == 0 {
-					var dn *dotNode
-					if target.ExpectedKey != "" {
-						dn = processGraphNode(&graph.RecordedNode{
-							Key: target.ExpectedKey,
-						})
-					} else {
-						dn = processGraphNode(&graph.RecordedNode{
-							Key: "? " + target.Label + " ?",
-						})
-					}
-					deps = append(deps, depNode{node: dn, label: target.Label})
+			if target.MatchingKeys.Length() == 0 {
+				var dn *dotNode
+				if target.ExpectedKey != "" {
+					dn = processGraphNode(&graph.RecordedNode{
+						Key: target.ExpectedKey,
+					})
+				} else {
+					dn = processGraphNode(&graph.RecordedNode{
+						Key: "? " + target.Label + " ?",
+					})
 				}
-				for _, dKey := range target.MatchingKeys.Iterate() {
-					dn := processGraphNode(getGraphNode(dKey))
-					deps = append(deps, depNode{node: dn, label: target.Label, satisfied: true})
-				}
+				deps = append(deps, depNode{node: dn, label: target.Label})
+			}
+			for _, dKey := range target.MatchingKeys.Iterate() {
+				dn := processGraphNode(getGraphNode(dKey))
+				deps = append(deps, depNode{node: dn, label: target.Label, satisfied: true})
 			}
 			for _, d := range deps {
 				attrs := make(dotAttrs)
@@ -363,7 +385,7 @@ func dotToImage(outfname string, format string, dot []byte) (string, error) {
 }
 
 const tmplGraph = `digraph kvscheduler {
-	ranksep=.5
+	ranksep=.5;
 	//nodesep=.1
     label="{{.Title}}";
 	labelloc="b";

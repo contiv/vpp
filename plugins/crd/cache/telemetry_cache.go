@@ -28,16 +28,16 @@ import (
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 	"github.com/ligato/cn-infra/logging"
 
-	linuxifdescr "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/descriptor"
-	vppifdescr "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
+	linuxifdescr "github.com/ligato/vpp-agent/plugins/linux/ifplugin/descriptor"
+	vppifdescr "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor"
 
-	vppl2descr "github.com/ligato/vpp-agent/plugins/vppv2/l2plugin/descriptor"
-	vppl3descr "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/descriptor"
+	vppl2descr "github.com/ligato/vpp-agent/plugins/vpp/l2plugin/descriptor"
+	vppl3descr "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/descriptor"
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 )
 
@@ -290,7 +290,7 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 	url = ctc.kvSchedulerDumpURL(vppl3descr.RouteDescriptorName)
 	go ctc.getNodeInfo(client, node, url, &nodestaticroutes, ctc.databaseVersion)
 
-	nodeipam := ipv4net.IPAMData{}
+	nodeipam := ipnet.IPAMData{}
 	go ctc.getNodeInfo(client, node, ipamURL, &nodeipam, ctc.databaseVersion)
 
 	linuxInterfaces := make(telemetrymodel.LinuxInterfaces, 0)
@@ -388,6 +388,9 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 
 // getAgentURL creates the URL for the data we're trying to retrieve
 func (ctc *ContivTelemetryCache) getAgentURL(ipAddr string, url string) string {
+	if strings.Contains(ipAddr, ":") {
+		ipAddr = "[" + ipAddr + "]"
+	}
 	return "http://" + ipAddr + ctc.agentPort + url
 }
 
@@ -459,8 +462,8 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 		case *telemetrymodel.NodeStaticRoutes:
 			nSrDto := data.NodeInfo.(*telemetrymodel.NodeStaticRoutes)
 			err = ctc.VppCache.SetNodeStaticRoutes(data.NodeName, *nSrDto)
-		case *ipv4net.IPAMData:
-			nipamDto := data.NodeInfo.(*ipv4net.IPAMData)
+		case *ipnet.IPAMData:
+			nipamDto := data.NodeInfo.(*ipnet.IPAMData)
 			err = ctc.VppCache.SetNodeIPam(data.NodeName, *nipamDto)
 		case *telemetrymodel.LinuxInterfaces:
 			liDto := data.NodeInfo.(*telemetrymodel.LinuxInterfaces)

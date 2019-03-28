@@ -25,13 +25,14 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/service/processor"
+	"github.com/contiv/vpp/plugins/service/renderer/ipv6route"
 	"github.com/contiv/vpp/plugins/service/renderer/nat44"
 )
 
@@ -49,21 +50,23 @@ type Plugin struct {
 	changes   []string
 
 	// layers of the service plugin
-	processor     *processor.ServiceProcessor
-	nat44Renderer *nat44.Renderer
+	processor         *processor.ServiceProcessor
+	nat44Renderer     *nat44.Renderer
+	ipv6RouteRenderer *ipv6route.Renderer
 }
 
 // Deps defines dependencies of the service plugin.
 type Deps struct {
 	infra.PluginDeps
-	ServiceLabel servicelabel.ReaderAPI
-	ContivConf   contivconf.API
-	IPAM         ipam.API
-	IPv4Net      ipv4net.API        /* to get the Node IP and all interface names */
-	NodeSync     nodesync.API       /* to get the list of all node IPs for nodePort services */
-	PodManager   podmanager.API     /* to get the list or running pods which determines frontend interfaces */
-	GoVPP        govppmux.API       /* used for direct NAT binary API calls */
-	Stats        statscollector.API /* used for exporting the statistics */
+	ServiceLabel    servicelabel.ReaderAPI
+	ContivConf      contivconf.API
+	IPAM            ipam.API
+	IPNet           ipnet.API          /* to get the Node IP and all interface names */
+	NodeSync        nodesync.API       /* to get the list of all node IPs for nodePort services */
+	PodManager      podmanager.API     /* to get the list or running pods which determines frontend interfaces */
+	GoVPP           govppmux.API       /* used for direct NAT binary API calls */
+	Stats           statscollector.API /* used for exporting the statistics */
+	ConfigRetriever controller.ConfigRetriever
 }
 
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
@@ -90,36 +93,64 @@ func (p *Plugin) Init() error {
 			ServiceLabel: p.ServiceLabel,
 			ContivConf:   p.ContivConf,
 			IPAM:         p.IPAM,
-			IPv4Net:      p.IPv4Net,
+			IPNet:        p.IPNet,
 			NodeSync:     p.NodeSync,
 			PodManager:   p.PodManager,
 		},
 	}
+	p.processor.Init()
 
-	p.nat44Renderer = &nat44.Renderer{
-		Deps: nat44.Deps{
-			Log:        p.Log.NewLogger("-nat44Renderer"),
-			Config:     p.config,
-			ContivConf: p.ContivConf,
-			IPAM:       p.IPAM,
-			IPv4Net:    p.IPv4Net,
-			GoVPPChan:  goVppCh,
-			UpdateTxnFactory: func(change string) controller.UpdateOperations {
-				p.changes = append(p.changes, change)
-				return p.updateTxn
+	if !p.ContivConf.GetIPAMConfig().UseIPv6 {
+		// use NAT44 renderer
+		p.nat44Renderer = &nat44.Renderer{
+			Deps: nat44.Deps{
+				Log:        p.Log.NewLogger("-nat44Renderer"),
+				Config:     p.config,
+				ContivConf: p.ContivConf,
+				IPAM:       p.IPAM,
+				IPNet:      p.IPNet,
+				GoVPPChan:  goVppCh,
+				UpdateTxnFactory: func(change string) controller.UpdateOperations {
+					p.changes = append(p.changes, change)
+					return p.updateTxn
+				},
+				ResyncTxnFactory: func() controller.ResyncOperations {
+					return p.resyncTxn
+				},
+				Stats: p.Stats,
 			},
-			ResyncTxnFactory: func() controller.ResyncOperations {
-				return p.resyncTxn
+		}
+
+		p.nat44Renderer.Init(false)
+		// Register renderer.
+		p.processor.RegisterRenderer(p.nat44Renderer)
+	} else {
+		// use IPv6 route renderer
+		p.ipv6RouteRenderer = &ipv6route.Renderer{
+			Deps: ipv6route.Deps{
+				Log:             p.Log.NewLogger("-IPv6RouteRenderer"),
+				Config:          p.config,
+				ContivConf:      p.ContivConf,
+				NodeSync:        p.NodeSync,
+				PodManager:      p.PodManager,
+				IPAM:            p.IPAM,
+				IPNet:           p.IPNet,
+				ConfigRetriever: p.ConfigRetriever,
+				UpdateTxnFactory: func(change string) controller.UpdateOperations {
+					p.changes = append(p.changes, change)
+					return p.updateTxn
+				},
+				ResyncTxnFactory: func() controller.ResyncOperations {
+					return p.resyncTxn
+				},
 			},
-			Stats: p.Stats,
-		},
+		}
+
+		p.ipv6RouteRenderer.Init(false)
+		// Register renderer.
+		p.processor.RegisterRenderer(p.ipv6RouteRenderer)
 	}
 
-	p.processor.Init()
-	p.nat44Renderer.Init(false)
-
-	// Register renderers.
-	p.processor.RegisterRenderer(p.nat44Renderer)
 	return nil
 }
 
@@ -128,7 +159,10 @@ func (p *Plugin) Init() error {
 // resync of the Contiv plugin has finished.
 func (p *Plugin) AfterInit() error {
 	p.processor.AfterInit()
-	p.nat44Renderer.AfterInit()
+
+	if p.nat44Renderer != nil {
+		p.nat44Renderer.AfterInit()
+	}
 	return nil
 }
 

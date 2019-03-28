@@ -4,6 +4,17 @@
 #   - contiv-vswitch - deployed on each k8s node
 #   - contiv-ksr - deployed on k8s master
 
+{{- if contains ":" .Values.contiv.ipamConfig.podSubnetCIDR }}
+  {{- $ignored := set . "any_addr_tmp" "[::]" }}
+  {{- $ignored := set . "localhost_addr_tmp" "[::1]" }}
+{{- else }}
+  {{- $ignored := set . "any_addr_tmp" "0.0.0.0" }}
+  {{- $ignored := set . "localhost_addr_tmp" "127.0.0.1" }}
+{{- end }}
+
+{{- $any_addr := .any_addr_tmp -}}
+{{- $localhost_addr := .localhost_addr_tmp }}
+
 ###########################################################
 #  Configuration
 ###########################################################
@@ -58,7 +69,7 @@ data:
       {{- end }}
       {{- if .Values.contiv.ipamConfig.contivCIDR }}
       contivCIDR: {{ .Values.contiv.ipamConfig.contivCIDR }}
-      {{ else }}
+      {{- else }}
       nodeInterconnectDHCP: {{ .Values.contiv.ipamConfig.nodeInterconnectDHCP }}
       {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
       nodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
@@ -66,14 +77,14 @@ data:
       {{- if .Values.contiv.ipamConfig.defaultGateway }}
       defaultGateway: {{ .Values.contiv.ipamConfig.defaultGateway }}
       {{- end }}
-      {{- if .Values.contiv.ipamConfig.serviceCIDR }}
-      serviceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
-      {{- end }}
       podSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       podSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.podSubnetOneNodePrefixLen }}
       vppHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
       vppHostSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.vppHostSubnetOneNodePrefixLen }}
       vxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}
+      {{- end }}
+      {{- if .Values.contiv.ipamConfig.serviceCIDR }}
+      serviceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
       {{- end }}
     {{- if .Values.contiv.nodeConfig }}
     nodeConfig:
@@ -160,7 +171,7 @@ data:
     force-socket-removal: true
     permission: 700
   http.conf: |
-    endpoint: 0.0.0.0:9999
+    endpoint: "{{ $any_addr }}:9999"
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}
@@ -208,7 +219,7 @@ data:
             "type": "host-local",
             "subnet": "usePodCidr"
           },
-          "etcdEndpoints" : "127.0.0.1:{{ .Values.etcd.service.nodePort }}",
+          "etcdEndpoints" : "{{ $localhost_addr }}:{{ .Values.etcd.service.nodePort }}",
           {{- end }}
           "logFile": "/var/run/contiv/cni.log"
         },
@@ -321,12 +332,12 @@ spec:
               --cert-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverCert }} --key-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverKey }}
               --peer-client-cert-auth --peer-trusted-ca-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}
               --peer-cert-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverCert }} --peer-key-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverKey }}
-              --advertise-client-urls=https://0.0.0.0:12379 --listen-client-urls=https://0.0.0.0:12379 --listen-peer-urls=https://0.0.0.0:12380
+              --advertise-client-urls=https://{{ $any_addr }}:12379 --listen-client-urls=https://{{ $any_addr }}:12379 --listen-peer-urls=https://{{ $any_addr }}:12380
               {{- if .Values.etcd.cipherSuites }}
               --cipher-suites {{ include "utils.commaseparated" .Values.etcd.cipherSuites }}
               {{- end }}
             {{- else }}
-              --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380
+              --advertise-client-urls=http://{{ $any_addr }}:12379 --listen-client-urls=http://{{ $any_addr }}:12379 --listen-peer-urls=http://{{ $any_addr }}:12380
             {{- end }}
           volumeMounts:
             - name: var-etcd
@@ -342,7 +353,13 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - etcdctl get --endpoints=$HOST_IP:{{ .Values.etcd.service.nodePort }} /
+                - |
+                  echo "$HOST_IP" | grep -q ':'
+                  if [ "$?" -eq "0" ];
+                  then
+                     HOST_IP="[$HOST_IP]"
+                  fi
+                  etcdctl get --endpoints=$HOST_IP:{{ .Values.etcd.service.nodePort }} /
             periodSeconds: {{ .Values.etcd.probePeriodSeconds }}
             initialDelaySeconds: {{ .Values.etcd.livenessProbeInitialDelaySeconds }}
           {{- end }}
@@ -454,7 +471,7 @@ metadata:
   namespace: kube-system
 data:
   http.conf: |
-    endpoint: 0.0.0.0:9191
+    endpoint: "{{ $any_addr }}:9191"
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}
@@ -625,7 +642,7 @@ spec:
               fieldRef:
                 fieldPath: status.hostIP
           {{- else }}
-            value: "127.0.0.1"
+            value:  {{ $localhost_addr | quote }}
           {{- end}}
           {{- if .Values.Arm64Platform }}
           image: {{ .Values.etcd_arm64.image.repository }}:{{ .Values.etcd_arm64.image.tag }}
@@ -637,7 +654,12 @@ spec:
           args:
           - -c
           - |
-            set -eu
+            set -u
+            echo "$HOST_IP" | grep -q ':'
+            if [ "$?" -eq "0" ];
+            then
+               HOST_IP="[$HOST_IP]"
+            fi
           {{- if .Values.etcd.secureTransport }}
             until /usr/local/bin/etcdctl --endpoints=$HOST_IP:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true \
             --cert=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientCert }} --key=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientKey }} --cacert=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}| grep -m 1 "$HOSTNAME";
@@ -697,6 +719,12 @@ spec:
               # replace localhost IP by node IP since node port doesn't work
               # on localhost IP in a certain scenario
               cp /etc/etcd/etcd.conf /tmp/etcd.conf
+              set +e
+              echo "$HOST_IP" | grep -q ':'
+              if [ "$?" -eq "0" ];
+              then
+                 HOST_IP="[$HOST_IP]"
+              fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/etcd.conf
               {{- end }}
           resources: {}
@@ -1040,6 +1068,11 @@ spec:
             - -c
             - |
               cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
+              echo "$HOST_IP" | grep -q ':'
+              if [ "$?" -eq "0" ];
+              then
+                 HOST_IP="[$HOST_IP]"
+              fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
               until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
           volumeMounts:
@@ -1269,6 +1302,11 @@ spec:
             - -c
             - |
               cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
+              echo "$HOST_IP" | grep -q ':'
+              if [ "$?" -eq "0" ];
+              then
+                 HOST_IP="[$HOST_IP]"
+              fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
               until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
           volumeMounts:
@@ -1483,7 +1521,7 @@ metadata:
   namespace: kube-system
 data:
   http.conf: |
-    endpoint: 0.0.0.0:9090
+    endpoint: "{{ $any_addr }}:9090"
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}

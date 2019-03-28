@@ -1,0 +1,57 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vnf1
+  namespace: default
+  labels:
+    sfc: "true"
+spec:
+  containers:
+    - name: "vnf1"
+      image: ligato/vpp-agent-arm64:dev
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        privileged: true
+      ports:
+        - containerPort: 5002
+      env:
+        - name: MICROSERVICE_LABEL
+          value: vnf1
+#       - name: RETAIN_SUPERVISOR
+#         value: "y"
+        - name: ETCD_CONFIG
+          value: "/opt/vpp-agent/dev/etcd.conf"
+      volumeMounts:
+        - name: vpp-config
+          mountPath: /etc/vpp
+        - name: agent-config
+          mountPath: /opt/vpp-agent/dev
+        - name: memif-sockets
+          mountPath: /var/run/contiv
+        - name: etcd-secrets
+          mountPath: /var/contiv/etcd-secrets
+          readOnly: true
+      resources:
+        limits:
+          hugepages-1Gi: 2Gi
+          memory: 2Gi
+        requests:
+          cpu: 250m
+  volumes:
+    - name: vpp-config
+      configMap:
+        name: vnf-vpp-cfg
+    - name: agent-config
+      configMap:
+        name: vnf-agent-cfg
+    - name: memif-sockets
+      hostPath:
+        path: /var/run/contiv
+    - name: etcd-secrets
+      hostPath:
+        path: /var/contiv/etcd-secrets
+  nodeSelector:
+    role: affinity
+
+---

@@ -11,7 +11,7 @@ fi
 
 source /vagrant/config/init
 
-if [ "${dep_scenario}" != 'nostn' ]; then
+if [ "${dep_scenario}" != 'nostn' ] && [ "${ip_version}" != 'ipv6' ]; then
   export KUBE_WORKER_IP=$(hostname -I | cut -f2 -d' ')
 else
   export KUBE_WORKER_IP=$2

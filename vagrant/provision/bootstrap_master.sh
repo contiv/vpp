@@ -288,7 +288,7 @@ if [ "${dep_scenario}" == 'calico' ]; then
   export -f applyCalicoNetwork
   su vagrant -c "bash -c applyCalicoNetwork"
 elif [ "${dep_scenario}" == 'calicovpp' ]; then
-  export stn_config="${stn_config} --set contiv.useL2Interconnect=true --set contiv.ipamConfig.useExternalIPAM=true --set contiv.ipamConfig.podSubnetCIDR=10.10.0.0/16 --set vswitch.useNodeAffinity=true"
+  export stn_config="${stn_config} --set contiv.useNoOverlay=true --set contiv.ipamConfig.useExternalIPAM=true --set contiv.ipamConfig.podSubnetCIDR=10.10.0.0/16 --set vswitch.useNodeAffinity=true"
   export -f applyVPPnetwork
   su vagrant -c "bash -c applyVPPnetwork"
   export -f applyCalicoVPPNetwork

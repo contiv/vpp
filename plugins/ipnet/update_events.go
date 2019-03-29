@@ -228,7 +228,7 @@ func (n *IPNet) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn cont
 	}
 
 	// update BD if node was newly connected or disconnected
-	if !n.ContivConf.GetRoutingConfig().UseL2Interconnect &&
+	if !n.ContivConf.GetRoutingConfig().UseNoOverlay &&
 		nodeHasIPAddress(nodeUpdate.PrevState) != nodeHasIPAddress(nodeUpdate.NewState) {
 
 		key, bd := n.vxlanBridgeDomain()

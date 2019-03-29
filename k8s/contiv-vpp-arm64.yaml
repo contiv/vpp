@@ -22,7 +22,7 @@ metadata:
   namespace: kube-system
 data:
   contiv.conf: |-
-    useL2Interconnect: false
+    useNoOverlay: false
     useTAPInterfaces: true
     tapInterfaceVersion: 2
     tapv2RxRingSize: 256

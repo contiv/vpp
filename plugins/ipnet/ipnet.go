@@ -266,9 +266,9 @@ func (n *IPNet) GetHostInterconnectIfName() string {
 }
 
 // GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
-// Returns an empty string if VXLAN is not used (in L2 interconnect mode).
+// Returns an empty string if VXLAN is not used (in no overlay mode).
 func (n *IPNet) GetVxlanBVIIfName() string {
-	if n.ContivConf.GetRoutingConfig().UseL2Interconnect {
+	if n.ContivConf.GetRoutingConfig().UseNoOverlay {
 		return ""
 	}
 

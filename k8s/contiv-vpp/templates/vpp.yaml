@@ -31,7 +31,7 @@ metadata:
   namespace: kube-system
 data:
   contiv.conf: |-
-    useL2Interconnect: {{ .Values.contiv.useL2Interconnect }}
+    useNoOverlay: {{ .Values.contiv.useNoOverlay }}
     useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}

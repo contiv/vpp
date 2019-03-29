@@ -67,8 +67,8 @@ func (n *IPNet) nodeConnectivityConfig(node *nodesync.Node) (config controller.K
 	config = make(controller.KeyValuePairs)
 
 	// configuration for VXLAN tunnel
-	l2Interconnect := n.ContivConf.GetRoutingConfig().UseL2Interconnect
-	if !l2Interconnect && len(n.nodeIP) > 0 {
+	noOverlay := n.ContivConf.GetRoutingConfig().UseNoOverlay
+	if !noOverlay && len(n.nodeIP) > 0 {
 		// VXLAN interface
 		var nodeIP net.IP
 		if len(node.VppIPAddresses) > 0 {
@@ -120,8 +120,8 @@ func (n *IPNet) routesToNode(node *nodesync.Node) (config controller.KeyValuePai
 	config = make(controller.KeyValuePairs)
 
 	var nextHop net.IP
-	l2Interconnect := n.ContivConf.GetRoutingConfig().UseL2Interconnect
-	if l2Interconnect {
+	noOverlay := n.ContivConf.GetRoutingConfig().UseNoOverlay
+	if noOverlay {
 		// route traffic destined to the other node directly
 		if len(node.VppIPAddresses) > 0 {
 			nextHop = node.VppIPAddresses[0].Address
@@ -170,7 +170,7 @@ func (n *IPNet) routesToNode(node *nodesync.Node) (config controller.KeyValuePai
 		}
 
 		// inter-VRF route for the management IP address
-		if !n.ContivConf.InSTNMode() && !l2Interconnect {
+		if !n.ContivConf.InSTNMode() && !noOverlay {
 			key, mgmtRoute2 := n.routeToOtherNodeManagementIPViaPodVRF(mgmtIP)
 			config[key] = mgmtRoute2
 		}
@@ -350,9 +350,9 @@ func (n *IPNet) routesPodToMainVRF() map[string]*vpp_l3.Route {
 	r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 	routes[r1Key] = r1
 
-	if !routingCfg.UseL2Interconnect {
+	if !routingCfg.UseNoOverlay {
 		// host network (this node) routed from Pod VRF via Main VRF
-		// (only needed for VXLAN mode, to have better prefix match so that the drop route is not in effect)
+		// (only needed for overly mode (VXLAN), to have better prefix match so that the drop route is not in effect)
 		r2 := &vpp_l3.Route{
 			Type:        vpp_l3.Route_INTER_VRF,
 			DstNetwork:  n.IPAM.HostInterconnectSubnetThisNode().String(),
@@ -372,7 +372,7 @@ func (n *IPNet) routesMainToPodVRF() map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)
 	routingCfg := n.ContivConf.GetRoutingConfig()
 
-	if !routingCfg.UseL2Interconnect {
+	if !routingCfg.UseNoOverlay {
 		// pod subnet (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
 		r1 := &vpp_l3.Route{
 			Type:        vpp_l3.Route_INTER_VRF,
@@ -435,7 +435,7 @@ func (n *IPNet) dropRoutesIntoPodVRF() map[string]*vpp_l3.Route {
 		routes[r1Key] = r1
 	}
 
-	if !routingCfg.UseL2Interconnect {
+	if !routingCfg.UseNoOverlay {
 		// drop packets destined to pods no longer deployed
 		r1 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.PodSubnetAllNodes())
 		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
@@ -624,7 +624,7 @@ func (n *IPNet) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net.I
 		DstNetwork:  destNetwork.String(),
 		NextHopAddr: nextHopIP.String(),
 	}
-	if n.ContivConf.GetRoutingConfig().UseL2Interconnect {
+	if n.ContivConf.GetRoutingConfig().UseNoOverlay {
 		route.VrfId = n.ContivConf.GetRoutingConfig().MainVRFID
 	} else {
 		route.OutgoingInterface = VxlanBVIInterfaceName
@@ -644,7 +644,7 @@ func (n *IPNet) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (ke
 		DstNetwork:  managementIP.String() + hostPrefixForAF(managementIP),
 		NextHopAddr: nextHopIP.String(),
 	}
-	if n.ContivConf.GetRoutingConfig().UseL2Interconnect {
+	if n.ContivConf.GetRoutingConfig().UseNoOverlay {
 		route.VrfId = n.ContivConf.GetRoutingConfig().MainVRFID
 	} else {
 		route.OutgoingInterface = VxlanBVIInterfaceName

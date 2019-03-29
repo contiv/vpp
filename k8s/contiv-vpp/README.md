@@ -60,6 +60,7 @@ Some of them are described in more detail in [contiv.conf README](../README.md#c
 
 Parameter | Description | Default
 --------- | ----------- | -------
+`contiv.useNoOverlay` | Do not use overlay (VXLAN) for node-to-node communication | `False`
 `contiv.mtuSize` | MTU Size | 1450
 `contiv.useTAPInterfaces` | Enable TAP interfaces | `True`
 `contiv.tapInterfaceVersion`| TAP interface version | 2
@@ -78,7 +79,7 @@ Parameter | Description | Default
 `contiv.disableNATVirtualReassembly` | Disable NAT virtual reassembly (drop fragmented packets) | `False`
 `contiv.ipamConfig.podSubnetCIDR` | Pod subnet CIDR | `10.1.0.0/16`
 `contiv.ipamConfig.podSubnetOneNodePrefixLen` | Pod network prefix length | `24`
-`contiv.ipamConfig.PodVPPSubnetCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
+`contiv.ipamConfig.podVPPSubnetCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
 `contiv.ipamConfig.vppHostSubnetCIDR` | VPP host subnet CIDR | `172.30.0.0/16`
 `contiv.ipamConfig.vppHostSubnetOneNodePrefixLen` | VPP host network prefix length | `24`
 `contiv.ipamConfig.vxlanCIDR` | VXLAN CIDR | `192.168.30.0/24`

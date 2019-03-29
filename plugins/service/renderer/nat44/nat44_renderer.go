@@ -295,7 +295,7 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 		// interface as the cluster-outbound traffic, then we have to disable
 		// the dynamic SNAT.
 		// Policies require that intra-cluster traffic is not SNATed, but in
-		// the pure L2 mode without VXLANs this cannot be achieved with the VPP/NAT
+		// the no-overlay mode without VXLANs this cannot be achieved with the VPP/NAT
 		// plugin. On the other hand, with VXLANs we can define identity NAT to
 		// exclude VXLAN-encapsulated traffic from being SNATed.
 		if rndr.IPNet.GetVxlanBVIIfName() == "" &&
@@ -487,12 +487,12 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 				if rndr.isThisNodeOrHostIP(backend.IP) {
 					local.VrfId = routingCfg.MainVRFID
 				} else {
-					if rndr.ContivConf.GetRoutingConfig().UseL2Interconnect &&
+					if rndr.ContivConf.GetRoutingConfig().UseNoOverlay &&
 						(!rndr.isLocalPodIP(backend.IP)) {
-						// L2 mode: use main VRF for non-local PODs and other node's IPs
+						// no overlay mode: use main VRF for non-local PODs and other node's IPs
 						local.VrfId = routingCfg.MainVRFID
 					} else {
-						// use POD VRF for local PODs (both L2 & VXLAN mode)
+						// use POD VRF for local PODs (both no-overlay & VXLAN mode)
 						// and non-local PODs + non-local node IPs in VXLAN mode
 						local.VrfId = routingCfg.PodVRFID
 					}

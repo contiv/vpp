@@ -407,7 +407,7 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations) error {
 		}
 	}
 
-	if !n.ContivConf.GetRoutingConfig().UseL2Interconnect {
+	if !n.ContivConf.GetRoutingConfig().UseNoOverlay {
 		// bridge domain with VXLAN interfaces
 
 		// bridge domain

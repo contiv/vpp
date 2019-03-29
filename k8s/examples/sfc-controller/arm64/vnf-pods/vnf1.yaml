@@ -19,7 +19,7 @@ spec:
         - name: MICROSERVICE_LABEL
           value: vnf1
         # - name: RETAIN_SUPERVISOR
-          # value: "y"
+        #   value: "y"
         - name: ETCD_CONFIG
           value: "/opt/vpp-agent/dev/etcd.conf"
       volumeMounts:

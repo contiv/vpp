@@ -87,6 +87,7 @@ Parameter | Description | Default
 `contiv.ipamConfig.serviceCIDR` | Service CIDR | `""`
 `contiv.ipamConfig.defaultGateway` | Default gateway for all nodes (can be overridden by a nodeconfig)| `""`
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
+`contiv.vswitch.useSocketVPPConnection` | use unix domain socket for connection to VPP | `false`
 `contiv.vswitch.defineMemoryLimits` | define limits for vswitch container | `false`
 `contiv.vswitch.hugePages2miLimit` | limit of memory allocated by 2048Kb hugepages for vswitch container| `1024Mi`
 `contiv.vswitch.hugePages1giLimit` | limit of memory allocated by 1Gb hugepages for vswitch container| `""`

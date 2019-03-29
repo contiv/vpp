@@ -106,6 +106,9 @@ dpdk {
 socksvr {
    default
 }
+statseg {
+   default
+}
 "
    echo "$startup"
 

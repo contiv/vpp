@@ -808,6 +808,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
+            {{- if not .Values.vswitch.useSocketVPPConnection }}
+            - name: GOVPPMUX_NOSOCK
+              value: "1"
+            {{- end }}
             - name: CONTIV_CONFIG
               value: "/etc/contiv/contiv.conf"
             - name: CONTROLLER_CONFIG

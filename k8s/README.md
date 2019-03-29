@@ -151,6 +151,9 @@ dpdk {
 socksvr {
    default
 }
+statseg {
+   default
+}
 
 File /etc/vpp/contiv-vswitch.conf will be modified, do you want to proceed? [Y/n] y
 Do you want to pull the latest images? [Y/n] y

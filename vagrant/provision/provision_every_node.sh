@@ -179,6 +179,9 @@ api-trace {
 socksvr {
    default
 }
+statseg {
+   default
+}
 EOF
 }
 

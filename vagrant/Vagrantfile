@@ -151,7 +151,18 @@ VAGRANTFILE_API_VERSION = "2"
     config.vm.define "k8s-gateway" do |gw|
       gw.vm.hostname = "k8s-gateway"
       # Interface for K8s Cluster
-      gw.vm.box = "puppetlabs/ubuntu-16.04-64-nocm"
+      case node_os_release
+        when "16.04"
+          gw.vm.box = "puppetlabs/ubuntu-16.04-64-nocm"
+          gw.vm.box_version = "1.0.0"
+        when "18.04"
+          gw.vm.box = "ubuntu/bionic64"
+          gw.vm.box_version = "20181008.0.0"
+        else
+          # Fall back to 16.04
+          gw.vm.box = "puppetlabs/ubuntu-16.04-64-nocm"
+          gw.vm.box_version = "1.0.0"
+      end
       gw.vm.box_version = "1.0.0"
       if dep_scenario == 'nostn'
         if crd_disabled == 'false'

@@ -140,9 +140,8 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 	// the agent knowing about it. But if we are healing after an error, reload
 	// the state of IPAM just in case.
 	// In case that external IPAM is in use, we need to resync on POD CIDR change.
-	_, isHealingResync := event.(*controller.HealingResync)
 	_, isPodCIDRChange := event.(*PodCIDRChange)
-	if resyncCount > 1 && !isHealingResync && !isPodCIDRChange {
+	if resyncCount > 1 && !isPodCIDRChange {
 		return nil
 	}
 

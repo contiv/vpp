@@ -12,6 +12,7 @@
 ## Setup Instructions
 * [VAGRANT INSTALLATION](../vagrant/README.md) - running Contiv-VPP in Vagrant
 * [MANUAL INSTALLATION](setup/MANUAL_INSTALL.md) - running Contiv-VPP on bare metal
+* [IPV6](setup/IPV6.md) - enabling IPv6 in Contiv-VPP
 * [ARM64 SETUP](arm64) - running Contiv-VPP on ARM platform
 * [CUSTOM MGMT NETWORK](setup/CUSTOM_MGMT_NETWORK.md) - setting up a custom management 
   network on multi-homed nodes

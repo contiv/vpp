@@ -14,6 +14,9 @@ After successful installation, you can perform the following tasks:
 * [Uninstalling Contiv-VPP](#uninstalling-contiv-vpp)
 * [Tearing down Kubernetes](#tearing-down-kubernetes)
 
+In case you want to enable IPv6 in Contiv-VPP, please see the [IPv6 setup guide](IPV6.md)
+before proceeding.
+
 
 ## 1. Preparing the nodes
 

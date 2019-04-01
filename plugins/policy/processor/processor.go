@@ -21,6 +21,7 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
@@ -50,6 +51,7 @@ type Deps struct {
 	Log          logging.Logger
 	Cache        cache.PolicyCacheAPI
 	IPAM         IPAM
+	ContivConf   contivconf.API
 	Configurator config.PolicyConfiguratorAPI
 }
 
@@ -78,7 +80,7 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 	pods = utils.RemoveDuplicatePodIDs(pods)
 
 	// In case of ipv6 take into account all pods
-	if pp.IPAM.PodSubnetThisNode().IP.To16() == nil {
+	if !pp.ContivConf.GetIPAMConfig().UseIPv6 {
 		// Re-configure only pods that belong to the current node.
 		pods = pp.filterHostPods(pods)
 	}

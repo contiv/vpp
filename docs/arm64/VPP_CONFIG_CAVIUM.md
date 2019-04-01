@@ -214,6 +214,9 @@ api-trace {
 socksvr {
    default
 }
+statseg {
+   default
+}
 ```
 If assigning multiple NICs to VPP you will need to include each NIC's PCI address
 in the dpdk stanza in `/etc/vpp/contiv-vswitch.conf`.

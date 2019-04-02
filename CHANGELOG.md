@@ -1,3 +1,29 @@
+# Release v3.0.0 (TBD)
+
+### VPP
+ - version **v18.10** (latest stable/1810)
+
+### New Features & Enhancements
+ - [IPv6 Support](docs/setup/IPV6.md)
+ - internal process manager is now used to manage Contiv-Agent & VPP processes inside of the
+   vswitch container (instead of the supervisor tool)
+ - ability to use unix domain socket for connection to VPP for better performance
+   (`contiv.vswitch.useSocketVPPConnection` helm option)
+ - `contiv.useL2Interconnect` helm option renamed to `contiv.useNoOverlay`
+ - Vagrant optimized to boot faster using pre-build images
+
+### Bugfixes
+ - fixed Prometheus stats exporter
+
+### Known Issues
+ - load-balancing between backends of a service is limited to the first 256 PODs
+   (the others will not receive any traffic until some of the first 256 PODs disappear)
+ - (IPv6 only): service load-balancing in IPv6 setup is not equal, node-local backend pods are always
+   preferred and a request is never load-balanced to a remote node's pod if there is a local backend
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
 # Release v2.1.4 (21.3.2019)
 
 ### VPP

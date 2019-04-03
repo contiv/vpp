@@ -110,7 +110,7 @@ sleep 2;
 applySTNScenario() {
   gw="10.130.1.254";
   if [ "${ip_version}" = "ipv6" ]; then
-     gw="fe10::100";
+     gw="fe10::2:100";
   fi
   if [ "${dep_scenario}" = "nostn" ]; then
 
@@ -193,6 +193,26 @@ EOL
 }
 
 applyVPPnetwork() {
+  if [[ $ip_version == "ipv6" ]]; then
+    # Disable coredns loop detection plugin
+    kubectl get configmap coredns \
+        -o yaml \
+        -n kube-system  \
+        --export >> coredns-config.yaml
+    sed -i 's/\/etc\/resolv.conf/fe10::2:100/' coredns-config.yaml
+    kubectl apply -f coredns-config.yaml -n kube-system
+  fi
+
+  if [[ $helm_extra_opts == *"contiv.useNoOverlay=true"* ]]; then
+    # Disable coredns loop detection plugin
+    kubectl get configmap coredns \
+        -o yaml \
+        -n kube-system  \
+        --export >> coredns-config.yaml
+    sed -i '/loop/d' coredns-config.yaml
+    kubectl apply -f coredns-config.yaml -n kube-system
+  fi
+
   helm_opts="${helm_extra_opts}"
 
   if [ "${image_tag}" != "latest" ]; then
@@ -200,7 +220,8 @@ applyVPPnetwork() {
   fi
 
   if [ "${ip_version}" = "ipv6transport" ] || [ "${ip_version}" = "ipv6" ]; then
-    helm_opts="$helm_opts --set contiv.ipamConfig.nodeInterconnectCIDR=fe10:f00d::/90"
+    helm_opts="$helm_opts --set contiv.ipamConfig.nodeInterconnectCIDR=fe10::2:0/119"
+    helm_opts="$helm_opts --set contiv.ipamConfig.defaultGateway=fe10::2:100"
   fi
   if [ "${ip_version}" = "ipv6" ]; then
      if [ "${crd_disabled}" = "true" ]; then
@@ -288,7 +309,7 @@ if [ "${dep_scenario}" == 'calico' ]; then
   export -f applyCalicoNetwork
   su vagrant -c "bash -c applyCalicoNetwork"
 elif [ "${dep_scenario}" == 'calicovpp' ]; then
-  export stn_config="${stn_config} --set contiv.useL2Interconnect=true --set contiv.ipamConfig.useExternalIPAM=true --set contiv.ipamConfig.podSubnetCIDR=10.10.0.0/16 --set vswitch.useNodeAffinity=true"
+  export stn_config="${stn_config} --set contiv.useNoOverlay=true --set contiv.ipamConfig.useExternalIPAM=true --set contiv.ipamConfig.podSubnetCIDR=10.10.0.0/16 --set vswitch.useNodeAffinity=true"
   export -f applyVPPnetwork
   su vagrant -c "bash -c applyVPPnetwork"
   export -f applyCalicoVPPNetwork

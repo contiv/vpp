@@ -9,7 +9,7 @@ sudo -E add-apt-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo -E apt-key add -
 sudo -E add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
 sudo -E apt-get update
-sudo -E apt-get install -qy kubelet=1.12.3-00 kubectl=1.12.3-00 kubeadm=1.12.3-00
+sudo -E apt-get install -qy kubelet=1.12.3-00 kubectl=1.12.3-00 kubeadm=1.12.3-00 kubernetes-cni=0.6.0-00
 sudo -E apt-get install -y docker-ce=18.03.0~ce-0~ubuntu
 
 sudo -E systemctl stop docker
@@ -34,12 +34,14 @@ sudo -E mv /tmp/linux-amd64/helm /usr/local/bin/helm
 # Pull kubernetes images
 sudo -E kubeadm config images pull --kubernetes-version=v1.12.3
 
-# disable apt daily services
-sudo systemctl disable --now apt-daily.service apt-daily.timer
+# disable apt daily services and release upgrade checker
+sudo systemctl disable --now apt-daily.service apt-daily.timer || true
+sudo systemctl disable --now apt-daily-upgrade.service apt-daily-upgrade.timer || true
+sudo -E apt-get remove -y ubuntu-release-upgrader-core
 
-# restore vagrant default ssh key
-wget https://raw.githubusercontent.com/mitchellh/vagrant/master/keys/vagrant.pub
-mv vagrant.pub ~/.ssh/authorized_keys
+# Cleanup
+sudo -E apt-get autoremove -y
+sudo -E apt-get clean
 
 # zero out the drive
 sudo dd if=/dev/zero of=/EMPTY bs=1M

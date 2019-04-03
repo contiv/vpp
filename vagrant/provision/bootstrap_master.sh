@@ -18,7 +18,6 @@ fi
 
 if [ "${dep_env}" = "dev" ]; then
     # wait for apt auto-update to finish so we don't get conflicts
-    #TODO: disable apt daily services in the vagrant box
     while `ps aux | grep -q [a]pt`; do
       sleep 20
     done

@@ -23,6 +23,7 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linux/nsplugin/linuxcalls"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/ip"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/stats"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/vpe"
@@ -47,6 +48,16 @@ const (
 // getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
 // network stack.
 func (n *IPNet) getHostLinkIPs() (hostIPs []net.IP, err error) {
+	// make sure we are in the default namespace
+	nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
+	nsRevert, err := n.LinuxNsPlugin.SwitchToNamespace(nsCtx, nil)
+	if err != nil {
+		n.Log.Error(err)
+		return nil, err
+	}
+	defer nsRevert()
+
+	// list all links
 	links, err := netlink.LinkList()
 	if err != nil {
 		n.Log.Error("Unable to list host links:", err)

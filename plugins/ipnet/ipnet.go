@@ -27,6 +27,7 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
+	linux_nsplugin "github.com/ligato/vpp-agent/plugins/linux/nsplugin"
 	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vpp/ifplugin"
 
 	"github.com/contiv/vpp/plugins/contivconf"
@@ -95,15 +96,16 @@ type internalState struct {
 // Deps groups the dependencies of the plugin.
 type Deps struct {
 	infra.PluginDeps
-	EventLoop    controller.EventLoop
-	ServiceLabel servicelabel.ReaderAPI
-	ContivConf   contivconf.API
-	IPAM         ipam.API
-	NodeSync     nodesync.API
-	PodManager   podmanager.API
-	VPPIfPlugin  vpp_ifplugin.API
-	GoVPP        GoVPP
-	HTTPHandlers rest.HTTPHandlers
+	EventLoop     controller.EventLoop
+	ServiceLabel  servicelabel.ReaderAPI
+	ContivConf    contivconf.API
+	IPAM          ipam.API
+	NodeSync      nodesync.API
+	PodManager    podmanager.API
+	VPPIfPlugin   vpp_ifplugin.API
+	LinuxNsPlugin linux_nsplugin.API
+	GoVPP         GoVPP
+	HTTPHandlers  rest.HTTPHandlers
 }
 
 // GoVPP is the interface of govppmux plugin replicated here to avoid direct

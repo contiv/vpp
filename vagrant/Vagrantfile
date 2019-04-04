@@ -163,15 +163,18 @@ VAGRANTFILE_API_VERSION = "2"
           gw.vm.box = "puppetlabs/ubuntu-16.04-64-nocm"
           gw.vm.box_version = "1.0.0"
       end
-      gw.vm.box_version = "1.0.0"
-      if dep_scenario == 'nostn'
-        if crd_disabled == 'false'
-          gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
-        else
-          gw.vm.network :private_network, ip: "192.168.16.100", netmask: "255.255.255.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
-        end
+      if ip_version == 'ipv6'
+          gw.vm.network :private_network, ip: "fe10::2:100", netmask: "119", virtualbox__intnet: "vpp", nic_type: "82540EM"
       else
-        gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp", nic_type: "82540EM"
+          if dep_scenario == 'nostn'
+            if crd_disabled == 'false'
+              gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
+            else
+              gw.vm.network :private_network, ip: "192.168.16.100", netmask: "255.255.255.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
+            end
+          else
+            gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp", nic_type: "82540EM"
+          end
       end
       if dep_scenario == 'calico'
         gw_ip = base_ip + "1"

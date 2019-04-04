@@ -172,6 +172,7 @@ func main() {
 	ipNetPlugin := ipnet.NewPlugin(ipnet.UseDeps(func(deps *ipnet.Deps) {
 		deps.GoVPP = &govppmux.DefaultPlugin
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
+		deps.LinuxNsPlugin = &linux_nsplugin.DefaultPlugin
 		deps.ContivConf = contivConf
 		deps.IPAM = ipamPlugin
 		deps.NodeSync = nodeSyncPlugin

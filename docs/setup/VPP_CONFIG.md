@@ -51,6 +51,9 @@ api-trace {
 socksvr {
    default
 }
+statseg {
+   default
+}
 ```
 
 
@@ -105,6 +108,9 @@ api-trace {
    nitems 5000
 }
 socksvr {
+   default
+}
+statseg {
    default
 }
 ```

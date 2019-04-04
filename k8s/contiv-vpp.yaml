@@ -22,7 +22,7 @@ metadata:
   namespace: kube-system
 data:
   contiv.conf: |-
-    useL2Interconnect: false
+    useNoOverlay: false
     useTAPInterfaces: true
     tapInterfaceVersion: 2
     tapv2RxRingSize: 256
@@ -455,6 +455,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
+            - name: GOVPPMUX_NOSOCK
+              value: "1"
             - name: CONTIV_CONFIG
               value: "/etc/contiv/contiv.conf"
             - name: CONTROLLER_CONFIG

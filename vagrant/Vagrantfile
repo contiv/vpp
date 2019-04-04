@@ -109,10 +109,10 @@ VAGRANTFILE_API_VERSION = "2"
           case node_os_release
             when "16.04"
               config.vm.box = "samelias/contiv-ubuntu16-k8s12"
-              config.vm.box_version = "0.1.0"
+              config.vm.box_version = "0.2.0"
             when "18.04"
               config.vm.box = "samelias/contiv-ubuntu18-k8s12"
-              config.vm.box_version = "0.1.0"
+              config.vm.box_version = "0.2.0"
             else
               puts "Wrong node os release #{node_os_release} -- Aborting"
               abort

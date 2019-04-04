@@ -97,6 +97,7 @@ func (p *Plugin) Init() error {
 		Deps: processor.Deps{
 			Log:          p.Log.NewLogger("-policyProcessor"),
 			IPAM:         p.IPAM,
+			ContivConf:   p.ContivConf,
 			Cache:        p.policyCache,
 			Configurator: p.configurator,
 		},

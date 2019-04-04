@@ -134,17 +134,18 @@ func (n *IPNet) podLinuxLoopName(pod *podmanager.LocalPod) string {
 // podLinuxLoop returns the configuration for the loopback interface in the Linux namespace of the pod.
 func (n *IPNet) podLinuxLoop(pod *podmanager.LocalPod) (key string, config *linux_interfaces.Interface) {
 	loop := &linux_interfaces.Interface{
-		Name:        n.podLinuxLoopName(pod),
-		Type:        linux_interfaces.Interface_LOOPBACK,
-		Enabled:     true,
-		IpAddresses: []string{ipv4LoopbackAddress},
+		Name:    n.podLinuxLoopName(pod),
+		Type:    linux_interfaces.Interface_LOOPBACK,
+		Enabled: true,
+		// IPv6 loopback address is included even in the IPv4 mode.
+		// This is because IPv6 must be always enabled in the pods to allow the
+		// agent to move TAP/VETH interfaces from the IPV6-enabled default
+		// namespace into the namespaces of pods.
+		IpAddresses: []string{ipv4LoopbackAddress, ipv6LoopbackAddress},
 		Namespace: &linux_namespace.NetNamespace{
 			Type:      linux_namespace.NetNamespace_FD,
 			Reference: pod.NetworkNamespace,
 		},
-	}
-	if n.ContivConf.GetIPAMConfig().UseIPv6 {
-		loop.IpAddresses = append(loop.IpAddresses, ipv6LoopbackAddress)
 	}
 	key = linux_interfaces.InterfaceKey(loop.Name)
 	return key, loop

@@ -176,9 +176,9 @@ type RoutingConfig struct {
 	MainVRFID uint32 `json:"mainVRFID,omitempty"`
 	PodVRFID  uint32 `json:"podVRFID,omitempty"`
 
-	// enabled when nodes are on the same L2 network and VXLANs are therefore
-	// not needed
-	UseL2Interconnect bool `json:"useL2Interconnect,omitempty"`
+	// enable when no overlay (VXLAN) is needed for node-to-node communication,
+	// e.g. if the nodes are on the same L2 network
+	UseNoOverlay bool `json:"useNoOverlay,omitempty"`
 
 	// when enabled, cluster IP CIDR should be routed towards VPP from Linux
 	RouteServiceCIDRToVPP bool `json:"routeServiceCIDRToVPP,omitempty"`

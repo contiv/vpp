@@ -9,6 +9,16 @@
   the nodes.
 
 
+## Limitations
+
+- Service load-balancing in IPv6 setup is not equal, node-local backend pods are always preferred
+and a request is never load-balanced to a remote node's pod if there is a local backend.
+- Network Policies are implemented using ip6tables rules in individual pods. Because of
+this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4).
+
+Both issues should be addressed in future versions of Contiv-VPP.
+
+
 ## Setup
 
 Please follow the [MANUAL INSTALL](MANUAL_INSTALL.md) document with the following changes / extensions:

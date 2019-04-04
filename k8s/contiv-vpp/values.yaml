@@ -1,6 +1,6 @@
 ---
 contiv:
-  useL2Interconnect: false
+  useNoOverlay: false
   useTAPInterfaces: true
   tapInterfaceVersion: 2
   tapv2RxRingSize: 256
@@ -134,6 +134,7 @@ vswitch:
   cpuLimit: 0
   enableCoreDumps: true
   coreDumpsDir: /var/contiv/dumps
+  useSocketVPPConnection: false
 
 cni:
   image:

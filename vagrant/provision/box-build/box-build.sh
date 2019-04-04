@@ -12,10 +12,14 @@ if [ $OS_VERSION = "16.04" ];then
 else if [ $OS_VERSION = "18.04" ];then
   vagrant init ubuntu/bionic64 --box-version="20181008.0.0"
   else
-    echo "Enexpected OS_VERSION specified. Exiting."
+    echo "Unexpected OS_VERSION specified. Exiting."
     exit 1
   fi
 fi
+
+# Make sure "vagrant up" doesn't overwrite the default ssh key when provisioning
+# We want this to happen when we actually use the box
+sed -i '/config.vm.box.version/a\config.ssh.insert_key = false' Vagrantfile
 
 vagrant up
 # copy provisioning script onto the VM and execute

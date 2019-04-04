@@ -50,48 +50,48 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
   of interfaces and allocation of IP addresses.
 
   * Pod-to-VPP connectivity (top-level options)
-    - `UseL2Interconnect`: use pure L2 node interconnect instead of VXLANs
-    - `UseTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP and VPP-to-Host interconnection
-    - `TAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
+    - `useNoOverlay`: do not use overlay (VXLAN) for node-to-node communication (works e.g. if the nodes are on the same L2 network)
+    - `useTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP and VPP-to-Host interconnection
+    - `tAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
       for a faster, virtio-based, VPP TAPv2 interface (default);
-    - `StealInterface`: enable Steal The NIC feature on the specified interface on each node;``
-    - `StealFirstNIC`: enable Steal The NIC feature on the first interface on each node;
-    - `TAPv2RxRingSize`: number of entries to allocate for TAPv2 Rx ring (default is 256)
-    - `TAPv2TxRingSize`: number of entries to allocate for TAPv2 Tx ring (default is 256)
-    - `NatExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed
+    - `stealInterface`: enable Steal The NIC feature on the specified interface on each node;``
+    - `stealFirstNIC`: enable Steal The NIC feature on the first interface on each node;
+    - `tapv2RxRingSize`: number of entries to allocate for TAPv2 Rx ring (default is 256)
+    - `tapv2TxRingSize`: number of entries to allocate for TAPv2 Tx ring (default is 256)
+    - `natExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed
                             with the node IP before being sent out from the node (applies for all nodes)
-    - `MTUSize`: maximum transmission unit (MTU) size (default is 1500)
-    - `ServiceLocalEndpointWeight`: how much more likely a service local endpoint is to receive
+    - `mtuSize`: maximum transmission unit (MTU) size (default is 1500)
+    - `serviceLocalEndpointWeight`: how much more likely a service local endpoint is to receive
       connection over a remotely deployed one (default is `1`, i.e. equal distribution)
 
-  * IPAM (section `IPAMConfig`)
-    - `PodSubnetCIDR`: subnet used for all pods across all nodes
-    - `PodVPPSubnetCIDR`: subnet CIDR for VPP-side POD addresses
-    - `PodSubnetOneNodePrefixLen`: subnet prefix length used for all pods of 1 k8s node
+  * IPAM (section `ipamConfig`)
+    - `podSubnetCIDR`: subnet used for all pods across all nodes
+    - `podVPPSubnetCIDR`: subnet CIDR for VPP-side POD addresses
+    - `podSubnetOneNodePrefixLen`: subnet prefix length used for all pods of 1 k8s node
       (pod network = pod subnet for one k8s node);
-    - `VPPHostSubnetCIDR`: subnet used in each node for VPP-to-host connectivity;
-    - `VPPHostSubnetOneNodePrefixLen`: prefix length of the subnet used for VPP-to-host connectivity
+    - `vppHostSubnetCIDR`: subnet used in each node for VPP-to-host connectivity;
+    - `vppHostSubnetOneNodePrefixLen`: prefix length of the subnet used for VPP-to-host connectivity
       on 1 k8s node (VPPHost network = VPPHost subnet for one k8s node)
-    - `NodeInterconnectCIDR`: subnet used for main interfaces of all nodes
-    - `NodeInterconnectDHCP`: use DHCP to acquire IP for all nodes by default
-    - `VxlanCIDR`: subnet used for VXLAN addressing providing node-interconnect overlay
-    - `ServiceCIDR`: subnet used for allocation of Cluster IPs for services. Default value
+    - `nodeInterconnectCIDR`: subnet used for main interfaces of all nodes
+    - `nodeInterconnectDHCP`: use DHCP to acquire IP for all nodes by default
+    - `vxlanCIDR`: subnet used for VXLAN addressing providing node-interconnect overlay
+    - `serviceCIDR`: subnet used for allocation of Cluster IPs for services. Default value
     is the default kubernetes service range `10.96.0.0/12`
 
-  * Node configuration (section `NodeConfig`; one entry for each node)
-    - `NodeName`: name of a Kubernetes node;
-    - `MainVPPInterface`: name of the interface to be used for node-to-node connectivity.
-       IP address is allocated from `HostNodeSubnetCidr` defined in the IPAM section OR can be specified manually:
-      - `InterfaceName`: name of the main interface;
-      - `IP`: IP address to be attached to the main interface;
-      - `UseDHCP`: acquire IP address using DHCP
+  * Node configuration (section `nodeConfig`; one entry for each node)
+    - `nodeName`: name of a Kubernetes node;
+    - `mainVPPInterface`: name of the interface to be used for node-to-node connectivity.
+       IP address is allocated from `vppHostSubnetCIDR` defined in the IPAM section OR can be specified manually:
+      - `interfaceName`: name of the main interface;
+      - `ip`: IP address to be attached to the main interface;
+      - `useDHCP`: acquire IP address using DHCP
               (beware: the change of IP address is not supported)
-    - `StealInterface`: name of the interface in the Linux host stack, that should be "stolen" and used by VPP;
-    - `OtherVPPInterfaces` (other configured interfaces only get IP address assigned in VPP)
-      - `InterfaceName`: name of the interface;
-      - `IP`: IP address to be attached to the interface;
-    - `Gateway`: IP address of the default gateway for external traffic, if it needs to be configured;
-    - `NatExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed
+    - `stealInterface`: name of the interface in the Linux host stack, that should be "stolen" and used by VPP;
+    - `otherVPPInterfaces` (other configured interfaces only get IP address assigned in VPP)
+      - `interfaceName`: name of the interface;
+      - `ip`: IP address to be attached to the interface;
+    - `gateway`: IP address of the default gateway for external traffic, if it needs to be configured;
+    - `natExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed
                             with the node IP before being sent out from the node.
 
 
@@ -149,6 +149,9 @@ dpdk {
    dev 0000:00:09.0
 }
 socksvr {
+   default
+}
+statseg {
    default
 }
 

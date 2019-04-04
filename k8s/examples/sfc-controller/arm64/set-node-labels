@@ -1,0 +1,6 @@
+#!/bin/bash
+
+echo "Schedule Pods on master"
+kubectl taint nodes --all node-role.kubernetes.io/master-
+kubectl label nodes vppagent role=affinity --overwrite=true
+kubectl label nodes contivvpp role=no-affinity --overwrite=true

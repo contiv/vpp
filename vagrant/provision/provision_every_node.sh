@@ -211,3 +211,6 @@ else
     ip link set enp0s8 down
   fi
 fi
+
+# Pull image used in k8s-systest "max_pod" scale
+docker pull kahou82/kubia

@@ -126,7 +126,12 @@ type UpdateTransactionType int
 const (
 	// BestEffort transaction continues even if non-fatal, non-abort error
 	// is returned (to get as close to the desired state as it is possible).
+	// After an errored BestEffort transaction, a healing resync is triggered.
 	BestEffort UpdateTransactionType = iota
+
+	// BestEffortIgnoreErrors is the same as BestEffort, but healing resync
+	// is NOT triggered in case of errors.
+	BestEffortIgnoreErrors
 
 	// RevertOnFailure tells the Controller to stop event processing when any error
 	// is returned and to revert already executed changes.

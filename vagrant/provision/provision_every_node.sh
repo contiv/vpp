@@ -14,7 +14,7 @@ EOF
 
 source /etc/profile.d/envvar.sh
 
-if [ $1 = "install" ];then
+if [ "$1" = "install" ];then
     echo "Updating apt lists..."
     sudo -E apt-get update
 
@@ -115,11 +115,15 @@ if [ "${ip_version}" == "ipv6" ]; then
     # enable ip6 forwarding
     sysctl -w net.ipv6.conf.all.forwarding=1
 
+    # override default nameserver
+    rm /etc/resolv.conf
+    echo "nameserver ${base_ip}100" > /etc/resolv.conf
+
     # add default ipv6 route via mgmt interface, to make kube-proxy work properly
     if [ "${dep_scenario}" == "nostn" ]; then
-        ip -6 route add default via ${base_ip}1 dev enp0s9 || true
+        ip -6 route add default via ${base_ip}100 dev enp0s9 || true
     else
-        ip -6 route add default via ${base_ip}1 dev enp0s8 || true
+        ip -6 route add default via ${base_ip}100 dev enp0s8 || true
     fi
 fi
 

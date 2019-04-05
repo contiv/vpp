@@ -19,14 +19,12 @@ import (
 	"net"
 	"strings"
 
-	"git.fd.io/govpp.git/api"
 	"github.com/vishvananda/netlink"
 
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linux/nsplugin/linuxcalls"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/ip"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/stats"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/vpe"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/ip"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/vpe"
 )
 
 const (
@@ -95,7 +93,7 @@ func (n *IPNet) executeDebugCLI(cmd string) (string, error) {
 	n.Log.Infof("Executing debug CLI: %s", cmd)
 
 	req := &vpe.CliInband{
-		Cmd: []byte(cmd),
+		Cmd: cmd,
 	}
 	reply := &vpe.CliInbandReply{}
 
@@ -124,24 +122,6 @@ func (n *IPNet) createVrf(vrfID uint32) error {
 	if err != nil {
 		n.Log.Error("Error by creating VRF 1:", err)
 	}
-	return err
-}
-
-func (n *IPNet) subscribeVnetFibCounters() error {
-	notifChan := make(chan api.Message, 1)
-	_, err := n.govppCh.SubscribeNotification(notifChan, &stats.VnetIP4FibCounters{})
-
-	if err != nil {
-		n.Log.Error("Error by subscribing to NewVnetIP4FibCounters:", err)
-	}
-
-	// read from the notif channel in a go routine to not block once the channel is full
-	go func() {
-		for {
-			<-notifChan
-		}
-	}()
-
 	return err
 }
 

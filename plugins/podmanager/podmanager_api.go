@@ -209,9 +209,9 @@ func (ev *DeletePod) Method() controller.EventMethodType {
 	return controller.Update
 }
 
-// TransactionType is BestEffort.
+// TransactionType is BestEffortIgnoreErrors.
 func (ev *DeletePod) TransactionType() controller.UpdateTransactionType {
-	return controller.BestEffort
+	return controller.BestEffortIgnoreErrors
 }
 
 // Direction is Reverse.

@@ -575,6 +575,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		needsHealing    bool
 		healingAfterErr error
 		withRevert      bool
+		withHealing     bool
 		updateEvent     api.UpdateEvent
 		eventHandlers   []api.EventHandler
 	)
@@ -619,6 +620,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 			return err
 		}
 		withRevert = updateEvent.TransactionType() == api.RevertOnFailure
+		withHealing = updateEvent.TransactionType() != api.BestEffortIgnoreErrors
 
 		// update Controller's view of DB
 		if ksChange, isKSChange := event.(*api.KubeStateChange); isKSChange {
@@ -701,7 +703,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		if err != nil {
 			errStr = err.Error()
 			wasErr = err
-			if !withRevert {
+			if !withRevert && withHealing {
 				needsHealing = true
 			}
 		}
@@ -813,7 +815,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		evRecord.TxnError = err
 		if err != nil {
 			wasErr = err
-			if !withRevert {
+			if !withRevert && withHealing {
 				if c.onlyExtConfigFailed(err.(*scheduler.TransactionError), c.txn.values) {
 					c.Log.Debug("Only external configuration caused the transaction to fail - " +
 						"not scheduling Healing resync")

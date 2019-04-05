@@ -763,7 +763,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:9fa0070f856fd298cc98d2b7a00ff017048a2ef98e3953bfe3f9a07945c3eca0"
+  digest = "1:cc9a2263aee9f8b29fbea2e56183f1ff41d26920069f8cecd9f187fd44bfa1d9"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -835,8 +835,6 @@
     "plugins/vpp/binapi/vpp1810/memif",
     "plugins/vpp/binapi/vpp1810/nat",
     "plugins/vpp/binapi/vpp1810/punt",
-    "plugins/vpp/binapi/vpp1810/session",
-    "plugins/vpp/binapi/vpp1810/stats",
     "plugins/vpp/binapi/vpp1810/stn",
     "plugins/vpp/binapi/vpp1810/tap",
     "plugins/vpp/binapi/vpp1810/tapv2",
@@ -855,6 +853,7 @@
     "plugins/vpp/binapi/vpp1901/memif",
     "plugins/vpp/binapi/vpp1901/nat",
     "plugins/vpp/binapi/vpp1901/punt",
+    "plugins/vpp/binapi/vpp1901/session",
     "plugins/vpp/binapi/vpp1901/stn",
     "plugins/vpp/binapi/vpp1901/tap",
     "plugins/vpp/binapi/vpp1901/tapv2",
@@ -1843,11 +1842,10 @@
     "github.com/ligato/vpp-agent/plugins/restapi/resturl",
     "github.com/ligato/vpp-agent/plugins/telemetry",
     "github.com/ligato/vpp-agent/plugins/vpp/aclplugin",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/ip",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/nat",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/session",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/stats",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1810/vpe",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/ip",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/nat",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/session",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx",

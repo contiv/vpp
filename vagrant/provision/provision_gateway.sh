@@ -48,6 +48,7 @@ EOF
    sudo systemctl enable nat64.service
 
    echo "Configuring bind"
+   NS=`cat /etc/resolv.conf | grep nameserver | awk '{print $2}'`
    cat | sudo tee /etc/bind/named.conf.options << EOF
 options {
   directory "/var/cache/bind";
@@ -55,7 +56,7 @@ options {
   auth-nxdomain no;
   listen-on-v6 { any; };
        forwarders {
-         8.8.8.8;
+         $NS;
        };
        allow-query { any; };
        # Add prefix for Jool's pool6

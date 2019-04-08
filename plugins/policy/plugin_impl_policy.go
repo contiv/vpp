@@ -127,6 +127,7 @@ func (p *Plugin) Init() error {
 				LogFactory: p.Log,
 				PodManager: p.PodManager,
 				IPAM:       p.IPAM,
+				IPNet:      p.IPNet,
 				UpdateTxn: func() controller.UpdateOperations {
 					p.withChange = true
 					return p.updateTxn

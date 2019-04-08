@@ -32,6 +32,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/devicemanager"
 	"github.com/contiv/vpp/plugins/ipam"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
@@ -91,6 +92,9 @@ type internalState struct {
 	// pod ID from interface name
 	vppIfaceToPodMutex sync.RWMutex
 	vppIfaceToPod      map[string]podmodel.ID
+
+	// cache of pods pending for AddPodCustomIfs event (waiting for metadata)
+	pendingAddPodCustomIf map[podmodel.ID]bool
 }
 
 // Deps groups the dependencies of the plugin.
@@ -102,6 +106,7 @@ type Deps struct {
 	IPAM          ipam.API
 	NodeSync      nodesync.API
 	PodManager    podmanager.API
+	DeviceManager devicemanager.API
 	VPPIfPlugin   vpp_ifplugin.API
 	LinuxNsPlugin linux_nsplugin.API
 	GoVPP         GoVPP
@@ -152,6 +157,10 @@ func (n *IPNet) Init() error {
 
 	// register REST handlers
 	n.registerRESTHandlers()
+
+	// init pod cache
+	n.internalState.pendingAddPodCustomIf = make(map[podmodel.ID]bool)
+
 	return nil
 }
 
@@ -190,7 +199,8 @@ func (n *IPNet) Close() error {
 
 // HandlesEvent selects:
 //   - any Resync event (extra action for NodeIPv4Change)
-//   - AddPod and DeletePod
+//   - AddPod and DeletePod (CNI)
+//   - POD k8s state changes
 //   - NodeUpdate for other nodes
 //   - Shutdown event
 func (n *IPNet) HandlesEvent(event controller.Event) bool {
@@ -202,6 +212,12 @@ func (n *IPNet) HandlesEvent(event controller.Event) bool {
 	}
 	if _, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
 		return true
+	}
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
+		if ksChange.Resource == podmodel.PodKeyword {
+			return true
+		}
+		return false
 	}
 	if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
 		return nodeUpdate.NodeName != n.ServiceLabel.GetAgentLabel()

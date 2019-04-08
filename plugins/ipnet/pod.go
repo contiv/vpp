@@ -24,11 +24,13 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/podmanager"
 
+	"github.com/contiv/vpp/plugins/devicemanager"
 	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
 	"github.com/ligato/vpp-agent/api/models/linux/namespace"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"sort"
 )
 
 const (
@@ -57,6 +59,13 @@ const (
 const (
 	ipv4LoopbackAddress = "127.0.0.1/8"
 	ipv6LoopbackAddress = "::1/128"
+)
+
+const (
+	contivCustomIfAnnotation = "contivpp.io/custom-if" // k8s annotation used to request custom pod interfaces
+	contivCustomIfSeparator  = ","                     // separator used to split multiple interfaces in k8s annotation
+
+	memifIfType = "memif"
 )
 
 /****************************** Pod Configuration ******************************/
@@ -122,6 +131,85 @@ func (n *IPNet) podInterfaceName(pod *podmanager.LocalPod) (vppIfName, linuxIfNa
 		return n.podVPPSideTAPName(pod), n.podLinuxSideTAPName(pod)
 	}
 	return n.podAFPacketName(pod), n.podVeth1Name(pod)
+}
+
+/****************************** Pod custom interfaces configuration ******************************/
+
+func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config controller.KeyValuePairs) {
+	config = make(controller.KeyValuePairs)
+
+	if pod == nil || pod.Metadata == nil {
+		return config
+	}
+	customIfs := getContivCustomIfs(pod.Metadata.Annotations)
+
+	var (
+		memifCnt  uint32
+		memifInfo *devicemanager.MemifInfo
+	)
+
+	for _, customIf := range customIfs {
+		ifName, ifType, _, err := parseCustomIfInfo(customIf)
+		if err != nil {
+			n.Log.Warnf("Error parsing custom interface definition (%v), skipping the interface %s", err, customIf)
+			continue
+		}
+
+		// TODO: TAP & veth support
+		if ifType == memifIfType {
+			if memifInfo == nil {
+				memifInfo, err = n.DeviceManager.GetPodMemifInfo(pod.ID)
+				if err != nil || memifInfo == nil {
+					n.Log.Warnf("Couldn't retrieve pod memif information, skipping memif configuration")
+					break
+				}
+			}
+			// configure the memif
+			k, v := n.podVPPMemif(pod, ifName, memifInfo, memifCnt)
+			config[k] = v
+			memifCnt++
+		}
+	}
+
+	if !isAdd && memifInfo != nil {
+		// by delete, cleanup the memif-related resources
+		n.DeviceManager.ReleasePodMemif(pod.ID)
+	}
+
+	return config
+}
+
+// getContivCustomIfs returns alphabetically ordered slice of custom interfaces defined in pod annotations.
+func getContivCustomIfs(annotations map[string]string) []string {
+	out := make([]string, 0)
+
+	for k, v := range annotations {
+		if strings.HasPrefix(k, contivCustomIfAnnotation) {
+			ifs := strings.Split(v, contivCustomIfSeparator)
+			for _, i := range ifs {
+				out = append(out, strings.TrimSpace(i))
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// parseCustomIfInfo
+func parseCustomIfInfo(ifAnnotation string) (ifName, ifType, ifNet string, err error) {
+	ifParts := strings.Split(ifAnnotation, "/")
+	if len(ifParts) < 2 {
+		err = fmt.Errorf("invalid %s annotation value: %s", contivCustomIfAnnotation, ifAnnotation)
+		return
+	}
+
+	ifName = ifParts[0]
+	ifType = ifParts[1]
+
+	if len(ifParts) > 2 {
+		ifNet = ifParts[2]
+	}
+	return
 }
 
 /******************************** loopback interface ********************************/
@@ -314,6 +402,46 @@ func (n *IPNet) podAfPacket(pod *podmanager.LocalPod) (key string, config *vpp_i
 	}
 	key = vpp_interfaces.InterfaceKey(afpacket.Name)
 	return key, afpacket
+}
+
+/******************************** memif interface ********************************/
+
+// podVPPSideTAPName returns logical name of the TAP interface on VPP connected to a given pod.
+func (n *IPNet) podVPPSideMemifName(pod *podmanager.LocalPod, ifName string) string {
+	return trimInterfaceName(ifName+"-"+pod.ContainerID, logicalIfNameMaxLen)
+}
+
+// podVPPMemif returns the configuration for memif interface on the VPP side connecting a given Pod.
+func (n *IPNet) podVPPMemif(pod *podmanager.LocalPod, ifName string,
+	memifInfo *devicemanager.MemifInfo, memifID uint32) (key string, config *vpp_interfaces.Interface) {
+
+	interfaceCfg := n.ContivConf.GetInterfaceConfig()
+	tap := &vpp_interfaces.Interface{
+		Name:    n.podVPPSideMemifName(pod, ifName),
+		Type:    vpp_interfaces.Interface_MEMIF,
+		Mtu:     interfaceCfg.MTUSize,
+		Enabled: true,
+		Vrf:     n.ContivConf.GetRoutingConfig().PodVRFID,
+		Unnumbered: &vpp_interfaces.Interface_Unnumbered{
+			InterfaceWithIp: podGwLoopbackInterfaceName,
+		},
+		Link: &vpp_interfaces.Interface_Memif{
+			Memif: &vpp_interfaces.MemifLink{
+				Master:         true,
+				Mode:           vpp_interfaces.MemifLink_ETHERNET,
+				SocketFilename: memifInfo.HostSocket,
+				Secret:         memifInfo.Secret,
+				Id:             memifID,
+			},
+		},
+	}
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
+		tap.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
+			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+		}
+	}
+	key = vpp_interfaces.InterfaceKey(tap.Name)
+	return key, tap
 }
 
 /***************************** Pod ARPs and routes *****************************/

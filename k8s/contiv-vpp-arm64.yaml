@@ -518,6 +518,8 @@ spec:
               mountPath: /var/contiv/dumps
             - name: docker-socket
               mountPath: /var/run/docker.sock
+            - name: kubelet-api
+              mountPath: /var/lib/kubelet
           resources:
             requests:
               cpu: 250m
@@ -588,6 +590,10 @@ spec:
         - name: contiv-cni-cfg
           configMap:
             name: contiv-cni-cfg
+        # kubelet api dir
+        - name: kubelet-api
+          hostPath:
+            path: /var/lib/kubelet
 
 ---
 

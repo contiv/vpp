@@ -11,7 +11,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:b2bfc1dd8586761e029c10ff87a5eeacb2c96b8cf5f962409d0264f7ea55ed14"
+  digest = "1:0a9d3100681a9939ed7572b27003b1b1af4399018c88f4415a534dec4ff62089"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
@@ -25,8 +25,7 @@
     "examples/bin_api/memclnt",
   ]
   pruneopts = "UT"
-  revision = "345201eedce4cefae4db6914067a34000a7f978f"
-  source = "github.com/FDio/govpp"
+  revision = "061dc1ca5dca4f87cb77b0efb4202b2bb863f4cf"
 
 [[projects]]
   branch = "master"
@@ -87,7 +86,7 @@
   revision = "2bd8b58cf4275aeb086ade613de226773e29e853"
 
 [[projects]]
-  digest = "1:0914e3a6d7980ef371ca62ccf982921a5264ade8955cc5023da802ecd512c8cd"
+  digest = "1:bb2f64178eccbb9867e8c42e3b8bb10f0f2de6e7af72e5aa02c7680680fe5607"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -121,8 +120,8 @@
     "service/sts",
   ]
   pruneopts = "UT"
-  revision = "4e871608b534ce2562c8330cf41d001db1c5d7d3"
-  version = "v1.19.8"
+  revision = "56c1def75689cceec1fa6f14c2eedb4b798827f9"
+  version = "v1.19.11"
 
 [[projects]]
   branch = "master"
@@ -626,12 +625,12 @@
   version = "v0.2.0"
 
 [[projects]]
-  digest = "1:ca59b1175189b3f0e9f1793d2c350114be36eaabbe5b9f554b35edee1de50aea"
+  digest = "1:d5f97fc268267ec1b61c3453058c738246fc3e746f14b1ae25161513b7367b0c"
   name = "github.com/gorilla/mux"
   packages = ["."]
   pruneopts = "UT"
-  revision = "a7962380ca08b5a188038c69871b8d3fbdf31e89"
-  version = "v1.7.0"
+  revision = "c5c6c98bc25355028a63748a498942a6398ccd22"
+  version = "v1.7.1"
 
 [[projects]]
   branch = "master"
@@ -762,8 +761,7 @@
   revision = "1009a1eda9ba369c0aea207b8ecea13cd109f350"
 
 [[projects]]
-  branch = "master"
-  digest = "1:9fa0070f856fd298cc98d2b7a00ff017048a2ef98e3953bfe3f9a07945c3eca0"
+  digest = "1:3074b8c8f5e12f9d489869e9992ae6d0efa69b6bbb24728e45d4ee1c48e9fbde"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -900,7 +898,8 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1901",
   ]
   pruneopts = "UT"
-  revision = "485e388d53a46f6789fe0b0fca100f184cfbaee1"
+  revision = "8b9cbb72c6dd2a8d2096f1d003b2f67b70f36214"
+  version = "v2.0.1"
 
 [[projects]]
   branch = "master"
@@ -1291,7 +1290,7 @@
     "ssh/terminal",
   ]
   pruneopts = "UT"
-  revision = "a5d413f7728c81fb97d96a2b722368945f651e78"
+  revision = "38d8ce5564a5b71b2e3a00553993f1b9a7ae852f"
 
 [[projects]]
   digest = "1:d029e9e01ae012bca87667ac1806494b9c603478f0407ddd48592b9a4ebd346f"
@@ -1320,7 +1319,7 @@
     "trace",
   ]
   pruneopts = "UT"
-  revision = "74de082e2cca95839e88aa0aeee5aadf6ce7710f"
+  revision = "eb5bcb51f2a31c7d5141d810b70815c05d9c9146"
 
 [[projects]]
   branch = "master"
@@ -1338,14 +1337,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:aa9254a749f8b6d34bfa7e422b9365f255d0e2457d4bb8d3de1e7b22d8b81410"
+  digest = "1:503f66aac79cb9135d73679c7fa3e95a6fad82a3da399c505ea282b50ff03723"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "UT"
-  revision = "baf5eb976a8cd65845293cd814ea151018552292"
+  revision = "4b34438f7a67ee5f45cc6132e2bad873a20324e9"
 
 [[projects]]
   digest = "1:436b24586f8fee329e0dd65fd67c817681420cda1d7f934345c13fe78c212a73"
@@ -1392,7 +1391,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:817d028c5ca540da9d203f80fb2103b54c39ecdeac859a4df5728c63756e7840"
+  digest = "1:2fc2f401c4b1ec2e7f7977c1bce92f689d1a42b0dd310d63d13609d2eb2b21e4"
   name = "golang.org/x/tools"
   packages = [
     "cover",
@@ -1409,7 +1408,7 @@
     "internal/semver",
   ]
   pruneopts = "UT"
-  revision = "202502a5a9245830b5ec7b877e26b67760da8e67"
+  revision = "0fdf0c73855bae8482c5d3907a9e06f33ff70a10"
 
 [[projects]]
   digest = "1:3412b27f10b4df334604a7dda9264d525ef01cf2c698011b5c31b290b637584e"
@@ -1454,7 +1453,7 @@
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
   pruneopts = "UT"
-  revision = "f467c93bbac2133ff463e1f93d18d8f9f3f04451"
+  revision = "64821d5d210748c883cd2b809589555ae4654203"
 
 [[projects]]
   digest = "1:a0bdff6a1dd68e7fa6edbffe3bef8e061db79543975d1c53afcae3a8d8a6c445"

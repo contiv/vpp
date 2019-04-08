@@ -18,6 +18,7 @@ import (
 	"fmt"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
+	"github.com/contiv/vpp/plugins/ipnet"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/policy/renderer"
@@ -47,6 +48,7 @@ type Deps struct {
 	Log        logging.Logger
 	LogFactory logging.LoggerFactory /* optional */
 	PodManager podmanager.API
+	IPNet      ipnet.API
 	IPAM       ipam.API
 	UpdateTxn  func() (txn controller.UpdateOperations)
 	ResyncTxn  func() (txn controller.ResyncOperations)
@@ -128,6 +130,7 @@ func (rt *RendererTxn) Commit() error {
 		symDiff := change.PreviousPods.SymDiff(change.Table.Pods)
 		pods.Join(symDiff)
 	}
+	hostIPs := rt.renderer.IPNet.GetHostIPs()
 
 	for podID := range pods {
 		var ruleChains controller.KeyValuePairs
@@ -137,6 +140,9 @@ func (rt *RendererTxn) Commit() error {
 			continue
 		}
 		pod := rt.cacheTxn.GetPodConfig(podID)
+		if isInIPlist(pod.PodIP.IP, hostIPs) {
+			continue
+		}
 		localTable := rt.cacheTxn.GetLocalTableByPod(podID)
 		if localTable != nil {
 			rules := localTable.Rules[:localTable.NumOfRules]
@@ -165,6 +171,7 @@ func (rt *RendererTxn) commitResync() error {
 		symDiff := change.PreviousPods.SymDiff(change.Table.Pods)
 		pods.Join(symDiff)
 	}
+	hostIPs := rt.renderer.IPNet.GetHostIPs()
 
 	// after the flush, changes == all newly created
 	for podID := range pods {
@@ -180,6 +187,9 @@ func (rt *RendererTxn) commitResync() error {
 		rules := table.Rules[:table.NumOfRules]
 
 		pod := rt.cacheTxn.GetPodConfig(podID)
+		if isInIPlist(pod.PodIP.IP, hostIPs) {
+			continue
+		}
 
 		chains := rt.renderRuleChains(podID, pod.PodIP, nil, rules)
 		controller.PutAll(txn, chains)
@@ -267,8 +277,7 @@ func (rt *RendererTxn) chainName(pod podmodel.ID, podIP *net.IPNet, isIngress bo
 	} else {
 		name += "egress-"
 	}
-	// by using pod IP in the name there will be only one chain generated for host-network pods
-	name += podIP.String()
+	name += pod.Namespace + "-" + pod.Name
 	return name
 }
 
@@ -294,4 +303,13 @@ func (rt *RendererTxn) ruleChainProtocolForIP(ipNet *net.IPNet) linux_iptables.R
 		return linux_iptables.RuleChain_IPv6
 	}
 	return linux_iptables.RuleChain_IPv4
+}
+
+func isInIPlist(ip net.IP, ips []net.IP) bool {
+	for _, i := range ips {
+		if i.Equal(ip) {
+			return true
+		}
+	}
+	return false
 }

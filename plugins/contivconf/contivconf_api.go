@@ -141,13 +141,13 @@ type CustomIPAMSubnets struct {
 	// This is subnet for all PODs across all nodes.
 	PodSubnetCIDR *net.IPNet
 
-	// RESTPrefix length of subnet used for all PODs within 1 node.
+	// Prefix length of subnet used for all PODs within 1 node.
 	PodSubnetOneNodePrefixLen uint8
 
 	// Subnet used across all nodes for VPP to host Linux stack interconnect.
 	VPPHostSubnetCIDR *net.IPNet
 
-	// RESTPrefix length of subnet used for VPP to host stack interconnect
+	// Prefix length of subnet used for VPP to host stack interconnect
 	// within 1 node.
 	VPPHostSubnetOneNodePrefixLen uint8
 

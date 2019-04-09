@@ -17,6 +17,7 @@ import (
 	"net"
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"github.com/contiv/vpp/plugins/contivconf/api"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
@@ -68,17 +69,17 @@ type API interface {
 	// GetIPAMConfigForJSON returns IPAM configuration in format suitable
 	// for marshalling to JSON (subnets not converted to net.IPNet + defined
 	// JSON flag for every option).
-	GetIPAMConfigForJSON() *IPAMConfigForJSON
+	GetIPAMConfigForJSON() *api.IPAMConfig
 
 	// GetInterfaceConfig returns configuration related to VPP interfaces.
-	GetInterfaceConfig() *InterfaceConfig
+	GetInterfaceConfig() *api.InterfaceConfig
 
 	// GetRoutingConfig returns configuration related to IP routing.
-	GetRoutingConfig() *RoutingConfig
+	GetRoutingConfig() *api.RoutingConfig
 
 	// GetIPNeighborScanConfig returns configuration related to IP Neighbor
 	// scanning.
-	GetIPNeighborScanConfig() *IPNeighborScanConfig
+	GetIPNeighborScanConfig() *api.IPNeighborScanConfig
 
 	// GetSTNConfig returns configuration related to STN feature.
 	// Use the method only in the STN mode - i.e. when InSTNMode() returns true.
@@ -140,13 +141,13 @@ type CustomIPAMSubnets struct {
 	// This is subnet for all PODs across all nodes.
 	PodSubnetCIDR *net.IPNet
 
-	// Prefix length of subnet used for all PODs within 1 node.
+	// RESTPrefix length of subnet used for all PODs within 1 node.
 	PodSubnetOneNodePrefixLen uint8
 
 	// Subnet used across all nodes for VPP to host Linux stack interconnect.
 	VPPHostSubnetCIDR *net.IPNet
 
-	// Prefix length of subnet used for VPP to host stack interconnect
+	// RESTPrefix length of subnet used for VPP to host stack interconnect
 	// within 1 node.
 	VPPHostSubnetOneNodePrefixLen uint8
 
@@ -155,42 +156,6 @@ type CustomIPAMSubnets struct {
 
 	// Subnet used for inter-node VXLANs.
 	VxlanCIDR *net.IPNet
-}
-
-// InterfaceConfig contains configuration related to interfaces.
-type InterfaceConfig struct {
-	MTUSize                    uint32 `json:"mtuSize,omitempty"`
-	UseTAPInterfaces           bool   `json:"useTAPInterfaces,omitempty"`
-	TAPInterfaceVersion        uint8  `json:"tapInterfaceVersion,omitempty"`
-	TAPv2RxRingSize            uint16 `json:"tapv2RxRingSize,omitempty"`
-	TAPv2TxRingSize            uint16 `json:"tapv2TxRingSize,omitempty"`
-	Vmxnet3RxRingSize          uint16 `json:"vmxnet3RxRingSize,omitempty"`
-	Vmxnet3TxRingSize          uint16 `json:"vmxnet3TxRingSize,omitempty"`
-	InterfaceRxMode            string `json:"interfaceRxMode,omitempty"` // "" == "default" / "polling" / "interrupt" / "adaptive"
-	TCPChecksumOffloadDisabled bool   `json:"tcpChecksumOffloadDisabled,omitempty"`
-}
-
-// RoutingConfig groups configuration options related to routing.
-type RoutingConfig struct {
-	// VRF IDs
-	MainVRFID uint32 `json:"mainVRFID,omitempty"`
-	PodVRFID  uint32 `json:"podVRFID,omitempty"`
-
-	// enable when no overlay (VXLAN) is needed for node-to-node communication,
-	// e.g. if the nodes are on the same L2 network
-	UseNoOverlay bool `json:"useNoOverlay,omitempty"`
-
-	// when enabled, cluster IP CIDR should be routed towards VPP from Linux
-	RouteServiceCIDRToVPP bool `json:"routeServiceCIDRToVPP,omitempty"`
-}
-
-// IPNeighborScanConfig contains configuration related to IP neighbour scanning.
-type IPNeighborScanConfig struct {
-	// when enabled, IP neighbors should be periodically scanned and probed
-	// to maintain the ARP table
-	ScanIPNeighbors          bool  `json:"scanIPNeighbors,omitempty"`
-	IPNeighborScanInterval   uint8 `json:"ipNeighborScanInterval,omitempty"`
-	IPNeighborStaleThreshold uint8 `json:"ipNeighborStaleThreshold,omitempty"`
 }
 
 // STNConfig groups config options related to STN (Steal-the-NIC).
@@ -276,7 +241,7 @@ func (ips IPsWithNetworks) String() string {
 type NodeConfigChange struct {
 	// not exported - plugins are expected to use ContivConf API to re-read
 	// the configuration after the change
-	nodeConfig *NodeConfig
+	nodeConfig *api.NodeConfig
 }
 
 // GetName returns name of the NodeConfigChange event.

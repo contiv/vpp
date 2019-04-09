@@ -152,6 +152,7 @@ func (n *IPNet) Init() error {
 
 	// register REST handlers
 	n.registerRESTHandlers()
+
 	return nil
 }
 

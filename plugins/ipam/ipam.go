@@ -26,6 +26,7 @@ import (
 	"bytes"
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/contiv/vpp/plugins/contivconf"
+	contivconfapi "github.com/contiv/vpp/plugins/contivconf/api"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -621,9 +622,9 @@ func (i *IPAM) ReleasePodIP(podID podmodel.ID) error {
 
 // GetIPAMConfigForJSON returns actual (contivCIDR dissected
 // into ranges, if  used) IPAM configuration
-func (i *IPAM) GetIPAMConfigForJSON() *contivconf.IPAMConfigForJSON {
+func (i *IPAM) GetIPAMConfigForJSON() *contivconfapi.IPAMConfig {
 	c := i.ContivConf.GetIPAMConfigForJSON()
-	res := &contivconf.IPAMConfigForJSON{
+	res := &contivconfapi.IPAMConfig{
 		UseExternalIPAM:      c.UseExternalIPAM,
 		ContivCIDR:           c.ContivCIDR,
 		ServiceCIDR:          c.ServiceCIDR,

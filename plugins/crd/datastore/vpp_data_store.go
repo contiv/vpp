@@ -23,10 +23,10 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/ligato/cn-infra/health/statuscheck/model/status"
-
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ipnet"
+	ipnetapi "github.com/contiv/vpp/plugins/ipnet/api"
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 )
 
 //VppDataStore holds various maps which all take different keys but point to the same underlying value.
@@ -312,7 +312,7 @@ func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps telemetrymodel.Nod
 }
 
 // SetNodeIPam is a simple function to set the node with the given node name's ipam
-func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam ipnet.IPAMData) error {
+func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam ipnetapi.NodeIPAMInfo) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 

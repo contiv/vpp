@@ -18,7 +18,7 @@ import (
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/contiv/vpp/plugins/ipnet"
+	ipnetapi "github.com/contiv/vpp/plugins/ipnet/api"
 )
 
 const (
@@ -49,7 +49,7 @@ type VppCache interface {
 	SetNodeTelemetry(name string, nTele map[string]telemetrymodel.NodeTelemetry) error
 	SetNodeIPARPs(name string, nArps telemetrymodel.NodeIPArpTable) error
 	SetNodeStaticRoutes(nodeName string, nSrs telemetrymodel.NodeStaticRoutes) error
-	SetNodeIPam(nodeName string, nIPam ipnet.IPAMData) error
+	SetNodeIPam(nodeName string, nIPam ipnetapi.NodeIPAMInfo) error
 	SetLinuxInterfaces(nodeName string, nInt telemetrymodel.LinuxInterfaces) error
 
 	SetSecondaryNodeIndices(node *telemetrymodel.Node) []string

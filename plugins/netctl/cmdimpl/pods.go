@@ -26,7 +26,7 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/contiv/vpp/plugins/ipnet"
+	ipnetapi "github.com/contiv/vpp/plugins/ipnet/api"
 	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -37,7 +37,7 @@ import (
 )
 
 type nodeData struct {
-	ipam *ipnet.IPAMData
+	ipam *ipnetapi.NodeIPAMInfo
 	ifcs map[uint32]*vppif.InterfaceDetails
 	arps telemetrymodel.NodeIPArpTable
 }
@@ -176,7 +176,7 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (uint32, string) {
 			return 0, "N/A"
 		}
 
-		ipam := &ipnet.IPAMData{}
+		ipam := &ipnetapi.NodeIPAMInfo{}
 		if err := json.Unmarshal(b, ipam); err != nil {
 			fmt.Printf("Host '%s', Pod '%s' - failed to decode ipam, err %s\n",
 				podInfo.HostIpAddress, podInfo.Name, err)

@@ -41,7 +41,7 @@ import (
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contivconf"
-	contivconfapi "github.com/contiv/vpp/plugins/contivconf/api"
+	"github.com/contiv/vpp/plugins/contivconf/config"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/ipam"
@@ -84,7 +84,7 @@ var (
 
 	hostIPs = []net.IP{net.ParseIP(hostIP1), net.ParseIP(hostIP2)}
 
-	nodeDHCPConfig = &contivconfapi.NodeConfig{
+	nodeDHCPConfig = &config.NodeConfig{
 		NodeName: node1,
 		NodeConfigSpec: nodeconfig.NodeConfigSpec{
 			StealInterface: "eth0",
@@ -101,12 +101,12 @@ var (
 		},
 	}
 
-	configTapVxlanDHCP = &contivconfapi.Config{
-		InterfaceConfig: contivconfapi.InterfaceConfig{
+	configTapVxlanDHCP = &config.Config{
+		InterfaceConfig: config.InterfaceConfig{
 			UseTAPInterfaces:    true,
 			TAPInterfaceVersion: 2,
 		},
-		IPAMConfig: contivconfapi.IPAMConfig{
+		IPAMConfig: config.IPAMConfig{
 			PodSubnetCIDR:                 "10.1.0.0/16",
 			PodSubnetOneNodePrefixLen:     24,
 			VPPHostSubnetCIDR:             "172.30.0.0/16",

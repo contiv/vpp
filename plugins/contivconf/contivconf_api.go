@@ -17,7 +17,7 @@ import (
 	"net"
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
-	"github.com/contiv/vpp/plugins/contivconf/api"
+	"github.com/contiv/vpp/plugins/contivconf/config"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
@@ -69,17 +69,17 @@ type API interface {
 	// GetIPAMConfigForJSON returns IPAM configuration in format suitable
 	// for marshalling to JSON (subnets not converted to net.IPNet + defined
 	// JSON flag for every option).
-	GetIPAMConfigForJSON() *api.IPAMConfig
+	GetIPAMConfigForJSON() *config.IPAMConfig
 
 	// GetInterfaceConfig returns configuration related to VPP interfaces.
-	GetInterfaceConfig() *api.InterfaceConfig
+	GetInterfaceConfig() *config.InterfaceConfig
 
 	// GetRoutingConfig returns configuration related to IP routing.
-	GetRoutingConfig() *api.RoutingConfig
+	GetRoutingConfig() *config.RoutingConfig
 
 	// GetIPNeighborScanConfig returns configuration related to IP Neighbor
 	// scanning.
-	GetIPNeighborScanConfig() *api.IPNeighborScanConfig
+	GetIPNeighborScanConfig() *config.IPNeighborScanConfig
 
 	// GetSTNConfig returns configuration related to STN feature.
 	// Use the method only in the STN mode - i.e. when InSTNMode() returns true.
@@ -241,7 +241,7 @@ func (ips IPsWithNetworks) String() string {
 type NodeConfigChange struct {
 	// not exported - plugins are expected to use ContivConf API to re-read
 	// the configuration after the change
-	nodeConfig *api.NodeConfig
+	nodeConfig *config.NodeConfig
 }
 
 // GetName returns name of the NodeConfigChange event.

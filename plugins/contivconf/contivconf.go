@@ -37,7 +37,7 @@ import (
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
-	"github.com/contiv/vpp/plugins/contivconf/api"
+	"github.com/contiv/vpp/plugins/contivconf/config"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
@@ -107,11 +107,11 @@ type ContivConf struct {
 	Deps
 
 	// configuration loaded from the file
-	config     *api.Config
+	config     *config.Config
 	ipamConfig *IPAMConfig // IPAM subnets parsed to net.IPNet
 
 	// node-specific configuration defined via CRD, can be nil
-	nodeConfigCRD *api.NodeConfig
+	nodeConfigCRD *config.NodeConfig
 
 	// GoVPP channel used to get the list of DPDK interfaces
 	govppCh govpp.Channel
@@ -175,7 +175,7 @@ type ContivInitDeps struct {
 
 // UnitTestDeps lists dependencies for unit testing.
 type UnitTestDeps struct {
-	Config                       *api.Config
+	Config                       *config.Config
 	DumpDPDKInterfacesClb        DumpDPDKInterfacesClb
 	RequestSTNInfoClb            RequestSTNInfoClb
 	GetFirstHostInterfaceNameClb GetFirstHostInterfaceNameClb
@@ -210,7 +210,7 @@ type KVBrokerFactory interface {
 }
 
 // GetNodeConfig returns configuration specific to a given node, or nil if none was found.
-func getNodeConfig(cfg *api.Config, nodeName string) *api.NodeConfig {
+func getNodeConfig(cfg *config.Config, nodeName string) *config.NodeConfig {
 	for _, nodeConfig := range cfg.NodeConfig {
 		if nodeConfig.NodeName == nodeName {
 			return &nodeConfig
@@ -257,24 +257,24 @@ func (c *ContivConf) Init() (err error) {
 	}
 
 	// default configuration
-	c.config = &api.Config{
+	c.config = &config.Config{
 		STNSocketFile:                defaultSTNSocketFile,
 		CRDNodeConfigurationDisabled: defaultCRDNodeConfigurationDisabled,
-		InterfaceConfig: api.InterfaceConfig{
+		InterfaceConfig: config.InterfaceConfig{
 			UseTAPInterfaces:           defaultUseTAPInterfaces,
 			TAPInterfaceVersion:        defaultTAPInterfaceVersion,
 			TCPChecksumOffloadDisabled: defaultTCPChecksumOffloadDisabled,
 		},
-		IPNeighborScanConfig: api.IPNeighborScanConfig{
+		IPNeighborScanConfig: config.IPNeighborScanConfig{
 			ScanIPNeighbors:          defaultScanIPNeighbors,
 			IPNeighborScanInterval:   defaultIPNeighborScanInterval,
 			IPNeighborStaleThreshold: defaultIPNeighborStaleThreshold,
 		},
-		RoutingConfig: api.RoutingConfig{
+		RoutingConfig: config.RoutingConfig{
 			MainVRFID: defaultMainVrfID,
 			PodVRFID:  defaultPodVrfID,
 		},
-		IPAMConfig: api.IPAMConfig{
+		IPAMConfig: config.IPAMConfig{
 			ServiceCIDR:                   defaultServiceCIDR,
 			PodSubnetCIDR:                 defaultPodSubnetCIDR,
 			PodSubnetOneNodePrefixLen:     defaultPodSubnetOneNodePrefixLen,
@@ -479,7 +479,7 @@ func (c *ContivConf) Resync(event controller.Event, kubeStateData controller.Kub
 
 // Update is called for KubeStateChange for CRD node-specific config of this node.
 func (c *ContivConf) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
-	var nodeConfig *api.NodeConfig
+	var nodeConfig *config.NodeConfig
 	ksChange := event.(*controller.KubeStateChange)
 	if ksChange.NewValue != nil {
 		nodeConfig = nodeConfigFromProto(ksChange.NewValue.(*nodeconfig.NodeConfig))
@@ -561,23 +561,23 @@ func (c *ContivConf) GetIPAMConfig() *IPAMConfig {
 // GetIPAMConfigForJSON returns IPAM configuration in format suitable
 // for marshalling to JSON (subnets not converted to net.IPNet + defined
 // JSON flag for every option).
-func (c *ContivConf) GetIPAMConfigForJSON() *api.IPAMConfig {
+func (c *ContivConf) GetIPAMConfigForJSON() *config.IPAMConfig {
 	return &c.config.IPAMConfig
 }
 
 // GetInterfaceConfig returns configuration related to VPP interfaces.
-func (c *ContivConf) GetInterfaceConfig() *api.InterfaceConfig {
+func (c *ContivConf) GetInterfaceConfig() *config.InterfaceConfig {
 	return &c.config.InterfaceConfig
 }
 
 // GetRoutingConfig returns configuration related to IP routing.
-func (c *ContivConf) GetRoutingConfig() *api.RoutingConfig {
+func (c *ContivConf) GetRoutingConfig() *config.RoutingConfig {
 	return &c.config.RoutingConfig
 }
 
 // GetIPNeighborScanConfig returns configuration related to IP Neighbor
 // scanning.
-func (c *ContivConf) GetIPNeighborScanConfig() *api.IPNeighborScanConfig {
+func (c *ContivConf) GetIPNeighborScanConfig() *config.IPNeighborScanConfig {
 	return &c.config.IPNeighborScanConfig
 }
 
@@ -739,7 +739,7 @@ func (c *ContivConf) reloadNodeInterfaces() error {
 
 // getNodeSpecificConfig returns configuration specific to this node, prioritizing
 // CRD over the configuration file.
-func (c *ContivConf) getNodeSpecificConfig() *api.NodeConfig {
+func (c *ContivConf) getNodeSpecificConfig() *config.NodeConfig {
 	if c.nodeConfigCRD != nil {
 		return c.nodeConfigCRD
 	}
@@ -748,7 +748,7 @@ func (c *ContivConf) getNodeSpecificConfig() *api.NodeConfig {
 
 // loadNodeConfigFromCRD loads node configuration defined via CRD, which was reflected
 // into a remote kv-store by contiv-crd and mirrored into local kv-store by the agent.
-func (c *ContivConf) loadNodeConfigFromCRD(remoteDB, localDB KVBrokerFactory) *api.NodeConfig {
+func (c *ContivConf) loadNodeConfigFromCRD(remoteDB, localDB KVBrokerFactory) *config.NodeConfig {
 	var (
 		nodeConfigProto *nodeconfig.NodeConfig
 		err             error
@@ -923,8 +923,8 @@ func (c *ContivConf) requestSTNInfo(ifName string) (reply *stn_grpc.STNReply, er
 }
 
 // nodeConfigFromProto converts node configuration from protobuf to an instance of NodeConfig structure.
-func nodeConfigFromProto(nodeConfigProto *nodeconfig.NodeConfig) (nodeConfig *api.NodeConfig) {
-	nodeConfig = &api.NodeConfig{
+func nodeConfigFromProto(nodeConfigProto *nodeconfig.NodeConfig) (nodeConfig *config.NodeConfig) {
+	nodeConfig = &config.NodeConfig{
 		NodeName: nodeConfigProto.NodeName,
 		NodeConfigSpec: nodeconfigcrd.NodeConfigSpec{
 			StealInterface:     nodeConfigProto.StealInterface,

@@ -32,7 +32,7 @@ import (
 
 	"bytes"
 	"github.com/contiv/vpp/plugins/contivconf"
-	contivconfapi "github.com/contiv/vpp/plugins/contivconf/api"
+	"github.com/contiv/vpp/plugins/contivconf/config"
 	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
@@ -67,9 +67,9 @@ var (
 	expectedPodSubnetThisNodeGatewayIP    = net.IPv4(1, 2, byte(b10000000+nodeID1>>5), byte((nodeID1<<3)+1)).To4()
 )
 
-func newDefaultConfig() *contivconfapi.Config {
-	return &contivconfapi.Config{
-		IPAMConfig: contivconfapi.IPAMConfig{
+func newDefaultConfig() *config.Config {
+	return &config.Config{
+		IPAMConfig: config.IPAMConfig{
 			PodSubnetCIDR:                 "1.2." + str(b10000000) + ".0/17",
 			PodSubnetOneNodePrefixLen:     29, // 3 bits left -> 4 free IP addresses (gateway IP + NAT-loopback IP + network addr + broadcast are reserved)
 			VPPHostSubnetCIDR:             "2.3." + str(b11000000) + ".0/18",
@@ -80,14 +80,14 @@ func newDefaultConfig() *contivconfapi.Config {
 	}
 }
 
-func setup(t *testing.T, cfg *contivconfapi.Config) *IPAM {
+func setup(t *testing.T, cfg *config.Config) *IPAM {
 	RegisterTestingT(t)
 	i, err := newIPAM(cfg, nodeID1)
 	Expect(err).To(BeNil())
 	return i
 }
 
-func newIPAM(cfg *contivconfapi.Config, nodeID uint32) (i *IPAM, err error) {
+func newIPAM(cfg *config.Config, nodeID uint32) (i *IPAM, err error) {
 	datasync := NewMockDataSync()
 	resyncEv, _ := datasync.ResyncEvent(podmodel.KeyPrefix())
 
@@ -563,7 +563,7 @@ func TestExcludeGateway(t *testing.T) {
 
 	excluded := []net.IP{gw}
 	customConfig := newDefaultConfig()
-	customConfig.NodeConfig = append(customConfig.NodeConfig, contivconfapi.NodeConfig{
+	customConfig.NodeConfig = append(customConfig.NodeConfig, config.NodeConfig{
 		NodeName: nodeName,
 		NodeConfigSpec: nodeconfigcrd.NodeConfigSpec{
 			Gateway: gw.String(),

@@ -37,7 +37,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
-	ipnetapi "github.com/contiv/vpp/plugins/ipnet/api"
+	"github.com/contiv/vpp/plugins/ipnet/restapi"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 )
 
@@ -290,7 +290,7 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 	url = ctc.kvSchedulerDumpURL(vppl3descr.RouteDescriptorName)
 	go ctc.getNodeInfo(client, node, url, &nodestaticroutes, ctc.databaseVersion)
 
-	nodeipam := ipnetapi.NodeIPAMInfo{}
+	nodeipam := restapi.NodeIPAMInfo{}
 	go ctc.getNodeInfo(client, node, ipamURL, &nodeipam, ctc.databaseVersion)
 
 	linuxInterfaces := make(telemetrymodel.LinuxInterfaces, 0)
@@ -462,8 +462,8 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 		case *telemetrymodel.NodeStaticRoutes:
 			nSrDto := data.NodeInfo.(*telemetrymodel.NodeStaticRoutes)
 			err = ctc.VppCache.SetNodeStaticRoutes(data.NodeName, *nSrDto)
-		case *ipnetapi.NodeIPAMInfo:
-			nipamDto := data.NodeInfo.(*ipnetapi.NodeIPAMInfo)
+		case *restapi.NodeIPAMInfo:
+			nipamDto := data.NodeInfo.(*restapi.NodeIPAMInfo)
 			err = ctc.VppCache.SetNodeIPam(data.NodeName, *nipamDto)
 		case *telemetrymodel.LinuxInterfaces:
 			liDto := data.NodeInfo.(*telemetrymodel.LinuxInterfaces)

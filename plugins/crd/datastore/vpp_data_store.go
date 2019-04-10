@@ -25,7 +25,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ipnet"
-	ipnetapi "github.com/contiv/vpp/plugins/ipnet/api"
+	"github.com/contiv/vpp/plugins/ipnet/restapi"
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 )
 
@@ -312,7 +312,7 @@ func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps telemetrymodel.Nod
 }
 
 // SetNodeIPam is a simple function to set the node with the given node name's ipam
-func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam ipnetapi.NodeIPAMInfo) error {
+func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam restapi.NodeIPAMInfo) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 

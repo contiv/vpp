@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package api
+package restapi
 
 import (
-	contivconfapi "github.com/contiv/vpp/plugins/contivconf/api"
+	"github.com/contiv/vpp/plugins/contivconf/config"
 )
 
 const (
@@ -29,10 +29,10 @@ const (
 // NodeIPAMInfo represents runtime IPAM info about the current node.
 // It is exposed by the node IPAM REST handler.
 type NodeIPAMInfo struct {
-	NodeID            uint32                    `json:"nodeId"`
-	NodeName          string                    `json:"nodeName"`
-	NodeIP            string                    `json:"nodeIP"`
-	PodSubnetThisNode string                    `json:"podSubnetThisNode"`
-	VppHostNetwork    string                    `json:"vppHostNetwork"`
-	Config            *contivconfapi.IPAMConfig `json:"config"`
+	NodeID            uint32             `json:"nodeId"`
+	NodeName          string             `json:"nodeName"`
+	NodeIP            string             `json:"nodeIP"`
+	PodSubnetThisNode string             `json:"podSubnetThisNode"`
+	VppHostNetwork    string             `json:"vppHostNetwork"`
+	Config            *config.IPAMConfig `json:"config"`
 }

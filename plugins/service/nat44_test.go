@@ -42,7 +42,7 @@ import (
 	"github.com/contiv/vpp/plugins/service/renderer/nat44"
 
 	"github.com/contiv/vpp/plugins/contivconf"
-	contivconfapi "github.com/contiv/vpp/plugins/contivconf/api"
+	"github.com/contiv/vpp/plugins/contivconf/config"
 	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/ipam"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
@@ -160,14 +160,14 @@ func ipNet(address string) (combined *net.IPNet, addrOnly net.IP, network *net.I
 	return combined, addrOnly, network
 }
 
-func defaultConfig(withOtherIfaces bool) *contivconfapi.Config {
-	config := &contivconfapi.Config{
+func defaultConfig(withOtherIfaces bool) *config.Config {
+	config := &config.Config{
 		NatExternalTraffic: true,
-		RoutingConfig: contivconfapi.RoutingConfig{
+		RoutingConfig: config.RoutingConfig{
 			MainVRFID: mainVrfID,
 			PodVRFID:  podVrfID,
 		},
-		NodeConfig: []contivconfapi.NodeConfig{
+		NodeConfig: []config.NodeConfig{
 			{
 				NodeName: masterLabel,
 				NodeConfigSpec: nodeconfigcrd.NodeConfigSpec{
@@ -208,7 +208,7 @@ type plugins struct {
 	renderer     *nat44.Renderer
 }
 
-func initPlugins(testName string, config *contivconfapi.Config, localEndpointWeight uint8, snatOnly bool, withoutMasterIPs ...bool) *plugins {
+func initPlugins(testName string, config *config.Config, localEndpointWeight uint8, snatOnly bool, withoutMasterIPs ...bool) *plugins {
 	plugins := &plugins{}
 
 	// logger

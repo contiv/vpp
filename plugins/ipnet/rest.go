@@ -15,7 +15,7 @@
 package ipnet
 
 import (
-	"github.com/contiv/vpp/plugins/ipnet/api"
+	"github.com/contiv/vpp/plugins/ipnet/restapi"
 	"github.com/unrolled/render"
 	"net/http"
 )
@@ -26,8 +26,8 @@ func (n *IPNet) registerRESTHandlers() {
 		return
 	}
 
-	n.HTTPHandlers.RegisterHTTPHandler(api.RestURLNodeIPAM, n.ipamGetHandler, "GET")
-	n.Log.Infof("IPAM REST handler registered: GET %v", api.RestURLNodeIPAM)
+	n.HTTPHandlers.RegisterHTTPHandler(restapi.RestURLNodeIPAM, n.ipamGetHandler, "GET")
+	n.Log.Infof("IPAM REST handler registered: GET %v", restapi.RestURLNodeIPAM)
 }
 
 func (n *IPNet) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
@@ -40,7 +40,7 @@ func (n *IPNet) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
 			return
 		}
 
-		formatter.JSON(w, http.StatusOK, api.NodeIPAMInfo{
+		formatter.JSON(w, http.StatusOK, restapi.NodeIPAMInfo{
 			NodeID:            n.NodeSync.GetNodeID(),
 			NodeName:          n.ServiceLabel.GetAgentLabel(),
 			NodeIP:            nodeIP.String(),

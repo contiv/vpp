@@ -26,7 +26,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ipnet"
-	ipnetapi "github.com/contiv/vpp/plugins/ipnet/api"
+	"github.com/contiv/vpp/plugins/ipnet/restapi"
 	"github.com/contiv/vpp/plugins/netctl/remote"
 	vppifdescr "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor"
 )
@@ -62,7 +62,7 @@ func nodeIpamCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, w *tab
 		return
 	}
 
-	ipam := ipnetapi.NodeIPAMInfo{}
+	ipam := restapi.NodeIPAMInfo{}
 	err = json.Unmarshal(b, &ipam)
 	if err != nil {
 		fmt.Println(err)

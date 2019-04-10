@@ -17,7 +17,7 @@ package telemetrymodel
 import (
 	"github.com/gogo/protobuf/jsonpb"
 
-	ipnetapi "github.com/contiv/vpp/plugins/ipnet/api"
+	"github.com/contiv/vpp/plugins/ipnet/restapi"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 	linux_ifaceidx "github.com/ligato/vpp-agent/plugins/linux/ifplugin/ifaceidx"
@@ -78,7 +78,7 @@ type Node struct {
 	NodeL2Fibs        NodeL2FibTable
 	NodeIPArp         NodeIPArpTable
 	NodeStaticRoutes  NodeStaticRoutes
-	NodeIPam          *ipnetapi.NodeIPAMInfo
+	NodeIPam          *restapi.NodeIPAMInfo
 	LinuxInterfaces   LinuxInterfaces
 
 	// pods

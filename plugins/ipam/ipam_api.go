@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"net"
 
-	contivconfapi "github.com/contiv/vpp/plugins/contivconf/api"
+	"github.com/contiv/vpp/plugins/contivconf/config"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -95,7 +95,7 @@ type API interface {
 	// for marshalling to JSON (subnets not converted to net.IPNet + defined
 	// JSON flag for every option). If contivCIDR is used it returns actual
 	// dissected subnets.
-	GetIPAMConfigForJSON() *contivconfapi.IPAMConfig
+	GetIPAMConfigForJSON() *config.IPAMConfig
 }
 
 // PodCIDRChange is triggered when CIDR for PODs on the current node changes.

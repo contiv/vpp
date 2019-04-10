@@ -32,16 +32,19 @@ git reset --hard HEAD
 cp ${VPP_PATCH_DIR}/*.diff . || true
 git apply -v *.diff || true
 
+# do not build vom
+sed -i -e 's/vpp vom japi/vpp/g' build-data/platforms/vpp.mk
+cat build-data/platforms/vpp.mk
 
 if [ "$(uname -m)" = "aarch64" ] ; then
   sed -i 's/lib\/x86_64-linux-gnu/lib\/aarch64-linux-gnu/g' build-data/platforms.mk
 fi
 
 # run the production build
-UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' install-dep
+UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' install-dep dpdk-install-dev
 rm -rf /var/lib/apt/lists/*
 cd ${VPP_DIR}
-UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' bootstrap dpdk-install-dev pkg-deb
+UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' build-release pkg-deb
 cd build-root
 rm -rf .ccache \
 	build-vpp-native/vpp/vpp-api/vom \

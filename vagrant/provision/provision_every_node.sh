@@ -41,7 +41,7 @@ if [ "$1" = "install" ];then
     echo "Installing Kubernetes Components..."
     sudo -E apt-get install -qy kubelet=${k8s_version}-00 \
                       kubectl=${k8s_version}-00 \
-                      kubeadm=${k8s_version}-00
+                      kubeadm=${k8s_version}-00 kubernetes-cni=0.6.0-00
 
     echo "Installing Docker..."
     if [ "${node_os_release}" == "16.04" ] ; then

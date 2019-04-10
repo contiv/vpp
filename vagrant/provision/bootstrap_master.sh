@@ -3,6 +3,9 @@ set -ex
 
 echo Args passed: [[ $@ ]]
 
+# variable should be set to true unless the script is executed for the first master
+backup_master="$3"
+
 # Pull images if not present
 if [ -f /vagrant/images.tar ]; then
     echo 'Found saved images at /vagrant/images.tar'
@@ -43,8 +46,10 @@ fi
 # ---> Create token and export it with kube master IP <---
 # --------------------------------------------------------
 
-echo "Exporting Kube Master IP and Kubeadm Token..."
-echo "export KUBEADM_TOKEN=$(kubeadm token generate)" >> /vagrant/config/init
+if [ "$backup_master" != "true" ]; then
+  echo "Exporting Kube Master IP and Kubeadm Token..."
+  echo "export KUBEADM_TOKEN=$(kubeadm token generate)" >> /vagrant/config/init
+fi
 
 if [ "${dep_scenario}" != 'nostn' ] && [ "${ip_version}" != 'ipv6' ]; then
   echo "export KUBE_MASTER_IP=$(hostname -I | cut -f2 -d' ')" >> /vagrant/config/init
@@ -89,9 +94,71 @@ if [ $split_k8s_version -gt 10 ] ; then
   systemctl daemon-reload
   systemctl restart kubelet
   if [ "${dep_scenario}" != 'calico' ] && [ "${dep_scenario}" != 'calicovpp' ]; then
-    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+    if [ ${master_nodes} -gt 1 ]; then
+       cat  > kubeadm.cfg <<EOF
+---
+apiVersion: kubeadm.k8s.io/v1beta1
+bootstrapTokens:
+- groups:
+  - system:bootstrappers:kubeadm:default-node-token
+  token: $KUBEADM_TOKEN
+  usages:
+  - signing
+  - authentication
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: $KUBE_MASTER_IP
+  bindPort: 6443
+nodeRegistration:
+  criSocket: /var/run/dockershim.sock
+  name: k8s-master
+  taints:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/master
+---
+apiServer:
+  timeoutForControlPlane: 4m0s
+apiVersion: kubeadm.k8s.io/v1beta1
+certificatesDir: /etc/kubernetes/pki
+clusterName: kubernetes
+controlPlaneEndpoint: "10.20.0.100:6443"
+controllerManager: {}
+dns:
+  type: CoreDNS
+etcd:
+  local:
+    dataDir: /var/lib/etcd
+imageRepository: k8s.gcr.io
+kind: ClusterConfiguration
+kubernetesVersion: v1.13.0
+networking:
+  dnsDomain: cluster.local
+  podSubnet: "$pod_network_cidr"
+  serviceSubnet: $service_cidr
+scheduler: {}
+EOF
+       if [ "$backup_master" != "true" ]; then
+          echo "$(kubeadm init --config=kubeadm.cfg)" >> /vagrant/config/cert
+       else
+
+         # since master join ignores node-ip arg in kubelet config
+         # modify default route in order to suggest kubelet choosing the correct IP
+         ip route del `ip route | grep default`
+         ip route add default via 10.20.0.100
+
+         # copy certificates from the first master node
+         mkdir -p /etc/kubernetes/pki/etcd
+         cp /vagrant/certs/* /etc/kubernetes/pki/
+         mv /etc/kubernetes/pki/etcd-ca.crt /etc/kubernetes/pki/etcd/ca.crt
+         mv /etc/kubernetes/pki/etcd-ca.key /etc/kubernetes/pki/etcd/ca.key
+         hash=$(awk 'END {print $NF}' /vagrant/config/cert)
+         kubeadm join --token "${KUBEADM_TOKEN}"  10.20.0.100:6443 --discovery-token-ca-cert-hash "$hash" --experimental-control-plane
+       fi
+    else
+       echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+    fi
   else
-    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+       echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
   fi
 else
   sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
@@ -105,6 +172,18 @@ mkdir -p /home/vagrant/.kube
 sudo cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config
 sudo chown vagrant:vagrant -R /home/vagrant/.kube
 sleep 2;
+
+if  [ "$backup_master" != "true" ]; then
+  # copy the certs into shared folder
+  rm -rf /vagrant/certs
+  mkdir /vagrant/certs
+  cp /etc/kubernetes/pki/etcd/ca.crt /vagrant/certs/etcd-ca.crt
+  cp /etc/kubernetes/pki/etcd/ca.key /vagrant/certs/etcd-ca.key
+  cp /etc/kubernetes/admin.conf /vagrant/certs/
+  cp /etc/kubernetes/pki/front-proxy-ca.* /vagrant/certs/
+  cp /etc/kubernetes/pki/ca.* /vagrant/certs/
+  cp /etc/kubernetes/pki/sa.* /vagrant/certs/
+fi
 
 applySTNScenario() {
   gw="10.130.1.254";
@@ -300,21 +379,23 @@ applyCalicoVPPNetwork() {
   done
 }
 
-stn_config=""
-export stn_config
-applySTNScenario
+if [ "$backup_master" != "true" ]; then
+  stn_config=""
+  export stn_config
+  applySTNScenario
 
-if [ "${dep_scenario}" == 'calico' ]; then
-  export -f applyCalicoNetwork
-  su vagrant -c "bash -c applyCalicoNetwork"
-elif [ "${dep_scenario}" == 'calicovpp' ]; then
-  export stn_config="${stn_config} --set contiv.useNoOverlay=true --set contiv.ipamConfig.useExternalIPAM=true --set contiv.ipamConfig.podSubnetCIDR=10.10.0.0/16 --set vswitch.useNodeAffinity=true"
-  export -f applyVPPnetwork
-  su vagrant -c "bash -c applyVPPnetwork"
-  export -f applyCalicoVPPNetwork
-  su vagrant -c "bash -c applyCalicoVPPNetwork"
-else
-  # nostn / stn
-  export -f applyVPPnetwork
-  su vagrant -c "bash -c applyVPPnetwork"
+  if [ "${dep_scenario}" == 'calico' ]; then
+    export -f applyCalicoNetwork
+    su vagrant -c "bash -c applyCalicoNetwork"
+  elif [ "${dep_scenario}" == 'calicovpp' ]; then
+    export stn_config="${stn_config} --set contiv.useNoOverlay=true --set contiv.ipamConfig.useExternalIPAM=true --set contiv.ipamConfig.podSubnetCIDR=10.10.0.0/16 --set vswitch.useNodeAffinity=true"
+    export -f applyVPPnetwork
+    su vagrant -c "bash -c applyVPPnetwork"
+    export -f applyCalicoVPPNetwork
+    su vagrant -c "bash -c applyCalicoVPPNetwork"
+  else
+    # nostn / stn
+    export -f applyVPPnetwork
+    su vagrant -c "bash -c applyVPPnetwork"
+  fi
 fi

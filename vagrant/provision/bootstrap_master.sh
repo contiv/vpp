@@ -281,16 +281,6 @@ applyVPPnetwork() {
     kubectl apply -f coredns-config.yaml -n kube-system
   fi
 
-  if [[ $helm_extra_opts == *"contiv.useNoOverlay=true"* ]]; then
-    # Disable coredns loop detection plugin
-    kubectl get configmap coredns \
-        -o yaml \
-        -n kube-system  \
-        --export >> coredns-config.yaml
-    sed -i '/loop/d' coredns-config.yaml
-    kubectl apply -f coredns-config.yaml -n kube-system
-  fi
-
   helm_opts="${helm_extra_opts}"
 
   if [ "${image_tag}" != "latest" ]; then

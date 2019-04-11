@@ -117,6 +117,36 @@ EOL
     sudo /vagrant/bird/run.sh
 fi
 
+# in case of nooverlay setup add explict routes to pod subnet on each node
+if [[ $helm_extra_opts =~ contiv.useNoOverlay=(true|True) ]]; then
+   cnt=1;
+
+   if [[ $crd_disabled == "true" ]]; then
+
+     pod_network="10.1"
+     node_ip="192.168.16"
+
+     until ((cnt > "$((num_nodes +1))"))
+     do
+      ip route add "$pod_network.$cnt.0/24"  via "$node_ip.$cnt"
+      ((cnt++))
+     done
+
+   else
+
+     pod_network="10.128"
+     node_ip="10.130.0"
+
+     until ((cnt > "$((num_nodes +1))"))
+     do
+      ip route add "$pod_network.$((cnt>>1)).$(((cnt<<7)&255))/25"  via "$node_ip.$cnt"
+      ((cnt++))
+     done
+   fi
+
+fi
+
+
 if [ "${master_nodes}" -gt 1 ] ; then
    echo "Installing HAproxy"
    wget http://www.haproxy.org/download/1.9/src/haproxy-1.9.6.tar.gz

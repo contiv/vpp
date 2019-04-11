@@ -54,6 +54,7 @@ node_os_release = ENV['K8S_NODE_OS_RELEASE'] || '16.04'
 node_cpus = ENV['K8S_NODE_CPUS'].to_i == 0 ? 4 : ENV['K8S_NODE_CPUS'].to_i
 node_memory = ENV['K8S_NODE_MEMORY'].to_i == 0 ? 4096 : ENV['K8S_NODE_MEMORY'].to_i
 num_nodes = ENV['K8S_NODES'].to_i == 0 ? 0 : ENV['K8S_NODES'].to_i
+master_nodes = ENV['K8S_MASTER_NODES'].to_i == 0 ? 0 : ENV['K8S_MASTER_NODES'].to_i
 master_cpus = ENV['K8S_MASTER_CPUS'].to_i == 0 ? 4 : ENV['K8S_MASTER_CPUS'].to_i
 master_memory = ENV['K8S_MASTER_MEMORY'].to_i == 0 ? 4096 : ENV['K8S_MASTER_MEMORY'].to_i
 dep_env = ENV['K8S_DEPLOYMENT_ENV']
@@ -85,13 +86,17 @@ if (ip_version == 'ipv6' && base_ip == '10.20.0.')
     base_prefix_len = '64'
 end
 
+if ( master_nodes > 1 )
+   k8s_version = '1.13.4'
+end
+
 env = { }
 # Do not modify env variables after this step
 VARIABLES = ['http_proxy', 'https_proxy', 'k8s_version', 'docker_version',
 'node_os', 'node_os_release', 'node_cpus', 'node_memory', 'num_nodes', 'master_cpus',
 'master_memory', 'dep_env', 'dep_scenario', 'base_ip', 'base_prefix_len', 'provider',
 'image_tag', 'go_version', 'goland_version', 'helm_version', 'crd_disabled',
-'ip_version', 'contiv_dir', 'helm_extra_opts']
+'ip_version', 'contiv_dir', 'helm_extra_opts', 'master_nodes']
 
 VARIABLES.each do |x|
   env[x] = eval x
@@ -136,6 +141,10 @@ VAGRANTFILE_API_VERSION = "2"
 
     node_ips = num_nodes.times.collect { |n| base_ip + "#{n+10}" }
     node_names = num_nodes.times.collect { |n| "k8s-worker#{n+1}" }
+    m_nodes = master_nodes - 1
+    master_ips = m_nodes.times.collect { |n| base_ip + "#{n+3}" }
+    master_names = m_nodes.times.collect { |n| "k8s-master#{n+1}" }
+
     config.ssh.insert_key = false
 
     if Vagrant.has_plugin?("vagrant-cachier")
@@ -172,6 +181,10 @@ VAGRANTFILE_API_VERSION = "2"
               gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
             else
               gw.vm.network :private_network, ip: "192.168.16.100", netmask: "255.255.255.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
+              if master_nodes > 1
+                 # in order to support multi master add additional connect GW to mgmt network
+                 gw.vm.network :private_network, ip: "#{base_ip}100", netmask: "255.255.255.0", virtualbox__intnet: "true"
+              end
             end
           else
             gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp", nic_type: "82540EM"
@@ -243,6 +256,39 @@ VAGRANTFILE_API_VERSION = "2"
         s.path = "provision/bootstrap_master.sh"
         s.args = ["k8s-master", k8smaster_ip]
         s.env = env
+      end
+    end
+
+    # Configure backup master node(s)
+    # BEWARE: currently only ipv4, nostn, crdDisabled setup with k8s 1.13.4 setup supports multi-master setup
+    m_nodes.times do |n|
+      node_name = master_names[n]
+      node_addr = master_ips[n]
+      config.vm.define node_name do |node|
+        node.vm.hostname = node_name
+        node.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp", nic_type: "82540EM"
+        node.vm.network :private_network, ip: node_addr, netmask: "#{base_prefix_len}", virtualbox__intnet: "true"
+
+        node.vm.provider "virtualbox" do |v|
+          v.customize ["modifyvm", :id, "--ioapic", "on"]
+          v.memory = master_memory
+          v.cpus = master_cpus
+          v.customize [ "modifyvm", :id, "--uartmode1", "disconnected" ]
+        end
+        node.vm.provision "shell" do |s|
+          s.path = "provision/provision_every_node.sh"
+          s.env = env
+          s.args = ["install"]
+        end
+        node.vm.provision "shell" do |s|
+          s.path = "provision/install_requirements_master.sh"
+          s.env = env
+        end
+        node.vm.provision "shell" do |s|
+          s.path = "provision/bootstrap_master.sh"
+          s.args = [node_name, node_addr, 'true']
+          s.env = env
+        end
       end
     end
 

@@ -117,4 +117,59 @@ EOL
     sudo /vagrant/bird/run.sh
 fi
 
+if [ "${master_nodes}" -gt 1 ] ; then
+   echo "Installing HAproxy"
+   wget http://www.haproxy.org/download/1.9/src/haproxy-1.9.6.tar.gz
+   tar -xzf haproxy-1.9.6.tar.gz
+   cd haproxy-1.9.6
+   make TARGET=generic
+   make install
+   mkdir /etc/haproxy
+
+   cat > /etc/haproxy/haproxy.cfg <<EOF
+frontend k8s-api
+    bind 10.20.0.100:6443
+    bind 127.0.0.1:6443
+    mode tcp
+    option tcplog
+    default_backend k8s-api
+
+backend k8s-api
+    mode tcp
+    option tcplog
+    option tcp-check
+    balance roundrobin
+    default-server inter 10s downinter 5s rise 2 fall 2 slowstart 60s maxconn 250 maxqueue 256 weight 100
+EOF
+
+   counter=1
+   until ((counter > "${master_nodes}"))
+   do
+       ip=$(( counter + 1 ))
+       echo "       server apiserver$counter 10.20.0.$ip:6443 check">> /etc/haproxy/haproxy.cfg
+       ((counter++))
+   done
+
+   echo "Configuring haproxy service"
+   sudo tee /etc/systemd/system/haproxy.service << EOF
+[Unit]
+Description=HA proxy for k8s
+[Service]
+ExecStart=/root/haproxy.sh
+[Install]
+WantedBy=default.target
+EOF
+
+   sudo tee /root/haproxy.sh << EOF
+#!/bin/bash
+haproxy -f /etc/haproxy/haproxy.cfg
+EOF
+
+   sudo chmod a+x /root/haproxy.sh
+
+   sudo systemctl start haproxy.service
+   sudo systemctl enable haproxy.service
+
 fi
+
+fi # end of ipv4 case

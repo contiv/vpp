@@ -1,3 +1,21 @@
+# Release v3.0.1 (2019-04-08)
+
+### VPP
+ - version **v18.10** (latest stable/1810)
+
+### Bugfixes
+ - update to vpp-agent `v2.0.1` (includes a GoVPP fix for unix-domain socket communication)
+ - fixed IPv6 policy rendering for host-network pods
+
+### Known Issues
+ - load-balancing between backends of a service is limited to the first 256 PODs
+   (the others will not receive any traffic until some of the first 256 PODs disappear)
+ - (IPv6 only): service load-balancing in IPv6 setup is not equal, node-local backend pods are always
+   preferred and a request is never load-balanced to a remote node's pod if there is a local backend
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
 # Release v3.0.0 (2019-04-04)
 
 ### VPP

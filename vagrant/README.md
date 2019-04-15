@@ -30,6 +30,7 @@ Environment variable | Description | Default
 `K8S_MASTER_MEMORY` | Memory size for master node | `4096`
 `K8S_NODE_MEMORY` | Memory size for worker nodes | `4096`
 `K8S_NODES` | Number of worker nodes (except from the master) | `1`
+`K8S_MASTER_NODES` | Number of master nodes (Beware: multimaster feature is experimental doesn't work for all option combination) | `1`
 `K8S_VERSION` | Kubernetes version to be installed | `1.12.3`
 `K8S_DEPLOYMENT_SCENARIO` | Contiv deployment scenario to be used: `nostn` (default) or [`stn`](../docs/setup/SINGLE_NIC_SETUP.md) or [`calico-vpp`](calico-vpp/README.md) | `nostn`
 `K8S_DEPLOYMENT_ENV` | Contiv deployment environment to be used: `prod` (production) or `dev` (development) | `prod`

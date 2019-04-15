@@ -1,5 +1,5 @@
 // Package ipam provides node-local IPAM calculations: POD IP addresses,
-// VPP-host interconnect and node interconnect IP addresses.
+// VPP-host interconnect, node interconnect IP addresses and SRv6 SIDs.
 //
 // The configuration for IPAM is retrieved from the ContivConf plugin.
 //

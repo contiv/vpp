@@ -72,12 +72,20 @@ const (
 	defaultIPNeighborStaleThreshold = 4
 
 	// default IPAM configuration
-	defaultServiceCIDR                   = "10.96.0.0/12"
-	defaultPodSubnetCIDR                 = "10.1.0.0/16"
-	defaultPodSubnetOneNodePrefixLen     = 24
-	defaultVPPHostSubnetCIDR             = "172.30.0.0/16"
-	defaultVPPHostSubnetOneNodePrefixLen = 24
-	defaultVxlanCIDR                     = "192.168.30.0/24"
+	defaultServiceCIDR                           = "10.96.0.0/12"
+	defaultPodSubnetCIDR                         = "10.1.0.0/16"
+	defaultPodSubnetOneNodePrefixLen             = 24
+	defaultVPPHostSubnetCIDR                     = "172.30.0.0/16"
+	defaultVPPHostSubnetOneNodePrefixLen         = 24
+	defaultVxlanCIDR                             = "192.168.30.0/24"
+	defaultSrv6ServicePolicyBSIDSubnetCIDR       = "5555::/16"
+	defaultSrv6ServicePodLocalSIDSubnetCIDR      = "6666::/16"
+	defaultSrv6ServiceHostLocalSIDSubnetCIDR     = "6655::/16"
+	defaultSrv6ServiceNodeLocalSIDSubnetCIDR     = "7766::/16"
+	defaultSrv6NodeToNodePodLocalSIDSubnetCIDR   = "7777::/16"
+	defaultSrv6NodeToNodeHostLocalSIDSubnetCIDR  = "7799::/16"
+	defaultSrv6NodeToNodePodPolicySIDSubnetCIDR  = "8888::/16"
+	defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR = "9999::/16"
 	// NodeInterconnectCIDR & ContivCIDR can be empty
 
 	// default VRF IDs
@@ -108,7 +116,7 @@ type ContivConf struct {
 
 	// configuration loaded from the file
 	config     *config.Config
-	ipamConfig *IPAMConfig // IPAM subnets parsed to net.IPNet
+	ipamConfig *IPAMConfig // IPAM subnets and SRv6 cird setting parsed to net.IPNet
 
 	// node-specific configuration defined via CRD, can be nil
 	nodeConfigCRD *config.NodeConfig
@@ -275,12 +283,20 @@ func (c *ContivConf) Init() (err error) {
 			PodVRFID:  defaultPodVrfID,
 		},
 		IPAMConfig: config.IPAMConfig{
-			ServiceCIDR:                   defaultServiceCIDR,
-			PodSubnetCIDR:                 defaultPodSubnetCIDR,
-			PodSubnetOneNodePrefixLen:     defaultPodSubnetOneNodePrefixLen,
-			VPPHostSubnetCIDR:             defaultVPPHostSubnetCIDR,
-			VPPHostSubnetOneNodePrefixLen: defaultVPPHostSubnetOneNodePrefixLen,
-			VxlanCIDR:                     defaultVxlanCIDR,
+			ServiceCIDR:                           defaultServiceCIDR,
+			PodSubnetCIDR:                         defaultPodSubnetCIDR,
+			PodSubnetOneNodePrefixLen:             defaultPodSubnetOneNodePrefixLen,
+			VPPHostSubnetCIDR:                     defaultVPPHostSubnetCIDR,
+			VPPHostSubnetOneNodePrefixLen:         defaultVPPHostSubnetOneNodePrefixLen,
+			VxlanCIDR:                             defaultVxlanCIDR,
+			Srv6ServicePolicyBSIDSubnetCIDR:       defaultSrv6ServicePolicyBSIDSubnetCIDR,
+			Srv6ServicePodLocalSIDSubnetCIDR:      defaultSrv6ServicePodLocalSIDSubnetCIDR,
+			Srv6ServiceHostLocalSIDSubnetCIDR:     defaultSrv6ServiceHostLocalSIDSubnetCIDR,
+			Srv6ServiceNodeLocalSIDSubnetCIDR:     defaultSrv6ServiceNodeLocalSIDSubnetCIDR,
+			Srv6NodeToNodePodLocalSIDSubnetCIDR:   defaultSrv6NodeToNodePodLocalSIDSubnetCIDR,
+			Srv6NodeToNodeHostLocalSIDSubnetCIDR:  defaultSrv6NodeToNodeHostLocalSIDSubnetCIDR,
+			Srv6NodeToNodePodPolicySIDSubnetCIDR:  defaultSrv6NodeToNodePodPolicySIDSubnetCIDR,
+			Srv6NodeToNodeHostPolicySIDSubnetCIDR: defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR,
 		},
 		NatExternalTraffic: defaultNatExternalTraffic,
 	}
@@ -312,6 +328,7 @@ func (c *ContivConf) Init() (err error) {
 			PodSubnetOneNodePrefixLen:     c.config.IPAMConfig.PodSubnetOneNodePrefixLen,
 			VPPHostSubnetOneNodePrefixLen: c.config.IPAMConfig.VPPHostSubnetOneNodePrefixLen,
 		},
+		SRv6Settings: SRv6Settings{},
 	}
 	if c.config.IPAMConfig.ContivCIDR != "" {
 		_, c.ipamConfig.ContivCIDR, err = net.ParseCIDR(c.config.IPAMConfig.ContivCIDR)
@@ -341,6 +358,39 @@ func (c *ContivConf) Init() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to parse VxlanCIDR: %v", err)
 	}
+	_, c.ipamConfig.SRv6Settings.ServicePolicyBSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.Srv6ServicePolicyBSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6ServicePolicyBSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.ServicePodLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.Srv6ServicePodLocalSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6ServicePodLocalSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.ServiceHostLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.Srv6ServiceHostLocalSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6ServiceHostLocalSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.ServiceNodeLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.Srv6ServiceNodeLocalSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6ServiceNodeLocalSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.NodeToNodePodLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.Srv6NodeToNodePodLocalSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6NodeToNodePodLocalSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.NodeToNodeHostLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.Srv6NodeToNodeHostLocalSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6NodeToNodeHostLocalSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.NodeToNodePodPolicySIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.Srv6NodeToNodePodPolicySIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6NodeToNodePodPolicySIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.NodeToNodeHostPolicySIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.Srv6NodeToNodeHostPolicySIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6NodeToNodeHostPolicySIDSubnetCIDR: %v", err)
+	}
+
 	if c.config.IPAMConfig.DefaultGateway != "" {
 		c.ipamConfig.DefaultGateway = net.ParseIP(c.config.IPAMConfig.DefaultGateway)
 		if c.ipamConfig.DefaultGateway == nil {

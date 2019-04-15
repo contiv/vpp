@@ -32,6 +32,7 @@ metadata:
 data:
   contiv.conf: |-
     useNoOverlay: {{ .Values.contiv.useNoOverlay }}
+    useSRv6Interconnect: {{ .Values.contiv.useSRv6Interconnect }}
     useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}
@@ -86,6 +87,14 @@ data:
       {{- if .Values.contiv.ipamConfig.serviceCIDR }}
       serviceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
       {{- end }}
+      srv6ServicePolicyBSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6ServicePolicyBSIDSubnetCIDR }}
+      srv6ServicePodLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6ServicePodLocalSIDSubnetCIDR }}
+      srv6ServiceHostLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6ServiceHostLocalSIDSubnetCIDR }}
+      srv6ServiceNodeLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6ServiceNodeLocalSIDSubnetCIDR }}
+      srv6NodeToNodePodLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6NodeToNodePodLocalSIDSubnetCIDR }}
+      srv6NodeToNodeHostLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6NodeToNodeHostLocalSIDSubnetCIDR }}
+      srv6NodeToNodePodPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6NodeToNodePodPolicySIDSubnetCIDR }}
+      srv6NodeToNodeHostPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6NodeToNodeHostPolicySIDSubnetCIDR }}
     {{- if .Values.contiv.nodeConfig }}
     nodeConfig:
     {{- range .Values.contiv.nodeConfig }}
@@ -716,6 +725,7 @@ spec:
               sysctl -w kernel.core_pattern="{{ .Values.vswitch.coreDumpsDir }}/%e-%t"
               ulimit -c unlimited
               echo 2 > /proc/sys/fs/suid_dumpable
+              {{- end }}
               # replace localhost IP by node IP since node port doesn't work
               # on localhost IP in a certain scenario
               cp /etc/etcd/etcd.conf /tmp/etcd.conf
@@ -726,7 +736,6 @@ spec:
                  HOST_IP="[$HOST_IP]"
               fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/etcd.conf
-              {{- end }}
           resources: {}
           securityContext:
             privileged: true

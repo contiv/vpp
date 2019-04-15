@@ -63,6 +63,11 @@ type RoutingConfig struct {
 	// e.g. if the nodes are on the same L2 network
 	UseNoOverlay bool `json:"useNoOverlay,omitempty"`
 
+	// Enabled when routing should be performed by using SRv6 (segment routing based on IPv6).
+	// Routing within routing segments is done as normal IPv6 routing. Routing between 2 nodes
+	// is just moving withing segment, so it is also IPv6 routing (no VXLANs)
+	UseSRv6Interconnect bool `json:"useSRv6Interconnect,omitempty"`
+
 	// when enabled, cluster IP CIDR should be routed towards VPP from Linux
 	RouteServiceCIDRToVPP bool `json:"routeServiceCIDRToVPP,omitempty"`
 }
@@ -81,17 +86,25 @@ type IPNeighborScanConfig struct {
 // The string fields are then parsed to *net.IPNet and returned as such in IPAMConfig
 // structure.
 type IPAMConfig struct {
-	UseExternalIPAM               bool   `json:"useExternalIPAM,omitempty"`
-	ContivCIDR                    string `json:"contivCIDR,omitempty"`
-	ServiceCIDR                   string `json:"serviceCIDR,omitempty"`
-	NodeInterconnectDHCP          bool   `json:"nodeInterconnectDHCP,omitempty"`
-	PodSubnetCIDR                 string `json:"podSubnetCIDR,omitempty"`
-	PodSubnetOneNodePrefixLen     uint8  `json:"podSubnetOneNodePrefixLen,omitempty"`
-	VPPHostSubnetCIDR             string `json:"vppHostSubnetCIDR,omitempty"`
-	VPPHostSubnetOneNodePrefixLen uint8  `json:"vppHostSubnetOneNodePrefixLen,omitempty"`
-	NodeInterconnectCIDR          string `json:"nodeInterconnectCIDR,omitempty"`
-	VxlanCIDR                     string `json:"vxlanCIDR,omitempty"`
-	DefaultGateway                string `json:"defaultGateway,omitempty"`
+	UseExternalIPAM                       bool   `json:"useExternalIPAM,omitempty"`
+	ContivCIDR                            string `json:"contivCIDR,omitempty"`
+	ServiceCIDR                           string `json:"serviceCIDR,omitempty"`
+	NodeInterconnectDHCP                  bool   `json:"nodeInterconnectDHCP,omitempty"`
+	PodSubnetCIDR                         string `json:"podSubnetCIDR,omitempty"`
+	PodSubnetOneNodePrefixLen             uint8  `json:"podSubnetOneNodePrefixLen,omitempty"`
+	VPPHostSubnetCIDR                     string `json:"vppHostSubnetCIDR,omitempty"`
+	VPPHostSubnetOneNodePrefixLen         uint8  `json:"vppHostSubnetOneNodePrefixLen,omitempty"`
+	NodeInterconnectCIDR                  string `json:"nodeInterconnectCIDR,omitempty"`
+	VxlanCIDR                             string `json:"vxlanCIDR,omitempty"`
+	DefaultGateway                        string `json:"defaultGateway,omitempty"`
+	Srv6ServicePolicyBSIDSubnetCIDR       string `json:"srv6ServicePolicyBSIDSubnetCIDR,omitempty"`
+	Srv6ServicePodLocalSIDSubnetCIDR      string `json:"srv6ServicePodLocalSIDSubnetCIDR,omitempty"`
+	Srv6ServiceHostLocalSIDSubnetCIDR     string `json:"srv6ServiceHostLocalSIDSubnetCIDR,omitempty"`
+	Srv6ServiceNodeLocalSIDSubnetCIDR     string `json:"srv6ServiceNodeLocalSIDSubnetCIDR,omitempty"`
+	Srv6NodeToNodePodLocalSIDSubnetCIDR   string `json:"srv6NodeToNodePodLocalSIDSubnetCIDR,omitempty"`
+	Srv6NodeToNodeHostLocalSIDSubnetCIDR  string `json:"srv6NodeToNodeHostLocalSIDSubnetCIDR,omitempty"`
+	Srv6NodeToNodePodPolicySIDSubnetCIDR  string `json:"srv6NodeToNodePodPolicySIDSubnetCIDR,omitempty"`
+	Srv6NodeToNodeHostPolicySIDSubnetCIDR string `json:"srv6NodeToNodeHostPolicySIDSubnetCIDR,omitempty"`
 }
 
 // NodeConfig represents configuration specific to a given node.

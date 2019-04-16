@@ -228,7 +228,11 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 				} else {
 					lb := &localBackend{ip: backend.IP}
 					if servicePort.Port != backend.Port {
-						lb.portForwards = append(lb.portForwards, &portForward{
+						previousForwards := lb.portForwards
+						if previousLB, exists := localBackends[lb.Key()]; exists {
+							previousForwards = previousLB.portForwards
+						}
+						lb.portForwards = append(previousForwards, &portForward{
 							proto: servicePort.Protocol,
 							from:  servicePort.Port,
 							to:    backend.Port,

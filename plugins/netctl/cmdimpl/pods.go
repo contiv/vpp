@@ -193,7 +193,7 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (uint32, string) {
 		}
 
 		// Get arp entries
-		arpDumpCmd := vppDumpCommand(arpdescr.ArpDescriptorName)
+		arpDumpCmd := kvschedulerDumpCmd + "?view=NB&descriptor=" + arpdescr.ArpDescriptorName
 		b, err = getNodeInfo(pg.client, podInfo.HostIpAddress, arpDumpCmd)
 		arps := telemetrymodel.NodeIPArpTable{}
 		if err := json.Unmarshal(b, &arps); err != nil {

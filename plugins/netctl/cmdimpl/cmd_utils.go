@@ -19,7 +19,6 @@ package cmdimpl
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -31,6 +30,7 @@ import (
 	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/nodesync/vppnode"
+	"net"
 )
 
 type clusterNodeInfo map[string]*oneNodeInfo
@@ -44,7 +44,6 @@ type oneNodeInfo struct {
 
 var (
 	nodeInfo clusterNodeInfo
-	ipAddrRe = regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
 )
 
 func getClusterNodeInfo(db *etcd.BytesConnectionEtcd) clusterNodeInfo {
@@ -115,10 +114,10 @@ func getClusterNodeInfo(db *etcd.BytesConnectionEtcd) clusterNodeInfo {
 	return nodeInfo
 }
 
-//resolveNodeOrIP will take in an input string which is either a node name
+// resolveNodeOrIP will take in an input string which is either a node name
 // or string and return the ip for the nodename or simply return the ip
 func resolveNodeOrIP(db *etcd.BytesConnectionEtcd, nodeName string) (ipAdr string) {
-	if ipAddrRe.MatchString(nodeName) {
+	if ip := net.ParseIP(nodeName); ip != nil {
 		return nodeName
 	}
 

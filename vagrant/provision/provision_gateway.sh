@@ -146,6 +146,19 @@ if [[ $helm_extra_opts =~ contiv.useNoOverlay=(true|True) ]]; then
 
 fi
 
+# in case of ipv6 the source nat is not applied add routes to pod subnet
+if [[ "$IP_VERSION" == "ipv6" ]]; then
+   cnt=1;
+   node_ip="fe10::2"
+   pod_network="2001:0:0/64"
+
+   until ((cnt > "$((num_nodes +1))"))
+   do
+     ip route add "$pod_network:$cnt::/64"  via "$node_ip:$cnt"
+     ((cnt++))
+   done
+fi
+
 
 if [ "${master_nodes}" -gt 1 ] ; then
    echo "Installing HAproxy"

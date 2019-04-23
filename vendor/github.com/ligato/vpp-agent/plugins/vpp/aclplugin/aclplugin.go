@@ -32,6 +32,7 @@ import (
 
 	_ "github.com/ligato/vpp-agent/plugins/vpp/aclplugin/vppcalls/vpp1810"
 	_ "github.com/ligato/vpp-agent/plugins/vpp/aclplugin/vppcalls/vpp1901"
+	_ "github.com/ligato/vpp-agent/plugins/vpp/aclplugin/vppcalls/vpp1904"
 )
 
 // ACLPlugin is a plugin that manages ACLs.
@@ -109,4 +110,10 @@ func (p *ACLPlugin) AfterInit() error {
 		p.StatusCheck.Register(p.PluginName, nil)
 	}
 	return nil
+}
+
+// GetInterfaceIndex gives read-only access to map with metadata of all configured
+// VPP interfaces.
+func (p *ACLPlugin) GetACLIndex() aclidx.ACLMetadataIndex {
+	return p.aclIndex
 }

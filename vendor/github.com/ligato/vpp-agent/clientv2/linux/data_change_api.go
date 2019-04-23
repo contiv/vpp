@@ -79,6 +79,8 @@ type PutDSL interface {
 	BD(val *vpp_l2.BridgeDomain) PutDSL
 	// BDFIB adds a request to create or update VPP L2 Forwarding Information Base.
 	BDFIB(fib *vpp_l2.FIBEntry) PutDSL
+	// VrfTable adds a request to create or update VPP VRF table.
+	VrfTable(val *vpp_l3.VrfTable) PutDSL
 	// XConnect adds a request to create or update VPP Cross Connect.
 	XConnect(val *vpp_l2.XConnectPair) PutDSL
 	// StaticRoute adds a request to create or update VPP L3 Static Route.
@@ -131,6 +133,8 @@ type DeleteDSL interface {
 	VppInterface(ifaceName string) DeleteDSL
 	// ACL adds a request to delete an existing VPP Access Control List.
 	ACL(aclName string) DeleteDSL
+	// ABF adds a request to delete an existing VPP ACL-based forwarding.
+	ABF(abfIndex uint32) DeleteDSL
 	/*// BfdSession adds a request to delete an existing VPP bidirectional
 	// forwarding detection session.
 	BfdSession(bfdSessionIfaceName string) DeleteDSL
@@ -145,6 +149,8 @@ type DeleteDSL interface {
 	// FIB adds a request to delete an existing VPP L2 Forwarding Information
 	// Base.
 	BDFIB(bdName string, mac string) DeleteDSL
+	// VrfTable adds a request to delete existing VPP VRF table.
+	VrfTable(id uint32, proto vpp_l3.VrfTable_Protocol) DeleteDSL
 	// XConnect adds a request to delete an existing VPP Cross Connect.
 	XConnect(rxIfaceName string) DeleteDSL
 	// StaticRoute adds a request to delete an existing VPP L3 Static Route.

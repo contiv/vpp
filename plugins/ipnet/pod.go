@@ -416,7 +416,7 @@ func (n *IPNet) podVPPMemif(pod *podmanager.LocalPod, ifName string,
 	memifInfo *devicemanager.MemifInfo, memifID uint32) (key string, config *vpp_interfaces.Interface) {
 
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
-	tap := &vpp_interfaces.Interface{
+	memif := &vpp_interfaces.Interface{
 		Name:    n.podVPPSideMemifName(pod, ifName),
 		Type:    vpp_interfaces.Interface_MEMIF,
 		Mtu:     interfaceCfg.MTUSize,
@@ -436,12 +436,12 @@ func (n *IPNet) podVPPMemif(pod *podmanager.LocalPod, ifName string,
 		},
 	}
 	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
-		tap.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
+		memif.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
 			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
 		}
 	}
-	key = vpp_interfaces.InterfaceKey(tap.Name)
-	return key, tap
+	key = vpp_interfaces.InterfaceKey(memif.Name)
+	return key, memif
 }
 
 /***************************** Pod ARPs and routes *****************************/

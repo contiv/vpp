@@ -75,10 +75,16 @@ const (
 	defaultPodResourcesMaxSize = 1024 * 1024 * 16 // 16 Mb
 )
 
+var (
+	errNotInitialized = fmt.Errorf("plugin is not initialized")
+)
+
 // DeviceManager plugin implements allocation & connection of special devices that may need
 // to be connected to pods in case they are defined in resources section of a pod definition.
 type DeviceManager struct {
 	Deps
+
+	initialized bool // guards whether the plugin has initialized successfully
 
 	grpcServer       *grpc.Server
 	podResClient     podresourcesapi.PodResourcesListerClient
@@ -138,6 +144,8 @@ func (d *DeviceManager) Init() (err error) {
 	d.podMemifs = make(map[podmodel.ID]*MemifInfo)
 	d.deviceAllocations = make(map[string]*MemifInfo)
 
+	d.initialized = true
+
 	return nil
 }
 
@@ -161,6 +169,9 @@ func (d *DeviceManager) HandlesEvent(event controller.Event) bool {
 func (d *DeviceManager) Resync(event controller.Event, kubeStateData controller.KubeStateData,
 	resyncCount int, txn controller.ResyncOperations) (err error) {
 
+	if !d.initialized {
+		return nil // no error
+	}
 	_, isHealingResync := event.(*controller.HealingResync)
 	if resyncCount > 1 && !isHealingResync {
 		return nil
@@ -209,6 +220,9 @@ func (d *DeviceManager) Resync(event controller.Event, kubeStateData controller.
 
 // Update handles AllocateDevice events.
 func (d *DeviceManager) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
+	if !d.initialized {
+		return "", nil // no error
+	}
 
 	// handle AllocateDevice
 	if ad, isAllocateDevice := event.(*AllocateDevice); isAllocateDevice {
@@ -261,6 +275,9 @@ func (d *DeviceManager) Revert(event controller.Event) error {
 
 // Close cleans up the resources.
 func (d *DeviceManager) Close() error {
+	if !d.initialized {
+		return nil // no error
+	}
 
 	// stop ListAndWatch goroutine
 	d.termSignal <- true
@@ -279,6 +296,9 @@ func (d *DeviceManager) Close() error {
 // GetDevicePluginOptions returns options to be communicated with DeviceManager.
 // (implementation of the DevicePluginServer interface)
 func (d *DeviceManager) GetDevicePluginOptions(ctx context.Context, empty *devicepluginapi.Empty) (*devicepluginapi.DevicePluginOptions, error) {
+	if !d.initialized {
+		return nil, errNotInitialized
+	}
 	return &devicepluginapi.DevicePluginOptions{
 		PreStartRequired: false,
 	}, nil
@@ -289,12 +309,18 @@ func (d *DeviceManager) GetDevicePluginOptions(ctx context.Context, empty *devic
 // such as resetting the device before making devices available to the container.
 // (implementation of the DevicePluginServer interface)
 func (d *DeviceManager) PreStartContainer(ctx context.Context, psRqt *devicepluginapi.PreStartContainerRequest) (*devicepluginapi.PreStartContainerResponse, error) {
+	if !d.initialized {
+		return nil, errNotInitialized
+	}
 	return &devicepluginapi.PreStartContainerResponse{}, nil
 }
 
 // ListAndWatch returns a stream of list of available Devices.
 // (implementation of the DevicePluginServer interface)
 func (d *DeviceManager) ListAndWatch(empty *devicepluginapi.Empty, stream devicepluginapi.DevicePlugin_ListAndWatchServer) error {
+	if !d.initialized {
+		return errNotInitialized
+	}
 
 	// pretend we are able to handle memifCapacity devices
 	resp := &devicepluginapi.ListAndWatchResponse{}
@@ -333,6 +359,9 @@ func (d *DeviceManager) ListAndWatch(empty *devicepluginapi.Empty, stream device
 // It is supposed to allocate requested devices and return container runtime details consumed by Kubelet.
 // (implementation of the DevicePluginServer interface)
 func (d *DeviceManager) Allocate(ctx context.Context, rqt *devicepluginapi.AllocateRequest) (*devicepluginapi.AllocateResponse, error) {
+	if !d.initialized {
+		return nil, errNotInitialized
+	}
 
 	d.Log.Debugf("Allocate device request: %v", rqt)
 
@@ -340,7 +369,7 @@ func (d *DeviceManager) Allocate(ctx context.Context, rqt *devicepluginapi.Alloc
 
 	for _, cr := range rqt.ContainerRequests {
 
-		// push AddPod event and wait for the result
+		// push AllocateDeviceEvent event and wait for the result
 		event := NewAllocateDeviceEvent(cr.DevicesIDs)
 		err := d.EventLoop.PushEvent(event)
 		if err != nil {
@@ -369,6 +398,10 @@ func (d *DeviceManager) Allocate(ctx context.Context, rqt *devicepluginapi.Alloc
 
 // GetPodMemifInfo returns info related to memif devices connected to the specified pod.
 func (d *DeviceManager) GetPodMemifInfo(pod podmodel.ID) (info *MemifInfo, err error) {
+	if !d.initialized {
+		return nil, errNotInitialized
+	}
+
 	// look into the cache first
 	if info, hasInfo := d.podMemifs[pod]; hasInfo {
 		return info, nil
@@ -392,6 +425,9 @@ func (d *DeviceManager) GetPodMemifInfo(pod podmodel.ID) (info *MemifInfo, err e
 
 // ReleasePodMemif cleans up memif-related resources for the given pod.
 func (d *DeviceManager) ReleasePodMemif(pod podmodel.ID) {
+	if !d.initialized {
+		return
+	}
 	info, err := d.GetPodMemifInfo(pod)
 
 	if err == nil && info != nil {

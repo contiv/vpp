@@ -10,7 +10,7 @@ import (
 
 /********************************* Plugin API *********************************/
 
-// API defines methods provided by tyhe DeviceManager plugin for use by other plugins
+// API defines methods provided by the DeviceManager plugin for use by other plugins
 // to query pod memif allocation info and release pod memif allocations.
 type API interface {
 	// GetPodMemifInfo returns info related to memif devices connected to the specified pod.

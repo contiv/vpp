@@ -3,7 +3,7 @@ FROM ubuntu:18.04
 RUN apt-get update \
  && apt-get install -y \
         # vpp requirements
-        openssl libapr1 libnuma1 libmbedcrypto1 libmbedtls10 libmbedx509-0 libboost-system1.65.1 \
+        openssl libapr1 libnuma1 libmbedcrypto1 libmbedtls10 libmbedx509-0 \
         # required for disabling TCP checksum offload in containers
         ethtool \
         # required for ipv6 services implementation

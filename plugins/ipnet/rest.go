@@ -15,27 +15,10 @@
 package ipnet
 
 import (
-	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/ipnet/restapi"
 	"github.com/unrolled/render"
 	"net/http"
 )
-
-const (
-	// Prefix is versioned prefix for REST urls
-	Prefix = "/contiv/v1/"
-	// PluginURL is versioned URL (using prefix) for IPAM REST endpoint
-	PluginURL = Prefix + "ipam"
-)
-
-// IPAMData defines attributes exposed by the IPAM REST handler.
-type IPAMData struct {
-	NodeID            uint32                        `json:"nodeId"`
-	NodeName          string                        `json:"nodeName"`
-	NodeIP            string                        `json:"nodeIP"`
-	PodSubnetThisNode string                        `json:"podSubnetThisNode"`
-	VppHostNetwork    string                        `json:"vppHostNetwork"`
-	Config            *contivconf.IPAMConfigForJSON `json:"config"`
-}
 
 func (n *IPNet) registerRESTHandlers() {
 	if n.HTTPHandlers == nil {
@@ -43,8 +26,8 @@ func (n *IPNet) registerRESTHandlers() {
 		return
 	}
 
-	n.HTTPHandlers.RegisterHTTPHandler(PluginURL, n.ipamGetHandler, "GET")
-	n.Log.Infof("IPAM REST handler registered: GET %v", PluginURL)
+	n.HTTPHandlers.RegisterHTTPHandler(restapi.RestURLNodeIPAM, n.ipamGetHandler, "GET")
+	n.Log.Infof("IPAM REST handler registered: GET %v", restapi.RestURLNodeIPAM)
 }
 
 func (n *IPNet) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
@@ -57,7 +40,7 @@ func (n *IPNet) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
 			return
 		}
 
-		formatter.JSON(w, http.StatusOK, IPAMData{
+		formatter.JSON(w, http.StatusOK, restapi.NodeIPAMInfo{
 			NodeID:            n.NodeSync.GetNodeID(),
 			NodeName:          n.ServiceLabel.GetAgentLabel(),
 			NodeIP:            nodeIP.String(),

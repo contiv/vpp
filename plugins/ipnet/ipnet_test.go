@@ -41,6 +41,7 @@ import (
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/contivconf/config"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/ipam"
@@ -83,7 +84,7 @@ var (
 
 	hostIPs = []net.IP{net.ParseIP(hostIP1), net.ParseIP(hostIP2)}
 
-	nodeDHCPConfig = &contivconf.NodeConfig{
+	nodeDHCPConfig = &config.NodeConfig{
 		NodeName: node1,
 		NodeConfigSpec: nodeconfig.NodeConfigSpec{
 			StealInterface: "eth0",
@@ -100,12 +101,12 @@ var (
 		},
 	}
 
-	configTapVxlanDHCP = &contivconf.Config{
-		InterfaceConfig: contivconf.InterfaceConfig{
+	configTapVxlanDHCP = &config.Config{
+		InterfaceConfig: config.InterfaceConfig{
 			UseTAPInterfaces:    true,
 			TAPInterfaceVersion: 2,
 		},
-		IPAMConfig: contivconf.IPAMConfigForJSON{
+		IPAMConfig: config.IPAMConfig{
 			PodSubnetCIDR:                 "10.1.0.0/16",
 			PodSubnetOneNodePrefixLen:     24,
 			VPPHostSubnetCIDR:             "172.30.0.0/16",
@@ -120,7 +121,7 @@ var (
 			RoutingConfig: contivconf.RoutingConfig{
 				UseNoOverlay: true,
 			},
-			IPAMConfig: contivconf.IPAMConfigForJSON{
+			IPAMConfig: contivconf.IPAMConfig{
 				PodSubnetCIDR:                 "10.1.0.0/16",
 				PodSubnetOneNodePrefixLen:     24,
 				PodVPPSubnetCIDR:              "10.2.1.0/24",

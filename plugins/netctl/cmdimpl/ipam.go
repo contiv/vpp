@@ -24,11 +24,11 @@ import (
 
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 
-	vppifdescr "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor"
-
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ipnet"
+	"github.com/contiv/vpp/plugins/ipnet/restapi"
 	"github.com/contiv/vpp/plugins/netctl/remote"
+	vppifdescr "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor"
 )
 
 // PrintAllIpams prints IPAM information for all nodes
@@ -62,7 +62,7 @@ func nodeIpamCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, w *tab
 		return
 	}
 
-	ipam := ipnet.IPAMData{}
+	ipam := restapi.NodeIPAMInfo{}
 	err = json.Unmarshal(b, &ipam)
 	if err != nil {
 		fmt.Println(err)

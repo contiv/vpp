@@ -4,6 +4,7 @@ import (
 	"github.com/ligato/vpp-agent/clientv2/vpp"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
+	"github.com/ligato/vpp-agent/api/models/vpp/abf"
 	"github.com/ligato/vpp-agent/api/models/vpp/acl"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
@@ -55,6 +56,13 @@ func (d *MockDataChangeDSL) Send() vppclient.Reply {
 // Interface adds interface to the RESYNC request.
 func (d *MockPutDSL) Interface(val *vpp_interfaces.Interface) vppclient.PutDSL {
 	key := vpp_interfaces.InterfaceKey(val.Name)
+	d.parent.Values[key] = val
+	return d
+}
+
+// ABF adds a request to create or update VPP ACL-based forwarding.
+func (d *MockPutDSL) ABF(val *vpp_abf.ABF) vppclient.PutDSL {
+	key := vpp_abf.Key(val.Index)
 	d.parent.Values[key] = val
 	return d
 }
@@ -165,6 +173,13 @@ func (d *MockPutDSL) PuntToHost(val *vpp_punt.ToHost) vppclient.PutDSL {
 	return d
 }
 
+// VrfTable adds a request to create or update VPP VRF table.
+func (d *MockPutDSL) VrfTable(val *vpp_l3.VrfTable) vppclient.PutDSL {
+	key := vpp_l3.VrfTableKey(val.Id, val.Protocol)
+	d.parent.Values[key] = val
+	return d
+}
+
 // Delete changes the DSL mode to allow removal of an existing configuration.
 func (d *MockPutDSL) Delete() vppclient.DeleteDSL {
 	return &MockDeleteDSL{d.parent}
@@ -178,6 +193,13 @@ func (d *MockPutDSL) Send() vppclient.Reply {
 // Interface adds a request to delete an existing VPP network interface.
 func (d *MockDeleteDSL) Interface(ifaceName string) vppclient.DeleteDSL {
 	key := vpp_interfaces.InterfaceKey(ifaceName)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// ABF adds a request to delete and existing VPP Access Control List.
+func (d *MockDeleteDSL) ABF(abfIndex uint32) vppclient.DeleteDSL {
+	key := vpp_abf.Key(abfIndex)
 	d.parent.Values[key] = nil
 	return d
 }
@@ -284,6 +306,13 @@ func (d *MockDeleteDSL) PuntIPRedirect(l3Proto vpp_punt.L3Protocol, txInterface 
 // PuntToHost adds request to delete a rule used to punt L4 traffic to a host.
 func (d *MockDeleteDSL) PuntToHost(l3Proto vpp_punt.L3Protocol, l4Proto vpp_punt.L4Protocol, port uint32) vppclient.DeleteDSL {
 	key := vpp_punt.ToHostKey(l3Proto, l4Proto, port)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// VrfTable adds a request to delete existing VPP VRF table.
+func (d *MockDeleteDSL) VrfTable(id uint32, proto vpp_l3.VrfTable_Protocol) vppclient.DeleteDSL {
+	key := vpp_l3.VrfTableKey(id, proto)
 	d.parent.Values[key] = nil
 	return d
 }

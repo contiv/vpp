@@ -116,7 +116,7 @@ type ContivConf struct {
 
 	// configuration loaded from the file
 	config     *config.Config
-	ipamConfig *IPAMConfig // IPAM subnets and SRv6 cird setting parsed to net.IPNet
+	ipamConfig *IPAMConfig // IPAM subnets and SRv6 cidr setting parsed to net.IPNet
 
 	// node-specific configuration defined via CRD, can be nil
 	nodeConfigCRD *config.NodeConfig

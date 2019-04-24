@@ -20,7 +20,6 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/ligato/vpp-agent/pkg/models"
 )
 
 // Resync is called by Controller to handle event that requires full
@@ -82,14 +81,6 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 //  - inter-VRF routing
 //  - IP neighbor scanning
 func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn controller.ResyncOperations) error {
-	// explicitly create Main/Pod VRF tables for IPv4/IPv6 (plugins and code depend on them)
-	if !n.test {
-		n.configureVRFTable(n.ContivConf.GetRoutingConfig().MainVRFID, vpp_l3.VrfTable_IPV4, "mainVRF", txn)
-		n.configureVRFTable(n.ContivConf.GetRoutingConfig().PodVRFID, vpp_l3.VrfTable_IPV4, "podVRF", txn)
-		n.configureVRFTable(n.ContivConf.GetRoutingConfig().MainVRFID, vpp_l3.VrfTable_IPV6, "mainVRF", txn)
-		n.configureVRFTable(n.ContivConf.GetRoutingConfig().PodVRFID, vpp_l3.VrfTable_IPV6, "podVRF", txn)
-	}
-
 	// configure physical NIC
 	err := n.configureVswitchNICs(event, txn)
 	if err != nil {
@@ -108,6 +99,9 @@ func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn control
 		// configure STN connectivity
 		n.configureSTNConnectivity(txn)
 	}
+
+	// configure VRF tables
+	n.configureVrfTables(txn)
 
 	// configure inter-VRF routing
 	n.configureVswitchVrfRoutes(txn)
@@ -149,25 +143,6 @@ func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn control
 	}
 
 	return err
-}
-
-// configureVRFTable creates configuration for VRF table
-func (n *IPNet) configureVRFTable(vrfID uint32, protocol vpp_l3.VrfTable_Protocol, label string, txn controller.ResyncOperations) {
-	n.Log.Infof("Creating VRF table configuration: vrfID=%v, protocol=%v, label(without protocol)=%v", vrfID, protocol, label)
-
-	// creating vrf config
-	protocolStr := "IPv4"
-	if protocol == vpp_l3.VrfTable_IPV6 {
-		protocolStr = "IPv6"
-	}
-	vrf := &vpp_l3.VrfTable{
-		Id:       vrfID,
-		Protocol: protocol,
-		Label:    label + "-" + protocolStr,
-	}
-
-	// putting it to transaction
-	txn.Put(models.Key(vrf), vrf)
 }
 
 // configureVswitchNICs configures vswitch NICs - main NIC for node interconnect
@@ -394,6 +369,19 @@ func (n *IPNet) configureSTNConnectivity(txn controller.ResyncOperations) {
 	stnRoutesHost := n.stnRoutesForHost()
 	for key, route := range stnRoutesHost {
 		txn.Put(key, route)
+	}
+}
+
+// configureVrfTables configures VRF tables
+func (n *IPNet) configureVrfTables(txn controller.ResyncOperations) {
+	tables := n.vrfMainTables() // main vrf is by default 0 and tables with vrf id 0 are created automatically -> setting it up for possibly overridden values and for vrf table label uniformity
+	for key, table := range tables {
+		txn.Put(key, table)
+	}
+
+	tables = n.vrfTablesForPods()
+	for key, table := range tables {
+		txn.Put(key, table)
 	}
 }
 

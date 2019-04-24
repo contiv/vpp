@@ -346,6 +346,53 @@ func (n *IPNet) defaultRoute(gwIP net.IP, outIfName string) (key string, config 
 
 /************************************ VRFs ************************************/
 
+// vrfMainTables returns main VRF tables (each for each sub-address family (SAFI), e.g. IPv4, IPv6)
+func (n *IPNet) vrfMainTables() map[string]*vpp_l3.VrfTable {
+	tables := make(map[string]*vpp_l3.VrfTable)
+	routingCfg := n.ContivConf.GetRoutingConfig()
+
+	// Note: we are not ignoring setting up vrf table in case of zero vrf id (vrf table is created automatically) to get uniform vrf table labeling in all cases
+	n.vrfTable(routingCfg.MainVRFID, vpp_l3.VrfTable_IPV4, "mainVRF", tables) // TODO: Is IPv4 VRF table needed always? Disable it for some configuration combinations (e.g. IPv6 only mode)?
+	if n.ContivConf.GetIPAMConfig().UseIPv6 || n.ContivConf.GetRoutingConfig().UseSRv6Interconnect {
+		n.vrfTable(routingCfg.MainVRFID, vpp_l3.VrfTable_IPV6, "mainVRF", tables)
+	}
+
+	return tables
+}
+
+// vrfTablesForPods returns VRF tables for networking between pods.
+func (n *IPNet) vrfTablesForPods() map[string]*vpp_l3.VrfTable {
+	tables := make(map[string]*vpp_l3.VrfTable)
+	routingCfg := n.ContivConf.GetRoutingConfig()
+
+	n.vrfTable(routingCfg.PodVRFID, vpp_l3.VrfTable_IPV4, "podVRF", tables) // TODO: Is IPv4 VRF table needed always? Disable it for some configuration combinations (e.g. IPv6 only mode)?
+	if n.ContivConf.GetIPAMConfig().UseIPv6 || n.ContivConf.GetRoutingConfig().UseSRv6Interconnect {
+		n.vrfTable(routingCfg.PodVRFID, vpp_l3.VrfTable_IPV6, "podVRF", tables)
+	}
+
+	return tables
+}
+
+// vrfTable creates configuration for VRF table and adds it to the tables <tables>
+func (n *IPNet) vrfTable(vrfID uint32, protocol vpp_l3.VrfTable_Protocol, label string, tables map[string]*vpp_l3.VrfTable) {
+	n.Log.Infof("Creating VRF table configuration: vrfID=%v, protocol=%v, label(without protocol)=%v", vrfID, protocol, label)
+
+	// creating vrf config
+	protocolStr := "IPv4"
+	if protocol == vpp_l3.VrfTable_IPV6 {
+		protocolStr = "IPv6"
+	}
+	vrf := &vpp_l3.VrfTable{
+		Id:       vrfID,
+		Protocol: protocol,
+		Label:    label + "-" + protocolStr,
+	}
+
+	// adding it to tables
+	key := vpp_l3.VrfTableKey(vrf.Id, vrf.Protocol)
+	tables[key] = vrf
+}
+
 // routesPodToMainVRF returns non-drop routes from Pod VRF to Main VRF.
 func (n *IPNet) routesPodToMainVRF() map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)

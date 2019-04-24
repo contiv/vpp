@@ -193,11 +193,12 @@
   version = "v0.7.5"
 
 [[projects]]
-  digest = "1:7ae4616edd396840ccc1506d287211ef883d3e93604dde0c9d1dd5721bb449d5"
+  digest = "1:ea99507d649edfc9d5cfb1ceaf680545cfb4836a88d80f0de1a2f3781ff1765e"
   name = "github.com/coreos/etcd"
   packages = [
     "auth/authpb",
     "clientv3",
+    "clientv3/concurrency",
     "clientv3/namespace",
     "etcdserver/api/v3rpc/rpctypes",
     "etcdserver/etcdserverpb",
@@ -718,8 +719,8 @@
   version = "v1.0.2"
 
 [[projects]]
-  branch = "master"
-  digest = "1:142e56081b9a92055caa51b1fa5f6238a087e5f317462db30f6e321366ae3a31"
+  branch = "dev"
+  digest = "1:2dde42b5ece0c50fc21170d55db972c1eafab9d505a0ee4ddab8f968286da1cb"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -758,11 +759,11 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "1009a1eda9ba369c0aea207b8ecea13cd109f350"
+  revision = "77e78aeca2f5c728bcf836bcbd20da7afea8ffde"
 
 [[projects]]
   branch = "dev"
-  digest = "1:e1c65c83a25b913cce599f8b39fc1497ec4420e8c5dbb2f99820447049dc8512"
+  digest = "1:babf24d39685c8514b91a91343fb4426d0499021fcb7056a9d3a4830af23dce7"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -771,6 +772,7 @@
     "api/models/linux/l3",
     "api/models/linux/namespace",
     "api/models/vpp",
+    "api/models/vpp/abf",
     "api/models/vpp/acl",
     "api/models/vpp/interfaces",
     "api/models/vpp/ipsec",
@@ -818,6 +820,7 @@
     "plugins/telemetry/vppcalls/vpp1810",
     "plugins/telemetry/vppcalls/vpp1901",
     "plugins/telemetry/vppcalls/vpp1904",
+    "plugins/vpp/abfplugin/vppcalls",
     "plugins/vpp/aclplugin",
     "plugins/vpp/aclplugin/aclidx",
     "plugins/vpp/aclplugin/descriptor",
@@ -935,7 +938,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1904",
   ]
   pruneopts = "UT"
-  revision = "40bd6b1899e0abe9a30da72c5430225a44cf39b2"
+  revision = "550bfaa5ce33bb5b283ad43d71f30c583b703c04"
   source = "https://github.com/ligato/vpp-agent.git"
 
 [[projects]]
@@ -1880,7 +1883,6 @@
     "github.com/ligato/vpp-agent/plugins/restapi/resturl",
     "github.com/ligato/vpp-agent/plugins/telemetry",
     "github.com/ligato/vpp-agent/plugins/vpp/aclplugin",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/ip",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/nat",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/session",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/vpe",

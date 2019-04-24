@@ -10,8 +10,8 @@
   version = "v0.37.2"
 
 [[projects]]
-  branch = "master"
-  digest = "1:0a9d3100681a9939ed7572b27003b1b1af4399018c88f4415a534dec4ff62089"
+  branch = "vpp1901"
+  digest = "1:ea26c62248bc837f3a4f504e7868726c9a3ae9f04b9fd007ad303b37984fceb0"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
@@ -25,7 +25,8 @@
     "examples/bin_api/memclnt",
   ]
   pruneopts = "UT"
-  revision = "061dc1ca5dca4f87cb77b0efb4202b2bb863f4cf"
+  revision = "b68632527ae6efd62e7ed63e5142cc719da0047a"
+  source = "github.com/ligato/govpp.git"
 
 [[projects]]
   branch = "master"

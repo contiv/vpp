@@ -708,8 +708,8 @@ func (n *IPNet) srv6NodeToNodeTunnelIngress(otherNodeIP net.IP, nextHopIP net.IP
 		Name: "forNodeToNodeTunneling-" + nameSuffix,
 		Traffic: &vpp_srv6.Steering_L3Traffic_{
 			L3Traffic: &vpp_srv6.Steering_L3Traffic{
-				PrefixAddress: networkToSteer.String(),
-				FibTableId:    n.ContivConf.GetRoutingConfig().MainVRFID,
+				PrefixAddress:     networkToSteer.String(),
+				InstallationVrfId: n.ContivConf.GetRoutingConfig().MainVRFID,
 			},
 		},
 		PolicyRef: &vpp_srv6.Steering_PolicyBsid{
@@ -761,8 +761,8 @@ func (n *IPNet) srv6HostTunnelEgress(sid net.IP) (key string, config *vpp_srv6.L
 
 func (n *IPNet) srv6TunnelEgress(sid net.IP, lookupVrfID uint32) (key string, config *vpp_srv6.LocalSID) {
 	localSID := &vpp_srv6.LocalSID{
-		Sid:        sid.String(),
-		FibTableId: n.ContivConf.GetRoutingConfig().MainVRFID, // table where to install localSID
+		Sid:               sid.String(),
+		InstallationVrfId: n.ContivConf.GetRoutingConfig().MainVRFID,
 		EndFunction: &vpp_srv6.LocalSID_EndFunction_DT6{EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
 			VrfId: lookupVrfID,
 		}},
@@ -775,9 +775,9 @@ func (n *IPNet) srv6TunnelEgress(sid net.IP, lookupVrfID uint32) (key string, co
 // next srv6 segment.
 func (n *IPNet) srv6NodeToNodeSegmentEgress(sid net.IP) (key string, config *vpp_srv6.LocalSID) {
 	localSID := &vpp_srv6.LocalSID{
-		Sid:         sid.String(),
-		FibTableId:  n.ContivConf.GetRoutingConfig().MainVRFID, // table where to install localSID
-		EndFunction: &vpp_srv6.LocalSID_BaseEndFunction{BaseEndFunction: &vpp_srv6.LocalSID_End{}},
+		Sid:               sid.String(),
+		InstallationVrfId: n.ContivConf.GetRoutingConfig().MainVRFID,
+		EndFunction:       &vpp_srv6.LocalSID_BaseEndFunction{BaseEndFunction: &vpp_srv6.LocalSID_End{}},
 	}
 	return models.Key(localSID), localSID
 }

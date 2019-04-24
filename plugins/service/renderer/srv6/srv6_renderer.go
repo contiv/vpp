@@ -306,8 +306,8 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 			Name: "forK8sService-" + service.ID.Namespace + "-" + service.ID.Name, // avoiding "/" to not hit special cases for key handling in vpp-agent
 			Traffic: &vpp_srv6.Steering_L3Traffic_{
 				L3Traffic: &vpp_srv6.Steering_L3Traffic{
-					PrefixAddress: serviceIP.String() + ipv6HostPrefix,
-					FibTableId:    r.ContivConf.GetRoutingConfig().PodVRFID,
+					PrefixAddress:     serviceIP.String() + ipv6HostPrefix,
+					InstallationVrfId: r.ContivConf.GetRoutingConfig().PodVRFID,
 				},
 			},
 			PolicyRef: &vpp_srv6.Steering_PolicyBsid{
@@ -348,11 +348,11 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 		}
 	}
 	policy := &vpp_srv6.Policy{
-		FibTableId:       r.ContivConf.GetRoutingConfig().MainVRFID,
-		Bsid:             bsid.String(),
-		SegmentLists:     segmentLists,
-		SprayBehaviour:   false, // loadbalance packets and not duplicate(spray) it to all segment lists
-		SrhEncapsulation: true,
+		InstallationVrfId: r.ContivConf.GetRoutingConfig().MainVRFID,
+		Bsid:              bsid.String(),
+		SegmentLists:      segmentLists,
+		SprayBehaviour:    false, // loadbalance packets and not duplicate(spray) it to all segment lists
+		SrhEncapsulation:  true,
 	}
 	addDelConfig[models.Key(policy)] = policy
 
@@ -387,8 +387,8 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 
 		// adding LocalSID
 		localSID := &vpp_srv6.LocalSID{
-			Sid:        r.IPAM.SidForServicePodLocalsid(backend.ip).String(),
-			FibTableId: r.ContivConf.GetRoutingConfig().PodVRFID,
+			Sid:               r.IPAM.SidForServicePodLocalsid(backend.ip).String(),
+			InstallationVrfId: r.ContivConf.GetRoutingConfig().PodVRFID,
 			EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
 				NextHop:           backend.ip.String(),
 				OutgoingInterface: vppIfName,
@@ -453,8 +453,8 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 			nextHop, _ = r.IPNet.GetNodeIP()
 		}
 		localSID := &vpp_srv6.LocalSID{
-			Sid:        r.IPAM.SidForServiceHostLocalsid().String(),
-			FibTableId: r.ContivConf.GetRoutingConfig().MainVRFID,
+			Sid:               r.IPAM.SidForServiceHostLocalsid().String(),
+			InstallationVrfId: r.ContivConf.GetRoutingConfig().MainVRFID,
 			EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
 				NextHop:           nextHop.String(),
 				OutgoingInterface: r.IPNet.GetHostInterconnectIfName(),

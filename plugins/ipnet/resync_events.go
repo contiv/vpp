@@ -15,12 +15,12 @@
 package ipnet
 
 import (
-	"github.com/ligato/vpp-agent/api/models/linux/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/ligato/vpp-agent/api/models/linux/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"github.com/ligato/vpp-agent/pkg/models"
 )
 
 // Resync is called by Controller to handle event that requires full
@@ -82,11 +82,12 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 //  - inter-VRF routing
 //  - IP neighbor scanning
 func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn controller.ResyncOperations) error {
+	// explicitly create Main/Pod VRF tables for IPv4/IPv6 (plugins and code depend on them)
 	if !n.test {
-		// explicitly create POD VRF using binary API
-		// TODO: just temporary, until VRF will be a separate NB API entity of vpp-agent,
-		// so that all plugins can properly set their dependency on it
-		n.createVrf(n.ContivConf.GetRoutingConfig().PodVRFID)
+		n.configureVRFTable(n.ContivConf.GetRoutingConfig().MainVRFID, vpp_l3.VrfTable_IPV4, "mainVRF", txn)
+		n.configureVRFTable(n.ContivConf.GetRoutingConfig().PodVRFID, vpp_l3.VrfTable_IPV4, "podVRF", txn)
+		n.configureVRFTable(n.ContivConf.GetRoutingConfig().MainVRFID, vpp_l3.VrfTable_IPV6, "mainVRF", txn)
+		n.configureVRFTable(n.ContivConf.GetRoutingConfig().PodVRFID, vpp_l3.VrfTable_IPV6, "podVRF", txn)
 	}
 
 	// configure physical NIC
@@ -148,6 +149,25 @@ func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn control
 	}
 
 	return err
+}
+
+// configureVRFTable creates configuration for VRF table
+func (n *IPNet) configureVRFTable(vrfID uint32, protocol vpp_l3.VrfTable_Protocol, label string, txn controller.ResyncOperations) {
+	n.Log.Infof("Creating VRF table configuration: vrfID=%v, protocol=%v, label(without protocol)=%v", vrfID, protocol, label)
+
+	// creating vrf config
+	protocolStr := "IPv4"
+	if protocol == vpp_l3.VrfTable_IPV6 {
+		protocolStr = "IPv6"
+	}
+	vrf := &vpp_l3.VrfTable{
+		Id:       vrfID,
+		Protocol: protocol,
+		Label:    label + "-" + protocolStr,
+	}
+
+	// putting it to transaction
+	txn.Put(models.Key(vrf), vrf)
 }
 
 // configureVswitchNICs configures vswitch NICs - main NIC for node interconnect

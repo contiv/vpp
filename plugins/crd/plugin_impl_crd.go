@@ -45,6 +45,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/contiv/vpp/plugins/crd/utils"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/rpc/rest"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
@@ -89,6 +90,8 @@ type Deps struct {
 	Watcher datasync.KeyValProtoWatcher
 	Publish *kvdbsync.Plugin // KeyProtoValWriter does not define Delete
 }
+
+const electionPrefix = "/contiv-crd/election"
 
 // Init initializes policy layers and caches and starts watching contiv-etcd for K8s configuration.
 func (p *Plugin) Init() error {
@@ -226,8 +229,24 @@ func (p *Plugin) AfterInit() error {
 		reg := p.Resync.Register(string(p.PluginName))
 		go p.handleResync(reg.StatusChan())
 	}
-	go p.telemetryController.Run(p.ctx.Done())
-	go p.nodeConfigController.Run(p.ctx.Done())
+	go func() {
+		if etcdPlugin, ok := p.Publish.KvPlugin.(*etcd.Plugin); ok {
+			p.Log.Info("Start campaign in crd leader election")
+
+			_, err := etcdPlugin.CampaignInElection(p.ctx, electionPrefix)
+			if err != nil {
+				p.Log.Error(err)
+				return
+			}
+			p.Log.Info("The instance was elected as leader.")
+
+		} else {
+			p.Log.Warn("leader election is not supported for a kv-store different from etcd")
+		}
+		go p.telemetryController.Run(p.ctx.Done())
+		go p.nodeConfigController.Run(p.ctx.Done())
+
+	}()
 
 	return nil
 }

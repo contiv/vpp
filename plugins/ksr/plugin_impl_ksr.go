@@ -34,8 +34,10 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"context"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/health/statuscheck"
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 	"github.com/ligato/cn-infra/infra"
@@ -50,8 +52,10 @@ import (
 type Plugin struct {
 	Deps
 
-	stopCh chan struct{}
-	wg     sync.WaitGroup
+	stopCh     chan struct{}
+	wg         sync.WaitGroup
+	ctx        context.Context
+	cancelFunc context.CancelFunc
 
 	k8sClientConfig *rest.Config
 	k8sClientset    *kubernetes.Clientset
@@ -107,6 +111,7 @@ const (
 	serviceObjType   = "Service"
 	nodeObjType      = "Node"
 	sfcPodObjType    = "SfcPod"
+	electionPrefix   = "/contiv-ksr/election"
 )
 
 // Init builds K8s client-set based on the supplied kubeconfig and initializes
@@ -115,6 +120,7 @@ func (plugin *Plugin) Init() error {
 	var err error
 	plugin.Log.SetLevel(logging.DebugLevel)
 	plugin.stopCh = make(chan struct{})
+	plugin.ctx, plugin.cancelFunc = context.WithCancel(context.Background())
 
 	plugin.reflectorRegistry = &ReflectorRegistry{
 		lock:       sync.RWMutex{},
@@ -234,10 +240,26 @@ func (plugin *Plugin) Init() error {
 // the kvdbsync is fully initialized and ready for publishing when a k8s
 // notification comes.
 func (plugin *Plugin) AfterInit() error {
-	plugin.reflectorRegistry.startReflectors()
-	plugin.StatsCollector.start(plugin.stopCh, plugin.reflectorRegistry)
+	go func() {
+		if etcdPlugin, ok := plugin.Publish.KvPlugin.(*etcd.Plugin); ok {
+			plugin.Log.Info("Start campaign in ksr leader election")
 
-	go plugin.monitorEtcdStatus(plugin.stopCh)
+			_, err := etcdPlugin.CampaignInElection(plugin.ctx, electionPrefix)
+			if err != nil {
+				plugin.Log.Error(err)
+				return
+			}
+			plugin.Log.Info("The instance was elected as leader.")
+
+		} else {
+			plugin.Log.Warn("leader election is not supported for a kv-store different from etcd")
+		}
+
+		plugin.reflectorRegistry.startReflectors()
+		plugin.StatsCollector.start(plugin.stopCh, plugin.reflectorRegistry)
+
+		go plugin.monitorEtcdStatus(plugin.stopCh)
+	}()
 
 	return nil
 }
@@ -245,6 +267,7 @@ func (plugin *Plugin) AfterInit() error {
 // Close stops all reflectors.
 func (plugin *Plugin) Close() error {
 	close(plugin.stopCh)
+	plugin.cancelFunc()
 	safeclose.CloseAll(plugin.nsReflector, plugin.podReflector, plugin.policyReflector,
 		plugin.serviceReflector, plugin.endpointsReflector)
 	plugin.wg.Wait()

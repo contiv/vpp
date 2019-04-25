@@ -10,8 +10,8 @@
   version = "v0.37.2"
 
 [[projects]]
-  branch = "master"
-  digest = "1:0a9d3100681a9939ed7572b27003b1b1af4399018c88f4415a534dec4ff62089"
+  branch = "vpp1901"
+  digest = "1:ea26c62248bc837f3a4f504e7868726c9a3ae9f04b9fd007ad303b37984fceb0"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
@@ -25,7 +25,8 @@
     "examples/bin_api/memclnt",
   ]
   pruneopts = "UT"
-  revision = "061dc1ca5dca4f87cb77b0efb4202b2bb863f4cf"
+  revision = "b68632527ae6efd62e7ed63e5142cc719da0047a"
+  source = "github.com/ligato/govpp.git"
 
 [[projects]]
   branch = "master"
@@ -193,11 +194,12 @@
   version = "v0.7.5"
 
 [[projects]]
-  digest = "1:7ae4616edd396840ccc1506d287211ef883d3e93604dde0c9d1dd5721bb449d5"
+  digest = "1:ea99507d649edfc9d5cfb1ceaf680545cfb4836a88d80f0de1a2f3781ff1765e"
   name = "github.com/coreos/etcd"
   packages = [
     "auth/authpb",
     "clientv3",
+    "clientv3/concurrency",
     "clientv3/namespace",
     "etcdserver/api/v3rpc/rpctypes",
     "etcdserver/etcdserverpb",
@@ -718,8 +720,8 @@
   version = "v1.0.2"
 
 [[projects]]
-  branch = "master"
-  digest = "1:142e56081b9a92055caa51b1fa5f6238a087e5f317462db30f6e321366ae3a31"
+  branch = "dev"
+  digest = "1:2dde42b5ece0c50fc21170d55db972c1eafab9d505a0ee4ddab8f968286da1cb"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -758,10 +760,11 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "1009a1eda9ba369c0aea207b8ecea13cd109f350"
+  revision = "77e78aeca2f5c728bcf836bcbd20da7afea8ffde"
 
 [[projects]]
-  digest = "1:3074b8c8f5e12f9d489869e9992ae6d0efa69b6bbb24728e45d4ee1c48e9fbde"
+  branch = "dev"
+  digest = "1:de1e07a74b6206864313dbc1c19cf69ba048e0f69559e3efc211fa487fd8ca11"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -770,6 +773,7 @@
     "api/models/linux/l3",
     "api/models/linux/namespace",
     "api/models/vpp",
+    "api/models/vpp/abf",
     "api/models/vpp/acl",
     "api/models/vpp/interfaces",
     "api/models/vpp/ipsec",
@@ -787,6 +791,7 @@
     "plugins/govppmux/vppcalls",
     "plugins/govppmux/vppcalls/vpp1810",
     "plugins/govppmux/vppcalls/vpp1901",
+    "plugins/govppmux/vppcalls/vpp1904",
     "plugins/kvscheduler",
     "plugins/kvscheduler/api",
     "plugins/kvscheduler/internal/graph",
@@ -814,6 +819,8 @@
     "plugins/telemetry/vppcalls",
     "plugins/telemetry/vppcalls/vpp1810",
     "plugins/telemetry/vppcalls/vpp1901",
+    "plugins/telemetry/vppcalls/vpp1904",
+    "plugins/vpp/abfplugin/vppcalls",
     "plugins/vpp/aclplugin",
     "plugins/vpp/aclplugin/aclidx",
     "plugins/vpp/aclplugin/descriptor",
@@ -821,6 +828,7 @@
     "plugins/vpp/aclplugin/vppcalls",
     "plugins/vpp/aclplugin/vppcalls/vpp1810",
     "plugins/vpp/aclplugin/vppcalls/vpp1901",
+    "plugins/vpp/aclplugin/vppcalls/vpp1904",
     "plugins/vpp/binapi/vpp1810/acl",
     "plugins/vpp/binapi/vpp1810/af_packet",
     "plugins/vpp/binapi/vpp1810/bond",
@@ -858,6 +866,23 @@
     "plugins/vpp/binapi/vpp1901/vmxnet3",
     "plugins/vpp/binapi/vpp1901/vpe",
     "plugins/vpp/binapi/vpp1901/vxlan",
+    "plugins/vpp/binapi/vpp1904/acl",
+    "plugins/vpp/binapi/vpp1904/af_packet",
+    "plugins/vpp/binapi/vpp1904/bond",
+    "plugins/vpp/binapi/vpp1904/dhcp",
+    "plugins/vpp/binapi/vpp1904/interfaces",
+    "plugins/vpp/binapi/vpp1904/ip",
+    "plugins/vpp/binapi/vpp1904/ipsec",
+    "plugins/vpp/binapi/vpp1904/l2",
+    "plugins/vpp/binapi/vpp1904/memclnt",
+    "plugins/vpp/binapi/vpp1904/memif",
+    "plugins/vpp/binapi/vpp1904/nat",
+    "plugins/vpp/binapi/vpp1904/punt",
+    "plugins/vpp/binapi/vpp1904/stn",
+    "plugins/vpp/binapi/vpp1904/tapv2",
+    "plugins/vpp/binapi/vpp1904/vmxnet3",
+    "plugins/vpp/binapi/vpp1904/vpe",
+    "plugins/vpp/binapi/vpp1904/vxlan",
     "plugins/vpp/ifplugin",
     "plugins/vpp/ifplugin/descriptor",
     "plugins/vpp/ifplugin/descriptor/adapter",
@@ -865,40 +890,45 @@
     "plugins/vpp/ifplugin/vppcalls",
     "plugins/vpp/ifplugin/vppcalls/vpp1810",
     "plugins/vpp/ifplugin/vppcalls/vpp1901",
+    "plugins/vpp/ifplugin/vppcalls/vpp1904",
     "plugins/vpp/l2plugin",
     "plugins/vpp/l2plugin/descriptor",
     "plugins/vpp/l2plugin/descriptor/adapter",
     "plugins/vpp/l2plugin/vppcalls",
     "plugins/vpp/l2plugin/vppcalls/vpp1810",
     "plugins/vpp/l2plugin/vppcalls/vpp1901",
+    "plugins/vpp/l2plugin/vppcalls/vpp1904",
     "plugins/vpp/l3plugin",
     "plugins/vpp/l3plugin/descriptor",
     "plugins/vpp/l3plugin/descriptor/adapter",
     "plugins/vpp/l3plugin/vppcalls",
     "plugins/vpp/l3plugin/vppcalls/vpp1810",
     "plugins/vpp/l3plugin/vppcalls/vpp1901",
+    "plugins/vpp/l3plugin/vppcalls/vpp1904",
     "plugins/vpp/natplugin",
     "plugins/vpp/natplugin/descriptor",
     "plugins/vpp/natplugin/descriptor/adapter",
     "plugins/vpp/natplugin/vppcalls",
     "plugins/vpp/natplugin/vppcalls/vpp1810",
     "plugins/vpp/natplugin/vppcalls/vpp1901",
+    "plugins/vpp/natplugin/vppcalls/vpp1904",
     "plugins/vpp/puntplugin",
     "plugins/vpp/puntplugin/descriptor",
     "plugins/vpp/puntplugin/descriptor/adapter",
     "plugins/vpp/puntplugin/vppcalls",
     "plugins/vpp/puntplugin/vppcalls/vpp1810",
     "plugins/vpp/puntplugin/vppcalls/vpp1901",
+    "plugins/vpp/puntplugin/vppcalls/vpp1904",
     "plugins/vpp/stnplugin",
     "plugins/vpp/stnplugin/descriptor",
     "plugins/vpp/stnplugin/descriptor/adapter",
     "plugins/vpp/stnplugin/vppcalls",
     "plugins/vpp/stnplugin/vppcalls/vpp1810",
     "plugins/vpp/stnplugin/vppcalls/vpp1901",
+    "plugins/vpp/stnplugin/vppcalls/vpp1904",
   ]
   pruneopts = "UT"
-  revision = "8b9cbb72c6dd2a8d2096f1d003b2f67b70f36214"
-  version = "v2.0.1"
+  revision = "a66972fa2143dfe83473fd76f9df37784447620d"
 
 [[projects]]
   branch = "master"
@@ -1815,6 +1845,7 @@
     "github.com/ligato/vpp-agent/api/models/linux/iptables",
     "github.com/ligato/vpp-agent/api/models/linux/l3",
     "github.com/ligato/vpp-agent/api/models/linux/namespace",
+    "github.com/ligato/vpp-agent/api/models/vpp/abf",
     "github.com/ligato/vpp-agent/api/models/vpp/acl",
     "github.com/ligato/vpp-agent/api/models/vpp/interfaces",
     "github.com/ligato/vpp-agent/api/models/vpp/ipsec",

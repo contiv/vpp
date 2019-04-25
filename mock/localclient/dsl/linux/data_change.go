@@ -7,6 +7,7 @@ import (
 	"github.com/contiv/vpp/mock/localclient/dsl"
 	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/abf"
 	"github.com/ligato/vpp-agent/api/models/vpp/acl"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
@@ -58,6 +59,13 @@ func (d *MockDataChangeDSL) Send() vppclient.Reply {
 // Interface adds a mock request to create or update VPP network interface.
 func (d *MockPutDSL) VppInterface(val *vpp_interfaces.Interface) linuxclient.PutDSL {
 	key := vpp_interfaces.InterfaceKey(val.Name)
+	d.parent.Values[key] = val
+	return d
+}
+
+// ABF adds a request to create or update VPP ACL-based forwarding.
+func (d *MockPutDSL) ABF(val *vpp_abf.ABF) linuxclient.PutDSL {
+	key := vpp_abf.Key(val.Index)
 	d.parent.Values[key] = val
 	return d
 }
@@ -140,6 +148,13 @@ func (d *MockPutDSL) DNAT44(val *vpp_nat.DNat44) linuxclient.PutDSL {
 	return d
 }
 
+// VrfTable adds a request to create or update VPP VRF table.
+func (d *MockPutDSL) VrfTable(val *vpp_l3.VrfTable) linuxclient.PutDSL {
+	key := vpp_l3.VrfTableKey(val.Id, val.Protocol)
+	d.parent.Values[key] = val
+	return d
+}
+
 // LinuxInterface adds a mock request to create or update Linux network interface.
 func (d *MockPutDSL) LinuxInterface(val *linux_interfaces.Interface) linuxclient.PutDSL {
 	key := linux_interfaces.InterfaceKey(val.Name)
@@ -200,6 +215,13 @@ func (d *MockPutDSL) Send() vppclient.Reply {
 // Interface adds a mock request to delete an existing VPP network interface.
 func (d *MockDeleteDSL) VppInterface(interfaceName string) linuxclient.DeleteDSL {
 	key := vpp_interfaces.InterfaceKey(interfaceName)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// ABF adds a request to delete and existing VPP Access Control List.
+func (d *MockDeleteDSL) ABF(abfIndex uint32) linuxclient.DeleteDSL {
+	key := vpp_abf.Key(abfIndex)
 	d.parent.Values[key] = nil
 	return d
 }
@@ -278,6 +300,13 @@ func (d *MockDeleteDSL) NAT44Global() linuxclient.DeleteDSL {
 // DNAT44 adds a request to delete a DNAT configuration identified by label
 func (d *MockDeleteDSL) DNAT44(label string) linuxclient.DeleteDSL {
 	key := vpp_nat.DNAT44Key(label)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// VrfTable adds a request to delete existing VPP VRF table.
+func (d *MockDeleteDSL) VrfTable(id uint32, proto vpp_l3.VrfTable_Protocol) linuxclient.DeleteDSL {
+	key := vpp_l3.VrfTableKey(id, proto)
 	d.parent.Values[key] = nil
 	return d
 }

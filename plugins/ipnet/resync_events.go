@@ -82,12 +82,6 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 //  - inter-VRF routing
 //  - IP neighbor scanning
 func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn controller.ResyncOperations) error {
-	if !n.test {
-		// explicitly create POD VRF using binary API
-		// TODO: just temporary, until VRF will be a separate NB API entity of vpp-agent,
-		// so that all plugins can properly set their dependency on it
-		n.createVrf(n.ContivConf.GetRoutingConfig().PodVRFID)
-	}
 
 	// configure physical NIC
 	err := n.configureVswitchNICs(event, txn)
@@ -107,6 +101,9 @@ func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn control
 		// configure STN connectivity
 		n.configureSTNConnectivity(txn)
 	}
+
+	// configure VRF tables
+	n.configureVrfTables(txn)
 
 	// configure inter-VRF routing
 	n.configureVswitchVrfRoutes(txn)
@@ -350,6 +347,14 @@ func (n *IPNet) configureSTNConnectivity(txn controller.ResyncOperations) {
 	stnRoutesHost := n.stnRoutesForHost()
 	for key, route := range stnRoutesHost {
 		txn.Put(key, route)
+	}
+}
+
+// configureVrfTables configures non-default VRF tables (currently only for pods).
+func (n *IPNet) configureVrfTables(txn controller.ResyncOperations) {
+	tables := n.vrfTablesForPods()
+	for key, table := range tables {
+		txn.Put(key, table)
 	}
 }
 

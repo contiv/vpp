@@ -91,7 +91,7 @@ type Deps struct {
 	Publish *kvdbsync.Plugin // KeyProtoValWriter does not define Delete
 }
 
-const electionPrefix = "/contiv-ksr/election"
+const electionPrefix = "/contiv-crd/election"
 
 // Init initializes policy layers and caches and starts watching contiv-etcd for K8s configuration.
 func (p *Plugin) Init() error {

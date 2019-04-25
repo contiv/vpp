@@ -6,6 +6,7 @@ import { CoreService } from './core.service';
 import { TopoColors } from '../constants/topo-colors';
 import { TopologyDataModel } from '../../d3-topology/topology/topology-data/models/topology-data-model';
 import { Subject } from 'rxjs';
+import { NodePosition } from '../interfaces/node-position';
 
 @Injectable({
   providedIn: 'root'
@@ -14,6 +15,9 @@ export class LayoutService {
 
   public podCount = {};
   public layoutChangeSubject: Subject<boolean> = new Subject<boolean>();
+  public nodesPositions: {
+    [prop: string]: NodePosition[]
+  } = {};
 
   constructor(
     private coreService: CoreService
@@ -24,13 +28,13 @@ export class LayoutService {
   }
 
   public getSavedPosition(id: string, type: string): {x: number, y: number} {
-    const data: {id: string, x: number, y: number}[] = JSON.parse(sessionStorage.getItem(type + '-topo'));
+    const topologyType = type + '-topo';
 
-    if (!data) {
+    if (!this.nodesPositions[topologyType]) {
       return null;
     }
 
-    const node = data.find(n => n.id === id);
+    const node = this.nodesPositions[topologyType].find(n => n.id === id);
 
     return node ? {x: node.x, y: node.y} : null;
   }
@@ -167,7 +171,7 @@ export class LayoutService {
       };
     });
 
-    sessionStorage.setItem(topologyType, JSON.stringify(positions));
+    this.nodesPositions[topologyType] = positions;
   }
 
   public clearNodesPositions() {

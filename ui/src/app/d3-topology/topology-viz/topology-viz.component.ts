@@ -46,6 +46,12 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
   private topoSubscription: Subscription;
   private isDraggingItem = false;
   private simulation: d3.Simulation<NodeDataModel, EdgeDataModel>;
+  private forceRender = false;
+  private draggedNode: {
+    id: string,
+    x: number,
+    y: number
+  };
 
   constructor(
     private coreService: CoreService,
@@ -57,7 +63,11 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnInit() {
     this.topoSubscription = this.topologyService.getTopologyDataObservable().subscribe(() => {
-      this.renderTopology();
+      if (this.isDraggingItem) {
+        this.forceRender = true;
+      } else {
+        this.renderTopology();
+      }
     });
 
     this.dataService.preventRefresh();
@@ -369,17 +379,8 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
       self.dataService.preventRefresh();
 
       const dragEvent: d3.D3DragEvent<SVGGElement, NodeDataModel, any> = d3.event;
-      if (!d3.event.active) {
-        self.simulation.alphaTarget(0.1).restart();
-      }
-
       dragEvent.subject.fx = dragEvent.subject.x;
       dragEvent.subject.fy = dragEvent.subject.y;
-
-      self.topologyService.getTopologyData().nodes.forEach(n => {
-        n.fx = null;
-        n.fy = null;
-      });
     };
   }
 
@@ -404,6 +405,11 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
       }
 
       self.updateLinks(d, link);
+      self.draggedNode = {
+        id: d.id,
+        x: d.x,
+        y: d.y
+      };
     };
   }
 
@@ -414,12 +420,6 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
       self.dataService.allowRefresh();
 
       const dragEvent: d3.D3DragEvent<SVGGElement, NodeDataModel, any> = d3.event;
-      if (!d3.event.active) {
-        self.simulation.alphaTarget(0);
-      }
-
-      dragEvent.subject.fx = null;
-      dragEvent.subject.fy = null;
 
       if (!self.isDraggingItem) {
         return;
@@ -430,6 +430,17 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
       d3.select(this).classed('node-dragging', false);
       d3.selectAll('.link-dragging').classed('link-dragging', false);
 
+      if (self.forceRender) {
+        self.forceRender = false;
+        const dNode = self.topologyService.getTopologyData().getNodeById(self.draggedNode.id);
+        dNode.x = self.draggedNode.x;
+        dNode.y = self.draggedNode.y;
+        dNode.fx = self.draggedNode.x;
+        dNode.fy = self.draggedNode.y;
+        self.renderTopology();
+      }
+
+      self.draggedNode = null;
       self.positionsChanged.emit(self.topologyService.getTopologyData());
     };
   }

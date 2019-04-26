@@ -176,6 +176,7 @@ func main() {
 	}))
 
 	ipNetPlugin := ipnet.NewPlugin(ipnet.UseDeps(func(deps *ipnet.Deps) {
+		deps.RemoteDB = &etcd.DefaultPlugin
 		deps.GoVPP = &govppmux.DefaultPlugin
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.LinuxNsPlugin = &linux_nsplugin.DefaultPlugin

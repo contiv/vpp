@@ -87,14 +87,15 @@ data:
       {{- if .Values.contiv.ipamConfig.serviceCIDR }}
       serviceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
       {{- end }}
-      srv6ServicePolicyBSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6ServicePolicyBSIDSubnetCIDR }}
-      srv6ServicePodLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6ServicePodLocalSIDSubnetCIDR }}
-      srv6ServiceHostLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6ServiceHostLocalSIDSubnetCIDR }}
-      srv6ServiceNodeLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6ServiceNodeLocalSIDSubnetCIDR }}
-      srv6NodeToNodePodLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6NodeToNodePodLocalSIDSubnetCIDR }}
-      srv6NodeToNodeHostLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6NodeToNodeHostLocalSIDSubnetCIDR }}
-      srv6NodeToNodePodPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6NodeToNodePodPolicySIDSubnetCIDR }}
-      srv6NodeToNodeHostPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6NodeToNodeHostPolicySIDSubnetCIDR }}
+      srv6:
+        servicePolicyBSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.servicePolicyBSIDSubnetCIDR }}
+        servicePodLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.servicePodLocalSIDSubnetCIDR }}
+        serviceHostLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.serviceHostLocalSIDSubnetCIDR }}
+        serviceNodeLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.serviceNodeLocalSIDSubnetCIDR }}
+        nodeToNodePodLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodePodLocalSIDSubnetCIDR }}
+        nodeToNodeHostLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodeHostLocalSIDSubnetCIDR }}
+        nodeToNodePodPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodePodPolicySIDSubnetCIDR }}
+        nodeToNodeHostPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodeHostPolicySIDSubnetCIDR }}
     {{- if .Values.contiv.nodeConfig }}
     nodeConfig:
     {{- range .Values.contiv.nodeConfig }}

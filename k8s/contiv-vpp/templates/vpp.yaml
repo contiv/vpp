@@ -887,6 +887,8 @@ spec:
             {{- end }}
             - name: docker-socket
               mountPath: /var/run/docker.sock
+            - name: kubelet-api
+              mountPath: /var/lib/kubelet
           resources:
             {{- if or .Values.vswitch.defineMemoryLimits .Values.vswitch.cpuLimit }}
             limits:
@@ -1009,6 +1011,10 @@ spec:
         - name: contiv-cni-cfg
           configMap:
             name: contiv-cni-cfg
+        # kubelet api dir
+        - name: kubelet-api
+          hostPath:
+            path: /var/lib/kubelet
 
 ---
 

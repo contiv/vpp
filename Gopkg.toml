@@ -153,3 +153,7 @@ required = [
     name = "k8s.io/code-generator"
     unused-packages = false
     go-tests = false
+
+[[constraint]]
+  name = "k8s.io/kubernetes"
+  version = "1.14.0"

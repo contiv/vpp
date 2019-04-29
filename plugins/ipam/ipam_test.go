@@ -201,14 +201,14 @@ func TestDynamicGettersIPv6(t *testing.T) {
 	customConfig.IPAMConfig.VPPHostSubnetOneNodePrefixLen = 126
 	customConfig.IPAMConfig.PodSubnetCIDR = "fe10:f00d::/90"
 	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 120
-	customConfig.IPAMConfig.Srv6ServicePolicyBSIDSubnetCIDR = "5555::/16"
-	customConfig.IPAMConfig.Srv6ServicePodLocalSIDSubnetCIDR = "6666::/16"
-	customConfig.IPAMConfig.Srv6ServiceHostLocalSIDSubnetCIDR = "6655::/16"
-	customConfig.IPAMConfig.Srv6ServiceNodeLocalSIDSubnetCIDR = "7766::/16"
-	customConfig.IPAMConfig.Srv6NodeToNodePodLocalSIDSubnetCIDR = "7777::/16"
-	customConfig.IPAMConfig.Srv6NodeToNodeHostLocalSIDSubnetCIDR = "7799::/16"
-	customConfig.IPAMConfig.Srv6NodeToNodePodPolicySIDSubnetCIDR = "8888::/16"
-	customConfig.IPAMConfig.Srv6NodeToNodeHostPolicySIDSubnetCIDR = "9999::/16"
+	customConfig.IPAMConfig.SRv6.ServicePolicyBSIDSubnetCIDR = "5555::/16"
+	customConfig.IPAMConfig.SRv6.ServicePodLocalSIDSubnetCIDR = "6666::/16"
+	customConfig.IPAMConfig.SRv6.ServiceHostLocalSIDSubnetCIDR = "6655::/16"
+	customConfig.IPAMConfig.SRv6.ServiceNodeLocalSIDSubnetCIDR = "7766::/16"
+	customConfig.IPAMConfig.SRv6.NodeToNodePodLocalSIDSubnetCIDR = "7777::/16"
+	customConfig.IPAMConfig.SRv6.NodeToNodeHostLocalSIDSubnetCIDR = "7799::/16"
+	customConfig.IPAMConfig.SRv6.NodeToNodePodPolicySIDSubnetCIDR = "8888::/16"
+	customConfig.IPAMConfig.SRv6.NodeToNodeHostPolicySIDSubnetCIDR = "9999::/16"
 
 	i := setup(t, customConfig)
 	Expect(i).NotTo(BeNil())

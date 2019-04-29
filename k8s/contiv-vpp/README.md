@@ -113,7 +113,7 @@ Parameter | Description | Default
 `ksr.image.repository` | ksr container image repository | `contivvpp/ksr`
 `ksr.image.tag`| ksr container image tag | `latest`
 `ksr.image.pullPolicy` | ksr container image pull policy | `IfNotPresent`
-`etcd.useExternalInstance` | do not deploy etcd as a part of contiv options except `externalInstance` block are ignored | `false`
+`etcd.useExternalInstance` | do not deploy etcd as a part of contiv, options except `externalInstance` block are ignored if set to `true` | `false`
 `etcd.externalInstance.secretName` | name of secret containing etcd certificates | `false`
 `etcd.externalInstance.endpoints` | endpoints of external etcd instance | `false`
 `etcd.image.repository` | etcd container image repository | `quay.io/coreos/etcd`

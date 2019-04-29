@@ -100,6 +100,7 @@ type IPAMConfig struct {
 	SRv6                          SRv6Config `json:"srv6"`
 }
 
+// SRv6Config is part of IPAM configuration that configures SID prefixes of SRv6 components
 type SRv6Config struct {
 	ServicePolicyBSIDSubnetCIDR       string `json:"servicePolicyBSIDSubnetCIDR,omitempty"`
 	ServicePodLocalSIDSubnetCIDR      string `json:"servicePodLocalSIDSubnetCIDR,omitempty"`

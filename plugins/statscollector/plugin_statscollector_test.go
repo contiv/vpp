@@ -16,9 +16,7 @@ package statscollector
 
 import (
 	"fmt"
-	"github.com/onsi/gomega"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"testing"
 
 	"github.com/contiv/vpp/mock/ipnet"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -26,7 +24,9 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	"testing"
+	"github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -89,7 +89,7 @@ func TestStatsCollector(t *testing.T) {
 	err = testVars.plugin.Init()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	testVars.ipNet.SetPodIfName(pod.ID{"test-pod", "test-namespace"}, testIfPodName)
+	testVars.ipNet.SetPodIfName(pod.ID{Name: "test-pod", Namespace: "test-namespace"}, testIfPodName)
 
 	t.Run("testPutWithWrongArgumentType", testPutWithWrongArgumentType)
 	t.Run("testPutNewPodEntry", testPutNewPodEntry)

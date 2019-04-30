@@ -7,7 +7,7 @@ The aim of this document is to describe required steps to achieve this.
 ## Deploying etcd instance
 
 Your custom etcd instance can be deployed at any location accessible from all k8s nodes.
-For the sake of simplicity in this tutorial, the etcd will be deployed in the k8s cluter
+For the sake of simplicity in this tutorial, the etcd will be deployed in the k8s cluster
 
 ```yaml
 apiVersion: apps/v1beta2
@@ -133,7 +133,7 @@ The etcd uses certificates in order to secure access.
 The value `etcd.useExternalInstance` denoting whether to deploy own contiv
  etcd or use external one must be set to `true`. The connection settings to
  external etcd are defined in `etcd.externalInstance` (other values except 
- in etcd section are ignored). Minimal config must contain defintion of endpoints 
+ in etcd section are ignored). Minimal config must contain definition of endpoints
  `etcd.exteralInstance.endpoints` where external etcd can be accessed.
  If external etcd instance is secured by using of certificates, values must also
  define secret name `etcd.externalInstance.secretName` in `kube-system` namespace.

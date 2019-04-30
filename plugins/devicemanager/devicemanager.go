@@ -34,6 +34,7 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/ligato/cn-infra/infra"
 )
 
@@ -44,7 +45,7 @@ const (
 
 	// memif socket location
 	memifHostDir      = "/var/run/contiv/memif"
-	memifContainerDir = "/run/vpp/memif.sock"
+	memifContainerDir = "/run/vpp"
 	memifSockFileName = "memif.sock"
 
 	// env vars passed into the pods
@@ -152,12 +153,16 @@ func (d *DeviceManager) Init() (err error) {
 // HandlesEvent selects:
 //   - any Resync event
 //   - Allocate Device
+//   - Delete Pod
 func (d *DeviceManager) HandlesEvent(event controller.Event) bool {
 
 	if event.Method() != controller.Update {
 		return true
 	}
 	if _, isAllocateDevice := event.(*AllocateDevice); isAllocateDevice {
+		return true
+	}
+	if _, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
 		return true
 	}
 
@@ -190,7 +195,6 @@ func (d *DeviceManager) Resync(event controller.Event, kubeStateData controller.
 	// inspect every container to re-construct pod memif metadata
 	for _, container := range containers {
 		if container.State != runningPodState {
-			d.Log.Debugf("Ignoring non-running container: %v", container.ID)
 			continue
 		}
 		// read pod identifier from labels
@@ -198,8 +202,6 @@ func (d *DeviceManager) Resync(event controller.Event, kubeStateData controller.
 		podNamespace, hasPodNamespace := container.Labels[k8sLabelForPodNamespace]
 		podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 		if !hasPodName || !hasPodNamespace {
-			d.Log.Warnf("Container '%s' is missing pod identification\n",
-				container.ID)
 			continue
 		}
 
@@ -265,6 +267,11 @@ func (d *DeviceManager) Update(event controller.Event, txn controller.UpdateOper
 		}
 	}
 
+	// handle DeletePod
+	if delPod, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
+		d.releasePodMemif(delPod.Pod)
+	}
+
 	return
 }
 
@@ -296,9 +303,6 @@ func (d *DeviceManager) Close() error {
 // GetDevicePluginOptions returns options to be communicated with DeviceManager.
 // (implementation of the DevicePluginServer interface)
 func (d *DeviceManager) GetDevicePluginOptions(ctx context.Context, empty *devicepluginapi.Empty) (*devicepluginapi.DevicePluginOptions, error) {
-	if !d.initialized {
-		return nil, errNotInitialized
-	}
 	return &devicepluginapi.DevicePluginOptions{
 		PreStartRequired: false,
 	}, nil
@@ -309,18 +313,12 @@ func (d *DeviceManager) GetDevicePluginOptions(ctx context.Context, empty *devic
 // such as resetting the device before making devices available to the container.
 // (implementation of the DevicePluginServer interface)
 func (d *DeviceManager) PreStartContainer(ctx context.Context, psRqt *devicepluginapi.PreStartContainerRequest) (*devicepluginapi.PreStartContainerResponse, error) {
-	if !d.initialized {
-		return nil, errNotInitialized
-	}
 	return &devicepluginapi.PreStartContainerResponse{}, nil
 }
 
 // ListAndWatch returns a stream of list of available Devices.
 // (implementation of the DevicePluginServer interface)
 func (d *DeviceManager) ListAndWatch(empty *devicepluginapi.Empty, stream devicepluginapi.DevicePlugin_ListAndWatchServer) error {
-	if !d.initialized {
-		return errNotInitialized
-	}
 
 	// pretend we are able to handle memifCapacity devices
 	resp := &devicepluginapi.ListAndWatchResponse{}
@@ -423,8 +421,8 @@ func (d *DeviceManager) GetPodMemifInfo(pod podmodel.ID) (info *MemifInfo, err e
 	return info, nil
 }
 
-// ReleasePodMemif cleans up memif-related resources for the given pod.
-func (d *DeviceManager) ReleasePodMemif(pod podmodel.ID) {
+// releasePodMemif cleans up memif-related resources for the given pod.
+func (d *DeviceManager) releasePodMemif(pod podmodel.ID) {
 	if !d.initialized {
 		return
 	}

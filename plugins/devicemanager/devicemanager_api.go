@@ -15,9 +15,6 @@ import (
 type API interface {
 	// GetPodMemifInfo returns info related to memif devices connected to the specified pod.
 	GetPodMemifInfo(pod podmodel.ID) (info *MemifInfo, err error)
-
-	// ReleasePodMemif cleans up memif-related resources for the given pod.
-	ReleasePodMemif(pod podmodel.ID)
 }
 
 // MemifInfo holds memif-related information of a pod.

@@ -37,6 +37,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
 )
 
@@ -111,6 +112,7 @@ type Deps struct {
 	LinuxNsPlugin linux_nsplugin.API
 	GoVPP         GoVPP
 	HTTPHandlers  rest.HTTPHandlers
+	RemoteDB      keyval.KvProtoPlugin
 }
 
 // GoVPP is the interface of govppmux plugin replicated here to avoid direct

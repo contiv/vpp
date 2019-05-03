@@ -39,10 +39,19 @@ ip4_address=\$(ip -o addr show dev enp0s3 | sed 's,/, ,g' | awk '\$3=="inet" { p
 jool -4 --add $ip4_address 7000-8000
 jool -4 -d
 jool -6 -d
+jool --global --update --mtu-plateaus="9000,1450,1280"
 jool --enable
 EOF
 
    sudo chmod a+x /root/nat64-setup.sh
+
+   sudo ip link set mtu 1450 dev enp0s3
+   sudo ip link set mtu 1450 dev enp0s8
+   sudo ip link set mtu 1450 dev enp0s9
+
+   sudo ethtool --offload enp0s3 gro off
+   sudo ethtool --offload enp0s8 gro off
+   sudo ethtool --offload enp0s9 gro off
 
    sudo systemctl start nat64.service
    sudo systemctl enable nat64.service

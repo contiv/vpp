@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { HttpClientModule } from '@angular/common/http';
 
-import { ClarityModule, ClrFormsNextModule } from '@clr/angular';
+import { ClarityModule } from '@clr/angular';
 import { D3TopologyModule } from './d3-topology/d3-topology.module';
 import { AppRoutingModule } from './app-routing.module';
 
@@ -78,7 +78,6 @@ import { ServicesTopologyService } from './shared/sidepanel/services/services-to
     BrowserModule,
     HttpClientModule,
     ClarityModule,
-    ClrFormsNextModule,
     BrowserAnimationsModule,
     FormsModule,
     D3TopologyModule,

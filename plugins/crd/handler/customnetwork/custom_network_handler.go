@@ -105,7 +105,6 @@ func (h *Handler) Init() error {
 		}
 		return h.customNetworkToProto(customNetwork), model.Key(customNetwork.Name), true
 	}
-	h.Log.SetLevel(logging.DebugLevel)
 	return nil
 }
 
@@ -120,7 +119,6 @@ func (h *Handler) ObjectCreated(obj interface{}) {
 
 	customNetworkProto := h.customNetworkToProto(customNetwork)
 	err := h.Publish.Put(model.Key(customNetwork.GetName()), customNetworkProto)
-	h.Log.Info("!!", customNetworkProto, "!!", model.Key(customNetwork.GetName()), err)
 	if err != nil {
 		h.dsSynced = false
 		h.startDataStoreResync()

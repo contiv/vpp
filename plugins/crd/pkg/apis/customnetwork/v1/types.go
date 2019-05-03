@@ -50,7 +50,7 @@ type CustomNetworkSpec struct {
 	Type                   string              `json:"type"`
 	SubnetCIDR             string              `json:"subnetCIDR"`
 	SubnetOneNodePrefixLen uint32              `json:"subnetOneNodePrefixLen"`
-	ExternalInterfaces     []ExternalInterface `json:externalInterfaces`
+	ExternalInterfaces     []ExternalInterface `json:"externalInterfaces"`
 }
 
 // CustomNetworkList is a list of CustomNetwork resources

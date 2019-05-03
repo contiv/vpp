@@ -1,0 +1,55 @@
+// Copyright (c) 2019 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package model;
+
+// CustomNetwork is used to store definition of custom network defined via CRD.
+message CustomNetwork {
+    enum Type {
+        L2 = 0;
+        L3 = 1;
+        STUB = 2;
+    }
+
+    message NodeInterface {
+        string node = 1;
+        string vpp_interface_name = 2;
+        string ip = 3;
+    }
+
+    // external interface defines mapping of logical interface name to particul interfaces
+    // on nodes
+    message ExternalInterface {
+
+        string name = 1;
+
+        repeated NodeInterface nodes = 2;
+
+    }
+
+    // name of the custom network
+    string name = 1;
+
+    // type of the custom network
+    Type type = 2;
+
+    string subnetCIDR = 3;
+
+    uint32 subnet_one_node_prefix = 4;
+
+    repeated ExternalInterface externalInterfaces = 5;
+
+}

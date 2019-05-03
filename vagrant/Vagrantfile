@@ -173,8 +173,12 @@ VAGRANTFILE_API_VERSION = "2"
           gw.vm.box_version = "1.0.0"
       end
       if ip_version == 'ipv6'
-          gw.vm.network :private_network, ip: "fe10::2:100", netmask: "119", virtualbox__intnet: "vpp", nic_type: "82540EM"
-          gw.vm.network :private_network, ip: "#{base_ip}100", netmask: "#{base_prefix_len}", virtualbox__intnet: "true"
+          if dep_scenario == "nostn"
+            gw.vm.network :private_network, ip: "fe10::2:100", netmask: "119", virtualbox__intnet: "vpp", nic_type: "82540EM"
+            gw.vm.network :private_network, ip: "#{base_ip}100", netmask: "#{base_prefix_len}", virtualbox__intnet: "true"
+          else
+            gw.vm.network :private_network, ip: "#{base_ip}100", netmask: "#{base_prefix_len}", virtualbox__intnet: "vpp", nic_type: "82540EM"
+          end
       else
           if dep_scenario == 'nostn'
             if crd_disabled == 'false'

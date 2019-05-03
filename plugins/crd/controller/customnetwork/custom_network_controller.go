@@ -285,7 +285,8 @@ func customNetworkValidation() *apiextv1beta1.CustomResourceValidation {
 					Required: []string{"type"},
 					Properties: map[string]apiextv1beta1.JSONSchemaProps{
 						"type": {
-							Type: "string",
+							Type:    "string",
+							Pattern: "^(L2|L3|stub)$",
 						},
 					},
 				},

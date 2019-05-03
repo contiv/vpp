@@ -179,8 +179,6 @@ func (h *Handler) customNetworkToProto(customNetwork *v1.CustomNetwork) *model.C
 		customNetworkProto.Type = model.CustomNetwork_L3
 	case "stub":
 		customNetworkProto.Type = model.CustomNetwork_STUB
-	default:
-		customNetworkProto.Type = model.CustomNetwork_L2
 	}
 	customNetworkProto.SubnetCIDR = customNetwork.Spec.SubnetCIDR
 	customNetworkProto.SubnetOneNodePrefix = customNetwork.Spec.SubnetOneNodePrefixLen

@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	// GroupVersion is the identifier for the API which includes
+	// SchemeGroupVersion is the identifier for the API which includes
 	// the name of the group and the version of the API
 	SchemeGroupVersion = schema.GroupVersion{
 		Group:   customnetwork.GroupName,
@@ -35,6 +35,7 @@ var (
 	AddToScheme = SchemeBuilder.AddToScheme
 )
 
+// Resource takes an unqualified resource and returns a Group qualified GroupResource
 func Resource(resource string) schema.GroupResource {
 	return SchemeGroupVersion.WithResource(resource).GroupResource()
 }

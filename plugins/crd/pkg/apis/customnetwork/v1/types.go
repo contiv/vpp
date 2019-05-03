@@ -31,12 +31,15 @@ type CustomNetwork struct {
 	Spec CustomNetworkSpec `json:"spec"`
 }
 
+// NodeInterface describe config for an interface referenced by logical name on a node
 type NodeInterface struct {
 	Node             string `json:"node"`
 	VppInterfaceName string `json:"vppInterfaceName"`
 	IP               string `json:"IP"`
 }
 
+// ExternalInterface defines mapping between logical name and particular
+// interfaces on nodes
 type ExternalInterface struct {
 	Name  string          `json:"name"`
 	Nodes []NodeInterface `json:"nodes"`

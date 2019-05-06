@@ -23,6 +23,7 @@
 * [VMWARE FUSION HOST](setup/VMWARE_FUSION_HOST.md) - preparing a VmWare Fusion host
 * [ETCD SECURITY](setup/ETCD_SECURITY.md) - securing access to ETCD
 * [HTTP SECURITY](setup/HTTP_SECURITY.md) - securing HTTP endpoints
+* [MULTI_MASTER](setup/MULTI_MASTER.md) - HA kubernetes setup
 
 
 ## Operation

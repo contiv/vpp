@@ -45,14 +45,6 @@ EOF
 
    sudo chmod a+x /root/nat64-setup.sh
 
-   sudo ip link set mtu 1450 dev enp0s3
-   sudo ip link set mtu 1450 dev enp0s8
-   sudo ip link set mtu 1450 dev enp0s9
-
-   sudo ethtool --offload enp0s3 gro off
-   sudo ethtool --offload enp0s8 gro off
-   sudo ethtool --offload enp0s9 gro off
-
    sudo systemctl start nat64.service
    sudo systemctl enable nat64.service
 

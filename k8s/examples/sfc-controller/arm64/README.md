@@ -576,8 +576,8 @@ time="2019-03-27 09:16:24.14902" level=debug msg="Only external configuration ca
 *   TRANSACTION ERROR: KeyErrors: [config/vpp/v2/interfaces/IF_VXLAN_L2PP_NET_SRVC_l2pp_service_chain1_CONN_1_FROM_vppagent_vnf1_port1_TO_contivvpp_vnf2_port1_VNI_5000 (CREATE): field name is invalid: VPP interface logical name exceeds the length limit (63 characters)] *
 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-
 ```
+Temporary solution is to fix errorneous records in etcd - see [workaround][12]
 
 [1]: https://github.com/contiv/vpp/tree/master/k8s/examples/sfc-controller
 [2]: https://github.com/contiv/vpp/tree/master/docs/arm64
@@ -590,3 +590,4 @@ time="2019-03-27 09:16:24.14902" level=debug msg="Only external configuration ca
 [9]: vnf-pods/vnf2.yaml
 [10]: vnf-pods/vnf3.yaml
 [11]: vnf-pods/vnf4.yaml
+[12]: 20190402fix.md 

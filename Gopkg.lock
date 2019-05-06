@@ -772,7 +772,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:de1e07a74b6206864313dbc1c19cf69ba048e0f69559e3efc211fa487fd8ca11"
+  digest = "1:980721b7ddf595ed4ab4eb610b39ebb5dcaba74382d5e0026820e6293041eac1"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",

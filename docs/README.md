@@ -24,6 +24,7 @@
 * [ETCD SECURITY](setup/ETCD_SECURITY.md) - securing access to ETCD
 * [EXTERNAL_ETCD](setup/EXTERNAL_ETCD.md) - usage of external ETCD instance
 * [HTTP SECURITY](setup/HTTP_SECURITY.md) - securing HTTP endpoints
+* [MULTI_MASTER](setup/MULTI_MASTER.md) - HA kubernetes setup
 
 
 ## Operation

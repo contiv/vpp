@@ -72,10 +72,6 @@ clr-dropdown:focus, .btn:focus, clr-icon:focus {
   margin-top: 17px;
 }
 
-.datagrid-row-flex {
-  align-items: center !important;
-}
-
 .datagrid-body {
   min-height: 34px !important;
 }

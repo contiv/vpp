@@ -189,6 +189,9 @@ statseg {
 EOF
 }
 
+# Pull image used in k8s-systest "max_pod" scale
+docker pull kahou82/kubia
+
 createVPPconfig
 split_node_os_release="$(cut -d "." -f 1 <<< "${node_os_release}")"
 if [ "$split_node_os_release" = '16' ]; then
@@ -215,6 +218,3 @@ else
     ip link set enp0s8 down
   fi
 fi
-
-# Pull image used in k8s-systest "max_pod" scale
-docker pull kahou82/kubia

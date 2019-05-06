@@ -23,16 +23,7 @@ export class AppComponent implements OnInit {
     this.preventRefresh = false;
 
     this.reloadTimer = setInterval(() => this.reloadData(), AppConfig.POLLING_FREQ);
-
     this.dataService.isDataLoading.subscribe(state => this.isDataLoading = state);
-    this.dataService.preventRefreshSubject.subscribe(state => {
-      if (!state) {
-        clearInterval(this.reloadTimer);
-        this.reloadTimer = setInterval(() => this.reloadData(), AppConfig.POLLING_FREQ);
-      }
-
-      this.preventRefresh = state;
-    });
   }
 
   public reloadData(force?: boolean) {

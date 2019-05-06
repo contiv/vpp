@@ -18,8 +18,8 @@ package fake
 
 import (
 	clientset "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	customnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/customnetwork/v1"
-	fakecustomnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/customnetwork/v1/fake"
+	customnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivppio/v1"
+	fakecustomnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivppio/v1/fake"
 	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1"
 	fakenodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1/fake"
 	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/telemetry/v1"

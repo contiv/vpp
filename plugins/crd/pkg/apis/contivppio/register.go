@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package customnetwork
+package contivppio
 
 const (
-	// GroupName defines the CRD group name for the contiv customNetwork CRD
-	GroupName = "customnetwork.contivpp.io"
+	// GroupName defines the CRD group name for the contiv CRDs
+	GroupName = "contivpp.io"
 )

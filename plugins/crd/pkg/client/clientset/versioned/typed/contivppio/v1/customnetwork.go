@@ -17,7 +17,7 @@
 package v1
 
 import (
-	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/customnetwork/v1"
+	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	scheme "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"

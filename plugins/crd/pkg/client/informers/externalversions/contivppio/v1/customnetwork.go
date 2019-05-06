@@ -19,10 +19,10 @@ package v1
 import (
 	time "time"
 
-	customnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
+	contivppiov1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	versioned "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	internalinterfaces "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/contiv/vpp/plugins/crd/pkg/client/listers/customnetwork/v1"
+	v1 "github.com/contiv/vpp/plugins/crd/pkg/client/listers/contivppio/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -68,7 +68,7 @@ func NewFilteredCustomNetworkInformer(client versioned.Interface, namespace stri
 				return client.CustomnetworkV1().CustomNetworks(namespace).Watch(options)
 			},
 		},
-		&customnetworkv1.CustomNetwork{},
+		&contivppiov1.CustomNetwork{},
 		resyncPeriod,
 		indexers,
 	)
@@ -79,7 +79,7 @@ func (f *customNetworkInformer) defaultInformer(client versioned.Interface, resy
 }
 
 func (f *customNetworkInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&customnetworkv1.CustomNetwork{}, f.defaultInformer)
+	return f.factory.InformerFor(&contivppiov1.CustomNetwork{}, f.defaultInformer)
 }
 
 func (f *customNetworkInformer) Lister() v1.CustomNetworkLister {

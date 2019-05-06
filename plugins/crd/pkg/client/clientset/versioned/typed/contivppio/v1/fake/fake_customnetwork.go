@@ -17,7 +17,7 @@
 package fake
 
 import (
-	customnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/customnetwork/v1"
+	contivppiov1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -37,20 +37,20 @@ var customnetworksResource = schema.GroupVersionResource{Group: "customnetwork.c
 var customnetworksKind = schema.GroupVersionKind{Group: "customnetwork.contivpp.io", Version: "v1", Kind: "CustomNetwork"}
 
 // Get takes name of the customNetwork, and returns the corresponding customNetwork object, and an error if there is any.
-func (c *FakeCustomNetworks) Get(name string, options v1.GetOptions) (result *customnetworkv1.CustomNetwork, err error) {
+func (c *FakeCustomNetworks) Get(name string, options v1.GetOptions) (result *contivppiov1.CustomNetwork, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(customnetworksResource, c.ns, name), &customnetworkv1.CustomNetwork{})
+		Invokes(testing.NewGetAction(customnetworksResource, c.ns, name), &contivppiov1.CustomNetwork{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*customnetworkv1.CustomNetwork), err
+	return obj.(*contivppiov1.CustomNetwork), err
 }
 
 // List takes label and field selectors, and returns the list of CustomNetworks that match those selectors.
-func (c *FakeCustomNetworks) List(opts v1.ListOptions) (result *customnetworkv1.CustomNetworkList, err error) {
+func (c *FakeCustomNetworks) List(opts v1.ListOptions) (result *contivppiov1.CustomNetworkList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(customnetworksResource, customnetworksKind, c.ns, opts), &customnetworkv1.CustomNetworkList{})
+		Invokes(testing.NewListAction(customnetworksResource, customnetworksKind, c.ns, opts), &contivppiov1.CustomNetworkList{})
 
 	if obj == nil {
 		return nil, err
@@ -60,8 +60,8 @@ func (c *FakeCustomNetworks) List(opts v1.ListOptions) (result *customnetworkv1.
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &customnetworkv1.CustomNetworkList{ListMeta: obj.(*customnetworkv1.CustomNetworkList).ListMeta}
-	for _, item := range obj.(*customnetworkv1.CustomNetworkList).Items {
+	list := &contivppiov1.CustomNetworkList{ListMeta: obj.(*contivppiov1.CustomNetworkList).ListMeta}
+	for _, item := range obj.(*contivppiov1.CustomNetworkList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -77,31 +77,31 @@ func (c *FakeCustomNetworks) Watch(opts v1.ListOptions) (watch.Interface, error)
 }
 
 // Create takes the representation of a customNetwork and creates it.  Returns the server's representation of the customNetwork, and an error, if there is any.
-func (c *FakeCustomNetworks) Create(customNetwork *customnetworkv1.CustomNetwork) (result *customnetworkv1.CustomNetwork, err error) {
+func (c *FakeCustomNetworks) Create(customNetwork *contivppiov1.CustomNetwork) (result *contivppiov1.CustomNetwork, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(customnetworksResource, c.ns, customNetwork), &customnetworkv1.CustomNetwork{})
+		Invokes(testing.NewCreateAction(customnetworksResource, c.ns, customNetwork), &contivppiov1.CustomNetwork{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*customnetworkv1.CustomNetwork), err
+	return obj.(*contivppiov1.CustomNetwork), err
 }
 
 // Update takes the representation of a customNetwork and updates it. Returns the server's representation of the customNetwork, and an error, if there is any.
-func (c *FakeCustomNetworks) Update(customNetwork *customnetworkv1.CustomNetwork) (result *customnetworkv1.CustomNetwork, err error) {
+func (c *FakeCustomNetworks) Update(customNetwork *contivppiov1.CustomNetwork) (result *contivppiov1.CustomNetwork, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(customnetworksResource, c.ns, customNetwork), &customnetworkv1.CustomNetwork{})
+		Invokes(testing.NewUpdateAction(customnetworksResource, c.ns, customNetwork), &contivppiov1.CustomNetwork{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*customnetworkv1.CustomNetwork), err
+	return obj.(*contivppiov1.CustomNetwork), err
 }
 
 // Delete takes name of the customNetwork and deletes it. Returns an error if one occurs.
 func (c *FakeCustomNetworks) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(customnetworksResource, c.ns, name), &customnetworkv1.CustomNetwork{})
+		Invokes(testing.NewDeleteAction(customnetworksResource, c.ns, name), &contivppiov1.CustomNetwork{})
 
 	return err
 }
@@ -110,17 +110,17 @@ func (c *FakeCustomNetworks) Delete(name string, options *v1.DeleteOptions) erro
 func (c *FakeCustomNetworks) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(customnetworksResource, c.ns, listOptions)
 
-	_, err := c.Fake.Invokes(action, &customnetworkv1.CustomNetworkList{})
+	_, err := c.Fake.Invokes(action, &contivppiov1.CustomNetworkList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched customNetwork.
-func (c *FakeCustomNetworks) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *customnetworkv1.CustomNetwork, err error) {
+func (c *FakeCustomNetworks) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *contivppiov1.CustomNetwork, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(customnetworksResource, c.ns, name, data, subresources...), &customnetworkv1.CustomNetwork{})
+		Invokes(testing.NewPatchSubresourceAction(customnetworksResource, c.ns, name, data, subresources...), &contivppiov1.CustomNetwork{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*customnetworkv1.CustomNetwork), err
+	return obj.(*contivppiov1.CustomNetwork), err
 }

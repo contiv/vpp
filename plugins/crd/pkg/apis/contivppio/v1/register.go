@@ -19,14 +19,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/customnetwork"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio"
 )
 
 var (
 	// SchemeGroupVersion is the identifier for the API which includes
 	// the name of the group and the version of the API
 	SchemeGroupVersion = schema.GroupVersion{
-		Group:   customnetwork.GroupName,
+		Group:   contivppio.GroupName,
 		Version: "v1",
 	}
 	// SchemeBuilder is the schema builder for the CRD API

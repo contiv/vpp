@@ -17,7 +17,7 @@
 package versioned
 
 import (
-	customnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/customnetwork/v1"
+	customnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivppio/v1"
 	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1"
 	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/telemetry/v1"
 	discovery "k8s.io/client-go/discovery"

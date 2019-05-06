@@ -21,6 +21,11 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
+const (
+	// prefix for logical name of the Linux loopback interface in a pod
+	podLinuxLoopLogicalNamePrefix = "linux-loop"
+)
+
 // MockIPNet is a mock for the ipnet Plugin.
 type MockIPNet struct {
 	sync.Mutex
@@ -69,7 +74,11 @@ func (mn *MockIPNet) SetHostIPs(ips []net.IP) {
 // GetIfName returns pod's interface name as set previously using SetPodIfName.
 func (mn *MockIPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string, exists bool) {
 	vppIfName, exists = mn.podIf[podmodel.ID{Name: podName, Namespace: podNamespace}]
-	return vppIfName, "", "", exists
+	return vppIfName, "", mn.GetPodLoopIfName(podNamespace, podName), exists
+}
+
+func (mn *MockIPNet) GetPodLoopIfName(podNamespace string, podName string) string {
+	return podLinuxLoopLogicalNamePrefix + "-" + podName + "-" + podNamespace
 }
 
 // GetPodByIf looks up podName and podNamespace that is associated with logical interface name.

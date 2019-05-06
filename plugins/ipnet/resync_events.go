@@ -15,12 +15,11 @@
 package ipnet
 
 import (
-	"github.com/ligato/vpp-agent/api/models/linux/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/ligato/vpp-agent/api/models/linux/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/l3"
 )
 
 // Resync is called by Controller to handle event that requires full
@@ -87,7 +86,6 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 //  - inter-VRF routing
 //  - IP neighbor scanning
 func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn controller.ResyncOperations) error {
-
 	// configure physical NIC
 	err := n.configureVswitchNICs(event, txn)
 	if err != nil {
@@ -123,6 +121,30 @@ func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn control
 	if !n.test && n.ContivConf.EnablePacketTrace() {
 		n.executeDebugCLI("trace add dpdk-input 100000")
 		n.executeDebugCLI("trace add virtio-input 100000")
+	}
+
+	// create localsid as receiving end for SRv6 encapsulated communication between 2 nodes
+	if n.ContivConf.GetRoutingConfig().UseSRv6Interconnect {
+		// create localsid with DT6 end function (decapsulate and lookup in POD VRF ipv6 table)
+		// -SRv6 route ends in destination node's VPP
+		// -used for pod-to-pod communication (further routing in destination node is done using ipv6)
+		podSid := n.IPAM.SidForNodeToNodePodLocalsid(n.nodeIP)
+		key, podLocalsid := n.srv6PodTunnelEgress(podSid)
+		txn.Put(key, podLocalsid)
+
+		// create localsid with DT6 end function (decapsulate and lookup in Main VRF ipv6 table)
+		// -SRv6 route ends in destination node's VPP
+		// -used for pod-to-other-node's-host communication (further routing in destination node is done using ipv6)
+		hostSid := n.IPAM.SidForNodeToNodeHostLocalsid(n.nodeIP)
+		key, hostLocalsid := n.srv6HostTunnelEgress(hostSid)
+		txn.Put(key, hostLocalsid)
+
+		// create localsid with base end function (ending of inner segment of srv6 segment list navigating packet)
+		// -SRv6 route continues, this localsid is only inner segment end
+		// -used i.e. in k8s services
+		sid := n.IPAM.SidForServiceNodeLocalsid(n.nodeIP)
+		key, innerLocalsid := n.srv6NodeToNodeSegmentEgress(sid)
+		txn.Put(key, innerLocalsid)
 	}
 
 	return err
@@ -355,9 +377,14 @@ func (n *IPNet) configureSTNConnectivity(txn controller.ResyncOperations) {
 	}
 }
 
-// configureVrfTables configures non-default VRF tables (currently only for pods).
+// configureVrfTables configures VRF tables
 func (n *IPNet) configureVrfTables(txn controller.ResyncOperations) {
-	tables := n.vrfTablesForPods()
+	tables := n.vrfMainTables() // main vrf is by default 0 and tables with vrf id 0 are created automatically -> setting it up for possibly overridden values and for vrf table label uniformity
+	for key, table := range tables {
+		txn.Put(key, table)
+	}
+
+	tables = n.vrfTablesForPods()
 	for key, table := range tables {
 		txn.Put(key, table)
 	}

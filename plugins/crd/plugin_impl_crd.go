@@ -44,6 +44,7 @@ import (
 
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/contiv/vpp/plugins/crd/controller/customnetwork"
 	"github.com/contiv/vpp/plugins/crd/utils"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/rpc/rest"
@@ -69,11 +70,12 @@ type Plugin struct {
 	pendingResync  datasync.ResyncEvent
 	pendingChanges []datasync.ChangeEvent
 
-	telemetryController  *telemetry.Controller
-	nodeConfigController *nodeconfig.Controller
-	cache                *cache.ContivTelemetryCache
-	processor            api.ContivTelemetryProcessor
-	verbose              bool
+	telemetryController     *telemetry.Controller
+	nodeConfigController    *nodeconfig.Controller
+	customNetworkController *customnetwork.Controller
+	cache                   *cache.ContivTelemetryCache
+	processor               api.ContivTelemetryProcessor
+	verbose                 bool
 }
 
 // Deps defines dependencies of CRD plugin.
@@ -192,11 +194,22 @@ func (p *Plugin) Init() error {
 		APIClient: apiclientset,
 	}
 
+	p.customNetworkController = &customnetwork.Controller{
+		Deps: customnetwork.Deps{
+			Log:     p.Log.NewLogger("-customNetworkController"),
+			Publish: p.Publish,
+		},
+		CrdClient: crdClient,
+		APIClient: apiclientset,
+	}
+
 	// Init and run the controllers
 	p.telemetryController.Init()
 	p.nodeConfigController.Init()
+	p.customNetworkController.Init()
 
 	if p.verbose {
+		p.customNetworkController.Log.SetLevel(logging.DebugLevel)
 		p.telemetryController.Log.SetLevel(logging.DebugLevel)
 		p.cache.Log.SetLevel(logging.DebugLevel)
 
@@ -245,6 +258,7 @@ func (p *Plugin) AfterInit() error {
 		}
 		go p.telemetryController.Run(p.ctx.Done())
 		go p.nodeConfigController.Run(p.ctx.Done())
+		go p.customNetworkController.Run(p.ctx.Done())
 
 	}()
 

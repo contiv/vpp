@@ -1596,10 +1596,12 @@ rules:
       - apiextensions.k8s.io
       - nodeconfig.contiv.vpp
       - telemetry.contiv.vpp
+      - customnetwork.contivpp.io
     resources:
       - customresourcedefinitions
       - telemetryreports
       - nodeconfigs
+      - customnetworks
     verbs:
       - "*"
 

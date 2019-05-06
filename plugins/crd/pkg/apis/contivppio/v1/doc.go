@@ -13,6 +13,6 @@
 // limitations under the License.
 
 // +k8s:deepcopy-gen=package
-// +groupName=customnetwork.contivpp.io
+// +groupName=contivpp.io
 
 package v1

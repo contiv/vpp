@@ -914,6 +914,7 @@ rules:
       - telemetryreports
       - nodeconfigs
       - customnetworks
+      - servicefunctionchains
     verbs:
       - "*"
 

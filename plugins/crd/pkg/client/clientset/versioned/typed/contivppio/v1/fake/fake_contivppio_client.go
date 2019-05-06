@@ -22,17 +22,21 @@ import (
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeCustomnetworkV1 struct {
+type FakeContivppV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeCustomnetworkV1) CustomNetworks(namespace string) v1.CustomNetworkInterface {
+func (c *FakeContivppV1) CustomNetworks(namespace string) v1.CustomNetworkInterface {
 	return &FakeCustomNetworks{c, namespace}
+}
+
+func (c *FakeContivppV1) ServiceFunctionChains(namespace string) v1.ServiceFunctionChainInterface {
+	return &FakeServiceFunctionChains{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeCustomnetworkV1) RESTClient() rest.Interface {
+func (c *FakeContivppV1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }

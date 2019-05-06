@@ -233,13 +233,6 @@ func (d *MockDeleteDSL) StaticRoute(vrf uint32, dstAddr string, nextHopAddr stri
 	return d
 }
 
-// ABF adds a request to delete and existing VPP Access Control List.
-func (d *MockDeleteDSL) ABF(abfIndex uint32) vppclient.DeleteDSL {
-	key := vpp_abf.Key(abfIndex)
-	d.parent.Values[key] = nil
-	return d
-}
-
 // ACL adds a mock request to delete an existing VPP Access Control List.
 func (d *MockDeleteDSL) ACL(aclName string) vppclient.DeleteDSL {
 	key := vpp_acl.Key(aclName)

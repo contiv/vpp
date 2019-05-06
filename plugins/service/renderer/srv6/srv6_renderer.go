@@ -362,7 +362,7 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 			continue // hostNetwork local backends handled separatelly
 		}
 
-		// adding route from main VRF to pod VRF for cases when service beckend should be reachable by service client from other node
+		// adding route from main VRF to pod VRF for cases when service backend should be reachable by service client from other node
 		route := &vpp_l3.Route{
 			Type:        vpp_l3.Route_INTER_VRF,
 			DstNetwork:  r.IPAM.SidForServicePodLocalsid(backend.ip).String() + ipv6PodSidPrefix,

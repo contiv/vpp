@@ -92,7 +92,8 @@ test:
 	go test ./plugins/policy/cache/podidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/policyidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/statscollector -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/service -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/service/renderer/srv6 -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/service/renderer/nat44 -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
@@ -114,7 +115,8 @@ test-race:
 	go test ./plugins/policy/cache/podidx -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/policyidx -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/statscollector -race -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/service -race -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/service/renderer/srv6 -race -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/service/renderer/nat44 -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
@@ -137,16 +139,17 @@ test-cover: get-covtools
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u8.out ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u9.out ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u10.out ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u11.out -coverpkg=./plugins/service/processor,./plugins/service/configurator ./plugins/service -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u12.out ./plugins/policy/cache -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u13.out ./plugins/policy/cache/namespaceidx -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u14.out ./plugins/policy/cache/podidx -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u15.out ./plugins/policy/cache/policyidx -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u16.out ./plugins/statscollector -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u17.out ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u18.out ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u19.out ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
-	#go test -covermode=count -coverprofile=${COVER_DIR}cov_u20.out ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u11.out -coverpkg=./plugins/service/processor,./plugins/service/configurator ./plugins/service/renderer/srv6 -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u12.out -coverpkg=./plugins/service/processor,./plugins/service/configurator ./plugins/service/renderer/nat44 -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u13.out ./plugins/policy/cache -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u14.out ./plugins/policy/cache/namespaceidx -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u15.out ./plugins/policy/cache/podidx -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u16.out ./plugins/policy/cache/policyidx -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u17.out ./plugins/statscollector -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u18.out ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u19.out ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u20.out ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
+	#go test -covermode=count -coverprofile=${COVER_DIR}cov_u21.out ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
 
 	@echo "# merging coverage results"
 	gocovmerge \
@@ -167,6 +170,7 @@ test-cover: get-covtools
 			${COVER_DIR}cov_u17.out \
 			${COVER_DIR}cov_u18.out \
 			${COVER_DIR}cov_u19.out \
+			${COVER_DIR}cov_u20.out \
 		> ${COVER_DIR}coverage.out
 	@echo "# coverage data generated into ${COVER_DIR}coverage.out"
 

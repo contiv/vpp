@@ -197,6 +197,13 @@ func (d *MockDeleteDSL) Interface(ifaceName string) vppclient.DeleteDSL {
 	return d
 }
 
+// ABF adds a request to delete and existing VPP Access Control List.
+func (d *MockDeleteDSL) ABF(abfIndex uint32) vppclient.DeleteDSL {
+	key := vpp_abf.Key(abfIndex)
+	d.parent.Values[key] = nil
+	return d
+}
+
 // BD adds a mock request to delete an existing VPP Bridge Domain.
 func (d *MockDeleteDSL) BD(bdName string) vppclient.DeleteDSL {
 	key := vpp_l2.BridgeDomainKey(bdName)

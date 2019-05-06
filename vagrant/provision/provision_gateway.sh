@@ -39,6 +39,7 @@ ip4_address=\$(ip -o addr show dev enp0s3 | sed 's,/, ,g' | awk '\$3=="inet" { p
 jool -4 --add $ip4_address 7000-8000
 jool -4 -d
 jool -6 -d
+jool --global --update --mtu-plateaus="9000,1450,1280"
 jool --enable
 EOF
 
@@ -144,6 +145,19 @@ if [[ $helm_extra_opts =~ contiv.useNoOverlay=(true|True) ]]; then
      done
    fi
 
+fi
+
+# in case of ipv6 the source nat is not applied add routes to pod subnet
+if [[ "$IP_VERSION" == "ipv6" ]]; then
+   cnt=1;
+   node_ip="fe10::2"
+   pod_network="2001:0:0/64"
+
+   until ((cnt > "$((num_nodes +1))"))
+   do
+     ip route add "$pod_network:$cnt::/64"  via "$node_ip:$cnt"
+     ((cnt++))
+   done
 fi
 
 

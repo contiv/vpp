@@ -62,7 +62,12 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 		if n.IPAM.GetPodIP(pod.ID) == nil {
 			continue
 		}
+		// main pod connectivity
 		config := n.podConnectivityConfig(pod)
+		controller.PutAll(txn, config)
+
+		// custom interfaces config
+		config = n.podCustomIfsConfig(pod, true)
 		controller.PutAll(txn, config)
 	}
 

@@ -22,7 +22,9 @@
 * [VPP CONFIG](setup/VPP_CONFIG.md) - creating VPP startup configuration
 * [VMWARE FUSION HOST](setup/VMWARE_FUSION_HOST.md) - preparing a VmWare Fusion host
 * [ETCD SECURITY](setup/ETCD_SECURITY.md) - securing access to ETCD
+* [EXTERNAL_ETCD](setup/EXTERNAL_ETCD.md) - usage of external ETCD instance
 * [HTTP SECURITY](setup/HTTP_SECURITY.md) - securing HTTP endpoints
+* [MULTI_MASTER](setup/MULTI_MASTER.md) - HA kubernetes setup
 
 
 ## Operation

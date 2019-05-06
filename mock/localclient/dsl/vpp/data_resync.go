@@ -32,7 +32,7 @@ func (d *MockDataResyncDSL) Interface(val *vpp_interfaces.Interface) vppclient.D
 	return d
 }
 
-// ABF adds ACL-based forwarding to the RESYNC request.
+// ABF adds a request to create or update VPP ACL-based forwarding.
 func (d *MockDataResyncDSL) ABF(val *vpp_abf.ABF) vppclient.DataResyncDSL {
 	key := vpp_abf.Key(val.Index)
 	d.Values[key] = val

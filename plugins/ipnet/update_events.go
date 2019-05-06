@@ -19,27 +19,72 @@ import (
 	"net"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 )
 
 // Update is called for:
-//   - AddPod and DeletePod
+//   - AddPod and DeletePod (CNI)
+//   - POD k8s state changes
 //   - NodeUpdate for other nodes
 //   - Shutdown event
 func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) (change string, err error) {
+
+	// add pod from CNI
 	if addPod, isAddPod := event.(*podmanager.AddPod); isAddPod {
-		return n.addPod(addPod, txn)
+		// main pod connectivity
+		change, err := n.addPod(addPod, txn)
+		if err != nil {
+			return "", err
+		}
+
+		// mark for custom interfaces handling
+		// NOTE: we rely on the fact that after CNI, k8s state of the pod gets updated with
+		// the main pod ip, and we get a KubeStateChange event for this pod later
+		n.pendingAddPodCustomIf[addPod.Pod] = true
+
+		return change, err
 	}
 
+	// del pod from CNI
 	if delPod, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
-		return n.deletePod(delPod, txn)
+		// delete custom interfaces
+		change, err := n.updatePodCustomIfs(delPod.Pod, txn, false)
+		if err != nil {
+			return "", err
+		}
+
+		// delete main pod connectivity
+		change2, err := n.deletePod(delPod, txn)
+		if err != nil {
+			return "", err
+		}
+
+		return strJoinIfNotEmpty(change, change2), err
 	}
 
+	// pod k8s data change
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
+		if ksChange.Resource == podmodel.PodKeyword {
+			if ksChange.NewValue != nil {
+				// if there is a pending addPodCustomIfs operation for this pod, process it now
+				pod := ksChange.NewValue.(*podmodel.Pod)
+				podID := podmodel.GetID(pod)
+				if _, pending := n.pendingAddPodCustomIf[podID]; pending {
+					delete(n.pendingAddPodCustomIf, podID)
+					return n.updatePodCustomIfs(podID, txn, true)
+				}
+			}
+		}
+	}
+
+	// node info update
 	if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
 		return n.processNodeUpdateEvent(nodeUpdate, txn)
 	}
 
+	// shutdown
 	if _, isShutdown := event.(*controller.Shutdown); isShutdown {
 		return n.cleanupVswitchConnectivity(txn)
 	}
@@ -157,7 +202,26 @@ func (n *IPNet) deletePod(event *podmanager.DeletePod, txn controller.UpdateOper
 	if err != nil {
 		return "", err
 	}
-	return "un-configure IPv4 connectivity", nil
+	return "un-configure IP connectivity", nil
+}
+
+// updatePodCustomIfs adds or deletes custom interfaces configuration (if requested by pod annotations).
+func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOperations, isAdd bool) (change string, err error) {
+
+	pod := n.PodManager.GetLocalPods()[podID]
+	config := n.podCustomIfsConfig(pod, isAdd)
+
+	// no custom ifs for this pod
+	if len(config) == 0 {
+		return "", nil
+	}
+
+	if isAdd {
+		controller.PutAll(txn, config)
+		return "configure custom interfaces", nil
+	}
+	controller.DeleteAll(txn, config)
+	return "un-configure custom interfaces", nil
 }
 
 // processNodeUpdateEvent reacts to an update of *another* node.
@@ -253,4 +317,18 @@ func (n *IPNet) cleanupVswitchConnectivity(txn controller.UpdateOperations) (cha
 	key, _ = n.interconnectVethVpp()
 	txn.Delete(key)
 	return "removing VPP<->Host VETHs", nil
+}
+
+// strJoinIfNotEmpty joins provided strings with a separator.
+func strJoinIfNotEmpty(strings ...string) string {
+	res := ""
+	for _, str := range strings {
+		if str != "" {
+			if res != "" {
+				res = res + ", "
+			}
+			res = res + str
+		}
+	}
+	return res
 }

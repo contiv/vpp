@@ -54,7 +54,7 @@ func (d *MockDataResyncDSL) VppInterface(val *vpp_interfaces.Interface) linuxcli
 	return d
 }
 
-// ABF adds ACL-based forwarding to the RESYNC request.
+// ABF adds a request to create or update VPP ACL-based forwarding.
 func (d *MockDataResyncDSL) ABF(val *vpp_abf.ABF) linuxclient.DataResyncDSL {
 	key := vpp_abf.Key(val.Index)
 	d.Values[key] = val
@@ -166,7 +166,7 @@ func (d *MockDataResyncDSL) PuntToHost(val *vpp_punt.ToHost) linuxclient.DataRes
 	return d
 }
 
-// VrfTable adds VPP VRF table to the RESYNC request.
+// VrfTable adds VRF table to the RESYNC request.
 func (d *MockDataResyncDSL) VrfTable(val *vpp_l3.VrfTable) linuxclient.DataResyncDSL {
 	key := vpp_l3.VrfTableKey(val.Id, val.Protocol)
 	d.Values[key] = val

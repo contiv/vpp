@@ -17,6 +17,7 @@
 package versioned
 
 import (
+	customnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/customnetwork/v1"
 	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1"
 	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/telemetry/v1"
 	discovery "k8s.io/client-go/discovery"
@@ -26,6 +27,9 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
+	CustomnetworkV1() customnetworkv1.CustomnetworkV1Interface
+	// Deprecated: please explicitly pick a version if possible.
+	Customnetwork() customnetworkv1.CustomnetworkV1Interface
 	NodeconfigV1() nodeconfigv1.NodeconfigV1Interface
 	// Deprecated: please explicitly pick a version if possible.
 	Nodeconfig() nodeconfigv1.NodeconfigV1Interface
@@ -38,8 +42,20 @@ type Interface interface {
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	nodeconfigV1 *nodeconfigv1.NodeconfigV1Client
-	telemetryV1  *telemetryv1.TelemetryV1Client
+	customnetworkV1 *customnetworkv1.CustomnetworkV1Client
+	nodeconfigV1    *nodeconfigv1.NodeconfigV1Client
+	telemetryV1     *telemetryv1.TelemetryV1Client
+}
+
+// CustomnetworkV1 retrieves the CustomnetworkV1Client
+func (c *Clientset) CustomnetworkV1() customnetworkv1.CustomnetworkV1Interface {
+	return c.customnetworkV1
+}
+
+// Deprecated: Customnetwork retrieves the default version of CustomnetworkClient.
+// Please explicitly pick a version.
+func (c *Clientset) Customnetwork() customnetworkv1.CustomnetworkV1Interface {
+	return c.customnetworkV1
 }
 
 // NodeconfigV1 retrieves the NodeconfigV1Client
@@ -80,6 +96,10 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
+	cs.customnetworkV1, err = customnetworkv1.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
 	cs.nodeconfigV1, err = nodeconfigv1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
@@ -100,6 +120,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
+	cs.customnetworkV1 = customnetworkv1.NewForConfigOrDie(c)
 	cs.nodeconfigV1 = nodeconfigv1.NewForConfigOrDie(c)
 	cs.telemetryV1 = telemetryv1.NewForConfigOrDie(c)
 
@@ -110,6 +131,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
+	cs.customnetworkV1 = customnetworkv1.New(c)
 	cs.nodeconfigV1 = nodeconfigv1.New(c)
 	cs.telemetryV1 = telemetryv1.New(c)
 

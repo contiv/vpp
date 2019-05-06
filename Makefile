@@ -285,6 +285,9 @@ docker-dev: contiv-agent contiv-init
 vagrant-images:
 	cd docker && ./save.sh -s
 
+generate-crd:
+	plugins/crd/controller/update-codegen.sh
+
 generate-manifest:
 	helm template k8s/contiv-vpp/ > k8s/contiv-vpp.yaml
 

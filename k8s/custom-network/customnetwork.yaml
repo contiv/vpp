@@ -1,0 +1,26 @@
+---
+apiVersion: customnetwork.contivpp.io/v1
+kind: CustomNetwork
+metadata:
+  name: network2
+spec:
+  type: L3    # L2 / L3 / stub
+  subnetCIDR: 10.100.0.0/16
+  subnetOneNodePrefixLen: 24
+  externalInterfaces:
+    - name: if-input
+      nodes:
+        - node: node-name-1
+          vppInterfaceName: GigabitEthernet0/5/0
+          IP: 10.99.0.100/16
+        - node: node-name-2
+          vppInterfaceName: GigabitEthernet0/5/0
+          IP: 10.99.0.101/16
+    - name: if-output
+      nodes:
+        - node: node-name-1
+          vppInterfaceName: GigabitEthernet0/6/0
+          IP: 10.88.0.100/16
+        - node: node-name-2
+          vppInterfaceName: GigabitEthernet0/6/0
+          IP: 10.88.0.101/16

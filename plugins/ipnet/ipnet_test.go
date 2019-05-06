@@ -46,6 +46,7 @@ import (
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/ipam"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 )
@@ -231,8 +232,10 @@ func TestBasicStuff(t *testing.T) {
 		PodManager:   podManager,
 	}
 	plugin := IPNet{
-		Deps:          deps,
-		internalState: &internalState{},
+		Deps: deps,
+		internalState: &internalState{
+			pendingAddPodCustomIf: map[podmodel.ID]bool{},
+		},
 		externalState: externalState,
 	}
 
@@ -388,7 +391,7 @@ func TestBasicStuff(t *testing.T) {
 	txn = txnTracker.NewControllerTxn(false)
 	change, err = plugin.Update(&podmanager.DeletePod{Pod: pod1ID}, txn)
 	Expect(err).To(BeNil())
-	Expect(change).To(Equal("un-configure IPv4 connectivity"))
+	Expect(change).To(Equal("un-configure IP connectivity"))
 	err = commitTransaction(txn, false)
 	Expect(err).To(BeNil())
 	txnCount++

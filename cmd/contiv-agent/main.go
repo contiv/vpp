@@ -34,6 +34,7 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	"github.com/contiv/vpp/plugins/controller"
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/devicemanager"
 	contivgrpc "github.com/contiv/vpp/plugins/grpc"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipnet"
@@ -94,16 +95,17 @@ type ContivAgent struct {
 	GRPC      *grpc.Plugin
 	REST      *rest_plugin.Plugin
 
-	Controller   *controller.Controller
-	ContivConf   *contivconf.ContivConf
-	ContivGRPC   *contivgrpc.Plugin
-	NodeSync     *nodesync.NodeSync
-	PodManager   *podmanager.PodManager
-	IPAM         ipam.API
-	IPNet        *ipnet.IPNet
-	Policy       *policy.Plugin
-	Service      *service.Plugin
-	BGPReflector *bgpreflector.BGPReflector
+	Controller    *controller.Controller
+	ContivConf    *contivconf.ContivConf
+	ContivGRPC    *contivgrpc.Plugin
+	NodeSync      *nodesync.NodeSync
+	PodManager    *podmanager.PodManager
+	IPAM          ipam.API
+	IPNet         *ipnet.IPNet
+	Policy        *policy.Plugin
+	Service       *service.Plugin
+	DeviceManager *devicemanager.DeviceManager
+	BGPReflector  *bgpreflector.BGPReflector
 }
 
 func (c *ContivAgent) String() string {
@@ -166,12 +168,17 @@ func main() {
 
 	podManager := &podmanager.DefaultPlugin
 
+	deviceManager := devicemanager.NewPlugin(devicemanager.UseDeps(func(deps *devicemanager.Deps) {
+		deps.ContivConf = contivConf
+	}))
+
 	ipamPlugin := ipam.NewPlugin(ipam.UseDeps(func(deps *ipam.Deps) {
 		deps.ContivConf = contivConf
 		deps.NodeSync = nodeSyncPlugin
 	}))
 
 	ipNetPlugin := ipnet.NewPlugin(ipnet.UseDeps(func(deps *ipnet.Deps) {
+		deps.RemoteDB = &etcd.DefaultPlugin
 		deps.GoVPP = &govppmux.DefaultPlugin
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.LinuxNsPlugin = &linux_nsplugin.DefaultPlugin
@@ -179,6 +186,7 @@ func main() {
 		deps.IPAM = ipamPlugin
 		deps.NodeSync = nodeSyncPlugin
 		deps.PodManager = podManager
+		deps.DeviceManager = deviceManager
 	}))
 
 	statsCollector := &statscollector.DefaultPlugin
@@ -210,6 +218,7 @@ func main() {
 			contivConf,
 			nodeSyncPlugin,
 			podManager,
+			deviceManager,
 			ipamPlugin,
 			ipNetPlugin,
 			servicePlugin,
@@ -230,6 +239,7 @@ func main() {
 	ipamPlugin.EventLoop = controller
 	ipNetPlugin.EventLoop = controller
 	contivGRPC.EventLoop = controller
+	deviceManager.EventLoop = controller
 	bgpReflector.EventLoop = controller
 	servicePlugin.ConfigRetriever = controller
 

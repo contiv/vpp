@@ -18,6 +18,8 @@ package fake
 
 import (
 	clientset "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
+	customnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/customnetwork/v1"
+	fakecustomnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/customnetwork/v1/fake"
 	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1"
 	fakenodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1/fake"
 	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/telemetry/v1"
@@ -70,6 +72,16 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 }
 
 var _ clientset.Interface = &Clientset{}
+
+// CustomnetworkV1 retrieves the CustomnetworkV1Client
+func (c *Clientset) CustomnetworkV1() customnetworkv1.CustomnetworkV1Interface {
+	return &fakecustomnetworkv1.FakeCustomnetworkV1{Fake: &c.Fake}
+}
+
+// Customnetwork retrieves the CustomnetworkV1Client
+func (c *Clientset) Customnetwork() customnetworkv1.CustomnetworkV1Interface {
+	return &fakecustomnetworkv1.FakeCustomnetworkV1{Fake: &c.Fake}
+}
 
 // NodeconfigV1 retrieves the NodeconfigV1Client
 func (c *Clientset) NodeconfigV1() nodeconfigv1.NodeconfigV1Interface {

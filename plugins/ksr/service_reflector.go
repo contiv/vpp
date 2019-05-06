@@ -16,6 +16,7 @@ package ksr
 
 import (
 	"reflect"
+	"strings"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
@@ -173,6 +174,13 @@ loop:
 	svcProto.LoadbalancerSourceRanges = svc.Spec.LoadBalancerSourceRanges
 	svcProto.ExternalTrafficPolicy = string(svc.Spec.ExternalTrafficPolicy)
 	svcProto.HealthCheckNodePort = svc.Spec.HealthCheckNodePort
+
+	svcProto.Annotations = make(map[string]string)
+	for k, v := range svc.Annotations {
+		if strings.HasPrefix(k, contivAnnotationPrefix) {
+			svcProto.Annotations[k] = v
+		}
+	}
 
 	return svcProto
 }

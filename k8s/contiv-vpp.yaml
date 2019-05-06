@@ -264,7 +264,6 @@ spec:
   ports:
     - port: 12379
       nodePort: 32379
-
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -284,9 +283,9 @@ metadata:
   namespace: kube-system
 data:
   etcd.conf: |
-    insecure-transport: true
     dial-timeout: 10000000000
     allow-delayed-start: true
+    insecure-transport: true
     endpoints:
       - "__HOST_IP__:32379"
 
@@ -526,6 +525,8 @@ spec:
               mountPath: /var/contiv/dumps
             - name: docker-socket
               mountPath: /var/run/docker.sock
+            - name: kubelet-api
+              mountPath: /var/lib/kubelet
           resources:
             requests:
               cpu: 250m
@@ -596,6 +597,10 @@ spec:
         - name: contiv-cni-cfg
           configMap:
             name: contiv-cni-cfg
+        # kubelet api dir
+        - name: kubelet-api
+          hostPath:
+            path: /var/lib/kubelet
 
 ---
 
@@ -913,10 +918,12 @@ rules:
       - apiextensions.k8s.io
       - nodeconfig.contiv.vpp
       - telemetry.contiv.vpp
+      - customnetwork.contivpp.io
     resources:
       - customresourcedefinitions
       - telemetryreports
       - nodeconfigs
+      - customnetworks
     verbs:
       - "*"
 

@@ -720,6 +720,14 @@
   version = "v1.0.2"
 
 [[projects]]
+  digest = "1:417e5ab71c449715f71cb457bde4949e3d76414e48f6c3b06eefc6e640b2b443"
+  name = "github.com/kubernetes/kubernetes"
+  packages = ["staging/src/k8s.io/apimachinery/pkg/util/rand"]
+  pruneopts = "UT"
+  revision = "b7394102d6ef778017f2ca4046abbaa23b88c290"
+  version = "v1.14.1"
+
+[[projects]]
   branch = "dev"
   digest = "1:2dde42b5ece0c50fc21170d55db972c1eafab9d505a0ee4ddab8f968286da1cb"
   name = "github.com/ligato/cn-infra"
@@ -764,7 +772,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:babf24d39685c8514b91a91343fb4426d0499021fcb7056a9d3a4830af23dce7"
+  digest = "1:de1e07a74b6206864313dbc1c19cf69ba048e0f69559e3efc211fa487fd8ca11"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -939,8 +947,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1904",
   ]
   pruneopts = "UT"
-  revision = "550bfaa5ce33bb5b283ad43d71f30c583b703c04"
-  source = "https://github.com/ligato/vpp-agent.git"
+  revision = "a66972fa2143dfe83473fd76f9df37784447620d"
 
 [[projects]]
   branch = "master"
@@ -1802,6 +1809,19 @@
   pruneopts = "UT"
   revision = "94e1e7b7574c44c4c0f2007de6fe617e259191f3"
 
+[[projects]]
+  digest = "1:50cfffe52bdfec6217c6c6738436b990390f2fd61d33e1526e05268561a65279"
+  name = "k8s.io/kubernetes"
+  packages = [
+    "pkg/kubelet/apis/deviceplugin/v1beta1",
+    "pkg/kubelet/apis/podresources",
+    "pkg/kubelet/apis/podresources/v1alpha1",
+    "pkg/kubelet/util",
+  ]
+  pruneopts = "UT"
+  revision = "641856db18352033a0d96dbc99153fa3b27298e5"
+  version = "v1.14.0"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
@@ -1827,6 +1847,7 @@
     "github.com/gogo/protobuf/protoc-gen-gogo",
     "github.com/gogo/protobuf/sortkeys",
     "github.com/google/cadvisor",
+    "github.com/kubernetes/kubernetes/staging/src/k8s.io/apimachinery/pkg/util/rand",
     "github.com/ligato/cn-infra/agent",
     "github.com/ligato/cn-infra/config",
     "github.com/ligato/cn-infra/datasync",
@@ -1950,6 +1971,9 @@
     "k8s.io/code-generator/cmd/defaulter-gen",
     "k8s.io/code-generator/cmd/informer-gen",
     "k8s.io/code-generator/cmd/lister-gen",
+    "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1",
+    "k8s.io/kubernetes/pkg/kubelet/apis/podresources",
+    "k8s.io/kubernetes/pkg/kubelet/apis/podresources/v1alpha1",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -174,4 +174,11 @@ message Service {
     // The value must be >0 && <=86400(for 1 day).
     // Default value is 10800(for 3 hours). 0 - means that affinity is disabled.
     uint32 session_affinity_timeout = 14;
+
+    // annotations is an unstructured key value map stored with a resource that may be
+    // set by external tools to store and retrieve arbitrary metadata. They are not
+    // queryable and should be preserved when modifying objects.
+    // More info: http://kubernetes.io/docs/user-guide/annotations
+    // +optional
+    map<string,string> annotations = 15;
 }

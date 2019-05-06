@@ -44,7 +44,9 @@ import (
 
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/contiv/vpp/plugins/crd/controller/customnetwork"
 	"github.com/contiv/vpp/plugins/crd/utils"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/rpc/rest"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
@@ -68,11 +70,12 @@ type Plugin struct {
 	pendingResync  datasync.ResyncEvent
 	pendingChanges []datasync.ChangeEvent
 
-	telemetryController  *telemetry.Controller
-	nodeConfigController *nodeconfig.Controller
-	cache                *cache.ContivTelemetryCache
-	processor            api.ContivTelemetryProcessor
-	verbose              bool
+	telemetryController     *telemetry.Controller
+	nodeConfigController    *nodeconfig.Controller
+	customNetworkController *customnetwork.Controller
+	cache                   *cache.ContivTelemetryCache
+	processor               api.ContivTelemetryProcessor
+	verbose                 bool
 }
 
 // Deps defines dependencies of CRD plugin.
@@ -89,6 +92,8 @@ type Deps struct {
 	Watcher datasync.KeyValProtoWatcher
 	Publish *kvdbsync.Plugin // KeyProtoValWriter does not define Delete
 }
+
+const electionPrefix = "/contiv-crd/election"
 
 // Init initializes policy layers and caches and starts watching contiv-etcd for K8s configuration.
 func (p *Plugin) Init() error {
@@ -189,11 +194,22 @@ func (p *Plugin) Init() error {
 		APIClient: apiclientset,
 	}
 
+	p.customNetworkController = &customnetwork.Controller{
+		Deps: customnetwork.Deps{
+			Log:     p.Log.NewLogger("-customNetworkController"),
+			Publish: p.Publish,
+		},
+		CrdClient: crdClient,
+		APIClient: apiclientset,
+	}
+
 	// Init and run the controllers
 	p.telemetryController.Init()
 	p.nodeConfigController.Init()
+	p.customNetworkController.Init()
 
 	if p.verbose {
+		p.customNetworkController.Log.SetLevel(logging.DebugLevel)
 		p.telemetryController.Log.SetLevel(logging.DebugLevel)
 		p.cache.Log.SetLevel(logging.DebugLevel)
 
@@ -226,8 +242,25 @@ func (p *Plugin) AfterInit() error {
 		reg := p.Resync.Register(string(p.PluginName))
 		go p.handleResync(reg.StatusChan())
 	}
-	go p.telemetryController.Run(p.ctx.Done())
-	go p.nodeConfigController.Run(p.ctx.Done())
+	go func() {
+		if etcdPlugin, ok := p.Publish.KvPlugin.(*etcd.Plugin); ok {
+			p.Log.Info("Start campaign in crd leader election")
+
+			_, err := etcdPlugin.CampaignInElection(p.ctx, electionPrefix)
+			if err != nil {
+				p.Log.Error(err)
+				return
+			}
+			p.Log.Info("The instance was elected as leader.")
+
+		} else {
+			p.Log.Warn("leader election is not supported for a kv-store different from etcd")
+		}
+		go p.telemetryController.Run(p.ctx.Done())
+		go p.nodeConfigController.Run(p.ctx.Done())
+		go p.customNetworkController.Run(p.ctx.Done())
+
+	}()
 
 	return nil
 }

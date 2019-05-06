@@ -650,15 +650,13 @@ spec:
         # This init container waits until crd node specific configuration has been applied
         - name: wait-forcrdconfig
           env:
-          - name: ETCDPORT
-            value: "32379"
           - name: ETCDCTL_API
             value: "3"
           - name: ETCDCTL_ENDPOINTS
           {{- if .Values.etcd.useExternalInstance }}
             value: {{ include "utils.commaseparated" .Values.etcd.externalInstance.endpoints | quote }}
           {{- else }}
-            value: "$HOST_IP:$ETCDPORT"
+            value: "$HOST_IP:32379"
           {{- end }}
           {{- if and .Values.etcd.useExternalInstance .Values.etcd.externalInstance.secretName }}
           - name: ETCDCTL_CACERT
@@ -1596,7 +1594,7 @@ rules:
       - apiextensions.k8s.io
       - nodeconfig.contiv.vpp
       - telemetry.contiv.vpp
-      - customnetwork.contivpp.io
+      - contivpp.io
     resources:
       - customresourcedefinitions
       - telemetryreports

@@ -17,7 +17,7 @@
 package v1
 
 import (
-	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/customnetwork/v1"
+	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	"github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/scheme"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"

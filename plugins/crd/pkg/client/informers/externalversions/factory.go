@@ -22,7 +22,7 @@ import (
 	time "time"
 
 	versioned "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	customnetwork "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/customnetwork"
+	contivppio "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivppio"
 	internalinterfaces "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/internalinterfaces"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/nodeconfig"
 	telemetry "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/telemetry"
@@ -172,13 +172,13 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Customnetwork() customnetwork.Interface
+	Customnetwork() contivppio.Interface
 	Nodeconfig() nodeconfig.Interface
 	Telemetry() telemetry.Interface
 }
 
-func (f *sharedInformerFactory) Customnetwork() customnetwork.Interface {
-	return customnetwork.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Customnetwork() contivppio.Interface {
+	return contivppio.New(f, f.namespace, f.tweakListOptions)
 }
 
 func (f *sharedInformerFactory) Nodeconfig() nodeconfig.Interface {

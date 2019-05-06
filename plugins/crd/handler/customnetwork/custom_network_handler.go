@@ -30,10 +30,10 @@ import (
 	"sync"
 	"time"
 
-	informers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/customnetwork/v1"
+	informers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivppio/v1"
 
 	"github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/customnetwork/v1"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 )
 
 const (

@@ -25,7 +25,7 @@ helm template --name my-release ../contiv-vpp -f ./values-arm64.yaml,./values.ya
 kubectl apply -f manifest-arm64.yaml
 ```
 
-To install with tiller, you will most likely need to modify the tiller manifest. The manifest can be optained with:
+To install with tiller, you will most likely need to modify the tiller manifest. The manifest can be obtained with:
 
 ```console
 helm init --dry-run --debug > tiller.yaml

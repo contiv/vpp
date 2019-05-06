@@ -17,8 +17,8 @@ package customnetwork
 import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/handler"
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/customnetwork"
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/customnetwork/v1"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	"github.com/contiv/vpp/plugins/crd/utils"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/logging"
@@ -35,8 +35,8 @@ import (
 	cn "github.com/contiv/vpp/plugins/crd/handler/customnetwork"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	factory "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions"
-	informers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/customnetwork/v1"
-	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/customnetwork/v1"
+	informers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivppio/v1"
+	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/contivppio/v1"
 	"reflect"
 )
 
@@ -86,8 +86,8 @@ func (c *Controller) Init() error {
 	c.Log.Info("CustomNetwork-Controller: initializing...")
 
 	crdName := reflect.TypeOf(v1.CustomNetwork{}).Name()
-	err = c.createCRD("customnetworks"+"."+customnetwork.GroupName,
-		customnetwork.GroupName,
+	err = c.createCRD("customnetworks"+"."+contivppio.GroupName,
+		contivppio.GroupName,
 		"v1",
 		"customnetworks",
 		crdName)

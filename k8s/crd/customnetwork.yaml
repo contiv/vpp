@@ -1,5 +1,5 @@
 ---
-apiVersion: customnetwork.contivpp.io/v1
+apiVersion: contivpp.io/v1
 kind: CustomNetwork
 metadata:
   name: network2

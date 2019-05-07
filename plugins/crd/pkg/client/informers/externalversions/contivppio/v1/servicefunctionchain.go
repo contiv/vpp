@@ -19,69 +19,69 @@ package v1
 import (
 	time "time"
 
-	customnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
+	contivppiov1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	versioned "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	internalinterfaces "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/contiv/vpp/plugins/crd/pkg/client/listers/customnetwork/v1"
+	v1 "github.com/contiv/vpp/plugins/crd/pkg/client/listers/contivppio/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// CustomNetworkInformer provides access to a shared informer and lister for
-// CustomNetworks.
-type CustomNetworkInformer interface {
+// ServiceFunctionChainInformer provides access to a shared informer and lister for
+// ServiceFunctionChains.
+type ServiceFunctionChainInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.CustomNetworkLister
+	Lister() v1.ServiceFunctionChainLister
 }
 
-type customNetworkInformer struct {
+type serviceFunctionChainInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewCustomNetworkInformer constructs a new informer for CustomNetwork type.
+// NewServiceFunctionChainInformer constructs a new informer for ServiceFunctionChain type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewCustomNetworkInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredCustomNetworkInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewServiceFunctionChainInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredServiceFunctionChainInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredCustomNetworkInformer constructs a new informer for CustomNetwork type.
+// NewFilteredServiceFunctionChainInformer constructs a new informer for ServiceFunctionChain type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredCustomNetworkInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredServiceFunctionChainInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CustomnetworkV1().CustomNetworks(namespace).List(options)
+				return client.ContivppV1().ServiceFunctionChains(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CustomnetworkV1().CustomNetworks(namespace).Watch(options)
+				return client.ContivppV1().ServiceFunctionChains(namespace).Watch(options)
 			},
 		},
-		&customnetworkv1.CustomNetwork{},
+		&contivppiov1.ServiceFunctionChain{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *customNetworkInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredCustomNetworkInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *serviceFunctionChainInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredServiceFunctionChainInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *customNetworkInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&customnetworkv1.CustomNetwork{}, f.defaultInformer)
+func (f *serviceFunctionChainInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&contivppiov1.ServiceFunctionChain{}, f.defaultInformer)
 }
 
-func (f *customNetworkInformer) Lister() v1.CustomNetworkLister {
-	return v1.NewCustomNetworkLister(f.Informer().GetIndexer())
+func (f *serviceFunctionChainInformer) Lister() v1.ServiceFunctionChainLister {
+	return v1.NewServiceFunctionChainLister(f.Informer().GetIndexer())
 }

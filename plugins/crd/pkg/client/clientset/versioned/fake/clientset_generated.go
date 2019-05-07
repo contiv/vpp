@@ -18,8 +18,8 @@ package fake
 
 import (
 	clientset "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	customnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivppio/v1"
-	fakecustomnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivppio/v1/fake"
+	contivppv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivppio/v1"
+	fakecontivppv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivppio/v1/fake"
 	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1"
 	fakenodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1/fake"
 	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/telemetry/v1"
@@ -73,14 +73,14 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// CustomnetworkV1 retrieves the CustomnetworkV1Client
-func (c *Clientset) CustomnetworkV1() customnetworkv1.CustomnetworkV1Interface {
-	return &fakecustomnetworkv1.FakeCustomnetworkV1{Fake: &c.Fake}
+// ContivppV1 retrieves the ContivppV1Client
+func (c *Clientset) ContivppV1() contivppv1.ContivppV1Interface {
+	return &fakecontivppv1.FakeContivppV1{Fake: &c.Fake}
 }
 
-// Customnetwork retrieves the CustomnetworkV1Client
-func (c *Clientset) Customnetwork() customnetworkv1.CustomnetworkV1Interface {
-	return &fakecustomnetworkv1.FakeCustomnetworkV1{Fake: &c.Fake}
+// Contivpp retrieves the ContivppV1Client
+func (c *Clientset) Contivpp() contivppv1.ContivppV1Interface {
+	return &fakecontivppv1.FakeContivppV1{Fake: &c.Fake}
 }
 
 // NodeconfigV1 retrieves the NodeconfigV1Client

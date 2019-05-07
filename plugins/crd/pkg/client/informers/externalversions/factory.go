@@ -172,12 +172,12 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Customnetwork() contivppio.Interface
+	Contivpp() contivppio.Interface
 	Nodeconfig() nodeconfig.Interface
 	Telemetry() telemetry.Interface
 }
 
-func (f *sharedInformerFactory) Customnetwork() contivppio.Interface {
+func (f *sharedInformerFactory) Contivpp() contivppio.Interface {
 	return contivppio.New(f, f.namespace, f.tweakListOptions)
 }
 

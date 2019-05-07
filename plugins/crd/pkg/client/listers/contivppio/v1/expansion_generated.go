@@ -23,3 +23,11 @@ type CustomNetworkListerExpansion interface{}
 // CustomNetworkNamespaceListerExpansion allows custom methods to be added to
 // CustomNetworkNamespaceLister.
 type CustomNetworkNamespaceListerExpansion interface{}
+
+// ServiceFunctionChainListerExpansion allows custom methods to be added to
+// ServiceFunctionChainLister.
+type ServiceFunctionChainListerExpansion interface{}
+
+// ServiceFunctionChainNamespaceListerExpansion allows custom methods to be added to
+// ServiceFunctionChainNamespaceLister.
+type ServiceFunctionChainNamespaceListerExpansion interface{}

@@ -24,6 +24,8 @@ import (
 type Interface interface {
 	// CustomNetworks returns a CustomNetworkInformer.
 	CustomNetworks() CustomNetworkInformer
+	// ServiceFunctionChains returns a ServiceFunctionChainInformer.
+	ServiceFunctionChains() ServiceFunctionChainInformer
 }
 
 type version struct {
@@ -40,4 +42,9 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // CustomNetworks returns a CustomNetworkInformer.
 func (v *version) CustomNetworks() CustomNetworkInformer {
 	return &customNetworkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// ServiceFunctionChains returns a ServiceFunctionChainInformer.
+func (v *version) ServiceFunctionChains() ServiceFunctionChainInformer {
+	return &serviceFunctionChainInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

@@ -665,8 +665,6 @@ spec:
           - name: ETCDCTL_ENDPOINTS
           {{- if .Values.etcd.useExternalInstance }}
             value: {{ include "utils.commaseparated" .Values.etcd.externalInstance.endpoints | quote }}
-          {{- else }}
-            value: "$HOST_IP:32379"
           {{- end }}
           {{- if and .Values.etcd.useExternalInstance .Values.etcd.externalInstance.secretName }}
           - name: ETCDCTL_CACERT
@@ -709,6 +707,9 @@ spec:
             then
                HOST_IP="[$HOST_IP]"
             fi
+          {{- if not .Values.etcd.useExternalInstance }}
+            export ETCDCTL_ENDPOINTS="$HOST_IP:32379"
+          {{- end }}
             until /usr/local/bin/etcdctl get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true | grep -m 1 "$HOSTNAME";
             do
               echo waiting for crd node config;
@@ -1610,6 +1611,7 @@ rules:
       - telemetryreports
       - nodeconfigs
       - customnetworks
+      - servicefunctionchains
     verbs:
       - "*"
 

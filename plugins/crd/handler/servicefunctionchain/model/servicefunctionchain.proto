@@ -1,0 +1,45 @@
+// Copyright (c) 2019 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package model;
+
+// ServiceFunctionChain is used to store definition of service function chain defined via CRD.
+message ServiceFunctionChain {
+    enum Type {
+        ServiceFunctionPod = 0;
+        InterfaceInput = 1;
+        InterfaceOutput = 2;
+        PodInput = 3;
+        PodOutput = 4;
+    }
+
+    message ServiceFunction {
+        string name = 1;
+        Type type = 2;
+        map<string, string> pod_selector = 3;
+        string input_interface = 4;
+        string output_interface = 5;
+    }
+
+    // name of the custom network
+    string name = 1;
+
+    // type of the custom network
+    string network = 2;
+
+    repeated ServiceFunction chain = 3;
+
+}

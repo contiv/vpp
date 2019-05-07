@@ -543,25 +543,25 @@ The packet flow looks like this:
 The user of service is pod 1. The packet with destination of the service IP address is steered into the SRv6 
 policy. The policy contains 1 path (list of segments) to each backend. The weighted loadbalancing happens 
 (all routes have equal waight) and one segment list is used. 
-- if pod 2 on node 1 is choosen:  
+- if pod 2 on node 1 is chosen:
 The route consists only of one segment, the segment with segment id starting with 6666 (segment id is an ipv6 address). 
 The IPv6 routing forwards the packet to the segment end (LocalSid-DX6) that decapsulates the packet (it was encapsulated in the policy, think of it as tunnel)
 and crossconnect it to the interface to pod 2 (using IPv6 as next hop) 
-- if the host backend on node 1 is choosen:  
+- if the host backend on node 1 is chosen:
 Basically the same, but IPv6 routing forwards it to different place where LocalSid is located.  
-- if pod2 on node 2 is choosen:  
+- if pod2 on node 2 is chosen:
 The route consists of 2 segments. The first segment will transport the packet to correct node 
 (segment end in Localsid-End), but the segment end will not decapsulate packet but route it 
 to the next segment end. The second segment end will decapsulate the packet and route it to the correct
 backend pod as in previous case.
-- if the host on node 2 is choosen:  
+- if the host on node 2 is chosen:
 Similar to previous cases.
 
 Special case for SRv6 service is when service is used from host:
 ![srv6-renderer-communication-from-host][srv6-renderer-communication-from-host]
 
 The loadbalancing is not done by using SRv6, but is done in the k8s proxy. So basically we fallback
-to the ipv6 routing to choosen backend. In case of local backend, the ipv6 routing will handle it without
+to the ipv6 routing to chosen backend. In case of local backend, the ipv6 routing will handle it without
 using the srv6 components. In the case of remote backend, the srv6 is used to transport packet to the correct 
 node, but there the pure ipv6 takes routing to the correct backend.
 

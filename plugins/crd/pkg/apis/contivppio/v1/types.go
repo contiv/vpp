@@ -61,3 +61,40 @@ type CustomNetworkList struct {
 
 	Items []CustomNetwork `json:"items"`
 }
+
+// ServiceFunctionChain define service function chain crd for contiv/vpp
+// +genclient
+// +genclient:noStatus
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ServiceFunctionChain struct {
+	// TypeMeta is the metadata for the resource, like kind and apiversion
+	meta_v1.TypeMeta `json:",inline"`
+	// ObjectMeta contains the metadata for the particular object
+	meta_v1.ObjectMeta `json:"metadata,omitempty"`
+	// Spec is the custom resource spec
+	Spec ServiceFunctionChainSpec `json:"spec"`
+}
+
+// ServiceFunction describes single segment of the chain
+type ServiceFunction struct {
+	Name            string            `json:"name"`
+	Type            string            `json:"type"`
+	PodSelector     map[string]string `json:"podSelector"`
+	InputInterface  string            `json:"inputInterface"`
+	OutputInterface string            `json:"outputInterface"`
+}
+
+// ServiceFunctionChainSpec describe service function chain
+type ServiceFunctionChainSpec struct {
+	Network string            `json:"network"`
+	Chain   []ServiceFunction `json:"chain"`
+}
+
+// ServiceFunctionChainList is a list of ServiceFunctionChain resources
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ServiceFunctionChainList struct {
+	meta_v1.TypeMeta `json:",inline"`
+	meta_v1.ListMeta `json:"metadata"`
+
+	Items []ServiceFunctionChain `json:"items"`
+}

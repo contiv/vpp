@@ -772,7 +772,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:de1e07a74b6206864313dbc1c19cf69ba048e0f69559e3efc211fa487fd8ca11"
+  digest = "1:980721b7ddf595ed4ab4eb610b39ebb5dcaba74382d5e0026820e6293041eac1"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/genericmanager",
@@ -789,6 +789,7 @@
     "api/models/vpp/l3",
     "api/models/vpp/nat",
     "api/models/vpp/punt",
+    "api/models/vpp/srv6",
     "api/models/vpp/stn",
     "clientv2/linux",
     "clientv2/vpp",
@@ -849,6 +850,7 @@
     "plugins/vpp/binapi/vpp1810/memif",
     "plugins/vpp/binapi/vpp1810/nat",
     "plugins/vpp/binapi/vpp1810/punt",
+    "plugins/vpp/binapi/vpp1810/sr",
     "plugins/vpp/binapi/vpp1810/stn",
     "plugins/vpp/binapi/vpp1810/tap",
     "plugins/vpp/binapi/vpp1810/tapv2",
@@ -868,6 +870,7 @@
     "plugins/vpp/binapi/vpp1901/nat",
     "plugins/vpp/binapi/vpp1901/punt",
     "plugins/vpp/binapi/vpp1901/session",
+    "plugins/vpp/binapi/vpp1901/sr",
     "plugins/vpp/binapi/vpp1901/stn",
     "plugins/vpp/binapi/vpp1901/tap",
     "plugins/vpp/binapi/vpp1901/tapv2",
@@ -886,6 +889,7 @@
     "plugins/vpp/binapi/vpp1904/memif",
     "plugins/vpp/binapi/vpp1904/nat",
     "plugins/vpp/binapi/vpp1904/punt",
+    "plugins/vpp/binapi/vpp1904/sr",
     "plugins/vpp/binapi/vpp1904/stn",
     "plugins/vpp/binapi/vpp1904/tapv2",
     "plugins/vpp/binapi/vpp1904/vmxnet3",
@@ -927,6 +931,13 @@
     "plugins/vpp/puntplugin/vppcalls/vpp1810",
     "plugins/vpp/puntplugin/vppcalls/vpp1901",
     "plugins/vpp/puntplugin/vppcalls/vpp1904",
+    "plugins/vpp/srplugin",
+    "plugins/vpp/srplugin/descriptor",
+    "plugins/vpp/srplugin/descriptor/adapter",
+    "plugins/vpp/srplugin/vppcalls",
+    "plugins/vpp/srplugin/vppcalls/vpp1810",
+    "plugins/vpp/srplugin/vppcalls/vpp1901",
+    "plugins/vpp/srplugin/vppcalls/vpp1904",
     "plugins/vpp/stnplugin",
     "plugins/vpp/stnplugin/descriptor",
     "plugins/vpp/stnplugin/descriptor/adapter",
@@ -1875,6 +1886,7 @@
     "github.com/ligato/vpp-agent/api/models/vpp/l3",
     "github.com/ligato/vpp-agent/api/models/vpp/nat",
     "github.com/ligato/vpp-agent/api/models/vpp/punt",
+    "github.com/ligato/vpp-agent/api/models/vpp/srv6",
     "github.com/ligato/vpp-agent/api/models/vpp/stn",
     "github.com/ligato/vpp-agent/clientv2/linux",
     "github.com/ligato/vpp-agent/clientv2/vpp",
@@ -1894,7 +1906,6 @@
     "github.com/ligato/vpp-agent/plugins/restapi/resturl",
     "github.com/ligato/vpp-agent/plugins/telemetry",
     "github.com/ligato/vpp-agent/plugins/vpp/aclplugin",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/ip",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/nat",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/session",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/vpe",
@@ -1908,6 +1919,7 @@
     "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/descriptor",
     "github.com/ligato/vpp-agent/plugins/vpp/natplugin",
     "github.com/ligato/vpp-agent/plugins/vpp/puntplugin",
+    "github.com/ligato/vpp-agent/plugins/vpp/srplugin",
     "github.com/ligato/vpp-agent/plugins/vpp/stnplugin",
     "github.com/namsral/flag",
     "github.com/onsi/gomega",

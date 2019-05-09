@@ -17,7 +17,7 @@
 package scheme
 
 import (
-	customnetworkv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
+	contivppv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,7 +50,7 @@ func init() {
 // After this, RawExtensions in Kubernetes types will serialize kube-aggregator types
 // correctly.
 func AddToScheme(scheme *runtime.Scheme) {
-	customnetworkv1.AddToScheme(scheme)
+	contivppv1.AddToScheme(scheme)
 	nodeconfigv1.AddToScheme(scheme)
 	telemetryv1.AddToScheme(scheme)
 }

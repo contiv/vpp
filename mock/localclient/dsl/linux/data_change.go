@@ -148,13 +148,6 @@ func (d *MockPutDSL) DNAT44(val *vpp_nat.DNat44) linuxclient.PutDSL {
 	return d
 }
 
-// VrfTable adds a request to create or update VPP VRF table.
-func (d *MockPutDSL) VrfTable(val *vpp_l3.VrfTable) linuxclient.PutDSL {
-	key := vpp_l3.VrfTableKey(val.Id, val.Protocol)
-	d.parent.Values[key] = val
-	return d
-}
-
 // LinuxInterface adds a mock request to create or update Linux network interface.
 func (d *MockPutDSL) LinuxInterface(val *linux_interfaces.Interface) linuxclient.PutDSL {
 	key := linux_interfaces.InterfaceKey(val.Name)
@@ -198,6 +191,13 @@ func (d *MockPutDSL) PuntIPRedirect(val *vpp_punt.IPRedirect) linuxclient.PutDSL
 // PuntToHost adds request to create or update rule to punt L4 traffic to a host.
 func (d *MockPutDSL) PuntToHost(val *vpp_punt.ToHost) linuxclient.PutDSL {
 	key := vpp_punt.ToHostKey(val.L3Protocol, val.L4Protocol, val.Port)
+	d.parent.Values[key] = val
+	return d
+}
+
+// VrfTable adds a request to create or update VPP VRF table.
+func (d *MockPutDSL) VrfTable(val *vpp_l3.VrfTable) linuxclient.PutDSL {
+	key := vpp_l3.VrfTableKey(val.Id, val.Protocol)
 	d.parent.Values[key] = val
 	return d
 }
@@ -304,13 +304,6 @@ func (d *MockDeleteDSL) DNAT44(label string) linuxclient.DeleteDSL {
 	return d
 }
 
-// VrfTable adds a request to delete existing VPP VRF table.
-func (d *MockDeleteDSL) VrfTable(id uint32, proto vpp_l3.VrfTable_Protocol) linuxclient.DeleteDSL {
-	key := vpp_l3.VrfTableKey(id, proto)
-	d.parent.Values[key] = nil
-	return d
-}
-
 // LinuxInterface adds a mock request to delete an existing Linux network
 // interface.
 func (d *MockDeleteDSL) LinuxInterface(ifName string) linuxclient.DeleteDSL {
@@ -355,6 +348,13 @@ func (d *MockDeleteDSL) PuntIPRedirect(l3Proto vpp_punt.L3Protocol, txInterface 
 // PuntToHost adds request to delete a rule used to punt L4 traffic to a host.
 func (d *MockDeleteDSL) PuntToHost(l3Proto vpp_punt.L3Protocol, l4Proto vpp_punt.L4Protocol, port uint32) linuxclient.DeleteDSL {
 	key := vpp_punt.ToHostKey(l3Proto, l4Proto, port)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// VrfTable adds a request to delete existing VPP VRF table.
+func (d *MockDeleteDSL) VrfTable(id uint32, proto vpp_l3.VrfTable_Protocol) linuxclient.DeleteDSL {
+	key := vpp_l3.VrfTableKey(id, proto)
 	d.parent.Values[key] = nil
 	return d
 }

@@ -23,22 +23,27 @@ import (
 	rest "k8s.io/client-go/rest"
 )
 
-type CustomnetworkV1Interface interface {
+type ContivppV1Interface interface {
 	RESTClient() rest.Interface
 	CustomNetworksGetter
+	ServiceFunctionChainsGetter
 }
 
-// CustomnetworkV1Client is used to interact with features provided by the customnetwork.contivpp.io group.
-type CustomnetworkV1Client struct {
+// ContivppV1Client is used to interact with features provided by the contivpp.io group.
+type ContivppV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *CustomnetworkV1Client) CustomNetworks(namespace string) CustomNetworkInterface {
+func (c *ContivppV1Client) CustomNetworks(namespace string) CustomNetworkInterface {
 	return newCustomNetworks(c, namespace)
 }
 
-// NewForConfig creates a new CustomnetworkV1Client for the given config.
-func NewForConfig(c *rest.Config) (*CustomnetworkV1Client, error) {
+func (c *ContivppV1Client) ServiceFunctionChains(namespace string) ServiceFunctionChainInterface {
+	return newServiceFunctionChains(c, namespace)
+}
+
+// NewForConfig creates a new ContivppV1Client for the given config.
+func NewForConfig(c *rest.Config) (*ContivppV1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -47,12 +52,12 @@ func NewForConfig(c *rest.Config) (*CustomnetworkV1Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &CustomnetworkV1Client{client}, nil
+	return &ContivppV1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new CustomnetworkV1Client for the given config and
+// NewForConfigOrDie creates a new ContivppV1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *CustomnetworkV1Client {
+func NewForConfigOrDie(c *rest.Config) *ContivppV1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -60,9 +65,9 @@ func NewForConfigOrDie(c *rest.Config) *CustomnetworkV1Client {
 	return client
 }
 
-// New creates a new CustomnetworkV1Client for the given RESTClient.
-func New(c rest.Interface) *CustomnetworkV1Client {
-	return &CustomnetworkV1Client{c}
+// New creates a new ContivppV1Client for the given RESTClient.
+func New(c rest.Interface) *ContivppV1Client {
+	return &ContivppV1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -80,7 +85,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *CustomnetworkV1Client) RESTClient() rest.Interface {
+func (c *ContivppV1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}

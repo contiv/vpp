@@ -57,6 +57,7 @@ import (
 	vpp_l3plugin "github.com/ligato/vpp-agent/plugins/vpp/l3plugin"
 	vpp_natplugin "github.com/ligato/vpp-agent/plugins/vpp/natplugin"
 	vpp_puntplugin "github.com/ligato/vpp-agent/plugins/vpp/puntplugin"
+	vpp_srplugin "github.com/ligato/vpp-agent/plugins/vpp/srplugin"
 	vpp_stnplugin "github.com/ligato/vpp-agent/plugins/vpp/stnplugin"
 )
 
@@ -88,6 +89,7 @@ type ContivAgent struct {
 	VPPACLPlugin        *vpp_aclplugin.ACLPlugin
 	VPPSTNPlugin        *vpp_stnplugin.STNPlugin
 	VPPPuntPlugin       *vpp_puntplugin.PuntPlugin
+	VPPSRPlugin         *vpp_srplugin.SRPlugin
 
 	Telemetry *telemetry.Plugin
 	GRPC      *grpc.Plugin
@@ -260,6 +262,7 @@ func main() {
 		VPPACLPlugin:        &vpp_aclplugin.DefaultPlugin,
 		VPPSTNPlugin:        &vpp_stnplugin.DefaultPlugin,
 		VPPPuntPlugin:       &vpp_puntplugin.DefaultPlugin,
+		VPPSRPlugin:         &vpp_srplugin.DefaultPlugin,
 		Telemetry:           &telemetry.DefaultPlugin,
 		GRPC:                &grpc.DefaultPlugin,
 		REST:                &rest_plugin.DefaultPlugin,

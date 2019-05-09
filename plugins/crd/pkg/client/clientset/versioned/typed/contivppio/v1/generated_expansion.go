@@ -17,3 +17,5 @@
 package v1
 
 type CustomNetworkExpansion interface{}
+
+type ServiceFunctionChainExpansion interface{}

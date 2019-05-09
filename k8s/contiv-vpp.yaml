@@ -23,6 +23,7 @@ metadata:
 data:
   contiv.conf: |-
     useNoOverlay: false
+    useSRv6Interconnect: false
     useTAPInterfaces: true
     tapInterfaceVersion: 2
     tapv2RxRingSize: 256
@@ -45,6 +46,15 @@ data:
       vppHostSubnetCIDR: 172.30.0.0/16
       vppHostSubnetOneNodePrefixLen: 24
       vxlanCIDR: 192.168.30.0/24
+      srv6:
+        servicePolicyBSIDSubnetCIDR: 5555::/16
+        servicePodLocalSIDSubnetCIDR: 6666::/16
+        serviceHostLocalSIDSubnetCIDR: 6655::/16
+        serviceNodeLocalSIDSubnetCIDR: 7766::/16
+        nodeToNodePodLocalSIDSubnetCIDR: 7777::/16
+        nodeToNodeHostLocalSIDSubnetCIDR: 7799::/16
+        nodeToNodePodPolicySIDSubnetCIDR: 8888::/16
+        nodeToNodeHostPolicySIDSubnetCIDR: 9999::/16
   controller.conf: |
     enableRetry: true
     delayRetry: 1000000000
@@ -914,6 +924,7 @@ rules:
       - telemetryreports
       - nodeconfigs
       - customnetworks
+      - servicefunctionchains
     verbs:
       - "*"
 

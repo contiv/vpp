@@ -28,13 +28,13 @@ import (
 
 // FakeCustomNetworks implements CustomNetworkInterface
 type FakeCustomNetworks struct {
-	Fake *FakeCustomnetworkV1
+	Fake *FakeContivppV1
 	ns   string
 }
 
-var customnetworksResource = schema.GroupVersionResource{Group: "customnetwork.contivpp.io", Version: "v1", Resource: "customnetworks"}
+var customnetworksResource = schema.GroupVersionResource{Group: "contivpp.io", Version: "v1", Resource: "customnetworks"}
 
-var customnetworksKind = schema.GroupVersionKind{Group: "customnetwork.contivpp.io", Version: "v1", Kind: "CustomNetwork"}
+var customnetworksKind = schema.GroupVersionKind{Group: "contivpp.io", Version: "v1", Kind: "CustomNetwork"}
 
 // Get takes name of the customNetwork, and returns the corresponding customNetwork object, and an error if there is any.
 func (c *FakeCustomNetworks) Get(name string, options v1.GetOptions) (result *contivppiov1.CustomNetwork, err error) {

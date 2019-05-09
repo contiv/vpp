@@ -15,15 +15,15 @@
 package ipam
 
 import (
+	"bytes"
 	"fmt"
+	"math/big"
 	"net"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/apparentlymart/go-cidr/cidr"
-
-	"github.com/ligato/cn-infra/infra"
-
-	"bytes"
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/contiv/vpp/plugins/contivconf"
 	"github.com/contiv/vpp/plugins/contivconf/config"
@@ -32,9 +32,8 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/go-errors/errors"
+	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/servicelabel"
-	"math/big"
-	"strings"
 )
 
 const (
@@ -742,6 +741,72 @@ func (i *IPAM) GetIPAMConfigForJSON() *config.IPAMConfig {
 	res.VPPHostSubnetOneNodePrefixLen = uint8(s)
 
 	return res
+}
+
+// BsidForServicePolicy creates a valid SRv6 binding SID for given k8s service IP addresses <serviceIPs>. This sid
+// should be used only for k8s service policy
+func (i *IPAM) BsidForServicePolicy(serviceIPs []net.IP) net.IP {
+	// get lowest ip from service IP addresses
+	var ip net.IP
+	if len(serviceIPs) == 0 {
+		ip = net.ParseIP("::1").To16()
+	} else {
+		sort.Slice(serviceIPs, func(i, j int) bool {
+			return bytes.Compare(serviceIPs[i], serviceIPs[j]) < 0
+		})
+		ip = serviceIPs[0].To16()
+	}
+	return i.computeSID(ip, i.ContivConf.GetIPAMConfig().SRv6Settings.ServicePolicyBSIDSubnetCIDR)
+}
+
+// SidForServiceHostLocalsid creates a valid SRv6 SID for service locasid leading to host on the current node. Created SID
+// doesn't depend on anything and is the same for each node, because there is only one way how to get to host in each
+// node and localsid have local significance (their sid don't have to be globally unique)
+func (i *IPAM) SidForServiceHostLocalsid() net.IP {
+	return i.computeSID(net.ParseIP("::1"), i.ContivConf.GetIPAMConfig().SRv6Settings.ServiceHostLocalSIDSubnetCIDR)
+}
+
+// SidForServicePodLocalsid creates a valid SRv6 SID for service locasid leading to pod backend. The SID creation is
+// based on backend IP <backendIP>.
+func (i *IPAM) SidForServicePodLocalsid(backendIP net.IP) net.IP {
+	return i.computeSID(backendIP, i.ContivConf.GetIPAMConfig().SRv6Settings.ServicePodLocalSIDSubnetCIDR)
+}
+
+// SidForNodeToNodePodLocalsid creates a valid SRv6 SID for locasid that is part of node-to-node Srv6 tunnel and
+// outputs packets to pod VRF table.
+func (i *IPAM) SidForNodeToNodePodLocalsid(nodeIP net.IP) net.IP {
+	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.NodeToNodePodLocalSIDSubnetCIDR)
+}
+
+// SidForNodeToNodeHostLocalsid creates a valid SRv6 SID for locasid that is part of node-to-node Srv6 tunnel and
+// outputs packets to main VRF table.
+func (i *IPAM) SidForNodeToNodeHostLocalsid(nodeIP net.IP) net.IP {
+	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.NodeToNodeHostLocalSIDSubnetCIDR)
+}
+
+// SidForServiceNodeLocalsid creates a valid SRv6 SID for service locasid serving as intermediate step in policy segment list.
+func (i *IPAM) SidForServiceNodeLocalsid(nodeIP net.IP) net.IP {
+	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.ServiceNodeLocalSIDSubnetCIDR)
+}
+
+// BsidForNodeToNodePodPolicy creates a valid SRv6 SID for policy that is part of node-to-node Srv6 tunnel and routes traffic to pod VRF table
+func (i *IPAM) BsidForNodeToNodePodPolicy(nodeIP net.IP) net.IP {
+	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.NodeToNodePodPolicySIDSubnetCIDR) // bsid = binding sid -> using the same util method
+}
+
+// BsidForNodeToNodeHostPolicy creates a valid SRv6 SID for policy that is part of node-to-node Srv6 tunnel and routes traffic to main VRF table
+func (i *IPAM) BsidForNodeToNodeHostPolicy(nodeIP net.IP) net.IP {
+	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.NodeToNodeHostPolicySIDSubnetCIDR) // bsid = binding sid -> using the same util method
+}
+
+// computeSID creates SID by applying network prefix from <prefixNetwork> to IP <ip>
+func (i *IPAM) computeSID(ip net.IP, prefixNetwork *net.IPNet) net.IP {
+	ip = ip.To16()
+	sid := net.IP(make([]byte, 16))
+	for i := range ip {
+		sid[i] = ip[i] & ^prefixNetwork.Mask[i] | prefixNetwork.IP[i]
+	}
+	return sid
 }
 
 // Close is NOOP.

@@ -59,13 +59,13 @@ func NewFilteredCustomNetworkInformer(client versioned.Interface, namespace stri
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CustomnetworkV1().CustomNetworks(namespace).List(options)
+				return client.ContivppV1().CustomNetworks(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CustomnetworkV1().CustomNetworks(namespace).Watch(options)
+				return client.ContivppV1().CustomNetworks(namespace).Watch(options)
 			},
 		},
 		&contivppiov1.CustomNetwork{},

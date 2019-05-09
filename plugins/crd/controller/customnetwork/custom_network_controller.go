@@ -98,7 +98,7 @@ func (c *Controller) Init() error {
 	}
 
 	sharedFactory := factory.NewSharedInformerFactory(c.CrdClient, time.Second*30)
-	c.customNetworkInformer = sharedFactory.Customnetwork().V1().CustomNetworks()
+	c.customNetworkInformer = sharedFactory.Contivpp().V1().CustomNetworks()
 	c.customNetworkLister = c.customNetworkInformer.Lister()
 
 	// Create a new queue in that when the informer gets a resource from listing or watching,

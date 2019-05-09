@@ -51,7 +51,7 @@ type customNetworks struct {
 }
 
 // newCustomNetworks returns a CustomNetworks
-func newCustomNetworks(c *CustomnetworkV1Client, namespace string) *customNetworks {
+func newCustomNetworks(c *ContivppV1Client, namespace string) *customNetworks {
 	return &customNetworks{
 		client: c.RESTClient(),
 		ns:     namespace,

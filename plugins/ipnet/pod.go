@@ -170,6 +170,20 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 		n.Log.Debugf("Configuring custom %s interface, name: %s, network: %s", ifType, ifName, ifNet)
 
 		// TODO: IPAM, the POD side of the interfaces does not have any IP assigned yet
+		var ip *net.IPNet
+		if ifNet != "stub" {
+			if isAdd {
+				_, err = n.IPAM.AllocatePodCustomIfIP(pod.ID, ifName, ifNet)
+				if err != nil {
+					n.Log.Warnf("%v, skipping the interface %s", err, customIf)
+					continue
+				}
+			}
+			ip = n.IPAM.GetPodCustomIfIP(pod.ID, ifName, ifNet)
+			if ip == nil {
+				n.Log.Warnf("No IP allocated for the interface %s, will be left in L2 mode", customIf)
+			}
+		}
 
 		switch ifType {
 		case memifIfType:
@@ -186,7 +200,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 			config[k] = v
 			// pod-side of the memif (if microservice label is defined)
 			if serviceLabel != "" {
-				k, v := n.podMicroservioceMemif(pod, ifName, memifInfo, memifID)
+				k, v := n.podMicroservioceMemif(pod, ip, ifName, memifInfo, memifID)
 				microserviceConfig[k] = v
 			}
 			memifID++
@@ -195,12 +209,12 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 			// handle custom tap interface
 			key, vppTap := n.podVPPTap(pod, ifName)
 			config[key] = vppTap
-			key, linuxTap := n.podLinuxTAP(pod, nil, ifName)
+			key, linuxTap := n.podLinuxTAP(pod, ip, ifName)
 			config[key] = linuxTap
 
 		case vethIfType:
 			// handle custom veth interface
-			key, veth1 := n.podVeth1(pod, nil, ifName)
+			key, veth1 := n.podVeth1(pod, ip, ifName)
 			config[key] = veth1
 			key, veth2 := n.podVeth2(pod, ifName)
 			config[key] = veth2
@@ -533,7 +547,7 @@ func (n *IPNet) podVPPMemif(pod *podmanager.LocalPod, ifName string,
 }
 
 // podMicroservioceMemif returns the configuration for memif interface on the Pod (microservice) side.
-func (n *IPNet) podMicroservioceMemif(pod *podmanager.LocalPod, ifName string,
+func (n *IPNet) podMicroservioceMemif(pod *podmanager.LocalPod, ip *net.IPNet, ifName string,
 	memifInfo *devicemanager.MemifInfo, memifID uint32) (key string, config *vpp_interfaces.Interface) {
 
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
@@ -550,6 +564,9 @@ func (n *IPNet) podMicroservioceMemif(pod *podmanager.LocalPod, ifName string,
 				Id:             memifID,
 			},
 		},
+	}
+	if ip != nil {
+		memif.IpAddresses = []string{ip.String()}
 	}
 	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
 		memif.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{

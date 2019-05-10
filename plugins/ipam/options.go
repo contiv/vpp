@@ -19,6 +19,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 )
 
@@ -33,6 +34,7 @@ func NewPlugin(opts ...Option) *IPAM {
 	p.NodeSync = &nodesync.DefaultPlugin
 	p.ContivConf = &contivconf.DefaultPlugin
 	p.ServiceLabel = &servicelabel.DefaultPlugin
+	p.HTTPHandlers = &rest.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)

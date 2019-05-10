@@ -33,6 +33,7 @@ import (
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/go-errors/errors"
 	"github.com/ligato/cn-infra/infra"
+	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 )
 
@@ -67,7 +68,7 @@ type IPAM struct {
 	// pool of assigned POD IP addresses
 	assignedPodIPs map[string]*podIPAllocation
 	// pod -> allocated IP address
-	podToIP map[podmodel.ID]*podIP
+	podToIP map[podmodel.ID]*podIPInfo
 	// counter denoting last assigned pod IP address
 	lastPodIPAssigned int
 
@@ -91,6 +92,8 @@ type IPAM struct {
 	serviceCIDR *net.IPNet
 }
 
+// podIPAllocation represents allocation of an IP address from the IPAM pool.
+// It holds the information about the pod and the interface to which this allocation belongs.
 type podIPAllocation struct {
 	pod             podmodel.ID // pod ID
 	mainIP          bool        // true if this is a main pod IP
@@ -98,9 +101,10 @@ type podIPAllocation struct {
 	customIfNetwork string      // empty if mainIP == false
 }
 
-type podIP struct {
+// podIPInfo holds the IP address allocation info related to a pod.
+type podIPInfo struct {
 	mainIP      net.IP            // IP address of the main interface
-	customIfIPs map[string]net.IP // custom interface name + network to IP address
+	customIfIPs map[string]net.IP // custom interface name + network to IP address map
 }
 
 // Deps lists dependencies of the IPAM plugin.
@@ -110,10 +114,15 @@ type Deps struct {
 	ContivConf   contivconf.API
 	ServiceLabel servicelabel.ReaderAPI
 	EventLoop    controller.EventLoop
+	HTTPHandlers rest.HTTPHandlers
 }
 
-// Init is NOOP - the plugin is initialized during the first resync.
+// Init initlizes
 func (i *IPAM) Init() (err error) {
+
+	// register REST handlers
+	i.registerRESTHandlers()
+
 	return nil
 }
 
@@ -208,7 +217,7 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 			pod:    podID,
 			mainIP: true,
 		}
-		i.podToIP[podID] = &podIP{
+		i.podToIP[podID] = &podIPInfo{
 			mainIP:      podIPAddress,
 			customIfIPs: map[string]net.IP{},
 		}
@@ -248,7 +257,7 @@ func (i *IPAM) initializePods(kubeStateData controller.KubeStateData, config *co
 	}
 	i.lastPodIPAssigned = 1
 	i.assignedPodIPs = make(map[string]*podIPAllocation)
-	i.podToIP = make(map[podmodel.ID]*podIP)
+	i.podToIP = make(map[podmodel.ID]*podIPInfo)
 
 	return nil
 }
@@ -528,7 +537,7 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 		mainIP: true,
 	}
 	if _, found := i.podToIP[podID]; !found {
-		i.podToIP[podID] = &podIP{
+		i.podToIP[podID] = &podIPInfo{
 			customIfIPs: map[string]net.IP{},
 		}
 	}
@@ -558,7 +567,7 @@ func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string) 
 		customIfNetwork: network,
 	}
 	if _, found := i.podToIP[podID]; !found {
-		i.podToIP[podID] = &podIP{
+		i.podToIP[podID] = &podIPInfo{
 			customIfIPs: map[string]net.IP{},
 		}
 	}
@@ -582,7 +591,7 @@ func (i *IPAM) allocateExternalPodIP(podID podmodel.ID, ipamType string, ipamDat
 
 	// save allocated IP to POD mapping
 	ip := ipamResult.Address.IP
-	i.podToIP[podID] = &podIP{
+	i.podToIP[podID] = &podIPInfo{
 		mainIP: ip,
 	}
 
@@ -913,5 +922,8 @@ func addrLenFromNet(network *net.IPNet) int {
 
 // customIfID returns custom interface identifier string
 func customIfID(ifName, network string) string {
-	return ifName + network
+	if network == "" {
+		return ifName
+	}
+	return ifName + "/" + network
 }

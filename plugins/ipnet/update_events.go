@@ -98,7 +98,7 @@ func (n *IPNet) Revert(event controller.Event) error {
 	pod := n.PodManager.GetLocalPods()[addPod.Pod]
 	n.IPAM.ReleasePodIPs(pod.ID)
 
-	vppIface, _ := n.podInterfaceName(pod)
+	vppIface, _ := n.podInterfaceName(pod, "", "")
 	n.vppIfaceToPodMutex.Lock()
 	delete(n.vppIfaceToPod, vppIface)
 	n.vppIfaceToPodMutex.Unlock()
@@ -141,7 +141,7 @@ func (n *IPNet) addPod(event *podmanager.AddPod, txn controller.UpdateOperations
 
 	// 4. update interface->pod map
 
-	vppIface, _ := n.podInterfaceName(pod)
+	vppIface, _ := n.podInterfaceName(pod, "", "")
 	n.vppIfaceToPodMutex.Lock()
 	n.vppIfaceToPod[vppIface] = pod.ID
 	n.vppIfaceToPodMutex.Unlock()
@@ -191,7 +191,7 @@ func (n *IPNet) deletePod(event *podmanager.DeletePod, txn controller.UpdateOper
 
 	// 2. update interface->pod map
 
-	vppIface, _ := n.podInterfaceName(pod)
+	vppIface, _ := n.podInterfaceName(pod, "", "")
 	n.vppIfaceToPodMutex.Lock()
 	delete(n.vppIfaceToPod, vppIface)
 	n.vppIfaceToPodMutex.Unlock()

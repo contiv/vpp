@@ -24,7 +24,7 @@ COPY binaries/contiv-init binaries/contiv-agent /usr/bin/
 
 # add VPP binaries (add also extracts from .tar.gz)
 ADD binaries/vpp.tar.gz .
-RUN dpkg -i vpp/vpp_*.deb vpp/libvppinfra_*.deb vpp/vpp-plugin-core_*.deb && \
+RUN dpkg -i vpp/vpp_*.deb vpp/vpp-plugin-core_*.deb vpp/vpp-plugin-dpdk_*.deb vpp/libvppinfra_*.deb  && \
     rm -rf vpp
 
 # add debug scripts

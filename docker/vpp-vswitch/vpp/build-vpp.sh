@@ -46,7 +46,7 @@ rm -rf /var/lib/apt/lists/*
 cd ${VPP_DIR}
 UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' build-release pkg-deb
 cd build-root
-dpkg -i vpp_*.deb libvppinfra_*.deb vpp-plugin-core_*.deb
+dpkg -i vpp_*.deb vpp-plugin-core_*.deb vpp-plugin-dpdk_*.deb libvppinfra_*.deb
 
 # run the debug build too unless the SKIP_DEBUG_BUILD env var is set to non-0 value
 if [ "${SKIP_DEBUG_BUILD}" == "" ] || [ "${SKIP_DEBUG_BUILD}" -eq 0 ]; then

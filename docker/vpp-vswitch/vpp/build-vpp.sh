@@ -50,7 +50,7 @@ rm -rf .ccache \
 	build-vpp-native/vpp/vpp-api/vom \
 	build-vpp_debug-native/vpp/vpp-api/vom \
 	build-vpp_debug-native/vpp/vpp-api/java
-rm *java*.deb
+rm -rf *java*.deb
 dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb vpp-dbg_*.deb
 
 # run the debug build too unless the SKIP_DEBUG_BUILD env var is set to non-0 value

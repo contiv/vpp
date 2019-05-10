@@ -161,7 +161,6 @@ unix {
    poll-sleep-usec 100
 }
 dpdk {
-   num-mbufs 131072
    dev 0000:00:08.0
 }
 nat {

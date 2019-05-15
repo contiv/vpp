@@ -342,7 +342,7 @@ func TestAssigniningIncrementalIPs(t *testing.T) {
 	Expect(assigned).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(assigned)).To(BeTrue(), "Pod IP address is not from pod network")
 
-	// expect released mainIP to be reused
+	// expect released IP to be reused
 	reused, err := i.AllocatePodIP(podID[1], "", "")
 	Expect(err).To(BeNil())
 	Expect(reused).NotTo(BeNil())
@@ -360,7 +360,7 @@ func TestDistinctAllocations(t *testing.T) {
 
 // TestReleaseOfAllIPAddresses tests proper releasing of pod IP addresses by allocating them again. If any pod IP
 // address is not properly released then additional allocation of all pod IP addresses will fail (either
-// ipam.AllocatePodIP(...) will fail by providing all mainIP addresses or one mainIP addresses will be allocated twice)
+// ipam.AllocatePodIP(...) will fail by providing all IP addresses or one IP addresses will be allocated twice)
 func TestReleaseOfAllIPAddresses(t *testing.T) {
 	i := setup(t, newDefaultConfig())
 	exhaustPodIPAddresses(i, 4)

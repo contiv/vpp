@@ -23,7 +23,7 @@ const (
 	// RESTPrefix is versioned prefix for REST urls.
 	RESTPrefix = "/contiv/v1/"
 
-	// RestURLNodeIPAM is versioned URL for the node IPAM REST endpoint.
+	// RestURLNodeIPAllocations is versioned URL for the node IPAM allocations REST endpoint.
 	RestURLNodeIPAllocations = RESTPrefix + "ipam/allocations"
 )
 

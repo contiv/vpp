@@ -117,7 +117,7 @@ type Deps struct {
 	HTTPHandlers rest.HTTPHandlers
 }
 
-// Init initlizes
+// Init initializes the REST handlers of the plugin.
 func (i *IPAM) Init() (err error) {
 
 	// register REST handlers
@@ -221,7 +221,8 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 			mainIP:      podIPAddress,
 			customIfIPs: map[string]net.IP{},
 		}
-		// TODO: customIfIPs
+
+		// TODO: resync of customIfIPs
 
 		diff := int(addr.Sub(addr, networkPrefix).Int64())
 		if i.lastPodIPAssigned < diff {

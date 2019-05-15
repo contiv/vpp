@@ -31,12 +31,12 @@ func dissectContivCIDR(ipamConfig *contivconf.IPAMConfig) (subnets *contivconf.C
 		return nil, errors.New("ContivCIDR is not valid, network must provide at least 18bit space")
 	}
 
-	// podSubnetCIDR has a requirement of minimum 65K pod ip addresses use 16-bit space
+	// podSubnetCIDR has a requirement of minimum 65K pod IP addresses use 16-bit space
 	podPrefixLength := size - 16 - maskSize
 	podSubnetCIDR, _ := cidr.Subnet(contivCIDR, podPrefixLength, 0)
 	podSubnetOneNodePrefixLen := uint8(size - 7)
 
-	// vppHostSubnetCIDR has a requirement of minimum 65K pod ip addresses use 16-bit space
+	// vppHostSubnetCIDR has a requirement of minimum 65K pod IP addresses use 16-bit space
 	vppHostSubnetCIDR, _ := cidr.Subnet(contivCIDR, podPrefixLength, 1)
 	vppHostSubnetOneNodePrefixLen := uint8(size - 7)
 

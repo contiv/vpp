@@ -135,7 +135,7 @@ func (d *DeviceManager) Init() (err error) {
 	d.podResClient, d.podResClientConn, err = podresources.GetClient(kubeletPodResourcesEndpoint,
 		grpcClientTimeout, defaultPodResourcesMaxSize)
 	if err != nil {
-		d.Log.Warn(err)
+		d.Log.Warn("Unable to connect to kubelet endpoint %s: %v", kubeletPodResourcesEndpoint, err)
 		// do not return an error if this fails - the CNI is still working
 		return nil
 	}
@@ -429,23 +429,24 @@ func (d *DeviceManager) releasePodMemif(pod podmodel.ID) {
 	if !d.initialized {
 		return
 	}
-	info, err := d.GetPodMemifInfo(pod)
-
-	if err == nil && info != nil {
-		// delete memif socket & dir
-		err = os.Remove(info.HostSocket)
-		if err != nil {
-			d.Log.Warnf("Error by deleting memif socket %s: %v", info.HostSocket, err)
-		}
-		dir := filepath.Dir(info.HostSocket)
-		err = os.Remove(dir)
-		if err != nil {
-			d.Log.Warnf("Error by deleting memif dir %s: %v", dir, err)
-		}
-
-		// delete pod to memif info mapping
-		delete(d.podMemifs, pod)
+	info, hasInfo := d.podMemifs[pod]
+	if !hasInfo {
+		return
 	}
+
+	// delete memif socket & dir
+	err := os.Remove(info.HostSocket)
+	if err != nil {
+		d.Log.Warnf("Error by deleting memif socket %s: %v", info.HostSocket, err)
+	}
+	dir := filepath.Dir(info.HostSocket)
+	err = os.Remove(dir)
+	if err != nil {
+		d.Log.Warnf("Error by deleting memif dir %s: %v", dir, err)
+	}
+
+	// delete pod to memif info mapping
+	delete(d.podMemifs, pod)
 }
 
 // getPodDevices looks up devices connected to the given pod.

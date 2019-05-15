@@ -119,11 +119,16 @@ type DockerClient interface {
 // Init initializes plugin internals.
 func (d *DeviceManager) Init() (err error) {
 
+	d.termSignal = make(chan bool, 1)
+	d.podMemifs = make(map[podmodel.ID]*MemifInfo)
+	d.deviceAllocations = make(map[string]*MemifInfo)
+
 	// init device plugin gRPC during the first resync
 	err = d.startDevicePluginServer()
 	if err != nil {
 		d.Log.Warn(err)
 		// do not return an error if this fails - the CNI is still working
+		return nil
 	}
 
 	// connect to kubelet pod resources server endpoint
@@ -132,6 +137,7 @@ func (d *DeviceManager) Init() (err error) {
 	if err != nil {
 		d.Log.Warn(err)
 		// do not return an error if this fails - the CNI is still working
+		return nil
 	}
 
 	// connect to Docker server
@@ -139,11 +145,8 @@ func (d *DeviceManager) Init() (err error) {
 	if err != nil {
 		d.Log.Warn(err)
 		// do not return an error if this fails - the CNI is still working
+		return nil
 	}
-
-	d.termSignal = make(chan bool, 1)
-	d.podMemifs = make(map[podmodel.ID]*MemifInfo)
-	d.deviceAllocations = make(map[string]*MemifInfo)
 
 	d.initialized = true
 

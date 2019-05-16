@@ -118,7 +118,7 @@ func (pm *PodManager) GetLocalPods() LocalPods {
 	return pm.pods
 }
 
-// HandlesEvent select AddPod, DeletePod and any resync events.
+// HandlesEvent select AddPod, DeletePod, k8s pod changes, and any resync events.
 func (pm *PodManager) HandlesEvent(event controller.Event) bool {
 	if event.Method() != controller.Update {
 		return true
@@ -129,12 +129,18 @@ func (pm *PodManager) HandlesEvent(event controller.Event) bool {
 	if _, isDeletePod := event.(*DeletePod); isDeletePod {
 		return true
 	}
+	if k8sChange, isK8sChange := event.(*controller.KubeStateChange); isK8sChange {
+		if k8sChange.Resource == podmodel.PodKeyword {
+			return true
+		}
+		return false
+	}
 	return false
 }
 
 // Resync re-synchronizes the map of local pods using information provided
 // by Docker server.
-func (pm *PodManager) Resync(event controller.Event, _ controller.KubeStateData,
+func (pm *PodManager) Resync(event controller.Event, kubeStateData controller.KubeStateData,
 	resyncCount int, _ controller.ResyncOperations) error {
 
 	// Normally it should not be needed to resync the state of running pods
@@ -195,6 +201,12 @@ func (pm *PodManager) Resync(event controller.Event, _ controller.KubeStateData,
 		pm.Log.Debugf("Found locally running Pod: %+v", pm.pods[podID])
 	}
 
+	// fill-in pod metadata
+	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
+		k8sPod := podProto.(*podmodel.Pod)
+		pm.updatePodMetadata(k8sPod)
+	}
+
 	pm.Log.Debugf("PodManager state after resync: pods=%s", pm.pods.String())
 	return nil
 }
@@ -202,10 +214,15 @@ func (pm *PodManager) Resync(event controller.Event, _ controller.KubeStateData,
 // Update handles AddPod and DeletePod events.
 func (pm *PodManager) Update(event controller.Event, _ controller.UpdateOperations) (changeDescription string, err error) {
 	if addPod, isAddPod := event.(*AddPod); isAddPod {
-		// check for obsolete pod entry
+		var podMeta *PodMetadata
+
 		if pod, hasPod := pm.pods[addPod.Pod]; hasPod {
-			if pod.ContainerID != addPod.ContainerID ||
-				pod.NetworkNamespace != addPod.NetworkNamespace {
+			// save pod metadata if already exist
+			podMeta = pod.Metadata
+
+			// check for obsolete pod entry
+			if pod.ContainerID != "" &&
+				(pod.ContainerID != addPod.ContainerID || pod.NetworkNamespace != addPod.NetworkNamespace) {
 				return "", errObsoletePod
 			}
 		}
@@ -215,6 +232,7 @@ func (pm *PodManager) Update(event controller.Event, _ controller.UpdateOperatio
 			ID:               addPod.Pod,
 			ContainerID:      addPod.ContainerID,
 			NetworkNamespace: addPod.NetworkNamespace,
+			Metadata:         podMeta,
 		}
 	}
 	if deletePod, isDeletePod := event.(*DeletePod); isDeletePod {
@@ -223,6 +241,13 @@ func (pm *PodManager) Update(event controller.Event, _ controller.UpdateOperatio
 			pm.Log.Warnf("Unknown pod to delete: %v", deletePod.Pod)
 		} else {
 			delete(pm.pods, deletePod.Pod)
+		}
+	}
+	if k8sChange, isK8sChange := event.(*controller.KubeStateChange); isK8sChange {
+		if k8sChange.Resource == podmodel.PodKeyword && k8sChange.NewValue != nil {
+			// handle pod metadata update
+			k8sPod := k8sChange.NewValue.(*podmodel.Pod)
+			pm.updatePodMetadata(k8sPod)
 		}
 	}
 	return "", nil
@@ -283,6 +308,17 @@ func (pm *PodManager) Delete(ctx context.Context, request *cni.CNIRequest) (repl
 	}
 
 	return pm.cniReplyForDeletePod(err), err
+}
+
+// updatePodMetadata updates k8s pod metadata of a local pod in the internal pod map.
+func (pm *PodManager) updatePodMetadata(k8sPod *podmodel.Pod) {
+	podID := podmodel.GetID(k8sPod)
+	if _, hasPod := pm.pods[podID]; hasPod {
+		pm.pods[podID].Metadata = &PodMetadata{
+			Annotations: k8sPod.Annotations,
+			Labels:      getPodLabels(k8sPod.Label),
+		}
+	}
 }
 
 // cniReplyForAddPod builds CNI reply for processed AddPod event.
@@ -364,4 +400,14 @@ func cniIPVersion(version IPVersion) cni.CNIReply_Interface_IP_Version {
 		return cni.CNIReply_Interface_IP_IPV6
 	}
 	return cni.CNIReply_Interface_IP_IPV4
+}
+
+// getPodLabels converts NB API pod labels to a key-value map.
+func getPodLabels(labels []*podmodel.Pod_Label) map[string]string {
+	res := map[string]string{}
+
+	for _, l := range labels {
+		res[l.Key] = l.Value
+	}
+	return res
 }

@@ -23,12 +23,13 @@ metadata:
 data:
   contiv.conf: |-
     useNoOverlay: false
+    useSRv6Interconnect: false
     useTAPInterfaces: true
     tapInterfaceVersion: 2
     tapv2RxRingSize: 256
     tapv2TxRingSize: 256
     tcpChecksumOffloadDisabled: true
-    STNVersion: 1
+    STNVersion: 2
     natExternalTraffic: true
     mtuSize: 1450
     scanIPNeighbors: true
@@ -45,6 +46,15 @@ data:
       vppHostSubnetCIDR: 172.30.0.0/16
       vppHostSubnetOneNodePrefixLen: 24
       vxlanCIDR: 192.168.30.0/24
+      srv6:
+        servicePolicyBSIDSubnetCIDR: 5555::/16
+        servicePodLocalSIDSubnetCIDR: 6666::/16
+        serviceHostLocalSIDSubnetCIDR: 6655::/16
+        serviceNodeLocalSIDSubnetCIDR: 7766::/16
+        nodeToNodePodLocalSIDSubnetCIDR: 7777::/16
+        nodeToNodeHostLocalSIDSubnetCIDR: 7799::/16
+        nodeToNodePodPolicySIDSubnetCIDR: 8888::/16
+        nodeToNodeHostPolicySIDSubnetCIDR: 9999::/16
   controller.conf: |
     enableRetry: true
     delayRetry: 1000000000
@@ -256,7 +266,6 @@ spec:
   ports:
     - port: 12379
       nodePort: 32379
-
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -276,9 +285,9 @@ metadata:
   namespace: kube-system
 data:
   etcd.conf: |
-    insecure-transport: true
     dial-timeout: 10000000000
     allow-delayed-start: true
+    insecure-transport: true
     endpoints:
       - "__HOST_IP__:32379"
 
@@ -518,6 +527,8 @@ spec:
               mountPath: /var/contiv/dumps
             - name: docker-socket
               mountPath: /var/run/docker.sock
+            - name: kubelet-api
+              mountPath: /var/lib/kubelet
           resources:
             requests:
               cpu: 250m
@@ -588,6 +599,10 @@ spec:
         - name: contiv-cni-cfg
           configMap:
             name: contiv-cni-cfg
+        # kubelet api dir
+        - name: kubelet-api
+          hostPath:
+            path: /var/lib/kubelet
 
 ---
 
@@ -905,10 +920,13 @@ rules:
       - apiextensions.k8s.io
       - nodeconfig.contiv.vpp
       - telemetry.contiv.vpp
+      - contivpp.io
     resources:
       - customresourcedefinitions
       - telemetryreports
       - nodeconfigs
+      - customnetworks
+      - servicefunctionchains
     verbs:
       - "*"
 

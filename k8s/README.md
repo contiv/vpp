@@ -51,6 +51,7 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
 
   * Pod-to-VPP connectivity (top-level options)
     - `useNoOverlay`: do not use overlay (VXLAN) for node-to-node communication (works e.g. if the nodes are on the same L2 network)
+    - `UseSRv6Interconnect`: use pure SRv6(IPv6) node interconnect (no VXLAN)
     - `useTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP and VPP-to-Host interconnection
     - `tAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
       for a faster, virtio-based, VPP TAPv2 interface (default);
@@ -77,6 +78,14 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
     - `vxlanCIDR`: subnet used for VXLAN addressing providing node-interconnect overlay
     - `serviceCIDR`: subnet used for allocation of Cluster IPs for services. Default value
     is the default kubernetes service range `10.96.0.0/12`
+    - `srv6ServicePolicyBSIDSubnetCIDR`: subnet applied to lowest k8s service IP to get unique (per service,per node) binding sid for SRv6 policy
+    - `srv6ServicePodLocalSIDSubnetCIDR`: subnet applied to k8s service local pod backend IP to get unique sid for SRv6 Localsid referring to local pod beckend using DX6 end function
+    - `srv6ServiceHostLocalSIDSubnetCIDR`: subnet applied to k8s service host pod backend IP to get unique sid for SRv6 Localsid referring to local host beckend using DX6 end function
+    - `srv6ServiceNodeLocalSIDSubnetCIDR`: subnet applied to node IP to get unique sid for SRv6 Localsid that is intermediate segment routing to other nodes in Srv6 segment list (used in k8s services)
+    - `srv6NodeToNodePodLocalSIDSubnetCIDR`: subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into pod VRF table (DT6 end function of localsid)
+    - `srv6NodeToNodeHostLocalSIDSubnetCIDR`: subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into main VRF table (DT6 end function of localsid)
+    - `srv6NodeToNodePodPolicySIDSubnetCIDR`: subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodePodLocalSIDSubnetCIDR`
+    - `srv6NodeToNodeHostPolicySIDSubnetCIDR`: subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodeHostLocalSIDSubnetCIDR`.
 
   * Node configuration (section `nodeConfig`; one entry for each node)
     - `nodeName`: name of a Kubernetes node;

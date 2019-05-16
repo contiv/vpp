@@ -44,7 +44,7 @@ required = [
 
 [[constraint]]
   name = "github.com/ligato/vpp-agent"
-  version = "2.0.1"
+  branch = "dev"
 
 [[constraint]]
   revision = "b5bfa59ec0adc420475f97f89b58045c721d761c"
@@ -139,6 +139,12 @@ required = [
   name = "k8s.io/code-generator"
   version = "kubernetes-1.11.0"
 
+# TODO: remove override once latest govpp can be compiled with vpp 19.01
+[[override]]
+  name = "git.fd.io/govpp.git"
+  source = "github.com/ligato/govpp.git"
+  branch = "vpp1901"
+
 [prune]
   go-tests = true
   unused-packages = true
@@ -147,3 +153,7 @@ required = [
     name = "k8s.io/code-generator"
     unused-packages = false
     go-tests = false
+
+[[constraint]]
+  name = "k8s.io/kubernetes"
+  version = "1.14.0"

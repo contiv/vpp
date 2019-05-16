@@ -25,7 +25,7 @@ helm template --name my-release ../contiv-vpp -f ./values-arm64.yaml,./values.ya
 kubectl apply -f manifest-arm64.yaml
 ```
 
-To install with tiller, you will most likely need to modify the tiller manifest. The manifest can be optained with:
+To install with tiller, you will most likely need to modify the tiller manifest. The manifest can be obtained with:
 
 ```console
 helm init --dry-run --debug > tiller.yaml
@@ -113,6 +113,9 @@ Parameter | Description | Default
 `ksr.image.repository` | ksr container image repository | `contivvpp/ksr`
 `ksr.image.tag`| ksr container image tag | `latest`
 `ksr.image.pullPolicy` | ksr container image pull policy | `IfNotPresent`
+`etcd.useExternalInstance` | do not deploy etcd as a part of contiv, options except `externalInstance` block are ignored if set to `true` | `false`
+`etcd.externalInstance.secretName` | name of secret containing etcd certificates | `false`
+`etcd.externalInstance.endpoints` | endpoints of external etcd instance | `false`
 `etcd.image.repository` | etcd container image repository | `quay.io/coreos/etcd`
 `etcd.image.tag`| etcd container image tag | `latest`
 `etcd.image.pullPolicy` | etcd container image pull policy | `IfNotPresent`

@@ -34,6 +34,7 @@ import (
 	"github.com/contiv/vpp/plugins/service/processor"
 	"github.com/contiv/vpp/plugins/service/renderer/ipv6route"
 	"github.com/contiv/vpp/plugins/service/renderer/nat44"
+	"github.com/contiv/vpp/plugins/service/renderer/srv6"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -53,6 +54,7 @@ type Plugin struct {
 	processor         *processor.ServiceProcessor
 	nat44Renderer     *nat44.Renderer
 	ipv6RouteRenderer *ipv6route.Renderer
+	srv6Renderer      *srv6.Renderer
 }
 
 // Deps defines dependencies of the service plugin.
@@ -125,30 +127,54 @@ func (p *Plugin) Init() error {
 		// Register renderer.
 		p.processor.RegisterRenderer(p.nat44Renderer)
 	} else {
-		// use IPv6 route renderer
-		p.ipv6RouteRenderer = &ipv6route.Renderer{
-			Deps: ipv6route.Deps{
-				Log:             p.Log.NewLogger("-IPv6RouteRenderer"),
-				Config:          p.config,
-				ContivConf:      p.ContivConf,
-				NodeSync:        p.NodeSync,
-				PodManager:      p.PodManager,
-				IPAM:            p.IPAM,
-				IPNet:           p.IPNet,
-				ConfigRetriever: p.ConfigRetriever,
-				UpdateTxnFactory: func(change string) controller.UpdateOperations {
-					p.changes = append(p.changes, change)
-					return p.updateTxn
+		if p.ContivConf.GetRoutingConfig().UseSRv6Interconnect { // use SRv6 renderer
+			p.srv6Renderer = &srv6.Renderer{
+				Deps: srv6.Deps{
+					Log:             p.Log.NewLogger("-SRv6Renderer"),
+					ContivConf:      p.ContivConf,
+					NodeSync:        p.NodeSync,
+					PodManager:      p.PodManager,
+					IPAM:            p.IPAM,
+					IPNet:           p.IPNet,
+					ConfigRetriever: p.ConfigRetriever,
+					UpdateTxnFactory: func(change string) controller.UpdateOperations {
+						p.changes = append(p.changes, change)
+						return p.updateTxn
+					},
+					ResyncTxnFactory: func() controller.ResyncOperations {
+						return p.resyncTxn
+					},
 				},
-				ResyncTxnFactory: func() controller.ResyncOperations {
-					return p.resyncTxn
-				},
-			},
-		}
+			}
 
-		p.ipv6RouteRenderer.Init(false)
-		// Register renderer.
-		p.processor.RegisterRenderer(p.ipv6RouteRenderer)
+			p.srv6Renderer.Init(false)
+			// Register renderer.
+			p.processor.RegisterRenderer(p.srv6Renderer)
+		} else { // use IPv6 route renderer
+			p.ipv6RouteRenderer = &ipv6route.Renderer{
+				Deps: ipv6route.Deps{
+					Log:             p.Log.NewLogger("-IPv6RouteRenderer"),
+					Config:          p.config,
+					ContivConf:      p.ContivConf,
+					NodeSync:        p.NodeSync,
+					PodManager:      p.PodManager,
+					IPAM:            p.IPAM,
+					IPNet:           p.IPNet,
+					ConfigRetriever: p.ConfigRetriever,
+					UpdateTxnFactory: func(change string) controller.UpdateOperations {
+						p.changes = append(p.changes, change)
+						return p.updateTxn
+					},
+					ResyncTxnFactory: func() controller.ResyncOperations {
+						return p.resyncTxn
+					},
+				},
+			}
+
+			p.ipv6RouteRenderer.Init(false)
+			// Register renderer.
+			p.processor.RegisterRenderer(p.ipv6RouteRenderer)
+		}
 	}
 
 	return nil

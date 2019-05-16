@@ -32,6 +32,7 @@ metadata:
 data:
   contiv.conf: |-
     useNoOverlay: {{ .Values.contiv.useNoOverlay }}
+    useSRv6Interconnect: {{ .Values.contiv.useSRv6Interconnect }}
     useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}
@@ -86,6 +87,15 @@ data:
       {{- if .Values.contiv.ipamConfig.serviceCIDR }}
       serviceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
       {{- end }}
+      srv6:
+        servicePolicyBSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.servicePolicyBSIDSubnetCIDR }}
+        servicePodLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.servicePodLocalSIDSubnetCIDR }}
+        serviceHostLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.serviceHostLocalSIDSubnetCIDR }}
+        serviceNodeLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.serviceNodeLocalSIDSubnetCIDR }}
+        nodeToNodePodLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodePodLocalSIDSubnetCIDR }}
+        nodeToNodeHostLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodeHostLocalSIDSubnetCIDR }}
+        nodeToNodePodPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodePodPolicySIDSubnetCIDR }}
+        nodeToNodeHostPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodeHostPolicySIDSubnetCIDR }}
     {{- if .Values.contiv.nodeConfig }}
     nodeConfig:
     {{- range .Values.contiv.nodeConfig }}
@@ -252,6 +262,7 @@ data:
 {{- $local := dict "first" true -}}
 {{- range $k, $v := . -}}{{- if not $local.first -}},{{- end -}}{{- $v -}}{{- $_ := set $local "first" false -}}{{- end -}}
 {{- end }}
+{{- if not .Values.etcd.useExternalInstance }}
 apiVersion: apps/v1beta2
 kind: StatefulSet
 metadata:
@@ -462,7 +473,7 @@ spec:
   ports:
     - port: 12379
       nodePort: {{ .Values.etcd.service.nodePort }}
-
+{{- end }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -490,6 +501,22 @@ metadata:
   namespace: kube-system
 data:
   etcd.conf: |
+    dial-timeout: 10000000000
+    allow-delayed-start: true
+    {{- if .Values.etcd.useExternalInstance }}
+      {{- if .Values.etcd.externalInstance.secretName }}
+    insecure-transport: false
+    ca-file: /var/contiv/etcd-secrets/caCert
+    cert-file: /var/contiv/etcd-secrets/clientCert
+    key-file: /var/contiv/etcd-secrets/clientKey
+      {{- else }}
+    insecure-transport: true
+      {{- end }}
+    endpoints:
+      {{- range .Values.etcd.externalInstance.endpoints }}
+      - {{ . | quote }}
+      {{- end }}
+    {{- else }}
     {{- if .Values.etcd.secureTransport }}
     insecure-transport: false
     ca-file: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}
@@ -498,16 +525,16 @@ data:
     {{- else }}
     insecure-transport: true
     {{- end }}
-    dial-timeout: 10000000000
-    allow-delayed-start: true
     endpoints:
-    {{- if .Values.etcd.service.useNodeIP }}
+      {{- if .Values.etcd.service.useNodeIP }}
       - "__HOST_IP__:{{ .Values.etcd.service.nodePort }}"
-    {{- else }}
+      {{- else }}
       - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
+      {{- end }}
     {{- end }}
 
 ---
+{{- if not .Values.etcd.useExternalInstance }}
 
 # This config map contains ETCD configuration for connecting to the contiv-etcd defined above with auto compact.
 apiVersion: v1
@@ -539,6 +566,7 @@ data:
 {{- if .Values.http.enableServerCert }}
 {{- if not .Values.http.mountFromHost }}
 ---
+{{- end }} # end of if useExternalETCDinstance
 
 # The following contains k8s Secrets for use with a secured HTTP plugin.
 # For information on populating Secrets, see http://kubernetes.io/docs/user-guide/secrets/
@@ -632,10 +660,29 @@ spec:
         # This init container waits until crd node specific configuration has been applied
         - name: wait-forcrdconfig
           env:
-          - name: ETCDPORT
-            value: "32379"
           - name: ETCDCTL_API
             value: "3"
+          - name: ETCDCTL_ENDPOINTS
+          {{- if .Values.etcd.useExternalInstance }}
+            value: {{ include "utils.commaseparated" .Values.etcd.externalInstance.endpoints | quote }}
+          {{- end }}
+          {{- if and .Values.etcd.useExternalInstance .Values.etcd.externalInstance.secretName }}
+          - name: ETCDCTL_CACERT
+            value: "/var/contiv/etcd-secrets/caCert"
+          - name: ETCDCTL_CERT
+            value: "/var/contiv/etcd-secrets/clientCert"
+          - name: ETCDCTL_KEY
+            value:  "/var/contiv/etcd-secrets/clientKey"
+          {{- else }}
+            {{- if .Values.etcd.secureTransport }}
+          - name: ETCDCTL_CACERT
+            value: "/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}"
+          - name: ETCDCTL_CERT
+            value: "/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientCert }}"
+          - name: ETCDCTL_KEY
+            value:  "/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientKey }}"
+            {{- end }}
+          {{- end }}
           - name: HOST_IP
           {{- if .Values.etcd.service.useNodeIP }}
             valueFrom:
@@ -660,12 +707,10 @@ spec:
             then
                HOST_IP="[$HOST_IP]"
             fi
-          {{- if .Values.etcd.secureTransport }}
-            until /usr/local/bin/etcdctl --endpoints=$HOST_IP:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true \
-            --cert=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientCert }} --key=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientKey }} --cacert=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}| grep -m 1 "$HOSTNAME";
-          {{- else }}
-            until /usr/local/bin/etcdctl --endpoints=$HOST_IP:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true | grep -m 1 "$HOSTNAME";
+          {{- if not .Values.etcd.useExternalInstance }}
+            export ETCDCTL_ENDPOINTS="$HOST_IP:32379"
           {{- end }}
+            until /usr/local/bin/etcdctl get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true | grep -m 1 "$HOSTNAME";
             do
               echo waiting for crd node config;
               sleep 1
@@ -716,6 +761,7 @@ spec:
               sysctl -w kernel.core_pattern="{{ .Values.vswitch.coreDumpsDir }}/%e-%t"
               ulimit -c unlimited
               echo 2 > /proc/sys/fs/suid_dumpable
+              {{- end }}
               # replace localhost IP by node IP since node port doesn't work
               # on localhost IP in a certain scenario
               cp /etc/etcd/etcd.conf /tmp/etcd.conf
@@ -726,7 +772,6 @@ spec:
                  HOST_IP="[$HOST_IP]"
               fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/etcd.conf
-              {{- end }}
           resources: {}
           securityContext:
             privileged: true
@@ -853,10 +898,16 @@ spec:
               mountPath: /var/bolt
             - name: etcd-cfg
               mountPath: /etc/etcd
+              {{- if and .Values.etcd.useExternalInstance .Values.etcd.externalInstance.secretName }}
+            - name: etcd-secrets
+              mountPath: /var/contiv/etcd-secrets
+              readOnly: true
+              {{- else }}
               {{- if .Values.etcd.secureTransport }}
             - name: etcd-secrets
               mountPath: /var/contiv/etcd-secrets
               readOnly: true
+              {{- end }}
               {{- end }}
               {{- if .Values.http.enableServerCert }}
             - name: http-secrets
@@ -887,6 +938,8 @@ spec:
             {{- end }}
             - name: docker-socket
               mountPath: /var/run/docker.sock
+            - name: kubelet-api
+              mountPath: /var/lib/kubelet
           resources:
             {{- if or .Values.vswitch.defineMemoryLimits .Values.vswitch.cpuLimit }}
             limits:
@@ -914,7 +967,19 @@ spec:
         - name: etcd-cfg
           configMap:
             name: contiv-etcd-cfg
-        {{- if .Values.etcd.secureTransport }}
+        {{- if and .Values.etcd.useExternalInstance .Values.etcd.externalInstance.secretName }}
+        - name: etcd-secrets
+          secret:
+            secretName: {{ .Values.etcd.externalInstance.secretName }}
+            items:
+            - key: caCert
+              path: caCert
+            - key: clientCert
+              path: clientCert
+            - key: clientKey
+              path: clientKey
+        {{- else }}
+         {{- if .Values.etcd.secureTransport }}
         - name: etcd-secrets
           {{- if .Values.etcd.secrets.mountFromHost }}
           hostPath:
@@ -930,6 +995,7 @@ spec:
             - key: clientKey
               path: {{ .Values.etcd.secrets.clientKey }}
           {{- end }}
+         {{- end }}
         {{- end }}
         {{- if .Values.http.enableServerCert }}
         - name: http-secrets
@@ -1009,6 +1075,10 @@ spec:
         - name: contiv-cni-cfg
           configMap:
             name: contiv-cni-cfg
+        # kubelet api dir
+        - name: kubelet-api
+          hostPath:
+            path: /var/lib/kubelet
 
 ---
 
@@ -1071,6 +1141,7 @@ spec:
           args:
             - -c
             - |
+              {{- if not .Values.etcd.useExternalInstance }}
               cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
               echo "$HOST_IP" | grep -q ':'
               if [ "$?" -eq "0" ];
@@ -1079,6 +1150,12 @@ spec:
               fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
               until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
+              {{- else }}
+              {{- range .Values.etcd.externalInstance.endpoints }}
+              until nc -w 2 {{ . }}; do echo waiting for etcd; sleep 2; done;
+              {{- end }}
+              cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
+              {{- end }}
           volumeMounts:
             - name: tmp-cfg
               mountPath: /tmp/cfg
@@ -1104,10 +1181,16 @@ spec:
               mountPath: /tmp/cfg
             - name: http-cfg
               mountPath: /etc/http
+            {{- if and .Values.etcd.useExternalInstance .Values.etcd.externalInstance.secretName }}
+            - name: etcd-secrets
+              mountPath: /var/contiv/etcd-secrets
+              readOnly: true
+            {{- else }}
             {{- if .Values.etcd.secureTransport }}
             - name: etcd-secrets
               mountPath: /var/contiv/etcd-secrets
               readOnly: true
+            {{- end }}
             {{- end }}
             {{- if .Values.http.enableServerCert }}
             - name: http-secrets
@@ -1161,12 +1244,28 @@ spec:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
           configMap:
+          {{- if .Values.etcd.useExternalInstance }}
+            name: contiv-etcd-cfg
+          {{- else }}
             name: contiv-etcd-withcompact-cfg
+          {{- end }}
         - name: tmp-cfg
           emptyDir: {}
         - name: http-cfg
           configMap:
             name: contiv-ksr-http-cfg
+        {{- if and .Values.etcd.useExternalInstance .Values.etcd.externalInstance.secretName }}
+        - name: etcd-secrets
+          secret:
+            secretName: {{ .Values.etcd.externalInstance.secretName }}
+            items:
+            - key: caCert
+              path: caCert
+            - key: clientCert
+              path: clientCert
+            - key: clientKey
+              path: clientKey
+        {{- else }}
         {{- if .Values.etcd.secureTransport }}
         - name: etcd-secrets
           {{- if .Values.etcd.secrets.mountFromHost }}
@@ -1183,6 +1282,7 @@ spec:
             - key: clientKey
               path: {{ .Values.etcd.secrets.clientKey }}
           {{- end }}
+        {{- end }}
         {{- end }}
         {{- if .Values.http.enableServerCert }}
         - name: http-secrets
@@ -1287,6 +1387,7 @@ spec:
       initContainers:
         # This init container waits until etcd is started
         - name: wait-foretcd
+          {{- if not .Values.etcd.useExternalInstance }}
           env:
             - name: ETCDPORT
               value: {{ .Values.etcd.service.nodePort | quote }}
@@ -1294,6 +1395,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
+          {{- end }}
           {{- if .Values.Arm64Platform }}
           image: {{ .Values.init_arm64.image.repository }}:{{ .Values.init.image.tag }}
           {{- else }}
@@ -1306,6 +1408,7 @@ spec:
             - -c
             - |
               cp /etc/etcd/etcd.conf /tmp/cfg/etcd.conf
+            {{- if not .Values.etcd.useExternalInstance }}
               echo "$HOST_IP" | grep -q ':'
               if [ "$?" -eq "0" ];
               then
@@ -1313,6 +1416,11 @@ spec:
               fi
               sed -i "s/__HOST_IP__/$HOST_IP/g" /tmp/cfg/etcd.conf
               until nc -w 2 $HOST_IP:$ETCDPORT; do echo waiting for etcd; sleep 2; done;
+            {{- else }}
+              {{- range .Values.etcd.externalInstance.endpoints }}
+              until nc -w 2 {{ . }}; do echo waiting for etcd; sleep 2; done;
+              {{- end }}
+            {{- end }}
           volumeMounts:
             - name: tmp-cfg
               mountPath: /tmp/cfg
@@ -1439,7 +1547,19 @@ spec:
             name: contiv-crd-http-cfg
         - name: tmp-cfg
           emptyDir: {}
-        {{- if .Values.etcd.secureTransport }}
+        {{- if and .Values.etcd.useExternalInstance .Values.etcd.externalInstance.secretName }}
+        - name: etcd-secrets
+          secret:
+            secretName: {{ .Values.etcd.externalInstance.secretName }}
+            items:
+            - key: caCert
+              path: caCert
+            - key: clientCert
+              path: clientCert
+            - key: clientKey
+              path: clientKey
+        {{- else }}
+         {{- if .Values.etcd.secureTransport }}
         - name: etcd-secrets
           {{- if .Values.etcd.secrets.mountFromHost }}
           hostPath:
@@ -1455,6 +1575,7 @@ spec:
             - key: clientKey
               path: {{ .Values.etcd.secrets.clientKey }}
           {{- end }}
+         {{- end }}
         {{- end }}
         {{- if .Values.http.enableServerCert }}
         - name: http-secrets
@@ -1484,10 +1605,13 @@ rules:
       - apiextensions.k8s.io
       - nodeconfig.contiv.vpp
       - telemetry.contiv.vpp
+      - contivpp.io
     resources:
       - customresourcedefinitions
       - telemetryreports
       - nodeconfigs
+      - customnetworks
+      - servicefunctionchains
     verbs:
       - "*"
 

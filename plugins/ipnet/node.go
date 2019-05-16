@@ -18,17 +18,16 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/gogo/protobuf/proto"
-
-	"github.com/ligato/cn-infra/idxmap"
-
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/nodesync"
-
+	"github.com/gogo/protobuf/proto"
+	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/l2"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/srv6"
+	"github.com/ligato/vpp-agent/pkg/models"
 )
 
 /* Main VPP interface */
@@ -68,7 +67,8 @@ func (n *IPNet) nodeConnectivityConfig(node *nodesync.Node) (config controller.K
 
 	// configuration for VXLAN tunnel
 	noOverlay := n.ContivConf.GetRoutingConfig().UseNoOverlay
-	if !noOverlay && len(n.nodeIP) > 0 {
+	srv6Interconnect := n.ContivConf.GetRoutingConfig().UseSRv6Interconnect
+	if !noOverlay && !srv6Interconnect && len(n.nodeIP) > 0 {
 		// VXLAN interface
 		var nodeIP net.IP
 		if len(node.VppIPAddresses) > 0 {
@@ -121,6 +121,7 @@ func (n *IPNet) routesToNode(node *nodesync.Node) (config controller.KeyValuePai
 
 	var nextHop net.IP
 	noOverlay := n.ContivConf.GetRoutingConfig().UseNoOverlay
+	srv6Interconnect := n.ContivConf.GetRoutingConfig().UseSRv6Interconnect
 	if noOverlay {
 		// route traffic destined to the other node directly
 		if len(node.VppIPAddresses) > 0 {
@@ -145,12 +146,23 @@ func (n *IPNet) routesToNode(node *nodesync.Node) (config controller.KeyValuePai
 
 	// route to pods of the other node
 	if !n.ContivConf.GetIPAMConfig().UseExternalIPAM { // skip in case that external IPAM is in use
-		key, routeToPods, err := n.routeToOtherNodePods(node.ID, nextHop)
-		if err != nil {
-			n.Log.Error(err)
-			return config, err
+		if srv6Interconnect {
+			srv6RouteConf, err := n.srv6RoutesToOtherNode(node.ID, nextHop)
+			if err != nil {
+				n.Log.Error(err)
+				return config, err
+			}
+			for k, v := range srv6RouteConf {
+				config[k] = v
+			}
+		} else {
+			key, routeToPods, err := n.routeToOtherNodePods(node.ID, nextHop)
+			if err != nil {
+				n.Log.Error(err)
+				return config, err
+			}
+			config[key] = routeToPods
 		}
-		config[key] = routeToPods
 	}
 
 	// route to the host stack of the other node
@@ -333,6 +345,53 @@ func (n *IPNet) defaultRoute(gwIP net.IP, outIfName string) (key string, config 
 }
 
 /************************************ VRFs ************************************/
+
+// vrfMainTables returns main VRF tables (each for each sub-address family (SAFI), e.g. IPv4, IPv6)
+func (n *IPNet) vrfMainTables() map[string]*vpp_l3.VrfTable {
+	tables := make(map[string]*vpp_l3.VrfTable)
+	routingCfg := n.ContivConf.GetRoutingConfig()
+
+	// Note: we are not ignoring setting up vrf table in case of zero vrf id (vrf table is created automatically) to get uniform vrf table labeling in all cases
+	n.vrfTable(routingCfg.MainVRFID, vpp_l3.VrfTable_IPV4, "mainVRF", tables) // TODO: Is IPv4 VRF table needed always? Disable it for some configuration combinations (e.g. IPv6 only mode)?
+	if n.ContivConf.GetIPAMConfig().UseIPv6 || n.ContivConf.GetRoutingConfig().UseSRv6Interconnect {
+		n.vrfTable(routingCfg.MainVRFID, vpp_l3.VrfTable_IPV6, "mainVRF", tables)
+	}
+
+	return tables
+}
+
+// vrfTablesForPods returns VRF tables for networking between pods.
+func (n *IPNet) vrfTablesForPods() map[string]*vpp_l3.VrfTable {
+	tables := make(map[string]*vpp_l3.VrfTable)
+	routingCfg := n.ContivConf.GetRoutingConfig()
+
+	n.vrfTable(routingCfg.PodVRFID, vpp_l3.VrfTable_IPV4, "podVRF", tables) // TODO: Is IPv4 VRF table needed always? Disable it for some configuration combinations (e.g. IPv6 only mode)?
+	if n.ContivConf.GetIPAMConfig().UseIPv6 || n.ContivConf.GetRoutingConfig().UseSRv6Interconnect {
+		n.vrfTable(routingCfg.PodVRFID, vpp_l3.VrfTable_IPV6, "podVRF", tables)
+	}
+
+	return tables
+}
+
+// vrfTable creates configuration for VRF table and adds it to the tables <tables>
+func (n *IPNet) vrfTable(vrfID uint32, protocol vpp_l3.VrfTable_Protocol, label string, tables map[string]*vpp_l3.VrfTable) {
+	n.Log.Infof("Creating VRF table configuration: vrfID=%v, protocol=%v, label(without protocol)=%v", vrfID, protocol, label)
+
+	// creating vrf config
+	protocolStr := "IPv4"
+	if protocol == vpp_l3.VrfTable_IPV6 {
+		protocolStr = "IPv6"
+	}
+	vrf := &vpp_l3.VrfTable{
+		Id:       vrfID,
+		Protocol: protocol,
+		Label:    label + "-" + protocolStr,
+	}
+
+	// adding it to tables
+	key := vpp_l3.VrfTableKey(vrf.Id, vrf.Protocol)
+	tables[key] = vrf
+}
 
 // routesPodToMainVRF returns non-drop routes from Pod VRF to Main VRF.
 func (n *IPNet) routesPodToMainVRF() map[string]*vpp_l3.Route {
@@ -594,6 +653,180 @@ func (n *IPNet) otherNodeIP(otherNodeID uint32) (net.IP, error) {
 		return nodeIP, err
 	}
 	return nodeIP, nil
+}
+
+// srv6RoutesToOtherNode returns configuration for SRv6 routes applied to traffic destined
+// to another node.
+func (n *IPNet) srv6RoutesToOtherNode(otherNodeID uint32, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
+	// getting info / preparing values
+	config = make(controller.KeyValuePairs, 0)
+	otherNodeIP, _, err := n.IPAM.NodeIPAddress(otherNodeID)
+	if err != nil {
+		return config, fmt.Errorf("unable to generate node IP address due to: %v", err)
+	}
+
+	// get configuration for creation of all needed routes/tunnels
+	podTunnelConfig, err := n.srv6NodeToNodePodTunnelIngress(otherNodeID, otherNodeIP, nextHopIP)
+	if err != nil {
+		return config, fmt.Errorf("can't create configuration for node-to-node SRv6 tunnel for Pod traffic due to: %v", err)
+	}
+	n.mergeConfiguration(config, podTunnelConfig)
+
+	hostTunnelConfig, err := n.srv6NodeToNodeHostTunnelIngress(otherNodeID, otherNodeIP, nextHopIP)
+	if err != nil {
+		return config, fmt.Errorf("can't create configuration for node-to-node SRv6 tunnel for Host traffic due to: %v", err)
+	}
+	n.mergeConfiguration(config, hostTunnelConfig)
+
+	segmentConfig, err := n.srv6NodeToNodeSegmentIngress(otherNodeID, nextHopIP)
+	if err != nil {
+		return config, fmt.Errorf("can't create configuration for node passing SRv6 path due to: %v", err)
+	}
+	n.mergeConfiguration(config, segmentConfig)
+	return config, nil
+}
+
+func (n *IPNet) mergeConfiguration(destConf, sourceConf controller.KeyValuePairs) {
+	for k, v := range sourceConf {
+		destConf[k] = v
+	}
+}
+
+// srv6NodeToNodeSegmentIngress creates configuration that routes SRv6 packet based on IPv6 routing to correct node.
+// In compare to srv6NodeToNodeTunnelIngress, no encapsulation/decapsulation of SRv6 is done in node-to-node communication. This
+// configuration is used when node-to-node communication using SRv6 is part of longer SRv6 path (i.e k8s services that extend
+// the path to the service backend pods)
+func (n *IPNet) srv6NodeToNodeSegmentIngress(otherNodeID uint32, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
+	// getting info / preparing values
+	config = make(controller.KeyValuePairs, 0)
+	otherNodeIP, _, err := n.IPAM.NodeIPAddress(otherNodeID)
+	if err != nil {
+		return config, fmt.Errorf("unable to generate node IP address due to: %v", err)
+	}
+	sid := n.IPAM.SidForServiceNodeLocalsid(otherNodeIP)
+
+	// create route for srv6-encapsulated packet to correct node
+	_, ipNet, err := net.ParseCIDR(sid.To16().String() + "/128")
+	if err != nil {
+		return config, fmt.Errorf("unable to convert SID into IPv6 destination network: %v", err)
+	}
+	key, route := n.routeToOtherNodeNetworks(ipNet, nextHopIP)
+	if err != nil {
+		n.Log.Error(err)
+		return config, fmt.Errorf("unable create IPv6 route for SRv6 sid for k8s node: %v", err)
+	}
+	config[key] = route
+
+	return config, nil
+
+}
+
+// srv6NodeToNodePodTunnelIngress creates start node configuration for srv6 tunnel between nodes leading to pod VRF table
+// lookup on the other side(SRv6 path steers and encapsulates traffic on start node side and decapsulates on end node side)
+func (n *IPNet) srv6NodeToNodePodTunnelIngress(otherNodeID uint32, otherNodeIP net.IP, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
+	podNetwork, err := n.IPAM.PodSubnetOtherNode(otherNodeID)
+	if err != nil {
+		return config, fmt.Errorf("Failed to compute pod network for node ID %v, error: %v ", otherNodeID, err)
+	}
+	bsid := n.IPAM.BsidForNodeToNodePodPolicy(otherNodeIP) // this can be the same value one many nodes for the same target other node because it is not part of path
+	sid := n.IPAM.SidForNodeToNodePodLocalsid(otherNodeIP)
+	return n.srv6NodeToNodeTunnelIngress(otherNodeIP, nextHopIP, podNetwork, bsid, sid, "lookupInPodVRF")
+}
+
+// srv6NodeToNodePodTunnelIngress creates start node configuration for srv6 tunnel between nodes leading to main VRF table
+// lookup(for host destination) on the other side(SRv6 path steers and encapsulates traffic on start node side and
+// decapsulates on end node side)
+func (n *IPNet) srv6NodeToNodeHostTunnelIngress(otherNodeID uint32, otherNodeIP net.IP, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
+	hostNetwork, err := n.IPAM.HostInterconnectSubnetOtherNode(otherNodeID)
+	if err != nil {
+		return config, fmt.Errorf("Failed to compute host network for node ID %v, error: %v ", otherNodeID, err)
+	}
+	bsid := n.IPAM.BsidForNodeToNodeHostPolicy(otherNodeIP) // this can be the same value one many nodes for the same target other node because it is not part of path
+	sid := n.IPAM.SidForNodeToNodeHostLocalsid(otherNodeIP)
+	return n.srv6NodeToNodeTunnelIngress(otherNodeIP, nextHopIP, hostNetwork, bsid, sid, "lookupInMainVRF")
+}
+
+func (n *IPNet) srv6NodeToNodeTunnelIngress(otherNodeIP net.IP, nextHopIP net.IP, networkToSteer *net.IPNet, bsid net.IP, sid net.IP, nameSuffix string) (config controller.KeyValuePairs, err error) {
+	// getting info / preparing values
+	config = make(controller.KeyValuePairs, 0)
+
+	// creating steering to steer all packets for pods of the other node
+	steering := &vpp_srv6.Steering{
+		Name: "forNodeToNodeTunneling-" + nameSuffix,
+		Traffic: &vpp_srv6.Steering_L3Traffic_{
+			L3Traffic: &vpp_srv6.Steering_L3Traffic{
+				PrefixAddress:     networkToSteer.String(),
+				InstallationVrfId: n.ContivConf.GetRoutingConfig().MainVRFID,
+			},
+		},
+		PolicyRef: &vpp_srv6.Steering_PolicyBsid{
+			PolicyBsid: bsid.String(),
+		},
+	}
+	config[models.Key(steering)] = steering
+
+	// create Srv6 policy to get to other node
+	policy := &vpp_srv6.Policy{
+		Bsid:             bsid.String(),
+		SprayBehaviour:   false,
+		SrhEncapsulation: true,
+		SegmentLists: []*vpp_srv6.Policy_SegmentList{
+			{
+				Weight:   1,
+				Segments: []string{sid.String()},
+			},
+		},
+	}
+	config[models.Key(policy)] = policy
+
+	// create route for srv6-encapsulated packet to correct node
+	_, ipNet, err := net.ParseCIDR(sid.To16().String() + "/128")
+	if err != nil {
+		return config, fmt.Errorf("unable to convert SID into IPv6 destination network: %v", err)
+	}
+	key, route := n.routeToOtherNodeNetworks(ipNet, nextHopIP)
+	if err != nil {
+		n.Log.Error(err)
+		return config, fmt.Errorf("unable create IPv6 route for SRv6 sid for k8s node: %v", err)
+	}
+	config[key] = route
+
+	return config, nil
+}
+
+// srv6PodTunnelEgress creates LocalSID for receiving node-to-node communication encapsulated in SRv6. This node is
+// the receiving end that used this localSID to decapsulate the SRv6 traffic and forward it by pod VRF ipv6 table lookup.
+func (n *IPNet) srv6PodTunnelEgress(sid net.IP) (key string, config *vpp_srv6.LocalSID) {
+	return n.srv6TunnelEgress(sid, n.ContivConf.GetRoutingConfig().PodVRFID)
+}
+
+// srv6PodTunnelEgress creates LocalSID for receiving node-to-node communication encapsulated in SRv6. This node is
+// the receiving end that used this localSID to decapsulate the SRv6 traffic and forward it by main VRF ipv6 table lookup (host destination).
+func (n *IPNet) srv6HostTunnelEgress(sid net.IP) (key string, config *vpp_srv6.LocalSID) {
+	return n.srv6TunnelEgress(sid, n.ContivConf.GetRoutingConfig().MainVRFID)
+}
+
+func (n *IPNet) srv6TunnelEgress(sid net.IP, lookupVrfID uint32) (key string, config *vpp_srv6.LocalSID) {
+	localSID := &vpp_srv6.LocalSID{
+		Sid:               sid.String(),
+		InstallationVrfId: n.ContivConf.GetRoutingConfig().MainVRFID,
+		EndFunction: &vpp_srv6.LocalSID_EndFunction_DT6{EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
+			VrfId: lookupVrfID,
+		}},
+	}
+	return models.Key(localSID), localSID
+}
+
+// srv6NodeToNodeSegmentEgress creates LocalSID for receiving node-to-node communication encapsulated in SRv6. This node is
+// the receiving end that used this localSID just to end current segment of srv6 routing and continue with routing using
+// next srv6 segment.
+func (n *IPNet) srv6NodeToNodeSegmentEgress(sid net.IP) (key string, config *vpp_srv6.LocalSID) {
+	localSID := &vpp_srv6.LocalSID{
+		Sid:               sid.String(),
+		InstallationVrfId: n.ContivConf.GetRoutingConfig().MainVRFID,
+		EndFunction:       &vpp_srv6.LocalSID_BaseEndFunction{BaseEndFunction: &vpp_srv6.LocalSID_End{}},
+	}
+	return models.Key(localSID), localSID
 }
 
 // routeToOtherNodePods returns configuration for route applied to traffic destined

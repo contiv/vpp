@@ -47,14 +47,14 @@ data:
       vppHostSubnetOneNodePrefixLen: 24
       vxlanCIDR: 192.168.30.0/24
       srv6:
-        servicePolicyBSIDSubnetCIDR: 5555::/16
-        servicePodLocalSIDSubnetCIDR: 6666::/16
-        serviceHostLocalSIDSubnetCIDR: 6655::/16
-        serviceNodeLocalSIDSubnetCIDR: 7766::/16
-        nodeToNodePodLocalSIDSubnetCIDR: 7777::/16
-        nodeToNodeHostLocalSIDSubnetCIDR: 7799::/16
-        nodeToNodePodPolicySIDSubnetCIDR: 8888::/16
-        nodeToNodeHostPolicySIDSubnetCIDR: 9999::/16
+        servicePolicyBSIDSubnetCIDR: 8fff::/16
+        servicePodLocalSIDSubnetCIDR: 9300::/16
+        serviceHostLocalSIDSubnetCIDR: 9300::/16
+        serviceNodeLocalSIDSubnetCIDR: 9000::/16
+        nodeToNodePodLocalSIDSubnetCIDR: 9501::/16
+        nodeToNodeHostLocalSIDSubnetCIDR: 9500::/16
+        nodeToNodePodPolicySIDSubnetCIDR: 8501::/16
+        nodeToNodeHostPolicySIDSubnetCIDR: 8500::/16
   controller.conf: |
     enableRetry: true
     delayRetry: 1000000000

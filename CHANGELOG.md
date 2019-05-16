@@ -1,3 +1,23 @@
+# Release v3.1.0 (2019-05-17)
+
+### VPP
+ - version **v19.01** (latest stable/1901)
+
+### New Features & Enhancements
+ - update to vpp-agent `v2.1.0`
+ - [multi-master](docs/setup/MULTI_MASTER.md) and [external ETCD](docs/setup/EXTERNAL_ETCD.md) support
+ - experimental [SRv6 implementation of k8s services](docs/setup/SRV6.md)
+ - experimental support for [multiple pod interfaces](docs/operation/CUSTOM_POD_INTERFACES.md), 
+ including memif interfaces
+ - load-balancing between backends of a service now supports unlimited backend pod count
+
+### Known Issues
+ - (IPv6 only): service load-balancing in IPv6 setup is not equal, node-local backend pods are always
+   preferred and a request is never load-balanced to a remote node's pod if there is a local backend
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
 # Release v3.0.1 (2019-04-08)
 
 ### VPP

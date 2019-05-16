@@ -13,7 +13,9 @@ be one of the 3 supported types:
 Custom interfaces can be requested using annotations in pod definition. The name
 of the annotation is `contivpp.io/custom-if` and its value can be a comma-separated
 list of custom interfaces in the `<custom-interface-name>/<interface-type>/<network>`
-format (network part is optional).
+format. The `<network>` part is optional, leaving it unspecified means the default pod
+network. Apart from the default pod network, only a special `stub` network is 
+currently supported, which leaves the interface without any IP address and routes pointing to it.
 
 An example of a pod definition that connects a pod with a default interface plus one 
 extra tap interface with the name `tap1` and one extra veth interface with the name `veth1`:
@@ -102,7 +104,7 @@ To request auto-configuration, the pod definition needs to be extended with the
 the vpp-agent running inside of the pod uses to identify its config subtree in ETCD.
 
 The following is a complex example of a pod which runs VPP + agent inside of it, requests
-2 memif interfaces and their auto-configuration:
+1 memif interface and its auto-configuration:
 
 ```yaml
 apiVersion: v1
@@ -127,7 +129,7 @@ kind: Pod
 metadata:
   name: vnf-pod
   annotations:
-    contivpp.io/custom-if: memif1/memif, memif2/memif
+    contivpp.io/custom-if: memif1/memif
     contivpp.io/microservice-label: vnf1
 spec:
   containers:
@@ -140,7 +142,7 @@ spec:
           value: vnf1
       resources:
         limits:
-          contivpp.io/memif: 2
+          contivpp.io/memif: 1
       volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd
@@ -150,8 +152,8 @@ spec:
         name: etcd-cfg
 ```
 
-Exploring the VPP state of this pod using vppctl would show two auto-configured memif
-interfaces connected to the vswitch VPP:
+Exploring the VPP state of this pod using vppctl would show an auto-configured memif
+interface connected to the vswitch VPP:
 
 ```bash
 $ kubectl exec -it vnf-pod -- vppctl -s :5002
@@ -163,7 +165,6 @@ $ kubectl exec -it vnf-pod -- vppctl -s :5002
 vpp# sh inter
               Name               Idx    State  MTU (L3/IP4/IP6/MPLS)     Counter          Count     
 local0                            0     down          0/0/0/0       
-memif0/0                          1      up          9000/0/0/0     
-memif0/1                          2      up          9000/0/0/0     
+memif0/0                          1      up          9000/0/0/0      
 vpp# 
 ```

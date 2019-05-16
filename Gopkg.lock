@@ -10,8 +10,8 @@
   version = "v0.37.2"
 
 [[projects]]
-  branch = "vpp1901"
-  digest = "1:ea26c62248bc837f3a4f504e7868726c9a3ae9f04b9fd007ad303b37984fceb0"
+  branch = "master"
+  digest = "1:bb5678bab3e7ae80a9a60b474c90356453e4306ff81aa4fbe64ec887b9c47e0e"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
@@ -25,8 +25,7 @@
     "examples/bin_api/memclnt",
   ]
   pruneopts = "UT"
-  revision = "b68632527ae6efd62e7ed63e5142cc719da0047a"
-  source = "github.com/ligato/govpp.git"
+  revision = "87e79ec9fa48e5f8b2eb949c337488db75a17b29"
 
 [[projects]]
   branch = "master"
@@ -472,6 +471,14 @@
   version = "v5.0.1"
 
 [[projects]]
+  digest = "1:fa6faf4a2977dc7643de38ae599a95424d82f8ffc184045510737010a82c4ecd"
+  name = "github.com/gogo/googleapis"
+  packages = ["google/rpc"]
+  pruneopts = "UT"
+  revision = "d31c731455cb061f42baff3bda55bad0118b126b"
+  version = "v1.2.0"
+
+[[projects]]
   digest = "1:2d91858167615bbc9f642045d8f7e38a16b346fcc2523f9dc75b6da4d8b3397c"
   name = "github.com/gogo/protobuf"
   packages = [
@@ -508,6 +515,14 @@
   pruneopts = "UT"
   revision = "ba06b47c162d49f2af050fb4c75bcbc86a159d5c"
   version = "v1.2.1"
+
+[[projects]]
+  digest = "1:6c0f44b070ed82c2f752d42e936fe12094464a22e70bae5d86790865e1ea326b"
+  name = "github.com/gogo/status"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "935308aef7372e7685e8fbee162aae8f7a7e515a"
+  version = "v1.1.0"
 
 [[projects]]
   branch = "master"
@@ -728,14 +743,14 @@
   version = "v1.14.1"
 
 [[projects]]
-  branch = "dev"
-  digest = "1:2dde42b5ece0c50fc21170d55db972c1eafab9d505a0ee4ddab8f968286da1cb"
+  digest = "1:52deab9cdd0bebb44dd010c960ebd83406fab5976970d24f724ca1049321202d"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
     "config",
     "datasync",
     "datasync/kvdbsync",
+    "datasync/kvdbsync/local",
     "datasync/resync",
     "datasync/syncbase",
     "db/keyval",
@@ -768,14 +783,16 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "77e78aeca2f5c728bcf836bcbd20da7afea8ffde"
+  revision = "ceaf6f4fe9f9fa6aa0629edc20156a969928f0e5"
+  version = "v2.1.0"
 
 [[projects]]
-  branch = "dev"
-  digest = "1:980721b7ddf595ed4ab4eb610b39ebb5dcaba74382d5e0026820e6293041eac1"
+  digest = "1:f2cedc9ea454da9c682cfc7480da9714c993f071a1af77441e901472e6481786"
   name = "github.com/ligato/vpp-agent"
   packages = [
+    "api/configurator",
     "api/genericmanager",
+    "api/models/linux",
     "api/models/linux/interfaces",
     "api/models/linux/iptables",
     "api/models/linux/l3",
@@ -796,9 +813,10 @@
     "pkg/idxvpp",
     "pkg/metrics",
     "pkg/models",
+    "pkg/util",
+    "plugins/configurator",
     "plugins/govppmux",
     "plugins/govppmux/vppcalls",
-    "plugins/govppmux/vppcalls/vpp1810",
     "plugins/govppmux/vppcalls/vpp1901",
     "plugins/govppmux/vppcalls/vpp1904",
     "plugins/kvscheduler",
@@ -822,11 +840,11 @@
     "plugins/linux/nsplugin",
     "plugins/linux/nsplugin/descriptor",
     "plugins/linux/nsplugin/linuxcalls",
+    "plugins/orchestrator",
     "plugins/restapi",
     "plugins/restapi/resturl",
     "plugins/telemetry",
     "plugins/telemetry/vppcalls",
-    "plugins/telemetry/vppcalls/vpp1810",
     "plugins/telemetry/vppcalls/vpp1901",
     "plugins/telemetry/vppcalls/vpp1904",
     "plugins/vpp/abfplugin/vppcalls",
@@ -835,28 +853,8 @@
     "plugins/vpp/aclplugin/descriptor",
     "plugins/vpp/aclplugin/descriptor/adapter",
     "plugins/vpp/aclplugin/vppcalls",
-    "plugins/vpp/aclplugin/vppcalls/vpp1810",
     "plugins/vpp/aclplugin/vppcalls/vpp1901",
     "plugins/vpp/aclplugin/vppcalls/vpp1904",
-    "plugins/vpp/binapi/vpp1810/acl",
-    "plugins/vpp/binapi/vpp1810/af_packet",
-    "plugins/vpp/binapi/vpp1810/bond",
-    "plugins/vpp/binapi/vpp1810/dhcp",
-    "plugins/vpp/binapi/vpp1810/interfaces",
-    "plugins/vpp/binapi/vpp1810/ip",
-    "plugins/vpp/binapi/vpp1810/ipsec",
-    "plugins/vpp/binapi/vpp1810/l2",
-    "plugins/vpp/binapi/vpp1810/memclnt",
-    "plugins/vpp/binapi/vpp1810/memif",
-    "plugins/vpp/binapi/vpp1810/nat",
-    "plugins/vpp/binapi/vpp1810/punt",
-    "plugins/vpp/binapi/vpp1810/sr",
-    "plugins/vpp/binapi/vpp1810/stn",
-    "plugins/vpp/binapi/vpp1810/tap",
-    "plugins/vpp/binapi/vpp1810/tapv2",
-    "plugins/vpp/binapi/vpp1810/vmxnet3",
-    "plugins/vpp/binapi/vpp1810/vpe",
-    "plugins/vpp/binapi/vpp1810/vxlan",
     "plugins/vpp/binapi/vpp1901/acl",
     "plugins/vpp/binapi/vpp1901/af_packet",
     "plugins/vpp/binapi/vpp1901/bond",
@@ -900,54 +898,49 @@
     "plugins/vpp/ifplugin/descriptor/adapter",
     "plugins/vpp/ifplugin/ifaceidx",
     "plugins/vpp/ifplugin/vppcalls",
-    "plugins/vpp/ifplugin/vppcalls/vpp1810",
     "plugins/vpp/ifplugin/vppcalls/vpp1901",
     "plugins/vpp/ifplugin/vppcalls/vpp1904",
+    "plugins/vpp/ipsecplugin/vppcalls",
     "plugins/vpp/l2plugin",
     "plugins/vpp/l2plugin/descriptor",
     "plugins/vpp/l2plugin/descriptor/adapter",
     "plugins/vpp/l2plugin/vppcalls",
-    "plugins/vpp/l2plugin/vppcalls/vpp1810",
     "plugins/vpp/l2plugin/vppcalls/vpp1901",
     "plugins/vpp/l2plugin/vppcalls/vpp1904",
     "plugins/vpp/l3plugin",
     "plugins/vpp/l3plugin/descriptor",
     "plugins/vpp/l3plugin/descriptor/adapter",
     "plugins/vpp/l3plugin/vppcalls",
-    "plugins/vpp/l3plugin/vppcalls/vpp1810",
     "plugins/vpp/l3plugin/vppcalls/vpp1901",
     "plugins/vpp/l3plugin/vppcalls/vpp1904",
     "plugins/vpp/natplugin",
     "plugins/vpp/natplugin/descriptor",
     "plugins/vpp/natplugin/descriptor/adapter",
     "plugins/vpp/natplugin/vppcalls",
-    "plugins/vpp/natplugin/vppcalls/vpp1810",
     "plugins/vpp/natplugin/vppcalls/vpp1901",
     "plugins/vpp/natplugin/vppcalls/vpp1904",
     "plugins/vpp/puntplugin",
     "plugins/vpp/puntplugin/descriptor",
     "plugins/vpp/puntplugin/descriptor/adapter",
     "plugins/vpp/puntplugin/vppcalls",
-    "plugins/vpp/puntplugin/vppcalls/vpp1810",
     "plugins/vpp/puntplugin/vppcalls/vpp1901",
     "plugins/vpp/puntplugin/vppcalls/vpp1904",
     "plugins/vpp/srplugin",
     "plugins/vpp/srplugin/descriptor",
     "plugins/vpp/srplugin/descriptor/adapter",
     "plugins/vpp/srplugin/vppcalls",
-    "plugins/vpp/srplugin/vppcalls/vpp1810",
     "plugins/vpp/srplugin/vppcalls/vpp1901",
     "plugins/vpp/srplugin/vppcalls/vpp1904",
     "plugins/vpp/stnplugin",
     "plugins/vpp/stnplugin/descriptor",
     "plugins/vpp/stnplugin/descriptor/adapter",
     "plugins/vpp/stnplugin/vppcalls",
-    "plugins/vpp/stnplugin/vppcalls/vpp1810",
     "plugins/vpp/stnplugin/vppcalls/vpp1901",
     "plugins/vpp/stnplugin/vppcalls/vpp1904",
   ]
   pruneopts = "UT"
-  revision = "a66972fa2143dfe83473fd76f9df37784447620d"
+  revision = "64049536e929372dce3d32678c5160e803816c48"
+  version = "v2.1.0"
 
 [[projects]]
   branch = "master"

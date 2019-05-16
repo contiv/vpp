@@ -50,8 +50,14 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
   of interfaces and allocation of IP addresses.
 
   * Pod-to-VPP connectivity (top-level options)
-    - `useNoOverlay`: do not use overlay (VXLAN) for node-to-node communication (works e.g. if the nodes are on the same L2 network)
-    - `UseSRv6Interconnect`: use pure SRv6(IPv6) node interconnect (no VXLAN)
+    - `nodeToNodeTransport`: transportation used for node-to-node communication. Possible values:
+      1. `vxlan`: VXLAN overlay encapsulates/decapsulates traffic between nodes using VXLAN.
+      2. `srv6`: SRv6 overlay encapsulates/decapsulates traffic between nodes using SRv6 (segment routing based on IPv6).
+      SRv6's steering and policy will be on ingress node and SRv6's localsid on egress node. This transportation expects
+      ipv6 to be enabled (SRv6 packets=IPv6 packets using SR header extension).
+      3. `nooverlay`: Using none of the previous mentioned overlays and route traffic using routing tables/etc., e.g. if the nodes are on the same L2 network.
+    - `useSRv6ForServices`: use SRv6(IPv6) for k8s service (this handles only packet from service client to backend, but 
+    in case of response packet, other networking settings handle it because it is normal pod/host-to-pod/host connectivity)
     - `useTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP and VPP-to-Host interconnection
     - `tAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
       for a faster, virtio-based, VPP TAPv2 interface (default);

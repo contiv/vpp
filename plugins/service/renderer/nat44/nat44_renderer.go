@@ -484,7 +484,7 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 				if rndr.isThisNodeOrHostIP(backend.IP) {
 					local.VrfId = routingCfg.MainVRFID
 				} else {
-					if rndr.ContivConf.GetRoutingConfig().UseNoOverlay &&
+					if rndr.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.NoOverlayTransport &&
 						(!rndr.isLocalPodIP(backend.IP)) {
 						// no overlay mode: use main VRF for non-local PODs and other node's IPs
 						local.VrfId = routingCfg.MainVRFID

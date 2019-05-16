@@ -364,7 +364,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 	if service.TrafficPolicy == renderer.ClusterWide && len(localBackends) == 0 && !hasHostNetworkLocalBackend {
 		for _, serviceIP := range serviceIPs {
 			for nodeID := range remoteBackendNodes {
-				if !rndr.ContivConf.GetRoutingConfig().UseNoOverlay {
+				if rndr.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
 					// route via the VXLAN
 					nextHop, _, _ := rndr.IPAM.VxlanIPAddress(nodeID)
 					route := &vpp_l3.Route{

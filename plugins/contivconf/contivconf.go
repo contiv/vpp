@@ -44,6 +44,16 @@ import (
 	"github.com/contiv/vpp/plugins/ksr"
 )
 
+// NodeToNodeTransport configuration values enum
+const (
+	// VXLANTransport is config value representing usage of VXLAN in node-to-node communication
+	VXLANTransport = "vxlan"
+	// SRv6Transport is config value representing usage of SRv6 in node-to-node communication
+	SRv6Transport = "srv6"
+	// NoOverlayTransport is config value representing usage of other (not above mentioned) techniques in node-to-node communication (routing tables/...)
+	NoOverlayTransport = "nooverlay"
+)
+
 const (
 	// defaultSTNSocketFile is a path to the socket file where the GRPC STN server
 	// listens for client connections by default
@@ -87,6 +97,9 @@ const (
 	defaultSrv6NodeToNodePodPolicySIDSubnetCIDR  = "8888::/16"
 	defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR = "9999::/16"
 	// NodeInterconnectCIDR & ContivCIDR can be empty
+
+	// default node to node communication
+	defaultNodeToNodeTransport = VXLANTransport
 
 	// default VRF IDs
 	defaultMainVrfID = 0
@@ -279,8 +292,9 @@ func (c *ContivConf) Init() (err error) {
 			IPNeighborStaleThreshold: defaultIPNeighborStaleThreshold,
 		},
 		RoutingConfig: config.RoutingConfig{
-			MainVRFID: defaultMainVrfID,
-			PodVRFID:  defaultPodVrfID,
+			MainVRFID:           defaultMainVrfID,
+			PodVRFID:            defaultPodVrfID,
+			NodeToNodeTransport: defaultNodeToNodeTransport,
 		},
 		IPAMConfig: config.IPAMConfig{
 			ServiceCIDR:                   defaultServiceCIDR,

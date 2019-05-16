@@ -1,7 +1,7 @@
 ---
 contiv:
-  useNoOverlay: false
-  useSRv6Interconnect: false
+  nodeToNodeTransport: "vxlan"  # possible values: "vxlan", "srv6", "nooverlay"
+  useSRv6ForServices: false
   useTAPInterfaces: true
   tapInterfaceVersion: 2
   tapv2RxRingSize: 256

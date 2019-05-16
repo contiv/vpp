@@ -22,8 +22,8 @@ metadata:
   namespace: kube-system
 data:
   contiv.conf: |-
-    useNoOverlay: false
-    useSRv6Interconnect: false
+    nodeToNodeTransport: vxlan
+    useSRv6ForServices: false
     useTAPInterfaces: true
     tapInterfaceVersion: 2
     tapv2RxRingSize: 256

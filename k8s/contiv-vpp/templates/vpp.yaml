@@ -31,8 +31,8 @@ metadata:
   namespace: kube-system
 data:
   contiv.conf: |-
-    useNoOverlay: {{ .Values.contiv.useNoOverlay }}
-    useSRv6Interconnect: {{ .Values.contiv.useSRv6Interconnect }}
+    nodeToNodeTransport: {{ .Values.contiv.nodeToNodeTransport }}
+    useSRv6ForServices: {{ .Values.contiv.useSRv6ForServices }}
     useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}

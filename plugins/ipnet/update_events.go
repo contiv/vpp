@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
@@ -292,7 +293,7 @@ func (n *IPNet) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn cont
 	}
 
 	// update BD if node was newly connected or disconnected
-	if !n.ContivConf.GetRoutingConfig().UseNoOverlay &&
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport &&
 		nodeHasIPAddress(nodeUpdate.PrevState) != nodeHasIPAddress(nodeUpdate.NewState) {
 
 		key, bd := n.vxlanBridgeDomain()

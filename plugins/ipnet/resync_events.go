@@ -124,7 +124,7 @@ func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn control
 	}
 
 	// create localsid as receiving end for SRv6 encapsulated communication between 2 nodes
-	if n.ContivConf.GetRoutingConfig().UseSRv6Interconnect {
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport {
 		// create localsid with DT6 end function (decapsulate and lookup in POD VRF ipv6 table)
 		// -SRv6 route ends in destination node's VPP
 		// -used for pod-to-pod communication (further routing in destination node is done using ipv6)
@@ -138,7 +138,9 @@ func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn control
 		hostSid := n.IPAM.SidForNodeToNodeHostLocalsid(n.nodeIP)
 		key, hostLocalsid := n.srv6HostTunnelEgress(hostSid)
 		txn.Put(key, hostLocalsid)
-
+	}
+	// create localsid as receiving end for SRv6 encapsulated communication between 2 nodes (for k8s service purposes)
+	if n.ContivConf.GetRoutingConfig().UseSRv6ForServices {
 		// create localsid with base end function (ending of inner segment of srv6 segment list navigating packet)
 		// -SRv6 route continues, this localsid is only inner segment end
 		// -used i.e. in k8s services
@@ -438,7 +440,7 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations) error {
 		}
 	}
 
-	if !n.ContivConf.GetRoutingConfig().UseNoOverlay {
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
 		// bridge domain with VXLAN interfaces
 
 		// bridge domain

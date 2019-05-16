@@ -66,9 +66,7 @@ func (n *IPNet) nodeConnectivityConfig(node *nodesync.Node) (config controller.K
 	config = make(controller.KeyValuePairs)
 
 	// configuration for VXLAN tunnel
-	noOverlay := n.ContivConf.GetRoutingConfig().UseNoOverlay
-	srv6Interconnect := n.ContivConf.GetRoutingConfig().UseSRv6Interconnect
-	if !noOverlay && !srv6Interconnect && len(n.nodeIP) > 0 {
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport && len(n.nodeIP) > 0 {
 		// VXLAN interface
 		var nodeIP net.IP
 		if len(node.VppIPAddresses) > 0 {
@@ -119,34 +117,38 @@ func nodeHasIPAddress(node *nodesync.Node) bool {
 func (n *IPNet) routesToNode(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
 	config = make(controller.KeyValuePairs)
 
+	// compute nexthop address for routes to other node
 	var nextHop net.IP
-	noOverlay := n.ContivConf.GetRoutingConfig().UseNoOverlay
-	srv6Interconnect := n.ContivConf.GetRoutingConfig().UseSRv6Interconnect
-	if noOverlay {
-		// route traffic destined to the other node directly
-		if len(node.VppIPAddresses) > 0 {
-			nextHop = node.VppIPAddresses[0].Address
-		} else {
-			var err error
-			nextHop, err = n.otherNodeIP(node.ID)
+	switch n.ContivConf.GetRoutingConfig().NodeToNodeTransport {
+	case contivconf.NoOverlayTransport:
+		{
+			// route traffic destined to the other node directly
+			if len(node.VppIPAddresses) > 0 {
+				nextHop = node.VppIPAddresses[0].Address
+			} else {
+				var err error
+				nextHop, err = n.otherNodeIP(node.ID)
+				if err != nil {
+					n.Log.Error(err)
+					return config, err
+				}
+			}
+		}
+	case contivconf.VXLANTransport:
+		{
+			// route traffic destined to the other node via VXLANs
+			vxlanNextHop, _, err := n.IPAM.VxlanIPAddress(node.ID)
 			if err != nil {
 				n.Log.Error(err)
 				return config, err
 			}
+			nextHop = vxlanNextHop
 		}
-	} else {
-		// route traffic destined to the other node via VXLANs
-		vxlanNextHop, _, err := n.IPAM.VxlanIPAddress(node.ID)
-		if err != nil {
-			n.Log.Error(err)
-			return config, err
-		}
-		nextHop = vxlanNextHop
 	}
 
 	// route to pods of the other node
 	if !n.ContivConf.GetIPAMConfig().UseExternalIPAM { // skip in case that external IPAM is in use
-		if srv6Interconnect {
+		if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport {
 			srv6RouteConf, err := n.srv6RoutesToOtherNode(node.ID, nextHop)
 			if err != nil {
 				n.Log.Error(err)
@@ -182,7 +184,7 @@ func (n *IPNet) routesToNode(node *nodesync.Node) (config controller.KeyValuePai
 		}
 
 		// inter-VRF route for the management IP address
-		if !n.ContivConf.InSTNMode() && !noOverlay {
+		if !n.ContivConf.InSTNMode() && n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
 			key, mgmtRoute2 := n.routeToOtherNodeManagementIPViaPodVRF(mgmtIP)
 			config[key] = mgmtRoute2
 		}
@@ -353,7 +355,9 @@ func (n *IPNet) vrfMainTables() map[string]*vpp_l3.VrfTable {
 
 	// Note: we are not ignoring setting up vrf table in case of zero vrf id (vrf table is created automatically) to get uniform vrf table labeling in all cases
 	n.vrfTable(routingCfg.MainVRFID, vpp_l3.VrfTable_IPV4, "mainVRF", tables) // TODO: Is IPv4 VRF table needed always? Disable it for some configuration combinations (e.g. IPv6 only mode)?
-	if n.ContivConf.GetIPAMConfig().UseIPv6 || n.ContivConf.GetRoutingConfig().UseSRv6Interconnect {
+	if n.ContivConf.GetIPAMConfig().UseIPv6 ||
+		n.ContivConf.GetRoutingConfig().UseSRv6ForServices ||
+		n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport {
 		n.vrfTable(routingCfg.MainVRFID, vpp_l3.VrfTable_IPV6, "mainVRF", tables)
 	}
 
@@ -366,7 +370,9 @@ func (n *IPNet) vrfTablesForPods() map[string]*vpp_l3.VrfTable {
 	routingCfg := n.ContivConf.GetRoutingConfig()
 
 	n.vrfTable(routingCfg.PodVRFID, vpp_l3.VrfTable_IPV4, "podVRF", tables) // TODO: Is IPv4 VRF table needed always? Disable it for some configuration combinations (e.g. IPv6 only mode)?
-	if n.ContivConf.GetIPAMConfig().UseIPv6 || n.ContivConf.GetRoutingConfig().UseSRv6Interconnect {
+	if n.ContivConf.GetIPAMConfig().UseIPv6 ||
+		n.ContivConf.GetRoutingConfig().UseSRv6ForServices ||
+		n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport {
 		n.vrfTable(routingCfg.PodVRFID, vpp_l3.VrfTable_IPV6, "podVRF", tables)
 	}
 
@@ -409,7 +415,7 @@ func (n *IPNet) routesPodToMainVRF() map[string]*vpp_l3.Route {
 	r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 	routes[r1Key] = r1
 
-	if !routingCfg.UseNoOverlay {
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
 		// host network (this node) routed from Pod VRF via Main VRF
 		// (only needed for overly mode (VXLAN), to have better prefix match so that the drop route is not in effect)
 		r2 := &vpp_l3.Route{
@@ -431,7 +437,7 @@ func (n *IPNet) routesMainToPodVRF() map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)
 	routingCfg := n.ContivConf.GetRoutingConfig()
 
-	if !routingCfg.UseNoOverlay {
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
 		// pod subnet (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
 		r1 := &vpp_l3.Route{
 			Type:        vpp_l3.Route_INTER_VRF,
@@ -494,7 +500,7 @@ func (n *IPNet) dropRoutesIntoPodVRF() map[string]*vpp_l3.Route {
 		routes[r1Key] = r1
 	}
 
-	if !routingCfg.UseNoOverlay {
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
 		// drop packets destined to pods no longer deployed
 		r1 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.PodSubnetAllNodes())
 		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
@@ -857,7 +863,7 @@ func (n *IPNet) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net.I
 		DstNetwork:  destNetwork.String(),
 		NextHopAddr: nextHopIP.String(),
 	}
-	if n.ContivConf.GetRoutingConfig().UseNoOverlay {
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.NoOverlayTransport { //TODO check if changes are needed for srv6 transport mode
 		route.VrfId = n.ContivConf.GetRoutingConfig().MainVRFID
 	} else {
 		route.OutgoingInterface = VxlanBVIInterfaceName
@@ -877,7 +883,7 @@ func (n *IPNet) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (ke
 		DstNetwork:  managementIP.String() + hostPrefixForAF(managementIP),
 		NextHopAddr: nextHopIP.String(),
 	}
-	if n.ContivConf.GetRoutingConfig().UseNoOverlay {
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.NoOverlayTransport { //TODO check if changes are needed for srv6 transport mode
 		route.VrfId = n.ContivConf.GetRoutingConfig().MainVRFID
 	} else {
 		route.OutgoingInterface = VxlanBVIInterfaceName

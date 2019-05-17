@@ -120,30 +120,28 @@ func (n *IPNet) routesToNode(node *nodesync.Node) (config controller.KeyValuePai
 	// compute nexthop address for routes to other node
 	var nextHop net.IP
 	switch n.ContivConf.GetRoutingConfig().NodeToNodeTransport {
+	case contivconf.SRv6Transport:
+		fallthrough // use NoOverlayTransport
 	case contivconf.NoOverlayTransport:
-		{
-			// route traffic destined to the other node directly
-			if len(node.VppIPAddresses) > 0 {
-				nextHop = node.VppIPAddresses[0].Address
-			} else {
-				var err error
-				nextHop, err = n.otherNodeIP(node.ID)
-				if err != nil {
-					n.Log.Error(err)
-					return config, err
-				}
-			}
-		}
-	case contivconf.VXLANTransport:
-		{
-			// route traffic destined to the other node via VXLANs
-			vxlanNextHop, _, err := n.IPAM.VxlanIPAddress(node.ID)
+		// route traffic destined to the other node directly
+		if len(node.VppIPAddresses) > 0 {
+			nextHop = node.VppIPAddresses[0].Address
+		} else {
+			var err error
+			nextHop, err = n.otherNodeIP(node.ID)
 			if err != nil {
 				n.Log.Error(err)
 				return config, err
 			}
-			nextHop = vxlanNextHop
 		}
+	case contivconf.VXLANTransport:
+		// route traffic destined to the other node via VXLANs
+		vxlanNextHop, _, err := n.IPAM.VxlanIPAddress(node.ID)
+		if err != nil {
+			n.Log.Error(err)
+			return config, err
+		}
+		nextHop = vxlanNextHop
 	}
 
 	// route to pods of the other node
@@ -736,7 +734,7 @@ func (n *IPNet) srv6NodeToNodePodTunnelIngress(otherNodeID uint32, otherNodeIP n
 	}
 	bsid := n.IPAM.BsidForNodeToNodePodPolicy(otherNodeIP) // this can be the same value one many nodes for the same target other node because it is not part of path
 	sid := n.IPAM.SidForNodeToNodePodLocalsid(otherNodeIP)
-	return n.srv6NodeToNodeTunnelIngress(otherNodeIP, nextHopIP, podNetwork, bsid, sid, "lookupInPodVRF")
+	return n.srv6NodeToNodeTunnelIngress(nextHopIP, podNetwork, bsid, sid, "lookupInPodVRF")
 }
 
 // srv6NodeToNodePodTunnelIngress creates start node configuration for srv6 tunnel between nodes leading to main VRF table
@@ -749,10 +747,10 @@ func (n *IPNet) srv6NodeToNodeHostTunnelIngress(otherNodeID uint32, otherNodeIP 
 	}
 	bsid := n.IPAM.BsidForNodeToNodeHostPolicy(otherNodeIP) // this can be the same value one many nodes for the same target other node because it is not part of path
 	sid := n.IPAM.SidForNodeToNodeHostLocalsid(otherNodeIP)
-	return n.srv6NodeToNodeTunnelIngress(otherNodeIP, nextHopIP, hostNetwork, bsid, sid, "lookupInMainVRF")
+	return n.srv6NodeToNodeTunnelIngress(nextHopIP, hostNetwork, bsid, sid, "lookupInMainVRF")
 }
 
-func (n *IPNet) srv6NodeToNodeTunnelIngress(otherNodeIP net.IP, nextHopIP net.IP, networkToSteer *net.IPNet, bsid net.IP, sid net.IP, nameSuffix string) (config controller.KeyValuePairs, err error) {
+func (n *IPNet) srv6NodeToNodeTunnelIngress(nextHopIP net.IP, networkToSteer *net.IPNet, bsid net.IP, sid net.IP, nameSuffix string) (config controller.KeyValuePairs, err error) {
 	// getting info / preparing values
 	config = make(controller.KeyValuePairs, 0)
 
@@ -801,13 +799,13 @@ func (n *IPNet) srv6NodeToNodeTunnelIngress(otherNodeIP net.IP, nextHopIP net.IP
 }
 
 // srv6PodTunnelEgress creates LocalSID for receiving node-to-node communication encapsulated in SRv6. This node is
-// the receiving end that used this localSID to decapsulate the SRv6 traffic and forward it by pod VRF ipv6 table lookup.
+// the receiving end that used this localSID to decapsulate the SRv6 traffic and forward it by pod VRF ipv6/ipv4 table lookup.
 func (n *IPNet) srv6PodTunnelEgress(sid net.IP) (key string, config *vpp_srv6.LocalSID) {
 	return n.srv6TunnelEgress(sid, n.ContivConf.GetRoutingConfig().PodVRFID)
 }
 
 // srv6PodTunnelEgress creates LocalSID for receiving node-to-node communication encapsulated in SRv6. This node is
-// the receiving end that used this localSID to decapsulate the SRv6 traffic and forward it by main VRF ipv6 table lookup (host destination).
+// the receiving end that used this localSID to decapsulate the SRv6 traffic and forward it by main VRF ipv6/ipv4 table lookup (host destination).
 func (n *IPNet) srv6HostTunnelEgress(sid net.IP) (key string, config *vpp_srv6.LocalSID) {
 	return n.srv6TunnelEgress(sid, n.ContivConf.GetRoutingConfig().MainVRFID)
 }
@@ -816,9 +814,15 @@ func (n *IPNet) srv6TunnelEgress(sid net.IP, lookupVrfID uint32) (key string, co
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               sid.String(),
 		InstallationVrfId: n.ContivConf.GetRoutingConfig().MainVRFID,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_DT6{EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
+	}
+	if n.ContivConf.GetIPAMConfig().UseIPv6 {
+		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DT6{EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
 			VrfId: lookupVrfID,
-		}},
+		}}
+	} else {
+		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DT4{EndFunction_DT4: &vpp_srv6.LocalSID_EndDT4{
+			VrfId: lookupVrfID,
+		}}
 	}
 	return models.Key(localSID), localSID
 }
@@ -863,9 +867,12 @@ func (n *IPNet) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net.I
 		DstNetwork:  destNetwork.String(),
 		NextHopAddr: nextHopIP.String(),
 	}
-	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.NoOverlayTransport { //TODO check if changes are needed for srv6 transport mode
+	switch n.ContivConf.GetRoutingConfig().NodeToNodeTransport {
+	case contivconf.NoOverlayTransport:
 		route.VrfId = n.ContivConf.GetRoutingConfig().MainVRFID
-	} else {
+	case contivconf.SRv6Transport:
+		route.VrfId = n.ContivConf.GetRoutingConfig().MainVRFID
+	case contivconf.VXLANTransport:
 		route.OutgoingInterface = VxlanBVIInterfaceName
 		route.VrfId = n.ContivConf.GetRoutingConfig().PodVRFID
 	}

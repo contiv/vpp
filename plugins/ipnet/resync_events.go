@@ -125,14 +125,14 @@ func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn control
 
 	// create localsid as receiving end for SRv6 encapsulated communication between 2 nodes
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport {
-		// create localsid with DT6 end function (decapsulate and lookup in POD VRF ipv6 table)
+		// create localsid with DT6/DT4 end function (decapsulate and lookup in POD VRF ipv6/ipv4 table)
 		// -SRv6 route ends in destination node's VPP
 		// -used for pod-to-pod communication (further routing in destination node is done using ipv6)
 		podSid := n.IPAM.SidForNodeToNodePodLocalsid(n.nodeIP)
 		key, podLocalsid := n.srv6PodTunnelEgress(podSid)
 		txn.Put(key, podLocalsid)
 
-		// create localsid with DT6 end function (decapsulate and lookup in Main VRF ipv6 table)
+		// create localsid with DT6/DT4 end function (decapsulate and lookup in Main VRF ipv6/ipv4 table)
 		// -SRv6 route ends in destination node's VPP
 		// -used for pod-to-other-node's-host communication (further routing in destination node is done using ipv6)
 		hostSid := n.IPAM.SidForNodeToNodeHostLocalsid(n.nodeIP)

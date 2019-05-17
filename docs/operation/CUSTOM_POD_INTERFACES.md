@@ -9,7 +9,13 @@ be one of the 3 supported types:
  - tap interface
  - Linux veth (virtual ethernet) interface
  - memif interface (requires memif-compatible application running in the pod)
- 
+
+In order to use this feature, `KubeletPodResources` feature gate needs to be enabled,
+e.g. add the following into in the `KUBELET_EXTRA_ARGS` in the `/etc/default/kubelet` file:
+```
+--feature-gates KubeletPodResources=true
+```
+
 Custom interfaces can be requested using annotations in pod definition. The name
 of the annotation is `contivpp.io/custom-if` and its value can be a comma-separated
 list of custom interfaces in the `<custom-interface-name>/<interface-type>/<network>`

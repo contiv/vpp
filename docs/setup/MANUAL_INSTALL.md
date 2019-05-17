@@ -176,6 +176,11 @@ the most recent Docker images on each node:
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
 ```
 
+If you are using centos, you will need to open the port for the contiv etcd on your master:
+```
+firewall-cmd --permanent --add-port=12379-12380/tcp
+```
+
 Contiv-VPP CNI plugin can be installed in two ways:
 - [Contiv-VPP Helm Installation](../../k8s/contiv-vpp/README.md), allows for customization via helm options,
   but is more complex, described in [this document](../../k8s/contiv-vpp/README.md).

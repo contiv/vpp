@@ -427,7 +427,7 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations) error {
 		// collect configuration for node connectivity
 		if nodeHasIPAddress(node) {
 			// generate configuration
-			nodeConnectConfig, err := n.nodeConnectivityConfig(node)
+			nodeConnectConfig, err := n.fullNodeConnectivityConfig(node)
 			if err != nil {
 				// treat as warning
 				n.Log.Warnf("Failed to configure connectivity to node ID=%d: %v",

@@ -61,8 +61,25 @@ var vxlanBVIHwAddrPrefix = []byte{0x12, 0x2b}
 
 /********************** Node Connectivity Configuration ***********************/
 
-// nodeConnectivityConfig return configuration used to connect this node with the given other node.
-func (n *IPNet) nodeConnectivityConfig(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
+// fullNodeConnectivityConfig return full configuration used to connect this node with the given other node.
+func (n *IPNet) fullNodeConnectivityConfig(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
+	config, err = n.initialPartOfNodeConnectivityConfig(node)
+	if err != nil {
+		return config, err
+	}
+
+	additionalConfig, err := n.partialNodeConnectivityConfig(node)
+	if err != nil {
+		return config, err
+	}
+	n.mergeConfiguration(config, additionalConfig)
+
+	return config, nil
+}
+
+// initialPartOfNodeConnectivityConfig provides partial configuration for node-to-node connectivity that should be applied/removed
+// only in cases of assigning/removing node IP for remote node.
+func (n *IPNet) initialPartOfNodeConnectivityConfig(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
 	config = make(controller.KeyValuePairs)
 
 	// configuration for VXLAN tunnel
@@ -96,15 +113,6 @@ func (n *IPNet) nodeConnectivityConfig(node *nodesync.Node) (config controller.K
 		config[key] = vxlanFib
 	}
 
-	// collect configuration for L3 routes
-	routes, err := n.routesToNode(node)
-	if err != nil {
-		return config, err
-	}
-	for key, route := range routes {
-		config[key] = route
-	}
-
 	return config, nil
 }
 
@@ -113,26 +121,30 @@ func nodeHasIPAddress(node *nodesync.Node) bool {
 	return node != nil && (len(node.VppIPAddresses) > 0 && len(node.MgmtIPAddresses) > 0)
 }
 
-// routesToNode returns configuration of routes used for routing traffic destined to the given other node.
-func (n *IPNet) routesToNode(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
+// partialNodeConnectivityConfig returns partial configuration for node-to-node connectivity. This configuration contains
+// the full node-to-node connectivity configuration as provided by fullNodeConnectivityConfig(...) except of the configuration
+// related exclusively to the remote-node's IP application/removal event.
+func (n *IPNet) partialNodeConnectivityConfig(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
 	config = make(controller.KeyValuePairs)
+
+	// compute other node's IP address
+	otherNodeIP, computeErr := n.otherNodeIP(node.ID)
+	if computeErr != nil {
+		n.Log.Error(computeErr)
+		return config, computeErr
+	}
 
 	// compute nexthop address for routes to other node
 	var nextHop net.IP
 	switch n.ContivConf.GetRoutingConfig().NodeToNodeTransport {
 	case contivconf.SRv6Transport:
-		fallthrough // use NoOverlayTransport
+		fallthrough // use NoOverlayTransport for other variables
 	case contivconf.NoOverlayTransport:
 		// route traffic destined to the other node directly
 		if len(node.VppIPAddresses) > 0 {
 			nextHop = node.VppIPAddresses[0].Address
 		} else {
-			var err error
-			nextHop, err = n.otherNodeIP(node.ID)
-			if err != nil {
-				n.Log.Error(err)
-				return config, err
-			}
+			nextHop = otherNodeIP
 		}
 	case contivconf.VXLANTransport:
 		// route traffic destined to the other node via VXLANs
@@ -146,32 +158,21 @@ func (n *IPNet) routesToNode(node *nodesync.Node) (config controller.KeyValuePai
 
 	// route to pods of the other node
 	if !n.ContivConf.GetIPAMConfig().UseExternalIPAM { // skip in case that external IPAM is in use
-		if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport {
-			srv6RouteConf, err := n.srv6RoutesToOtherNode(node.ID, nextHop)
-			if err != nil {
-				n.Log.Error(err)
-				return config, err
-			}
-			for k, v := range srv6RouteConf {
-				config[k] = v
-			}
-		} else {
-			key, routeToPods, err := n.routeToOtherNodePods(node.ID, nextHop)
-			if err != nil {
-				n.Log.Error(err)
-				return config, err
-			}
-			config[key] = routeToPods
+		podsCfg, err := n.connectivityToOtherNodePods(node.ID, otherNodeIP, nextHop)
+		if err != nil {
+			n.Log.Error(err)
+			return config, err
 		}
+		n.mergeConfiguration(config, podsCfg)
 	}
 
 	// route to the host stack of the other node
-	key, routeToHostStack, err := n.routeToOtherNodeHostStack(node.ID, nextHop)
+	hostStackCfg, err := n.connectivityToOtherNodeHostStack(node.ID, otherNodeIP, nextHop)
 	if err != nil {
 		n.Log.Error(err)
 		return config, err
 	}
-	config[key] = routeToHostStack
+	n.mergeConfiguration(config, hostStackCfg)
 
 	// route to management IPs of the other node
 	for _, mgmtIP := range node.MgmtIPAddresses {
@@ -659,37 +660,6 @@ func (n *IPNet) otherNodeIP(otherNodeID uint32) (net.IP, error) {
 	return nodeIP, nil
 }
 
-// srv6RoutesToOtherNode returns configuration for SRv6 routes applied to traffic destined
-// to another node.
-func (n *IPNet) srv6RoutesToOtherNode(otherNodeID uint32, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
-	// getting info / preparing values
-	config = make(controller.KeyValuePairs, 0)
-	otherNodeIP, _, err := n.IPAM.NodeIPAddress(otherNodeID)
-	if err != nil {
-		return config, fmt.Errorf("unable to generate node IP address due to: %v", err)
-	}
-
-	// get configuration for creation of all needed routes/tunnels
-	podTunnelConfig, err := n.srv6NodeToNodePodTunnelIngress(otherNodeID, otherNodeIP, nextHopIP)
-	if err != nil {
-		return config, fmt.Errorf("can't create configuration for node-to-node SRv6 tunnel for Pod traffic due to: %v", err)
-	}
-	n.mergeConfiguration(config, podTunnelConfig)
-
-	hostTunnelConfig, err := n.srv6NodeToNodeHostTunnelIngress(otherNodeID, otherNodeIP, nextHopIP)
-	if err != nil {
-		return config, fmt.Errorf("can't create configuration for node-to-node SRv6 tunnel for Host traffic due to: %v", err)
-	}
-	n.mergeConfiguration(config, hostTunnelConfig)
-
-	segmentConfig, err := n.srv6NodeToNodeSegmentIngress(otherNodeID, nextHopIP)
-	if err != nil {
-		return config, fmt.Errorf("can't create configuration for node passing SRv6 path due to: %v", err)
-	}
-	n.mergeConfiguration(config, segmentConfig)
-	return config, nil
-}
-
 func (n *IPNet) mergeConfiguration(destConf, sourceConf controller.KeyValuePairs) {
 	for k, v := range sourceConf {
 		destConf[k] = v
@@ -727,11 +697,7 @@ func (n *IPNet) srv6NodeToNodeSegmentIngress(otherNodeID uint32, nextHopIP net.I
 
 // srv6NodeToNodePodTunnelIngress creates start node configuration for srv6 tunnel between nodes leading to pod VRF table
 // lookup on the other side(SRv6 path steers and encapsulates traffic on start node side and decapsulates on end node side)
-func (n *IPNet) srv6NodeToNodePodTunnelIngress(otherNodeID uint32, otherNodeIP net.IP, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
-	podNetwork, err := n.IPAM.PodSubnetOtherNode(otherNodeID)
-	if err != nil {
-		return config, fmt.Errorf("Failed to compute pod network for node ID %v, error: %v ", otherNodeID, err)
-	}
+func (n *IPNet) srv6NodeToNodePodTunnelIngress(otherNodeID uint32, otherNodeIP net.IP, nextHopIP net.IP, podNetwork *net.IPNet) (config controller.KeyValuePairs, err error) {
 	bsid := n.IPAM.BsidForNodeToNodePodPolicy(otherNodeIP) // this can be the same value one many nodes for the same target other node because it is not part of path
 	sid := n.IPAM.SidForNodeToNodePodLocalsid(otherNodeIP)
 	return n.srv6NodeToNodeTunnelIngress(nextHopIP, podNetwork, bsid, sid, "lookupInPodVRF")
@@ -839,26 +805,58 @@ func (n *IPNet) srv6NodeToNodeSegmentEgress(sid net.IP) (key string, config *vpp
 	return models.Key(localSID), localSID
 }
 
-// routeToOtherNodePods returns configuration for route applied to traffic destined
-// to pods of another node.
-func (n *IPNet) routeToOtherNodePods(otherNodeID uint32, nextHopIP net.IP) (key string, config *vpp_l3.Route, err error) {
+// connectivityToOtherNodePods returns configuration that will route traffic to pods of another node.
+func (n *IPNet) connectivityToOtherNodePods(otherNodeID uint32, otherNodeIP, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
+	config = make(controller.KeyValuePairs, 0)
 	podNetwork, err := n.IPAM.PodSubnetOtherNode(otherNodeID)
 	if err != nil {
-		return "", nil, fmt.Errorf("Failed to compute pod network for node ID %v, error: %v ", otherNodeID, err)
+		return config, fmt.Errorf("Failed to compute pod network for node ID %v, error: %v ", otherNodeID, err)
 	}
-	key, config = n.routeToOtherNodeNetworks(podNetwork, nextHopIP)
-	return
+
+	switch n.ContivConf.GetRoutingConfig().NodeToNodeTransport {
+	case contivconf.SRv6Transport:
+		podTunnelConfig, err := n.srv6NodeToNodePodTunnelIngress(otherNodeID, otherNodeIP, nextHopIP, podNetwork)
+		if err != nil {
+			return config, fmt.Errorf("can't create configuration for node-to-node SRv6 tunnel for Pod traffic due to: %v", err)
+		}
+		n.mergeConfiguration(config, podTunnelConfig)
+
+		segmentConfig, err := n.srv6NodeToNodeSegmentIngress(otherNodeID, nextHopIP)
+		if err != nil {
+			return config, fmt.Errorf("can't create configuration for node passing SRv6 path due to: %v", err)
+		}
+		n.mergeConfiguration(config, segmentConfig)
+	case contivconf.NoOverlayTransport:
+		fallthrough // the same as for VXLANTransport
+	case contivconf.VXLANTransport:
+		key, route := n.routeToOtherNodeNetworks(podNetwork, nextHopIP)
+		config[key] = route
+	}
+
+	return config, nil
 }
 
-// routeToOtherNodeHostStack returns configuration for route applied to traffic destined
-// to the host stack of another node.
-func (n *IPNet) routeToOtherNodeHostStack(otherNodeID uint32, nextHopIP net.IP) (key string, config *vpp_l3.Route, err error) {
-	hostNetwork, err := n.IPAM.HostInterconnectSubnetOtherNode(otherNodeID)
-	if err != nil {
-		return "", nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", otherNodeID, err)
+// connectivityToOtherNodeHostStack returns configuration that will route traffic to the host stack of another node.
+func (n *IPNet) connectivityToOtherNodeHostStack(otherNodeID uint32, otherNodeIP, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
+	config = make(controller.KeyValuePairs, 0)
+	switch n.ContivConf.GetRoutingConfig().NodeToNodeTransport {
+	case contivconf.SRv6Transport:
+		hostTunnelConfig, err := n.srv6NodeToNodeHostTunnelIngress(otherNodeID, otherNodeIP, nextHopIP)
+		if err != nil {
+			return config, fmt.Errorf("can't create configuration for node-to-node SRv6 tunnel for Host traffic due to: %v", err)
+		}
+		n.mergeConfiguration(config, hostTunnelConfig)
+	case contivconf.NoOverlayTransport:
+		fallthrough // the same as for VXLANTransport
+	case contivconf.VXLANTransport:
+		hostNetwork, err := n.IPAM.HostInterconnectSubnetOtherNode(otherNodeID)
+		if err != nil {
+			return nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", otherNodeID, err)
+		}
+		key, route := n.routeToOtherNodeNetworks(hostNetwork, nextHopIP)
+		config[key] = route
 	}
-	key, config = n.routeToOtherNodeNetworks(hostNetwork, nextHopIP)
-	return
+	return config, nil
 }
 
 // routeToOtherNodeNetworks is a helper function to build route for traffic destined to another node.

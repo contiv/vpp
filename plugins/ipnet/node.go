@@ -175,19 +175,13 @@ func (n *IPNet) partialNodeConnectivityConfig(node *nodesync.Node) (config contr
 	n.mergeConfiguration(config, hostStackCfg)
 
 	// route to management IPs of the other node
-	for _, mgmtIP := range node.MgmtIPAddresses {
-		// route management IP address towards the destination node
-		key, mgmtRoute1 := n.routeToOtherNodeManagementIP(mgmtIP, nextHop)
-		if mgmtRoute1 != nil {
-			config[key] = mgmtRoute1
-		}
-
-		// inter-VRF route for the management IP address
-		if !n.ContivConf.InSTNMode() && n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
-			key, mgmtRoute2 := n.routeToOtherNodeManagementIPViaPodVRF(mgmtIP)
-			config[key] = mgmtRoute2
-		}
+	mgmIPConf, err := n.connectivityToOtherNodeManagementIPAddresses(node, otherNodeIP, nextHop)
+	if err != nil {
+		n.Log.Error(err)
+		return config, err
 	}
+	n.mergeConfiguration(config, mgmIPConf)
+
 	return config, nil
 }
 
@@ -721,18 +715,7 @@ func (n *IPNet) srv6NodeToNodeTunnelIngress(nextHopIP net.IP, networkToSteer *ne
 	config = make(controller.KeyValuePairs, 0)
 
 	// creating steering to steer all packets for pods of the other node
-	steering := &vpp_srv6.Steering{
-		Name: "forNodeToNodeTunneling-" + nameSuffix,
-		Traffic: &vpp_srv6.Steering_L3Traffic_{
-			L3Traffic: &vpp_srv6.Steering_L3Traffic{
-				PrefixAddress:     networkToSteer.String(),
-				InstallationVrfId: n.ContivConf.GetRoutingConfig().MainVRFID,
-			},
-		},
-		PolicyRef: &vpp_srv6.Steering_PolicyBsid{
-			PolicyBsid: bsid.String(),
-		},
-	}
+	steering := n.srv6NodeToNodeSteeringConfig(networkToSteer, bsid, nameSuffix)
 	config[models.Key(steering)] = steering
 
 	// create Srv6 policy to get to other node
@@ -762,6 +745,23 @@ func (n *IPNet) srv6NodeToNodeTunnelIngress(nextHopIP net.IP, networkToSteer *ne
 	config[key] = route
 
 	return config, nil
+}
+
+// srv6NodeToNodeSteeringConfig returns configuration of SRv6 steering used to steer traffic into SRv6 node-to-node tunnel
+func (n *IPNet) srv6NodeToNodeSteeringConfig(networkToSteer *net.IPNet, bsid net.IP, nameSuffix string) *vpp_srv6.Steering {
+	steering := &vpp_srv6.Steering{
+		Name: "forNodeToNodeTunneling-" + nameSuffix,
+		Traffic: &vpp_srv6.Steering_L3Traffic_{
+			L3Traffic: &vpp_srv6.Steering_L3Traffic{
+				PrefixAddress:     networkToSteer.String(),
+				InstallationVrfId: n.ContivConf.GetRoutingConfig().MainVRFID,
+			},
+		},
+		PolicyRef: &vpp_srv6.Steering_PolicyBsid{
+			PolicyBsid: bsid.String(),
+		},
+	}
+	return steering
 }
 
 // srv6PodTunnelEgress creates LocalSID for receiving node-to-node communication encapsulated in SRv6. This node is
@@ -878,21 +878,53 @@ func (n *IPNet) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net.I
 	return key, route
 }
 
+// connectivityToOtherNodeManagementIPAddresses returns configuration that will route traffic to the management ip addresses of another node.
+func (n *IPNet) connectivityToOtherNodeManagementIPAddresses(node *nodesync.Node, otherNodeIP, nextHop net.IP) (config controller.KeyValuePairs, err error) {
+	config = make(controller.KeyValuePairs, 0)
+	for _, mgmtIP := range node.MgmtIPAddresses {
+		switch n.ContivConf.GetRoutingConfig().NodeToNodeTransport {
+		case contivconf.SRv6Transport:
+			_, ipNet, err := net.ParseCIDR(mgmtIP.String() + fullPrefixForAF(mgmtIP))
+			if err != nil {
+				return config, fmt.Errorf("unable to convert management IP %v into IPv6 destination network: %v", mgmtIP, err)
+			}
+			bsid := n.IPAM.BsidForNodeToNodeHostPolicy(otherNodeIP) // reusing srv6 node-to-node tunnel meant for communication with other node's host stack (it ends with DT6/DT4 looking into main vrf)
+			steering := n.srv6NodeToNodeSteeringConfig(ipNet, bsid, "managementIP-"+mgmtIP.String())
+			config[models.Key(steering)] = steering
+		case contivconf.NoOverlayTransport:
+			// route management IP address towards the destination node
+			key, mgmtRoute1 := n.routeToOtherNodeManagementIP(mgmtIP, nextHop, n.ContivConf.GetRoutingConfig().MainVRFID, "")
+			if mgmtRoute1 != nil {
+				config[key] = mgmtRoute1
+			}
+		case contivconf.VXLANTransport:
+			// route management IP address towards the destination node
+			key, mgmtRoute1 := n.routeToOtherNodeManagementIP(mgmtIP, nextHop, n.ContivConf.GetRoutingConfig().PodVRFID, VxlanBVIInterfaceName)
+			if mgmtRoute1 != nil {
+				config[key] = mgmtRoute1
+			}
+
+			// inter-VRF route for the management IP address
+			if !n.ContivConf.InSTNMode() {
+				key, mgmtRoute2 := n.routeToOtherNodeManagementIPViaPodVRF(mgmtIP)
+				config[key] = mgmtRoute2
+			}
+		}
+	}
+	return config, nil
+}
+
 // routeToOtherNodeManagementIP returns configuration for route applied to traffic destined
 // to a management IP of another node.
-func (n *IPNet) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (key string, config *vpp_l3.Route) {
+func (n *IPNet) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP, vrfID uint32, outgoingInterface string) (key string, config *vpp_l3.Route) {
 	if managementIP.Equal(nextHopIP) {
 		return "", nil
 	}
 	route := &vpp_l3.Route{
-		DstNetwork:  managementIP.String() + hostPrefixForAF(managementIP),
-		NextHopAddr: nextHopIP.String(),
-	}
-	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.NoOverlayTransport { //TODO check if changes are needed for srv6 transport mode
-		route.VrfId = n.ContivConf.GetRoutingConfig().MainVRFID
-	} else {
-		route.OutgoingInterface = VxlanBVIInterfaceName
-		route.VrfId = n.ContivConf.GetRoutingConfig().PodVRFID
+		DstNetwork:        managementIP.String() + hostPrefixForAF(managementIP),
+		NextHopAddr:       nextHopIP.String(),
+		VrfId:             vrfID,
+		OutgoingInterface: outgoingInterface,
 	}
 	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	return key, route

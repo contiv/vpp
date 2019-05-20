@@ -36,9 +36,13 @@ const (
 	ipv6AddrAny = "::"
 	ipv6NetAny  = ipv6AddrAny + "/0"
 
+	// full prefixes for different IP address families
+	ipv4FullPrefix = "/32"
+	ipv6FullPrefix = "/128"
+
 	// host prefixes
-	ipv4HostPrefix = "/32"
-	ipv6HostPrefix = "/128"
+	ipv4HostPrefix = ipv4FullPrefix
+	ipv6HostPrefix = ipv6FullPrefix
 )
 
 // getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
@@ -168,6 +172,15 @@ func hostPrefixForAF(ip net.IP) string {
 		return ipv6HostPrefix
 	}
 	return ipv4HostPrefix
+}
+
+// fullPrefixForAF returns prefix length string to address fully prefixed
+// IP address for address family determined from given IP address.
+func fullPrefixForAF(ip net.IP) string {
+	if isIPv6(ip) {
+		return ipv6FullPrefix
+	}
+	return ipv4FullPrefix
 }
 
 // anyAddrForAF returns IP address identifying "any" node

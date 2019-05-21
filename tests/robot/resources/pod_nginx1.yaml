@@ -5,6 +5,6 @@ metadata:
 spec:
   containers:
   - name: nginx
-    image: nginx
+    image: diverdane/nginxdualstack:1.0.0
     imagePullPolicy: IfNotPresent
   nodeName: ${NODE_SELECTOR}

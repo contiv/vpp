@@ -1,6 +1,6 @@
 *** Settings ***
 Documentation     This library performs 'vagrant' commands in shell on local machine.
-Library          Process
+Library           Process
 
 *** Keywords ***
 Vagrant_Command
@@ -11,7 +11,7 @@ Vagrant_Command
     BuiltIn.Return_From_Keyword    ${ro}
 
 Vagrant_Ssh_With_Command
-    [Arguments]    ${command}    ${vagrant_node}=${K8S_MASTER}     ${ignore_error}=${False}
+    [Arguments]    ${command}    ${vagrant_node}=${K8S_MASTER}    ${ignore_error}=${False}
     [Documentation]    Execute command on given vagrant pod
     BuiltIn.Log_Many    ${command}    ${vagrant_node}    ${ignore_error}
     ${ro}=    Vagrant_Command    ssh ${vagrant_node} -c "${command}"

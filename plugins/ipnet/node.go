@@ -752,7 +752,7 @@ func (n *IPNet) srv6NodeToNodeTunnelIngress(otherNodeIP net.IP, nextHopIP net.IP
 
 	// creating steering to steer all packets for pods of the other node
 	steering := &vpp_srv6.Steering{
-		Name: "forNodeToNodeTunneling-" + nameSuffix,
+		Name: fmt.Sprintf("forNodeToNodeTunneling-usingPolicyWithBSID-%v-and-%v", bsid.String(), nameSuffix),
 		Traffic: &vpp_srv6.Steering_L3Traffic_{
 			L3Traffic: &vpp_srv6.Steering_L3Traffic{
 				PrefixAddress:     networkToSteer.String(),

@@ -22,8 +22,8 @@ input values in [values.yaml][values.yaml] (or [values-arm64.yaml][values-arm64.
 ```
 ...
 contiv:
-  useNoOverlay: false
-  useSRv6Interconnect: false
+  useNoOverlay: true
+  useSRv6Interconnect: true
   ...
 ```  
 and generate `manifest.yaml` with Helm.

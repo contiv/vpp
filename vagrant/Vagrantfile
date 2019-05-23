@@ -199,6 +199,7 @@ VAGRANTFILE_API_VERSION = "2"
         gw.vm.network :private_network, ip: gw_ip, virtualbox__intnet: "true"
       end
       gw.vm.provider "virtualbox" do |v|
+        v.customize ["modifyvm", :id, "--uartmode1", "disconnected"]
         v.customize ["modifyvm", :id, "--ioapic", "on"]
         v.memory = 256
         v.cpus = 1

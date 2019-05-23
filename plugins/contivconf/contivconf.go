@@ -112,7 +112,8 @@ const (
 	vmxnet3KernelDriver    = "vmxnet3"  // name of the kernel driver for vmxnet3 interfaces
 	vmxnet3InterfacePrefix = "vmxnet3-" // prefix matching all vmxnet3 interfaces on VPP
 
-	ipv6AddrDelimiter = ":"
+	ipv6AddrDelimiter       = ":"
+	ipv6AddrLinkLocalPrefix = "fe80"
 )
 
 // ContivConf plugins simplifies the Contiv configuration processing for other
@@ -930,6 +931,9 @@ func (c *ContivConf) loadSTNHostConfig(ifName string) error {
 		if c.ipamConfig.UseIPv6 && !isIPv6AddrString(address) {
 			continue
 		}
+		if c.ipamConfig.UseIPv6 && isLinkLocalIPv6Addr(address) {
+			continue
+		}
 		if !c.ipamConfig.UseIPv6 && isIPv6AddrString(address) {
 			continue
 		}
@@ -1046,4 +1050,12 @@ func isIPv6AddrString(ip string) bool {
 		return false
 	}
 	return strings.Contains(ip, ipv6AddrDelimiter)
+}
+
+// isLinkLocalIPv6Addr returns true if the provided string contains a link-local IPv6 address
+func isLinkLocalIPv6Addr(ip string) bool {
+	if ip == "" {
+		return false
+	}
+	return strings.HasPrefix(ip, ipv6AddrLinkLocalPrefix)
 }

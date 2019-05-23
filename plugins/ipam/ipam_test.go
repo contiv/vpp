@@ -254,7 +254,7 @@ func TestBasicAllocateReleasePodAddress(t *testing.T) {
 	Expect(ip).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
-	err = i.ReleasePodIP(podID[0])
+	err = i.ReleasePodIPs(podID[0])
 	Expect(err).To(BeNil())
 }
 
@@ -272,7 +272,7 @@ func TestBasicAllocateReleasePodAddressIPv6(t *testing.T) {
 	Expect(ip).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
-	err = i.ReleasePodIP(podID[0])
+	err = i.ReleasePodIPs(podID[0])
 	Expect(err).To(BeNil())
 }
 
@@ -290,7 +290,7 @@ func TestWideIPv6PodSubenet(t *testing.T) {
 	Expect(ip).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
-	err = i.ReleasePodIP(podID[0])
+	err = i.ReleasePodIPs(podID[0])
 	Expect(err).To(BeNil())
 }
 
@@ -307,7 +307,7 @@ func TestAlreadyAllocatedAddress(t *testing.T) {
 	Expect(repeated).NotTo(BeNil())
 	Expect(bytes.Compare(repeated, ip)).To(BeZero())
 
-	err = i.ReleasePodIP(podID[0])
+	err = i.ReleasePodIPs(podID[0])
 	Expect(err).To(BeNil())
 }
 
@@ -326,7 +326,7 @@ func TestAssigniningIncrementalIPs(t *testing.T) {
 	Expect(second.String()).To(BeEquivalentTo("1.2.128.11"))
 	Expect(i.PodSubnetThisNode().Contains(second)).To(BeTrue(), "Pod IP address is not from pod network")
 
-	err = i.ReleasePodIP(podID[1])
+	err = i.ReleasePodIPs(podID[1])
 	Expect(err).To(BeNil())
 
 	// check that second is not reused
@@ -342,7 +342,7 @@ func TestAssigniningIncrementalIPs(t *testing.T) {
 	Expect(assigned).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(assigned)).To(BeTrue(), "Pod IP address is not from pod network")
 
-	// expect released ip to be reused
+	// expect released IP to be reused
 	reused, err := i.AllocatePodIP(podID[1], "", "")
 	Expect(err).To(BeNil())
 	Expect(reused).NotTo(BeNil())
@@ -360,7 +360,7 @@ func TestDistinctAllocations(t *testing.T) {
 
 // TestReleaseOfAllIPAddresses tests proper releasing of pod IP addresses by allocating them again. If any pod IP
 // address is not properly released then additional allocation of all pod IP addresses will fail (either
-// ipam.AllocatePodIP(...) will fail by providing all ip addresses or one ip addresses will be allocated twice)
+// ipam.AllocatePodIP(...) will fail by providing all IP addresses or one IP addresses will be allocated twice)
 func TestReleaseOfAllIPAddresses(t *testing.T) {
 	i := setup(t, newDefaultConfig())
 	exhaustPodIPAddresses(i, 4)
@@ -619,14 +619,14 @@ func exhaustPodIPAddresses(i *IPAM, maxIPCount int) (allocatedIPs []string, allo
 
 func releaseSomePodAddresses(i *IPAM, toRelease []podmodel.ID) {
 	for _, nodeID := range toRelease {
-		i.ReleasePodIP(nodeID)
+		i.ReleasePodIPs(nodeID)
 	}
 }
 
 func releaseAllPodAddresses(i *IPAM, ipCount int) {
 	for j := 1; j <= ipCount; j++ {
 		podID := podmodel.ID{Namespace: "default", Name: "pod" + strconv.Itoa(j)}
-		i.ReleasePodIP(podID)
+		i.ReleasePodIPs(podID)
 	}
 }
 

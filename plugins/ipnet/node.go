@@ -750,7 +750,7 @@ func (n *IPNet) srv6NodeToNodeTunnelIngress(nextHopIP net.IP, networkToSteer *ne
 // srv6NodeToNodeSteeringConfig returns configuration of SRv6 steering used to steer traffic into SRv6 node-to-node tunnel
 func (n *IPNet) srv6NodeToNodeSteeringConfig(networkToSteer *net.IPNet, bsid net.IP, nameSuffix string) *vpp_srv6.Steering {
 	steering := &vpp_srv6.Steering{
-		Name: "forNodeToNodeTunneling-" + nameSuffix,
+		Name: fmt.Sprintf("forNodeToNodeTunneling-usingPolicyWithBSID-%v-and-%v", bsid.String(), nameSuffix),
 		Traffic: &vpp_srv6.Steering_L3Traffic_{
 			L3Traffic: &vpp_srv6.Steering_L3Traffic{
 				PrefixAddress:     networkToSteer.String(),

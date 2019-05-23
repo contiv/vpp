@@ -97,9 +97,9 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 func (n *IPNet) Revert(event controller.Event) error {
 	addPod := event.(*podmanager.AddPod)
 	pod := n.PodManager.GetLocalPods()[addPod.Pod]
-	n.IPAM.ReleasePodIP(pod.ID)
+	n.IPAM.ReleasePodIPs(pod.ID)
 
-	vppIface, _ := n.podInterfaceName(pod)
+	vppIface, _ := n.podInterfaceName(pod, "", "")
 	n.vppIfaceToPodMutex.Lock()
 	delete(n.vppIfaceToPod, vppIface)
 	n.vppIfaceToPodMutex.Unlock()
@@ -142,7 +142,7 @@ func (n *IPNet) addPod(event *podmanager.AddPod, txn controller.UpdateOperations
 
 	// 4. update interface->pod map
 
-	vppIface, _ := n.podInterfaceName(pod)
+	vppIface, _ := n.podInterfaceName(pod, "", "")
 	n.vppIfaceToPodMutex.Lock()
 	n.vppIfaceToPod[vppIface] = pod.ID
 	n.vppIfaceToPodMutex.Unlock()
@@ -192,14 +192,14 @@ func (n *IPNet) deletePod(event *podmanager.DeletePod, txn controller.UpdateOper
 
 	// 2. update interface->pod map
 
-	vppIface, _ := n.podInterfaceName(pod)
+	vppIface, _ := n.podInterfaceName(pod, "", "")
 	n.vppIfaceToPodMutex.Lock()
 	delete(n.vppIfaceToPod, vppIface)
 	n.vppIfaceToPodMutex.Unlock()
 
 	// 3. release IP address of the POD
 
-	err = n.IPAM.ReleasePodIP(pod.ID)
+	err = n.IPAM.ReleasePodIPs(pod.ID)
 	if err != nil {
 		return "", err
 	}

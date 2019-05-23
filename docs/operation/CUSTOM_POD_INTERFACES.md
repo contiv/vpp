@@ -1,4 +1,4 @@
-# Deploying pods with custom interfaces
+# Deploying pods with multiple custom interfaces
 
 By default, each k8s pod in Contiv-VPP is connected to the VPP vswitch via a single 
 tap network interface. Some cloud-native networking use cases may however require 

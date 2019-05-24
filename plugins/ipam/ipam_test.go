@@ -236,14 +236,14 @@ func TestDynamicGettersIPv6(t *testing.T) {
 	Expect(err).To(BeNil())
 	Expect(ipNet.String()).To(BeEquivalentTo("fe30:f00d::14/126"))
 
-	Expect(i.SidForServiceHostLocalsid()).To(BeEquivalentTo(net.ParseIP("6655::1")))
-	Expect(i.BsidForServicePolicy([]net.IP{net.ParseIP("1111:2222::1")})).To(BeEquivalentTo(net.ParseIP("5555:2222::1")))
-	Expect(i.SidForServicePodLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("6666:2222::1")))
-	Expect(i.SidForServiceNodeLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("7766:2222::1")))
-	Expect(i.SidForNodeToNodePodLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("7777:2222::1")))
-	Expect(i.SidForNodeToNodeHostLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("7799:2222::1")))
-	Expect(i.BsidForNodeToNodePodPolicy(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("8888:2222::1")))
-	Expect(i.BsidForNodeToNodeHostPolicy(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("9999:2222::1")))
+	Expect(i.SidForServiceHostLocalsid()).To(BeEquivalentTo(net.ParseIP("9300::1")))
+	Expect(i.BsidForServicePolicy([]net.IP{net.ParseIP("1111:2222::1")})).To(BeEquivalentTo(net.ParseIP("8fff:2222::1")))
+	Expect(i.SidForServicePodLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("9300:2222::1")))
+	Expect(i.SidForServiceNodeLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("9000:2222::1")))
+	Expect(i.SidForNodeToNodePodLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("9501:2222::1")))
+	Expect(i.SidForNodeToNodeHostLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("9500:2222::1")))
+	Expect(i.BsidForNodeToNodePodPolicy(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("8501:2222::1")))
+	Expect(i.BsidForNodeToNodeHostPolicy(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("8500:2222::1")))
 }
 
 // TestBasicAllocateReleasePodAddress test simple happy path scenario for getting 1 pod address and releasing it

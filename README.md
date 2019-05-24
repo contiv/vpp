@@ -13,6 +13,13 @@ offering feature-rich, high-performance cloud-native networking and services.
 For more details see [https://contivpp.io/](https://contivpp.io/)
 
 
+## Features
+* kube-proxy implementation on VPP - in the userspace (full implemenatation of [k8s services](docs/dev-guide/SERVICES.md) & [k8s policies](docs/dev-guide/POLICIES.md))
+* support for [multiple interfaces per pod](docs/operation/CUSTOM_POD_INTERFACES.md), including memif interfaces
+* [IPv6 support](master/docs/setup/IPV6.md), segment routing implementation of k8s services ([SRv6](docs/setup/SRV6.md))
+* (in progress) service function chaining between the pods for CNF workloads
+
+
 ## Releases
 |Release|Version|Date|
 |---|---|---|
@@ -22,7 +29,7 @@ Please see the [CHANGELOG](CHANGELOG.md) for a full list of changes on every rel
 
 
 ## Documentation
-The [docs folder](docs) contains lots of documentation. For the begging, you can start with:
+The [docs folder](docs) contains lots of documentation. For the beginning, you can start with:
 * [ARCHITECTURE](docs/ARCHITECTURE.md) for high-level description of Contiv-VPP
   components and operation,
 * [NETWORKING](docs/NETWORKING.md) for detailed description on how the network

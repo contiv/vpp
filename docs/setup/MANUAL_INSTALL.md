@@ -14,6 +14,9 @@ After successful installation, you can perform the following tasks:
 * [Uninstalling Contiv-VPP](#uninstalling-contiv-vpp)
 * [Tearing down Kubernetes](#tearing-down-kubernetes)
 
+In case you want to enable IPv6 in Contiv-VPP, please see the [IPv6 setup guide](IPV6.md)
+before proceeding.
+
 
 ## 1. Preparing the nodes
 
@@ -91,9 +94,9 @@ must be defined for the vSwitch container.
 
 (a) To disable huge pages, perform the following steps as root:
 * Using your favorite editor, disable huge pages in the kubelet configuration
-  file (`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` or `/etc/default/kubelet` for version 1.11+):
+  file `/etc/default/kubelet` (or `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` for versions below 1.11):
 ```
-  Environment="KUBELET_EXTRA_ARGS=--feature-gates HugePages=false"
+KUBELET_EXTRA_ARGS=--feature-gates HugePages=false
 ```
 * Restart the kubelet daemon:
 ```
@@ -171,6 +174,11 @@ If you have already used the Contiv-VPP plugin before, you may need to pull
 the most recent Docker images on each node:
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
+```
+
+If you are using centos, you will need to open the port for the contiv etcd on your master:
+```
+firewall-cmd --permanent --add-port=12379-12380/tcp
 ```
 
 Contiv-VPP CNI plugin can be installed in two ways:

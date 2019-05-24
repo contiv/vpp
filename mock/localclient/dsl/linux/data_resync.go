@@ -7,6 +7,7 @@ import (
 	"github.com/contiv/vpp/mock/localclient/dsl"
 	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/abf"
 	"github.com/ligato/vpp-agent/api/models/vpp/acl"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
@@ -15,8 +16,6 @@ import (
 	"github.com/ligato/vpp-agent/api/models/vpp/nat"
 	"github.com/ligato/vpp-agent/api/models/vpp/punt"
 	"github.com/ligato/vpp-agent/api/models/vpp/stn"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/l4"
 )
 
 // MockDataResyncDSL is mock for DataResyncDSL.
@@ -55,26 +54,9 @@ func (d *MockDataResyncDSL) VppInterface(val *vpp_interfaces.Interface) linuxcli
 	return d
 }
 
-// BfdSession adds VPP bidirectional forwarding detection session to the mock
-// RESYNC request.
-func (d *MockDataResyncDSL) BfdSession(val *bfd.SingleHopBFD_Session) linuxclient.DataResyncDSL {
-	key := bfd.SessionKey(val.Interface)
-	d.Values[key] = val
-	return d
-}
-
-// BfdAuthKeys adds VPP bidirectional forwarding detection key to the mock RESYNC
-// request.
-func (d *MockDataResyncDSL) BfdAuthKeys(val *bfd.SingleHopBFD_Key) linuxclient.DataResyncDSL {
-	key := bfd.AuthKeysKey(string(val.Id))
-	d.Values[key] = val
-	return d
-}
-
-// BfdEchoFunction adds VPP bidirectional forwarding detection echo function
-// mock to the RESYNC request.
-func (d *MockDataResyncDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) linuxclient.DataResyncDSL {
-	key := bfd.EchoFunctionKey(val.EchoSourceInterface)
+// ABF adds a request to create or update VPP ACL-based forwarding.
+func (d *MockDataResyncDSL) ABF(val *vpp_abf.ABF) linuxclient.DataResyncDSL {
+	key := vpp_abf.Key(val.Index)
 	d.Values[key] = val
 	return d
 }
@@ -110,20 +92,6 @@ func (d *MockDataResyncDSL) StaticRoute(val *vpp_l3.Route) linuxclient.DataResyn
 // ACL adds VPP Access Control List to the mock RESYNC request.
 func (d *MockDataResyncDSL) ACL(val *vpp_acl.ACL) linuxclient.DataResyncDSL {
 	key := vpp_acl.Key(val.Name)
-	d.Values[key] = val
-	return d
-}
-
-// L4Features adds L4Features to the RESYNC request
-func (d *MockDataResyncDSL) L4Features(val *l4.L4Features) linuxclient.DataResyncDSL {
-	key := l4.FeatureKey()
-	d.Values[key] = val
-	return d
-}
-
-// AppNamespace adds Application Namespace to the RESYNC request
-func (d *MockDataResyncDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) linuxclient.DataResyncDSL {
-	key := l4.AppNamespacesKey(val.NamespaceId)
 	d.Values[key] = val
 	return d
 }
@@ -194,6 +162,13 @@ func (d *MockDataResyncDSL) PuntIPRedirect(val *vpp_punt.IPRedirect) linuxclient
 // PuntToHost adds request to RESYNC a rule used to punt L4 traffic to a host.
 func (d *MockDataResyncDSL) PuntToHost(val *vpp_punt.ToHost) linuxclient.DataResyncDSL {
 	key := vpp_punt.ToHostKey(val.L3Protocol, val.L4Protocol, val.Port)
+	d.Values[key] = val
+	return d
+}
+
+// VrfTable adds VRF table to the RESYNC request.
+func (d *MockDataResyncDSL) VrfTable(val *vpp_l3.VrfTable) linuxclient.DataResyncDSL {
+	key := vpp_l3.VrfTableKey(val.Id, val.Protocol)
 	d.Values[key] = val
 	return d
 }

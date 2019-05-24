@@ -25,7 +25,7 @@ helm template --name my-release ../contiv-vpp -f ./values-arm64.yaml,./values.ya
 kubectl apply -f manifest-arm64.yaml
 ```
 
-To install with tiller, you will most likely need to modify the tiller manifest. The manifest can be optained with:
+To install with tiller, you will most likely need to modify the tiller manifest. The manifest can be obtained with:
 
 ```console
 helm init --dry-run --debug > tiller.yaml
@@ -60,6 +60,7 @@ Some of them are described in more detail in [contiv.conf README](../README.md#c
 
 Parameter | Description | Default
 --------- | ----------- | -------
+`contiv.useNoOverlay` | Do not use overlay (VXLAN) for node-to-node communication | `False`
 `contiv.mtuSize` | MTU Size | 1450
 `contiv.useTAPInterfaces` | Enable TAP interfaces | `True`
 `contiv.tapInterfaceVersion`| TAP interface version | 2
@@ -78,7 +79,7 @@ Parameter | Description | Default
 `contiv.disableNATVirtualReassembly` | Disable NAT virtual reassembly (drop fragmented packets) | `False`
 `contiv.ipamConfig.podSubnetCIDR` | Pod subnet CIDR | `10.1.0.0/16`
 `contiv.ipamConfig.podSubnetOneNodePrefixLen` | Pod network prefix length | `24`
-`contiv.ipamConfig.PodVPPSubnetCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
+`contiv.ipamConfig.podVPPSubnetCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
 `contiv.ipamConfig.vppHostSubnetCIDR` | VPP host subnet CIDR | `172.30.0.0/16`
 `contiv.ipamConfig.vppHostSubnetOneNodePrefixLen` | VPP host network prefix length | `24`
 `contiv.ipamConfig.vxlanCIDR` | VXLAN CIDR | `192.168.30.0/24`
@@ -86,6 +87,7 @@ Parameter | Description | Default
 `contiv.ipamConfig.serviceCIDR` | Service CIDR | `""`
 `contiv.ipamConfig.defaultGateway` | Default gateway for all nodes (can be overridden by a nodeconfig)| `""`
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
+`contiv.vswitch.useSocketVPPConnection` | use unix domain socket for connection to VPP | `false`
 `contiv.vswitch.defineMemoryLimits` | define limits for vswitch container | `false`
 `contiv.vswitch.hugePages2miLimit` | limit of memory allocated by 2048Kb hugepages for vswitch container| `1024Mi`
 `contiv.vswitch.hugePages1giLimit` | limit of memory allocated by 1Gb hugepages for vswitch container| `""`
@@ -111,6 +113,9 @@ Parameter | Description | Default
 `ksr.image.repository` | ksr container image repository | `contivvpp/ksr`
 `ksr.image.tag`| ksr container image tag | `latest`
 `ksr.image.pullPolicy` | ksr container image pull policy | `IfNotPresent`
+`etcd.useExternalInstance` | do not deploy etcd as a part of contiv, options except `externalInstance` block are ignored if set to `true` | `false`
+`etcd.externalInstance.secretName` | name of secret containing etcd certificates | `false`
+`etcd.externalInstance.endpoints` | endpoints of external etcd instance | `false`
 `etcd.image.repository` | etcd container image repository | `quay.io/coreos/etcd`
 `etcd.image.tag`| etcd container image tag | `latest`
 `etcd.image.pullPolicy` | etcd container image pull policy | `IfNotPresent`

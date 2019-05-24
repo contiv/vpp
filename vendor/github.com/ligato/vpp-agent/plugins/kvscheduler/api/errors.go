@@ -45,6 +45,15 @@ var (
 	// ErrUnimplementedDelete is returned when NB transaction attempts to Delete value
 	// for which there is a descriptor, but Delete operation is not implemented.
 	ErrUnimplementedDelete = errors.New("operation Delete is not implemented")
+
+	// ErrDescriptorExists is returned when the same descriptor is registered
+	// more than once.
+	ErrDescriptorExists = errors.New("descriptor already exist")
+
+	// ErrEscapedNetNs is returned when a descriptor changes the Linux network
+	// namespace but forgets to revert the change back before returning from the
+	// operation back to the scheduler.
+	ErrEscapedNetNs = errors.New("operation didn't preserve the original network namespace")
 )
 
 // ErrInvalidValueType is returned to scheduler by auto-generated descriptor adapter

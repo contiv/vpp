@@ -24,8 +24,8 @@ import (
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/l2"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/ligato/vpp-agent/pkg/idxvpp2"
-	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
+	"github.com/ligato/vpp-agent/pkg/idxvpp"
+	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 )
@@ -173,7 +173,7 @@ func TestVppDataStore_SetNodeBridgeDomain(t *testing.T) {
 				},
 			},
 		},
-		Metadata: idxvpp2.OnlyIndex{Index: 1},
+		Metadata: idxvpp.OnlyIndex{Index: 1},
 	}
 	nodesBD := make(telemetrymodel.NodeBridgeDomains, 1)
 	nodesBD[0] = nodeBD

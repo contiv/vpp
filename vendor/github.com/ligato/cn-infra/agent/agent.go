@@ -21,14 +21,16 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/namsral/flag"
 
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/utils/once"
-	"github.com/namsral/flag"
 )
 
 var agentLogger = logging.DefaultRegistry.NewLogger("agent")
@@ -99,6 +101,9 @@ type agent struct {
 	stopOnce  once.ReturnError
 
 	tracer measure.Tracer
+
+	mu        sync.Mutex
+	curPlugin infra.Plugin
 }
 
 // Options returns the Options the agent was created with
@@ -144,10 +149,16 @@ func (a *agent) starter() error {
 	if timeout := a.opts.StartTimeout; timeout > 0 {
 		go func() {
 			select {
+			case s := <-sig:
+				agentLogger.Infof("Signal %v received during agent start, stopping", s)
+				os.Exit(1)
 			case <-started:
 				// agent started
 			case <-time.After(timeout):
-				agentLogger.Errorf("Agent failed to start before timeout (%v)", timeout)
+				a.mu.Lock()
+				curPlugin := a.curPlugin
+				a.mu.Unlock()
+				agentLogger.Errorf("Agent failed to start before timeout (%v) last plugin: %s", timeout, curPlugin)
 				dumpStacktrace()
 				os.Exit(1)
 			}
@@ -196,11 +207,15 @@ func (a *agent) starter() error {
 }
 
 func (a *agent) start() error {
-	agentLogger.Infof("Starting agent with %d plugins", len(a.opts.Plugins))
+	agentLogger.Debugf("starting %d plugins", len(a.opts.Plugins))
 
 	// Init plugins
 	for _, plugin := range a.opts.Plugins {
 		t := time.Now()
+
+		a.mu.Lock()
+		a.curPlugin = plugin
+		a.mu.Unlock()
 
 		agentLogger.Debugf("-> Init(): %v", plugin)
 		if err := plugin.Init(); err != nil {
@@ -214,6 +229,10 @@ func (a *agent) start() error {
 	for _, plugin := range a.opts.Plugins {
 		t := time.Now()
 
+		a.mu.Lock()
+		a.curPlugin = plugin
+		a.mu.Unlock()
+
 		if postPlugin, ok := plugin.(infra.PostInit); ok {
 			agentLogger.Debugf("-> AfterInit(): %v", plugin)
 			if err := postPlugin.AfterInit(); err != nil {
@@ -225,6 +244,10 @@ func (a *agent) start() error {
 
 		a.tracer.LogTime(fmt.Sprintf("%v.AfterInit", plugin), t)
 	}
+
+	a.mu.Lock()
+	a.curPlugin = nil
+	a.mu.Unlock()
 
 	if printPluginStartDurations && infraLogger.GetLevel() >= logging.DebugLevel {
 		var b strings.Builder

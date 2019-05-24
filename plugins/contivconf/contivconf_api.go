@@ -17,6 +17,7 @@ import (
 	"net"
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"github.com/contiv/vpp/plugins/contivconf/config"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
@@ -68,17 +69,17 @@ type API interface {
 	// GetIPAMConfigForJSON returns IPAM configuration in format suitable
 	// for marshalling to JSON (subnets not converted to net.IPNet + defined
 	// JSON flag for every option).
-	GetIPAMConfigForJSON() *IPAMConfigForJSON
+	GetIPAMConfigForJSON() *config.IPAMConfig
 
 	// GetInterfaceConfig returns configuration related to VPP interfaces.
-	GetInterfaceConfig() *InterfaceConfig
+	GetInterfaceConfig() *config.InterfaceConfig
 
 	// GetRoutingConfig returns configuration related to IP routing.
-	GetRoutingConfig() *RoutingConfig
+	GetRoutingConfig() *config.RoutingConfig
 
 	// GetIPNeighborScanConfig returns configuration related to IP Neighbor
 	// scanning.
-	GetIPNeighborScanConfig() *IPNeighborScanConfig
+	GetIPNeighborScanConfig() *config.IPNeighborScanConfig
 
 	// GetSTNConfig returns configuration related to STN feature.
 	// Use the method only in the STN mode - i.e. when InSTNMode() returns true.
@@ -100,6 +101,9 @@ type API interface {
 type IPAMConfig struct {
 	// UseExternalIPAM is true if IPAM is provided by an external IPAM plugin instead of Contiv.
 	UseExternalIPAM bool
+
+	// UseIPv6 is true if IPv6 networking should be used instead of IPv4.
+	UseIPv6 bool
 
 	// CIDR to use for all IP address allocations.
 	// If defined (non-nil), the manually selected subnets (CustomIPAMSubnets, see below)
@@ -126,6 +130,29 @@ type IPAMConfig struct {
 	// Manually selected subnets (if ContivCIDR is defined, this is overridden
 	// by IPAM's own allocation algorithm).
 	CustomIPAMSubnets
+
+	// SRv6 settings defining computation of SID/BSID for SRv6 locasids/policies
+	SRv6Settings
+}
+
+// SRv6Settings hold all SID/BSID managment settings (SID/BSID is basically IPv6 address)
+type SRv6Settings struct {
+	// ServicePolicyBSIDSubnetCIDR is subnet applied to lowest k8s service IP to get unique (per service,per node) binding sid for SRv6 policy
+	ServicePolicyBSIDSubnetCIDR *net.IPNet
+	// ServicePodLocalSIDSubnetCIDR is subnet applied to k8s service local pod backend IP to get unique sid for SRv6 Localsid referring to local pod beckend using DX6 end function
+	ServicePodLocalSIDSubnetCIDR *net.IPNet
+	// ServiceHostLocalSIDSubnetCIDR is subnet applied to k8s service host pod backend IP to get unique sid for SRv6 Localsid referring to local host beckend using DX6 end function
+	ServiceHostLocalSIDSubnetCIDR *net.IPNet
+	// ServiceNodeLocalSIDSubnetCIDR is subnet applied to node IP to get unique sid for SRv6 Localsid that is intermediate segment routing to other nodes in Srv6 segment list (used in k8s services)
+	ServiceNodeLocalSIDSubnetCIDR *net.IPNet
+	// NodeToNodePodLocalSIDSubnetCIDR is subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into pod VRF table (DT6 end function of localsid)
+	NodeToNodePodLocalSIDSubnetCIDR *net.IPNet
+	// NodeToNodeHostLocalSIDSubnetCIDR is subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into main VRF table (DT6 end function of localsid)
+	NodeToNodeHostLocalSIDSubnetCIDR *net.IPNet
+	// NodeToNodePodPolicySIDSubnetCIDR is subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodePodLocalSIDSubnetCIDR`
+	NodeToNodePodPolicySIDSubnetCIDR *net.IPNet
+	// NodeToNodeHostPolicySIDSubnetCIDR is subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodeHostLocalSIDSubnetCIDR`.
+	NodeToNodeHostPolicySIDSubnetCIDR *net.IPNet
 }
 
 // CustomIPAMSubnets allows users to manually select individual subnets.
@@ -152,42 +179,6 @@ type CustomIPAMSubnets struct {
 
 	// Subnet used for inter-node VXLANs.
 	VxlanCIDR *net.IPNet
-}
-
-// InterfaceConfig contains configuration related to interfaces.
-type InterfaceConfig struct {
-	MTUSize                    uint32 `json:"mtuSize,omitempty"`
-	UseTAPInterfaces           bool   `json:"useTAPInterfaces,omitempty"`
-	TAPInterfaceVersion        uint8  `json:"tapInterfaceVersion,omitempty"`
-	TAPv2RxRingSize            uint16 `json:"tapv2RxRingSize,omitempty"`
-	TAPv2TxRingSize            uint16 `json:"tapv2TxRingSize,omitempty"`
-	Vmxnet3RxRingSize          uint16 `json:"vmxnet3RxRingSize,omitempty"`
-	Vmxnet3TxRingSize          uint16 `json:"vmxnet3TxRingSize,omitempty"`
-	InterfaceRxMode            string `json:"interfaceRxMode,omitempty"` // "" == "default" / "polling" / "interrupt" / "adaptive"
-	TCPChecksumOffloadDisabled bool   `json:"tcpChecksumOffloadDisabled,omitempty"`
-}
-
-// RoutingConfig groups configuration options related to routing.
-type RoutingConfig struct {
-	// VRF IDs
-	MainVRFID uint32 `json:"mainVRFID,omitempty"`
-	PodVRFID  uint32 `json:"podVRFID,omitempty"`
-
-	// enabled when nodes are on the same L2 network and VXLANs are therefore
-	// not needed
-	UseL2Interconnect bool `json:"useL2Interconnect,omitempty"`
-
-	// when enabled, cluster IP CIDR should be routed towards VPP from Linux
-	RouteServiceCIDRToVPP bool `json:"routeServiceCIDRToVPP,omitempty"`
-}
-
-// IPNeighborScanConfig contains configuration related to IP neighbour scanning.
-type IPNeighborScanConfig struct {
-	// when enabled, IP neighbors should be periodically scanned and probed
-	// to maintain the ARP table
-	ScanIPNeighbors          bool  `json:"scanIPNeighbors,omitempty"`
-	IPNeighborScanInterval   uint8 `json:"ipNeighborScanInterval,omitempty"`
-	IPNeighborStaleThreshold uint8 `json:"ipNeighborStaleThreshold,omitempty"`
 }
 
 // STNConfig groups config options related to STN (Steal-the-NIC).
@@ -273,7 +264,7 @@ func (ips IPsWithNetworks) String() string {
 type NodeConfigChange struct {
 	// not exported - plugins are expected to use ContivConf API to re-read
 	// the configuration after the change
-	nodeConfig *NodeConfig
+	nodeConfig *config.NodeConfig
 }
 
 // GetName returns name of the NodeConfigChange event.

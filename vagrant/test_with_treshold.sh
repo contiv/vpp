@@ -82,7 +82,7 @@ do
     cmd "lsof | awk '{ print \$2 \" \" \$1; }' | uniq -c | sort -rn | head -20"
     cmd date
     echo ""
-    status=`cat pytest_output_n$c | grep ==== | grep second | grep failed | cut -d " " -f 2`
+    status=`cat pytest_output_n$c | grep ==== | grep second | grep -w failed | cut -d " " -f 2`
     echo "Failed tests: $status"
     if (( status > TRESHOLD )); then
         echo "Too many failed tests, ending..."

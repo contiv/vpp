@@ -103,6 +103,12 @@ api-trace {
 dpdk {
    dev $pciAddr
 }
+socksvr {
+   default
+}
+statseg {
+   default
+}
 "
    echo "$startup"
 

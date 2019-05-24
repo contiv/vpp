@@ -16,6 +16,7 @@ package ksr
 
 import (
 	"reflect"
+	"strings"
 	"sync"
 
 	coreV1 "k8s.io/api/core/v1"
@@ -24,6 +25,10 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
+)
+
+const (
+	contivAnnotationPrefix = "contivpp.io"
 )
 
 // PodReflector subscribes to K8s cluster to watch for changes in the
@@ -132,6 +137,12 @@ func (pr *PodReflector) podToProto(k8sPod *coreV1.Pod) *pod.Pod {
 	podProto.HostIpAddress = k8sPod.Status.HostIP
 	for _, container := range k8sPod.Spec.Containers {
 		podProto.Container = append(podProto.Container, pr.containerToProto(&container))
+	}
+	podProto.Annotations = make(map[string]string)
+	for k, v := range k8sPod.Annotations {
+		if strings.HasPrefix(k, contivAnnotationPrefix) {
+			podProto.Annotations[k] = v
+		}
 	}
 
 	return podProto

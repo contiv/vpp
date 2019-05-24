@@ -4,6 +4,7 @@ import (
 	"github.com/ligato/vpp-agent/clientv2/vpp"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
+	"github.com/ligato/vpp-agent/api/models/vpp/abf"
 	"github.com/ligato/vpp-agent/api/models/vpp/acl"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
@@ -12,9 +13,6 @@ import (
 	"github.com/ligato/vpp-agent/api/models/vpp/nat"
 	"github.com/ligato/vpp-agent/api/models/vpp/punt"
 	"github.com/ligato/vpp-agent/api/models/vpp/stn"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/l2"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/l4"
 )
 
 // MockDataChangeDSL is mock for DataChangeDSL.
@@ -62,26 +60,9 @@ func (d *MockPutDSL) Interface(val *vpp_interfaces.Interface) vppclient.PutDSL {
 	return d
 }
 
-// BfdSession adds a mock request to create or update bidirectional forwarding
-// detection session.
-func (d *MockPutDSL) BfdSession(val *bfd.SingleHopBFD_Session) vppclient.PutDSL {
-	key := bfd.SessionKey(val.Interface)
-	d.parent.Values[key] = val
-	return d
-}
-
-// BfdAuthKeys adds a mock request to create or update bidirectional forwarding
-// detection key.
-func (d *MockPutDSL) BfdAuthKeys(val *bfd.SingleHopBFD_Key) vppclient.PutDSL {
-	key := bfd.AuthKeysKey(string(val.Id))
-	d.parent.Values[key] = val
-	return d
-}
-
-// BfdEchoFunction adds a mock request to create or update bidirectional
-// forwarding detection echo function.
-func (d *MockPutDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) vppclient.PutDSL {
-	key := bfd.EchoFunctionKey(val.EchoSourceInterface)
+// ABF adds a request to create or update VPP ACL-based forwarding.
+func (d *MockPutDSL) ABF(val *vpp_abf.ABF) vppclient.PutDSL {
+	key := vpp_abf.Key(val.Index)
 	d.parent.Values[key] = val
 	return d
 }
@@ -143,20 +124,6 @@ func (d *MockPutDSL) IPScanNeighbor(val *vpp_l3.IPScanNeighbor) vppclient.PutDSL
 	return d
 }
 
-// L4Features adds a request to enable or disable L4 features
-func (d *MockPutDSL) L4Features(val *l4.L4Features) vppclient.PutDSL {
-	key := l4.FeatureKey()
-	d.parent.Values[key] = val
-	return d
-}
-
-// AppNamespace adds a request to create or update VPP Application namespace
-func (d *MockPutDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) vppclient.PutDSL {
-	key := l4.AppNamespacesKey(val.NamespaceId)
-	d.parent.Values[key] = val
-	return d
-}
-
 // StnRule adds a request to create or update Stn rule to the RESYNC request.
 func (d *MockPutDSL) StnRule(val *vpp_stn.Rule) vppclient.PutDSL {
 	key := vpp_stn.Key(val.Interface, val.IpAddress)
@@ -206,6 +173,13 @@ func (d *MockPutDSL) PuntToHost(val *vpp_punt.ToHost) vppclient.PutDSL {
 	return d
 }
 
+// VrfTable adds a request to create or update VPP VRF table.
+func (d *MockPutDSL) VrfTable(val *vpp_l3.VrfTable) vppclient.PutDSL {
+	key := vpp_l3.VrfTableKey(val.Id, val.Protocol)
+	d.parent.Values[key] = val
+	return d
+}
+
 // Delete changes the DSL mode to allow removal of an existing configuration.
 func (d *MockPutDSL) Delete() vppclient.DeleteDSL {
 	return &MockDeleteDSL{d.parent}
@@ -223,33 +197,16 @@ func (d *MockDeleteDSL) Interface(ifaceName string) vppclient.DeleteDSL {
 	return d
 }
 
-// BfdSession adds a mock request to delete an existing bidirectional forwarding
-// detection session.
-func (d *MockDeleteDSL) BfdSession(bfdSessionIfaceName string) vppclient.DeleteDSL {
-	key := bfd.SessionKey(bfdSessionIfaceName)
-	d.parent.Values[key] = nil
-	return d
-}
-
-// BfdAuthKeys adds a mock request to delete an existing bidirectional forwarding
-// detection key.
-func (d *MockDeleteDSL) BfdAuthKeys(bfdKey string) vppclient.DeleteDSL {
-	key := bfd.AuthKeysKey(bfdKey)
-	d.parent.Values[key] = nil
-	return d
-}
-
-// BfdEchoFunction adds a mock request to delete an existing bidirectional
-// forwarding detection echo function.
-func (d *MockDeleteDSL) BfdEchoFunction(bfdEchoName string) vppclient.DeleteDSL {
-	key := bfd.EchoFunctionKey(bfdEchoName)
+// ABF adds a request to delete and existing VPP Access Control List.
+func (d *MockDeleteDSL) ABF(abfIndex uint32) vppclient.DeleteDSL {
+	key := vpp_abf.Key(abfIndex)
 	d.parent.Values[key] = nil
 	return d
 }
 
 // BD adds a mock request to delete an existing VPP Bridge Domain.
 func (d *MockDeleteDSL) BD(bdName string) vppclient.DeleteDSL {
-	key := l2.BridgeDomainKey(bdName)
+	key := vpp_l2.BridgeDomainKey(bdName)
 	d.parent.Values[key] = nil
 	return d
 }
@@ -279,21 +236,6 @@ func (d *MockDeleteDSL) StaticRoute(vrf uint32, dstAddr string, nextHopAddr stri
 // ACL adds a mock request to delete an existing VPP Access Control List.
 func (d *MockDeleteDSL) ACL(aclName string) vppclient.DeleteDSL {
 	key := vpp_acl.Key(aclName)
-	d.parent.Values[key] = nil
-	return d
-}
-
-// L4Features adds a request to enable or disable L4 features
-func (d *MockDeleteDSL) L4Features() vppclient.DeleteDSL {
-	key := l4.FeatureKey()
-	d.parent.Values[key] = nil
-	return d
-}
-
-// AppNamespace adds a request to delete VPP Application namespace
-// Note: current version does not support application namespace deletion
-func (d *MockDeleteDSL) AppNamespace(id string) vppclient.DeleteDSL {
-	key := l4.AppNamespacesKey(id)
 	d.parent.Values[key] = nil
 	return d
 }
@@ -364,6 +306,13 @@ func (d *MockDeleteDSL) PuntIPRedirect(l3Proto vpp_punt.L3Protocol, txInterface 
 // PuntToHost adds request to delete a rule used to punt L4 traffic to a host.
 func (d *MockDeleteDSL) PuntToHost(l3Proto vpp_punt.L3Protocol, l4Proto vpp_punt.L4Protocol, port uint32) vppclient.DeleteDSL {
 	key := vpp_punt.ToHostKey(l3Proto, l4Proto, port)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// VrfTable adds a request to delete existing VPP VRF table.
+func (d *MockDeleteDSL) VrfTable(id uint32, proto vpp_l3.VrfTable_Protocol) vppclient.DeleteDSL {
+	key := vpp_l3.VrfTableKey(id, proto)
 	d.parent.Values[key] = nil
 	return d
 }

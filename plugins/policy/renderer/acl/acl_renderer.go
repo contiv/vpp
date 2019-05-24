@@ -26,10 +26,11 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
+	"strings"
 )
 
 const (
@@ -59,7 +60,7 @@ type Renderer struct {
 type Deps struct {
 	Log              logging.Logger
 	LogFactory       logging.LoggerFactory /* optional */
-	IPv4Net          ipv4net.API           /* for GetIfName() */
+	IPNet            ipnet.API             /* for GetIfName() */
 	ContivConf       ContivConf
 	UpdateTxnFactory func() (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
@@ -276,7 +277,7 @@ func (art *RendererTxn) reflectiveACL() *vpp_acl.ACL {
 // with the outside world.
 func (art *RendererTxn) getNodeOutputInterfaces() []string {
 	interfaces := []string{}
-	interfaces = append(interfaces, art.renderer.IPv4Net.GetHostInterconnectIfName())
+	interfaces = append(interfaces, art.renderer.IPNet.GetHostInterconnectIfName())
 	mainIface := art.renderer.ContivConf.GetMainInterfaceName()
 	if mainIface != "" {
 		interfaces = append(interfaces, mainIface)
@@ -284,11 +285,47 @@ func (art *RendererTxn) getNodeOutputInterfaces() []string {
 	for _, otherIface := range art.renderer.ContivConf.GetOtherVPPInterfaces() {
 		interfaces = append(interfaces, otherIface.InterfaceName)
 	}
-	vxlanBVI := art.renderer.IPv4Net.GetVxlanBVIIfName()
+	vxlanBVI := art.renderer.IPNet.GetVxlanBVIIfName()
 	if vxlanBVI != "" {
 		interfaces = append(interfaces, vxlanBVI)
 	}
 	return interfaces
+}
+
+// anyAddrForIPversion returns any addr for the IP version defined by given argument
+func anyAddrForIPversion(ip string) string {
+	if strings.Contains(ip, ":") {
+		return ipv6AddrAny
+	}
+	return ipv4AddrAny
+}
+
+// expandAnyAddr replaces empty string representing any networking in rules by explicit values
+func expandAnyAddr(rule *vpp_acl.ACL_Rule) []*vpp_acl.ACL_Rule {
+	// both networks are defined, no modification needed
+	if rule.IpRule.Ip.SourceNetwork != "" && rule.IpRule.Ip.DestinationNetwork != "" {
+		return []*vpp_acl.ACL_Rule{rule}
+	}
+	// match any version based on the filled network
+	if rule.IpRule.Ip.SourceNetwork != "" {
+		rule.IpRule.Ip.DestinationNetwork = anyAddrForIPversion(rule.IpRule.Ip.SourceNetwork)
+		return []*vpp_acl.ACL_Rule{rule}
+	}
+	if rule.IpRule.Ip.DestinationNetwork != "" {
+		rule.IpRule.Ip.SourceNetwork = anyAddrForIPversion(rule.IpRule.Ip.DestinationNetwork)
+		return []*vpp_acl.ACL_Rule{rule}
+	}
+	// create rules for IPv4 and IPv6 as well
+	rule6 := proto.Clone(rule).(*vpp_acl.ACL_Rule)
+	rule4 := proto.Clone(rule).(*vpp_acl.ACL_Rule)
+	rule4.IpRule.Ip.DestinationNetwork = ipv4AddrAny
+	rule4.IpRule.Ip.SourceNetwork = ipv4AddrAny
+
+	rule6.IpRule.Ip.DestinationNetwork = ipv6AddrAny
+	rule6.IpRule.Ip.SourceNetwork = ipv6AddrAny
+
+	return []*vpp_acl.ACL_Rule{rule4, rule6}
+
 }
 
 // renderACL renders ContivRuleTable into the equivalent ACL configuration.
@@ -354,7 +391,7 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable, isReflectiveACL 
 				aclRule.IpRule.Udp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
 			}
 		}
-		acl.Rules = append(acl.Rules, aclRule)
+		acl.Rules = append(acl.Rules, expandAnyAddr(aclRule)...)
 	}
 
 	table.Private = acl
@@ -369,7 +406,7 @@ func (art *RendererTxn) renderInterfaces(pods cache.PodSet, ingress bool) *vpp_a
 		// Get the interface associated with the pod.
 		ifName, found := art.renderer.podInterfaces[podID] // first query local cache
 		if !found {
-			ifName, found = art.renderer.IPv4Net.GetIfName(podID.Namespace, podID.Name) // next query IPv4Net plugin
+			ifName, _, _, found = art.renderer.IPNet.GetPodIfNames(podID.Namespace, podID.Name) // next query IPNet plugin
 			if !found {
 				// pod has been deleted in the meantime but notification from K8s
 				// has not arrived yet

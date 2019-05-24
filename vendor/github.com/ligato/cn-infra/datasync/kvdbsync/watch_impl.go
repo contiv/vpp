@@ -15,6 +15,7 @@
 package kvdbsync
 
 import (
+	"context"
 	"time"
 
 	"github.com/ligato/cn-infra/datasync"
@@ -22,12 +23,16 @@ import (
 	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/pkg/errors"
 )
 
 var (
-	// ResyncTimeout defines timeout used during
+	// ResyncAcceptTimeout defines timeout used for
+	// sending resync event to registered watchers.
+	ResyncAcceptTimeout = time.Second * 1
+	// ResyncDoneTimeout defines timeout used during
 	// resync after which resync will return an error.
-	ResyncTimeout = time.Second * 5
+	ResyncDoneTimeout = time.Second * 5
 )
 
 // WatchBrokerKeys implements go routines on top of Change & Resync channels.
@@ -81,7 +86,7 @@ func (keys *watchBrokerKeys) watchChanges(x datasync.ProtoWatchResp) {
 			syncbase.NewKeyVal(x.GetKey(), x, x.GetRevision()))
 	}
 
-	ch := NewChangeWatchResp(x, prev)
+	ch := NewChangeWatchResp(context.Background(), x, prev)
 	keys.changeChan <- ch
 	// TODO NICE-to-HAVE publish the err using the transport asynchronously
 }
@@ -130,21 +135,28 @@ func (keys *watchBrokerKeys) resync() error {
 	for _, keyPrefix := range keys.prefixes {
 		it, err := keys.adapter.db.ListValues(keyPrefix)
 		if err != nil {
-			return err
+			return errors.WithMessagef(err, "list values for %s failed", keyPrefix)
 		}
 		iterators[keyPrefix] = NewIterator(it)
 	}
 
-	resyncEvent := syncbase.NewResyncEventDB(iterators)
-	keys.resyncChan <- resyncEvent
+	resyncEvent := syncbase.NewResyncEventDB(context.Background(), iterators)
+
+	select {
+	case keys.resyncChan <- resyncEvent:
+		// ok
+	case <-time.After(ResyncAcceptTimeout):
+		logrus.DefaultLogger().Warn("Timeout of resync send!")
+		return errors.New("resync not accepted in time")
+	}
 
 	select {
 	case err := <-resyncEvent.DoneChan:
 		if err != nil {
-			return err
+			return errors.WithMessagef(err, "resync returned error")
 		}
-	case <-time.After(ResyncTimeout):
-		logrus.DefaultLogger().Warn("Timeout of resync callback")
+	case <-time.After(ResyncDoneTimeout):
+		logrus.DefaultLogger().Warn("Timeout of resync callback!")
 	}
 
 	return nil

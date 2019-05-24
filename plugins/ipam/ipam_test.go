@@ -31,7 +31,9 @@ import (
 	"github.com/ligato/cn-infra/logging/logrus"
 
 	"bytes"
+
 	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/contivconf/config"
 	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
@@ -66,9 +68,9 @@ var (
 	expectedPodSubnetThisNodeGatewayIP    = net.IPv4(1, 2, byte(b10000000+nodeID1>>5), byte((nodeID1<<3)+1)).To4()
 )
 
-func newDefaultConfig() *contivconf.Config {
-	return &contivconf.Config{
-		IPAMConfig: contivconf.IPAMConfigForJSON{
+func newDefaultConfig() *config.Config {
+	return &config.Config{
+		IPAMConfig: config.IPAMConfig{
 			PodSubnetCIDR:                 "1.2." + str(b10000000) + ".0/17",
 			PodSubnetOneNodePrefixLen:     29, // 3 bits left -> 4 free IP addresses (gateway IP + NAT-loopback IP + network addr + broadcast are reserved)
 			VPPHostSubnetCIDR:             "2.3." + str(b11000000) + ".0/18",
@@ -79,14 +81,14 @@ func newDefaultConfig() *contivconf.Config {
 	}
 }
 
-func setup(t *testing.T, cfg *contivconf.Config) *IPAM {
+func setup(t *testing.T, cfg *config.Config) *IPAM {
 	RegisterTestingT(t)
 	i, err := newIPAM(cfg, nodeID1)
 	Expect(err).To(BeNil())
 	return i
 }
 
-func newIPAM(cfg *contivconf.Config, nodeID uint32) (i *IPAM, err error) {
+func newIPAM(cfg *config.Config, nodeID uint32) (i *IPAM, err error) {
 	datasync := NewMockDataSync()
 	resyncEv, _ := datasync.ResyncEvent(podmodel.KeyPrefix())
 
@@ -159,7 +161,7 @@ func TestStaticGetters(t *testing.T) {
 	Expect(expectedVSwitchNetwork.Contains(i.HostInterconnectIPInVPP())).To(BeTrue(), "HostInterconnectIPInVPP is not in range of vSwitch network for given host.")
 }
 
-// TestDynamicGetters tests proper working IMAP API that provides data based on new input (func parameters)
+// TestDynamicGetters tests proper working IPAM API that provides data based on new input (func parameters)
 func TestDynamicGetters(t *testing.T) {
 	i := setup(t, newDefaultConfig())
 	ip, _, err := i.NodeIPAddress(nodeID2)
@@ -180,9 +182,68 @@ func TestDynamicGetters(t *testing.T) {
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(network("1.2." + str(b10000000+int(nodeID2>>5)) + "." + str(int(nodeID2<<3)) + "/29")))
 
+	id, err := i.NodeIDFromPodIP(net.ParseIP("1.2." + str(b10000000+int(nodeID2>>5)) + "." + str(int(nodeID2<<3))))
+	Expect(err).To(BeNil())
+	Expect(id).To(BeEquivalentTo(nodeID2))
+
 	ipNet, err = i.HostInterconnectSubnetOtherNode(nodeID2)
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(network("2.3." + str(b11000000+int(nodeID2>>6)) + "." + str(int(nodeID2<<2)) + "/30")))
+}
+
+// TestDynamicGettersIPv6 tests proper working IPAM API that provides data based on new input (func parameters)
+func TestDynamicGettersIPv6(t *testing.T) {
+
+	customConfig := newDefaultConfig()
+	customConfig.IPAMConfig.NodeInterconnectCIDR = "fe10:f00d::/90"
+	customConfig.IPAMConfig.VxlanCIDR = "fe20:f00d::/120"
+	customConfig.IPAMConfig.VPPHostSubnetCIDR = "fe30:f00d::/90"
+	customConfig.IPAMConfig.VPPHostSubnetOneNodePrefixLen = 126
+	customConfig.IPAMConfig.PodSubnetCIDR = "fe10:f00d::/90"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 120
+	customConfig.IPAMConfig.SRv6.ServicePolicyBSIDSubnetCIDR = "5555::/16"
+	customConfig.IPAMConfig.SRv6.ServicePodLocalSIDSubnetCIDR = "6666::/16"
+	customConfig.IPAMConfig.SRv6.ServiceHostLocalSIDSubnetCIDR = "6655::/16"
+	customConfig.IPAMConfig.SRv6.ServiceNodeLocalSIDSubnetCIDR = "7766::/16"
+	customConfig.IPAMConfig.SRv6.NodeToNodePodLocalSIDSubnetCIDR = "7777::/16"
+	customConfig.IPAMConfig.SRv6.NodeToNodeHostLocalSIDSubnetCIDR = "7799::/16"
+	customConfig.IPAMConfig.SRv6.NodeToNodePodPolicySIDSubnetCIDR = "8888::/16"
+	customConfig.IPAMConfig.SRv6.NodeToNodeHostPolicySIDSubnetCIDR = "9999::/16"
+
+	i := setup(t, customConfig)
+	Expect(i).NotTo(BeNil())
+
+	ip, ipNet, err := i.NodeIPAddress(nodeID2)
+	Expect(err).To(BeNil())
+	Expect(ip.String()).To(BeEquivalentTo("fe10:f00d::5"))
+	Expect(ipNet.String()).To(BeEquivalentTo("fe10:f00d::/90"))
+
+	ip, ipNet, err = i.VxlanIPAddress(nodeID2)
+	Expect(err).To(BeNil())
+	size, _ := ipNet.Mask.Size()
+	Expect(size).To(BeEquivalentTo(120))
+	Expect(ip.String()).To(BeEquivalentTo("fe20:f00d::5"))
+
+	ipNet, err = i.PodSubnetOtherNode(nodeID2)
+	Expect(err).To(BeNil())
+	Expect(ipNet.String()).To(BeEquivalentTo("fe10:f00d::500/120"))
+
+	id, err := i.NodeIDFromPodIP(net.ParseIP("fe10:f00d::500"))
+	Expect(err).To(BeNil())
+	Expect(id).To(BeEquivalentTo(nodeID2))
+
+	ipNet, err = i.HostInterconnectSubnetOtherNode(nodeID2)
+	Expect(err).To(BeNil())
+	Expect(ipNet.String()).To(BeEquivalentTo("fe30:f00d::14/126"))
+
+	Expect(i.SidForServiceHostLocalsid()).To(BeEquivalentTo(net.ParseIP("6655::1")))
+	Expect(i.BsidForServicePolicy([]net.IP{net.ParseIP("1111:2222::1")})).To(BeEquivalentTo(net.ParseIP("5555:2222::1")))
+	Expect(i.SidForServicePodLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("6666:2222::1")))
+	Expect(i.SidForServiceNodeLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("7766:2222::1")))
+	Expect(i.SidForNodeToNodePodLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("7777:2222::1")))
+	Expect(i.SidForNodeToNodeHostLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("7799:2222::1")))
+	Expect(i.BsidForNodeToNodePodPolicy(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("8888:2222::1")))
+	Expect(i.BsidForNodeToNodeHostPolicy(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("9999:2222::1")))
 }
 
 // TestBasicAllocateReleasePodAddress test simple happy path scenario for getting 1 pod address and releasing it
@@ -193,7 +254,43 @@ func TestBasicAllocateReleasePodAddress(t *testing.T) {
 	Expect(ip).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
-	err = i.ReleasePodIP(podID[0])
+	err = i.ReleasePodIPs(podID[0])
+	Expect(err).To(BeNil())
+}
+
+// TestBasicAllocateReleasePodAddressIPv6 test simple happy path scenario for getting 1 pod address and releasing it
+func TestBasicAllocateReleasePodAddressIPv6(t *testing.T) {
+	customConfig := newDefaultConfig()
+	customConfig.IPAMConfig.PodSubnetCIDR = "fe10:f00d::/90"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 120
+
+	i := setup(t, customConfig)
+	Expect(i).NotTo(BeNil())
+
+	ip, err := i.AllocatePodIP(podID[0], "", "")
+	Expect(err).To(BeNil())
+	Expect(ip).NotTo(BeNil())
+	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+
+	err = i.ReleasePodIPs(podID[0])
+	Expect(err).To(BeNil())
+}
+
+// TestWideIPv6PodSubenet verifies pod IP allocation in cases where more than 64 bits is reserved for pod Subnet on a node
+func TestWideIPv6PodSubenet(t *testing.T) {
+	customConfig := newDefaultConfig()
+	customConfig.IPAMConfig.PodSubnetCIDR = "2001::/48"
+	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 60
+
+	i := setup(t, customConfig)
+	Expect(i).NotTo(BeNil())
+
+	ip, err := i.AllocatePodIP(podID[0], "", "")
+	Expect(err).To(BeNil())
+	Expect(ip).NotTo(BeNil())
+	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+
+	err = i.ReleasePodIPs(podID[0])
 	Expect(err).To(BeNil())
 }
 
@@ -210,7 +307,7 @@ func TestAlreadyAllocatedAddress(t *testing.T) {
 	Expect(repeated).NotTo(BeNil())
 	Expect(bytes.Compare(repeated, ip)).To(BeZero())
 
-	err = i.ReleasePodIP(podID[0])
+	err = i.ReleasePodIPs(podID[0])
 	Expect(err).To(BeNil())
 }
 
@@ -229,7 +326,7 @@ func TestAssigniningIncrementalIPs(t *testing.T) {
 	Expect(second.String()).To(BeEquivalentTo("1.2.128.11"))
 	Expect(i.PodSubnetThisNode().Contains(second)).To(BeTrue(), "Pod IP address is not from pod network")
 
-	err = i.ReleasePodIP(podID[1])
+	err = i.ReleasePodIPs(podID[1])
 	Expect(err).To(BeNil())
 
 	// check that second is not reused
@@ -245,7 +342,7 @@ func TestAssigniningIncrementalIPs(t *testing.T) {
 	Expect(assigned).NotTo(BeNil())
 	Expect(i.PodSubnetThisNode().Contains(assigned)).To(BeTrue(), "Pod IP address is not from pod network")
 
-	// expect released ip to be reused
+	// expect released IP to be reused
 	reused, err := i.AllocatePodIP(podID[1], "", "")
 	Expect(err).To(BeNil())
 	Expect(reused).NotTo(BeNil())
@@ -263,7 +360,7 @@ func TestDistinctAllocations(t *testing.T) {
 
 // TestReleaseOfAllIPAddresses tests proper releasing of pod IP addresses by allocating them again. If any pod IP
 // address is not properly released then additional allocation of all pod IP addresses will fail (either
-// ipam.AllocatePodIP(...) will fail by providing all ip addresses or one ip addresses will be allocated twice)
+// ipam.AllocatePodIP(...) will fail by providing all IP addresses or one IP addresses will be allocated twice)
 func TestReleaseOfAllIPAddresses(t *testing.T) {
 	i := setup(t, newDefaultConfig())
 	exhaustPodIPAddresses(i, 4)
@@ -420,6 +517,24 @@ func TestExceededNodeIPRange(t *testing.T) {
 
 }
 
+func TestNodeCIDRIPv6(t *testing.T) {
+	RegisterTestingT(t)
+
+	customConfig := newDefaultConfig()
+	customConfig.IPAMConfig.NodeInterconnectCIDR = "fe10:f00d::/90"
+
+	i, err := newIPAM(customConfig, 1)
+	Expect(err).To(BeNil())
+	Expect(i).NotTo(BeNil())
+
+	ip, net, err := i.NodeIPAddress(1)
+
+	Expect(err).To(BeNil())
+	Expect(ip.String()).To(BeEquivalentTo("fe10:f00d::1"))
+	Expect(net.String()).To(BeEquivalentTo("fe10:f00d::/90"))
+
+}
+
 // TestConfigWithBadCIDR test if IPAM detects incorrect unparsable CIDR string and handles it correctly (initialization returns error)
 func TestConfigWithBadCIDR(t *testing.T) {
 	RegisterTestingT(t)
@@ -466,7 +581,7 @@ func TestExcludeGateway(t *testing.T) {
 
 	excluded := []net.IP{gw}
 	customConfig := newDefaultConfig()
-	customConfig.NodeConfig = append(customConfig.NodeConfig, contivconf.NodeConfig{
+	customConfig.NodeConfig = append(customConfig.NodeConfig, config.NodeConfig{
 		NodeName: nodeName,
 		NodeConfigSpec: nodeconfigcrd.NodeConfigSpec{
 			Gateway: gw.String(),
@@ -504,14 +619,14 @@ func exhaustPodIPAddresses(i *IPAM, maxIPCount int) (allocatedIPs []string, allo
 
 func releaseSomePodAddresses(i *IPAM, toRelease []podmodel.ID) {
 	for _, nodeID := range toRelease {
-		i.ReleasePodIP(nodeID)
+		i.ReleasePodIPs(nodeID)
 	}
 }
 
 func releaseAllPodAddresses(i *IPAM, ipCount int) {
 	for j := 1; j <= ipCount; j++ {
 		podID := podmodel.ID{Namespace: "default", Name: "pod" + strconv.Itoa(j)}
-		i.ReleasePodIP(podID)
+		i.ReleasePodIPs(podID)
 	}
 }
 

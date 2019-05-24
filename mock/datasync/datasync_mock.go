@@ -15,6 +15,7 @@
 package datasync
 
 import (
+	"golang.org/x/net/context"
 	"strings"
 
 	"github.com/gogo/protobuf/proto"
@@ -286,6 +287,11 @@ func (mpw *MockProtoWatchResp) GetPrevValue(prevValue proto.Message) (prevValueE
 	return true, proto.Unmarshal(tmp, prevValue)
 }
 
+// GetContext returns context associated with the event.
+func (mche *MockChangeEvent) GetContext() context.Context {
+	return nil
+}
+
 //// Resync Event ////
 
 // Done stores non-nil error to MockDataSync.
@@ -314,6 +320,11 @@ func (mre *MockResyncEvent) GetValues() map[ /*keyPrefix*/ string]datasync.KeyVa
 	}
 
 	return values
+}
+
+// GetContext returns context associated with the event.
+func (mre *MockResyncEvent) GetContext() context.Context {
+	return nil
 }
 
 //// Key Value Iterator ////

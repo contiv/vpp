@@ -376,25 +376,25 @@ bottom of the stack a set of NAT rules is calculated and installed into the VPP
 by the Ligato/vpp-agent.
 
 The Service plugin consists of two components: the Policy Processor that matches
-service metadata with endpoints and the NAT44 Renderer that maps service
-data received from the Processor into [protobuf-modelled][nat-model] NAT44
-configuration for the Ligato/vpp-agent to install in the VPP.
+service metadata with endpoints and the Renderer (NAT44 or SRv6) that maps service
+data received from the Processor into configuration ( [protobuf-modelled][nat-model] 
+NAT44 or [protobuf-modelled][srv6-model] SRv6) for the Ligato/vpp-agent to install 
+in the VPP.
 
-The plugin, however, is not restricted to VPP-NAT based implementation
+The plugin, however, is not restricted to VPP-NAT/SRv6 based implementation
 of Kubernetes services. The southbound of the processor is connected to
 the northbound of the renderer(s) via a generic [renderer API][renderer-api].
 The interface allows to have alternative and/or complementary Kubernetes service
-implementations via one or multiple plugged renderers. For example, in the near
-future it is planned to support both IPv4 and IPv6 protocols. For services,
-the two protocols could be handled separately by two different renderers.
-Similarly, the set of supported vswitches in the data plane could be extended
-simply by adding new renderers for services and policies. Another use-case is
-to provide alternative implementation of Kubernetes services for the same
-stack - one being the default, others possibly experimental or tailor-made for
-specific applications. The set of renderers to be activated can be configurable
-or determined from the environment. Every active renderer is given the same set
-of data from the processor and it is up to them to split the input and produce
-a complementary output. Currently, the NAT44 Renderer is the only implementation
+implementations via one or multiple plugged renderers. For example, NAT44 handles
+IPv4 protocol and SRv6 handles IPv6 protocol.Similarly, the set of supported 
+vswitches in the data plane could be extended simply by adding new renderers 
+for services and policies. Another use-case is to provide alternative 
+implementation of Kubernetes services for the same stack - one being the default, 
+others possibly experimental or tailor-made for specific applications. The set of 
+renderers to be activated can be configurable or determined from the environment. 
+Every active renderer is given the same set of data from the processor and it is 
+up to them to split the input and produce a complementary output. Currently, 
+the NAT44 Renderer(for IPv4) and SRv6 (for IPv6) are the only implementations 
 of Renderer API shipped with the plugin.
 
 The Renderer API defines server as an instance of `ContivService` - a structure
@@ -412,15 +412,15 @@ The [Service Plugin Skeleton][service-plugin-skeleton] implements the
 [Ligato plugin API][cn-infra], which makes it pluggable with the Ligato
 CN-Infra framework.
 
-Inside the Service Plugin's `Init()` method both Processor and NAT44 Renderer
+Inside the Service Plugin's `Init()` method both Processor and Renderer
 are initialized and dependency injection is performed - at the very minimum,
 every layer must depend on at least the layer below so that it can pass
 transformed data further down the stack.
 
 Additionally, the plugin itself is an [event handler][event-handler], registered
 into the main [event loop][event-loop-guide] of the Contiv agent *after* the
-[ipv4net plugin][ipv4net-plugin]. This ensures that connectivity between pods
-and the VPP is established before any NAT rules are installed.
+[ipnet plugin][ipnet-plugin]. This ensures that connectivity between pods
+and the VPP is established before any Renderer configuration is installed.
 
 The Service plugin reads the state of 2 Kubernetes [resources][db-resources]
 reflected into `etcd` by KSR and delegated to the plugin by resync and
@@ -460,7 +460,7 @@ BVI interface in the BD where all VXLAN tunnels are terminated. A service may
 have one or more endpoints deployed on another node, which makes `loop0` a
 potential Backend. Likewise, `tap0` is an entry point for potential endpoints
 in the host networking, thus we automatically mark it as Backend during resync.
-The processor learns the names of all VPP interfaces from the [ipv4net plugin][ipv4net-plugin].
+The processor learns the names of all VPP interfaces from the [ipnet plugin][ipnet-plugin].
 
 The processor outputs pre-processed service data to the layer below - renderers.
 The [processor API][processor-api] allows to register one or more renderers
@@ -504,6 +504,10 @@ periodically cleaning up inactive NAT sessions.
 
 ![NAT configuration example][nat-configuration-diagram]
 
+#### SRv6 Renderer
+The SRv6 Renderer maps `ContivService` instances into the corresponding [SRv6 model][srv6-model]
+instances that are then installed into VPP by the Ligato vpp Agent. See the [SRv6 README](../setup/SRV6.md)
+for more details on how SRv6 k8s service rendering works.
 
 [layers-diagram]: services/service-plugin-layers.png "Layering of the Service plugin"
 [nat-configuration-diagram]: services/nat-configuration.png "NAT configuration example"
@@ -520,6 +524,7 @@ periodically cleaning up inactive NAT sessions.
 [processor-data-resync]: http://github.com/contiv/vpp/tree/master/plugins/service/processor/data_resync.go
 [renderer-api]: http://github.com/contiv/vpp/blob/master/plugins/service/renderer/api.go
 [nat-model]: https://github.com/ligato/vpp-agent/blob/dev/api/models/vpp/nat/nat.proto
+[srv6-model]: https://github.com/ligato/vpp-agent/blob/dev/api/models/vpp/srv6/srv6.proto
 [vpp-agent-nat-plugin]: https://github.com/ligato/vpp-agent/tree/dev/plugins/vpp/natplugin
 [controller-plugin]: https://github.com/contiv/vpp/blob/master/plugins/controller/plugin_controller.go
 [transaction-api]: https://github.com/contiv/vpp/blob/master/plugins/controller/api/txn.go
@@ -532,10 +537,9 @@ periodically cleaning up inactive NAT sessions.
 [eps-model]: https://github.com/contiv/vpp/blob/master/plugins/ksr/model/endpoints/endpoints.proto
 [nodesync-plugin]: https://github.com/contiv/vpp/tree/master/plugins/nodesync
 [contiv-cni-conflist]: https://github.com/contiv/vpp/blob/master/docker/vpp-cni/10-contiv-vpp.conflist
-[ipv4net-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipv4net
+[ipnet-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipnet
 [ipam-plugin]: https://github.com/contiv/vpp/tree/master/plugins/ipam
 [local-client]: https://github.com/ligato/vpp-agent/tree/dev/clientv2
 [event-loop-guide]: EVENT_LOOP.md
 [event-handler]: EVENT_LOOP.md#event-handler
 [db-resources]: https://github.com/contiv/vpp/tree/master/dbresources
-

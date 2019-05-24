@@ -18,10 +18,10 @@ package api
 
 import (
 	"context"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/idxmap"
-	"time"
 )
 
 // KeySelector is used to filter keys.
@@ -192,11 +192,13 @@ func (v View) String() string {
 //     as a plotted graph (returned via REST) with values as nodes (colored to
 //     distinguish various value states) and dependencies/derivations as edges.
 type KVScheduler interface {
-	// RegisterKVDescriptor registers descriptor for a set of selected
+	ValueProvider
+
+	// RegisterKVDescriptor registers descriptor(s) for a set of selected
 	// keys. It should be called in the Init phase of agent plugins.
 	// Every key-value pair must have at most one descriptor associated with it
 	// (none for derived values expressing properties).
-	RegisterKVDescriptor(descriptor *KVDescriptor) error
+	RegisterKVDescriptor(descriptor ...*KVDescriptor) error
 
 	// GetRegisteredNBKeyPrefixes returns a list of key prefixes from NB with values
 	// described by registered descriptors and therefore managed by the scheduler.
@@ -246,7 +248,10 @@ type KVScheduler interface {
 	// GetRecordedTransaction returns record of a transaction referenced
 	// by the sequence number.
 	GetRecordedTransaction(SeqNum uint64) (txn *RecordedTxn)
+}
 
+// ValueProvider provides key/value data from different sources in system (NB, SB, KVProvider cache of SB)
+type ValueProvider interface {
 	// DumpValuesByDescriptor dumps values associated with the given
 	// descriptor as viewed from either NB (what was requested to be applied),
 	// SB (what is actually applied) or from the inside (what kvscheduler's

@@ -26,18 +26,18 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet/restapi"
 	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/remote"
-	"github.com/ligato/vpp-agent/plugins/restv2/resturl"
-	vppif "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
-	arpdescr "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/descriptor"
+	"github.com/ligato/vpp-agent/plugins/restapi/resturl"
+	vppif "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
+	arpdescr "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/descriptor"
 )
 
 type nodeData struct {
-	ipam *ipv4net.IPAMData
+	ipam *restapi.NodeIPAMInfo
 	ifcs map[uint32]*vppif.InterfaceDetails
 	arps telemetrymodel.NodeIPArpTable
 }
@@ -176,7 +176,7 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (uint32, string) {
 			return 0, "N/A"
 		}
 
-		ipam := &ipv4net.IPAMData{}
+		ipam := &restapi.NodeIPAMInfo{}
 		if err := json.Unmarshal(b, ipam); err != nil {
 			fmt.Printf("Host '%s', Pod '%s' - failed to decode ipam, err %s\n",
 				podInfo.HostIpAddress, podInfo.Name, err)
@@ -193,7 +193,7 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (uint32, string) {
 		}
 
 		// Get arp entries
-		arpDumpCmd := vppDumpCommand(arpdescr.ArpDescriptorName)
+		arpDumpCmd := kvschedulerDumpCmd + "?view=NB&descriptor=" + arpdescr.ArpDescriptorName
 		b, err = getNodeInfo(pg.client, podInfo.HostIpAddress, arpDumpCmd)
 		arps := telemetrymodel.NodeIPArpTable{}
 		if err := json.Unmarshal(b, &arps); err != nil {

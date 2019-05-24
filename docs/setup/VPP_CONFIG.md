@@ -48,6 +48,12 @@ api-trace {
    on
    nitems 5000
 }
+socksvr {
+   default
+}
+statseg {
+   default
+}
 ```
 
 
@@ -100,6 +106,12 @@ dpdk {
 api-trace {
    on
    nitems 5000
+}
+socksvr {
+   default
+}
+statseg {
+   default
 }
 ```
 

@@ -1,5 +1,5 @@
 # 1. Backend
-FROM arm64v8/golang:1.10.7-alpine3.8 as builder
+FROM arm64v8/golang:1.11.5-alpine3.8 as builder
 ENV CGO_ENABLED=0
 RUN apk add --update git make
 COPY . /go/src/github.com/contiv/vpp
@@ -16,6 +16,7 @@ ENV PATH="/root/.npm-global/bin:${PATH}"
 ENV NPM_CONFIG_LOGLEVEL warn
 ENV NPM_CONFIG_PREFIX=/root/.npm-global
 
+RUN apk --no-cache add build-base
 RUN npm config set unsafe-perm true
 RUN npm install -g npm@latest
 RUN npm install -g @angular/cli@7.0.2

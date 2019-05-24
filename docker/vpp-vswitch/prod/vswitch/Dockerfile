@@ -2,12 +2,12 @@ FROM ubuntu:18.04
 
 RUN apt-get update \
  && apt-get install -y \
-        # vpp-agent & vpp process manager
-        python supervisor \
         # vpp requirements
         openssl libapr1 libnuma1 libmbedcrypto1 libmbedtls10 libmbedx509-0 \
         # required for disabling TCP checksum offload in containers
         ethtool \
+        # required for ipv6 services implementation
+        iptables \
         # network tools
         iproute2 iputils-ping inetutils-traceroute \
         # ability to run vpptrace.sh
@@ -15,9 +15,6 @@ RUN apt-get update \
         # ability to visualize graph of configured objects
         graphviz \
  && rm -rf /var/lib/apt/lists/*
-
-# use /opt/vpp-agent/dev as the working directory
-RUN mkdir /etc/supervisord
 
 # set work directory
 WORKDIR /root/
@@ -36,8 +33,7 @@ ADD binaries/vpptrace.sh .
 # add defualt VPP startup config as contiv-vswitch.conf
 COPY vswitch/vpp.conf /etc/vpp/contiv-vswitch.conf
 COPY vswitch/govpp.conf /etc/govpp/govpp.conf
-COPY vswitch/supervisord.conf /etc/supervisord.conf
 COPY vswitch/vppctl /usr/local/bin/vppctl
 
-# run supervisord as the default executable
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+# run contiv-init as the default executable
+CMD ["/usr/bin/contiv-init"]

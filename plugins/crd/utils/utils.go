@@ -19,6 +19,7 @@ package utils
 import (
 	"context"
 	"encoding/json"
+	contivppio "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	telemetry "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
 	"github.com/unrolled/render"
@@ -42,6 +43,10 @@ func GetObjectMetaData(obj interface{}) meta.ObjectMeta {
 	case *telemetry.TelemetryReport:
 		objectMeta = object.ObjectMeta
 	case *nodeconfig.NodeConfig:
+		objectMeta = object.ObjectMeta
+	case *contivppio.CustomNetwork:
+		objectMeta = object.ObjectMeta
+	case *contivppio.ServiceFunctionChain:
 		objectMeta = object.ObjectMeta
 	}
 

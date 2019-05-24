@@ -17,17 +17,17 @@ package telemetrymodel
 import (
 	"github.com/gogo/protobuf/jsonpb"
 
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet/restapi"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
-	linux_ifaceidx "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/ifaceidx"
-	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
+	linux_ifaceidx "github.com/ligato/vpp-agent/plugins/linux/ifplugin/ifaceidx"
+	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
 
 	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/l2"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/ligato/vpp-agent/pkg/idxvpp2"
+	"github.com/ligato/vpp-agent/pkg/idxvpp"
 )
 
 /*********************************** Reports **********************************/
@@ -78,7 +78,7 @@ type Node struct {
 	NodeL2Fibs        NodeL2FibTable
 	NodeIPArp         NodeIPArpTable
 	NodeStaticRoutes  NodeStaticRoutes
-	NodeIPam          *ipv4net.IPAMData
+	NodeIPam          *restapi.NodeIPAMInfo
 	LinuxInterfaces   LinuxInterfaces
 
 	// pods
@@ -131,7 +131,7 @@ type NodeBridgeDomains []NodeBridgeDomain
 type NodeBridgeDomain struct {
 	Key      string
 	Value    VppBridgeDomain
-	Metadata idxvpp2.OnlyIndex
+	Metadata idxvpp.OnlyIndex
 }
 
 // VppBridgeDomain extends VPP BD proto model with JSON un-marshaller from jsonpb.

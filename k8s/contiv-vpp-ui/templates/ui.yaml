@@ -48,7 +48,11 @@ spec:
         node-role.kubernetes.io/master: ""
       containers:
         - name: ui
+          {{- if .Values.Arm64Platform }}
+          image: {{ .Values.image_arm64.repository}}:{{ .Values.image_arm64.tag }}
+          {{- else }}
           image: {{ .Values.image.repository}}:{{ .Values.image.tag }}
+          {{- end }}
           env:
             - name: CONTIV_UI_CONF
               value: "/etc/contiv-ui/contiv-ui.conf"

@@ -25,7 +25,7 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -57,7 +57,7 @@ type Deps struct {
 	NodeSync     nodesync.API
 	PodManager   podmanager.API
 	IPAM         ipam.API
-	IPv4Net      ipv4net.API
+	IPNet        ipnet.API
 }
 
 // LocalEndpoint represents a node-local endpoint.
@@ -143,7 +143,7 @@ func (sp *ServiceProcessor) ProcessNewPod(podNamespace string, podName string) e
 
 	localEp := sp.getLocalEndpoint(podID)
 
-	ifName, ifExists := sp.IPv4Net.GetIfName(podID.Namespace, podID.Name)
+	ifName, _, _, ifExists := sp.IPNet.GetPodIfNames(podID.Namespace, podID.Name)
 	if !ifExists {
 		sp.Log.WithFields(logging.Fields{
 			"pod-ns":   podID.Namespace,
@@ -421,7 +421,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	// Fill up the set of frontend/backend interfaces and local endpoints.
 	// With physical interfaces also build SNAT configuration.
 	// -> VXLAN BVI interface
-	vxlanBVIIf := sp.IPv4Net.GetVxlanBVIIfName()
+	vxlanBVIIf := sp.IPNet.GetVxlanBVIIfName()
 	if vxlanBVIIf != "" {
 		sp.frontendIfs.Add(vxlanBVIIf)
 		sp.backendIfs.Add(vxlanBVIIf)
@@ -439,7 +439,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		sp.frontendIfs.Add(physIf.InterfaceName)
 	}
 	// -> host interconnect
-	hostInterconnect := sp.IPv4Net.GetHostInterconnectIfName()
+	hostInterconnect := sp.IPNet.GetHostInterconnectIfName()
 	if hostInterconnect != "" {
 		sp.frontendIfs.Add(hostInterconnect)
 		sp.backendIfs.Add(hostInterconnect)
@@ -447,7 +447,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	// -> pods
 	for _, podID := range resyncEv.Pods {
 		// -> pod interface
-		ifName, ifExists := sp.IPv4Net.GetIfName(podID.Namespace, podID.Name)
+		ifName, _, _, ifExists := sp.IPNet.GetPodIfNames(podID.Namespace, podID.Name)
 		if !ifExists {
 			// not an error, this is just pod deployed in the host networking
 			continue

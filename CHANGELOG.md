@@ -1,3 +1,83 @@
+# Release v3.1.0 (2019-05-17)
+
+### VPP
+ - version **v19.01** (latest stable/1901)
+
+### New Features & Enhancements
+ - update to vpp-agent `v2.1.0`
+ - [multi-master](docs/setup/MULTI_MASTER.md) and [external ETCD](docs/setup/EXTERNAL_ETCD.md) support
+ - experimental [SRv6 implementation of k8s services](docs/setup/SRV6.md)
+ - experimental support for [multiple pod interfaces](docs/operation/CUSTOM_POD_INTERFACES.md), 
+ including memif interfaces
+ - load-balancing between backends of a service now supports unlimited backend pod count
+
+### Known Issues
+ - (IPv6 only): service load-balancing in IPv6 setup is not equal, node-local backend pods are always
+   preferred and a request is never load-balanced to a remote node's pod if there is a local backend
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
+# Release v3.0.1 (2019-04-08)
+
+### VPP
+ - version **v18.10** (latest stable/1810)
+
+### Bugfixes
+ - update to vpp-agent `v2.0.1` (includes a GoVPP fix for unix-domain socket communication)
+ - fixed IPv6 policy rendering for host-network pods
+
+### Known Issues
+ - load-balancing between backends of a service is limited to the first 256 PODs
+   (the others will not receive any traffic until some of the first 256 PODs disappear)
+ - (IPv6 only): service load-balancing in IPv6 setup is not equal, node-local backend pods are always
+   preferred and a request is never load-balanced to a remote node's pod if there is a local backend
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
+# Release v3.0.0 (2019-04-04)
+
+### VPP
+ - version **v18.10** (latest stable/1810)
+
+### New Features & Enhancements
+ - [IPv6 Support](docs/setup/IPV6.md)
+ - internal process manager is now used to manage Contiv-Agent & VPP processes inside of the
+   vswitch container (instead of the supervisor tool)
+ - ability to use unix domain socket for connection to VPP for better performance
+   (`contiv.vswitch.useSocketVPPConnection` helm option)
+ - `contiv.useL2Interconnect` helm option renamed to `contiv.useNoOverlay`
+ - Vagrant optimized to boot faster using pre-build images
+
+### Bugfixes
+ - fixed Prometheus stats exporter
+
+### Known Issues
+ - load-balancing between backends of a service is limited to the first 256 PODs
+   (the others will not receive any traffic until some of the first 256 PODs disappear)
+ - (IPv6 only): service load-balancing in IPv6 setup is not equal, node-local backend pods are always
+   preferred and a request is never load-balanced to a remote node's pod if there is a local backend
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
+# Release v2.1.4 (21.3.2019)
+
+### VPP
+ - version **v18.10** (latest stable/1810)
+
+### New Features & Enhancements
+ - added `etcd.service.useNodeIP` HELM option
+
+### Bugfixes
+ - vswitch base image updated to the newest ubuntu:18.04 build, which fixes some security vulnerabilities
+
+### Known Issues
+ - load-balancing between backends of a service is limited to the first 256 PODs
+   (the others will not receive any traffic until some of the first 256 PODs disappear)
+
+
 # Release v2.1.3 (26.2.2019)
 
 ### VPP

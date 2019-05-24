@@ -1,6 +1,7 @@
 ---
 contiv:
-  useL2Interconnect: false
+  useNoOverlay: false
+  useSRv6Interconnect: false
   useTAPInterfaces: true
   tapInterfaceVersion: 2
   tapv2RxRingSize: 256
@@ -9,7 +10,7 @@ contiv:
   vmxnet3TxRingSize: 1024
   interfaceRxMode: "default"
   stealFirstNIC: false
-  stnVersion: 1
+  stnVersion: 2
   natExternalTraffic: true
   mtuSize: 1450
   cleanupIdleNATSessions: true
@@ -56,6 +57,15 @@ contiv:
     #       ip: "3.4.5.6/24"
     #     - interfaceName: "GigabitEthernet0/7/0"
     #       ip: "5.6.7.8/24"
+    srv6:
+      servicePolicyBSIDSubnetCIDR: 5555::/16
+      servicePodLocalSIDSubnetCIDR: 6666::/16
+      serviceHostLocalSIDSubnetCIDR: 6655::/16
+      serviceNodeLocalSIDSubnetCIDR: 7766::/16
+      nodeToNodePodLocalSIDSubnetCIDR: 7777::/16
+      nodeToNodeHostLocalSIDSubnetCIDR: 7799::/16
+      nodeToNodePodPolicySIDSubnetCIDR: 8888::/16
+      nodeToNodeHostPolicySIDSubnetCIDR: 9999::/16
 logs:
   defaultLevel: debug
 
@@ -93,6 +103,11 @@ etcd:
   dataDir: /var/etcd
   usePersistentVolume: false
   persistentVolumeSize: 2Gi
+  useExternalInstance: false
+  externalInstance:
+    secretName: my-etcd-secrets
+    endpoints:
+      - 127.0.0.1:31379
   # if secureTransport is enabled, secrets need to point to proper certificates
   secureTransport: false
   secrets:
@@ -134,6 +149,7 @@ vswitch:
   cpuLimit: 0
   enableCoreDumps: true
   coreDumpsDir: /var/contiv/dumps
+  useSocketVPPConnection: false
 
 cni:
   image:

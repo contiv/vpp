@@ -86,12 +86,17 @@ func (client *HTTPClient) createURL(base string, cmd string) string {
 	if client.Config.UseHTTPS {
 		url = "https://"
 	}
+	if strings.Contains(base, ":") {
+		url += "[" + base + "]"
+	} else {
+		url += base
+	}
 
 	// Add port as suffix
-	url = url + base + ":" + client.Config.Port
+	url += ":" + client.Config.Port
 
 	// Append command
-	url = url + "/" + cmd
+	url += "/" + cmd
 	return url
 }
 

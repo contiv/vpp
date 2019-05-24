@@ -23,20 +23,17 @@ import (
 	"time"
 
 	govpp "git.fd.io/govpp.git/api"
-	"github.com/gogo/protobuf/proto"
-
-	"github.com/ligato/cn-infra/logging"
-
-	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
-
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
+	"github.com/gogo/protobuf/proto"
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/api/models/vpp/nat"
+	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/nat"
 )
 
 const (
@@ -117,7 +114,7 @@ type Deps struct {
 	Config           *config.Config
 	ContivConf       contivconf.API
 	IPAM             ipam.API
-	IPv4Net          ipv4net.API
+	IPNet            ipnet.API
 	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
 	GoVPPChan        govpp.Channel      /* used for direct NAT binary API calls */
@@ -295,10 +292,10 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 		// interface as the cluster-outbound traffic, then we have to disable
 		// the dynamic SNAT.
 		// Policies require that intra-cluster traffic is not SNATed, but in
-		// the pure L2 mode without VXLANs this cannot be achieved with the VPP/NAT
+		// the no-overlay mode without VXLANs this cannot be achieved with the VPP/NAT
 		// plugin. On the other hand, with VXLANs we can define identity NAT to
 		// exclude VXLAN-encapsulated traffic from being SNATed.
-		if rndr.IPv4Net.GetVxlanBVIIfName() == "" &&
+		if rndr.IPNet.GetVxlanBVIIfName() == "" &&
 			rndr.defaultIfName == rndr.ContivConf.GetMainInterfaceName() {
 			rndr.defaultIfName = ""
 			rndr.defaultIfIP = nil
@@ -384,7 +381,7 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 // If the default GW is not configured, the function returns zero values.
 func (rndr *Renderer) getDefaultInterface() (ifName string, ifAddress net.IP) {
 	mainPhysicalIf := rndr.ContivConf.GetMainInterfaceName()
-	mainIP, mainIPNet := rndr.IPv4Net.GetNodeIP()
+	mainIP, mainIPNet := rndr.IPNet.GetNodeIP()
 
 	if rndr.ContivConf.InSTNMode() || rndr.ContivConf.UseDHCP() {
 		return mainPhysicalIf, mainIP
@@ -441,6 +438,9 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 	for _, ip := range serviceIPs.List() {
 		if ip.To4() != nil {
 			ip = ip.To4()
+		} else {
+			// do not configure service for ipv6 address
+			continue
 		}
 		// Add one mapping for each port.
 		for portName, port := range service.Ports {
@@ -484,12 +484,12 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 				if rndr.isThisNodeOrHostIP(backend.IP) {
 					local.VrfId = routingCfg.MainVRFID
 				} else {
-					if rndr.ContivConf.GetRoutingConfig().UseL2Interconnect &&
+					if rndr.ContivConf.GetRoutingConfig().UseNoOverlay &&
 						(!rndr.isLocalPodIP(backend.IP)) {
-						// L2 mode: use main VRF for non-local PODs and other node's IPs
+						// no overlay mode: use main VRF for non-local PODs and other node's IPs
 						local.VrfId = routingCfg.MainVRFID
 					} else {
-						// use POD VRF for local PODs (both L2 & VXLAN mode)
+						// use POD VRF for local PODs (both no-overlay & VXLAN mode)
 						// and non-local PODs + non-local node IPs in VXLAN mode
 						local.VrfId = routingCfg.PodVRFID
 					}
@@ -513,11 +513,11 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 
 // isThisNodeOrHostIP returns true if the given IP is current node's node (VPP) or host (mgmt) IP, false otherwise.
 func (rndr *Renderer) isThisNodeOrHostIP(ip net.IP) bool {
-	nodeIP, _ := rndr.IPv4Net.GetNodeIP()
+	nodeIP, _ := rndr.IPNet.GetNodeIP()
 	if ip.Equal(nodeIP) {
 		return true
 	}
-	for _, hostIP := range rndr.IPv4Net.GetHostIPs() {
+	for _, hostIP := range rndr.IPNet.GetHostIPs() {
 		if hostIP.Equal(ip) {
 			return true
 		}

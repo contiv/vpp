@@ -38,6 +38,13 @@ type LocalPod struct {
 	ID               podmodel.ID
 	ContainerID      string
 	NetworkNamespace string
+	Metadata         *PodMetadata
+}
+
+// PodMetadata holds k8s metadata of a pod.
+type PodMetadata struct {
+	Labels      map[string]string
+	Annotations map[string]string
 }
 
 // LocalPods is a map of pod-ID -> Pod info.
@@ -45,8 +52,8 @@ type LocalPods map[podmodel.ID]*LocalPod
 
 // String returns human-readable string representation of pod metadata.
 func (p *LocalPod) String() string {
-	return fmt.Sprintf("Pod <ID:%v, Container:%s, Ns:%s>",
-		p.ID, p.ContainerID, p.NetworkNamespace)
+	return fmt.Sprintf("Pod <ID:%v, Container:%s, Ns:%s, Meta:%v>",
+		p.ID, p.ContainerID, p.NetworkNamespace, p.Metadata)
 }
 
 // String returns a string representation of the pods.
@@ -209,9 +216,9 @@ func (ev *DeletePod) Method() controller.EventMethodType {
 	return controller.Update
 }
 
-// TransactionType is BestEffort.
+// TransactionType is BestEffortIgnoreErrors.
 func (ev *DeletePod) TransactionType() controller.UpdateTransactionType {
-	return controller.BestEffort
+	return controller.BestEffortIgnoreErrors
 }
 
 // Direction is Reverse.

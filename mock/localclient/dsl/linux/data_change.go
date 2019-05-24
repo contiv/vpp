@@ -7,6 +7,7 @@ import (
 	"github.com/contiv/vpp/mock/localclient/dsl"
 	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
+	"github.com/ligato/vpp-agent/api/models/vpp/abf"
 	"github.com/ligato/vpp-agent/api/models/vpp/acl"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
@@ -15,8 +16,6 @@ import (
 	"github.com/ligato/vpp-agent/api/models/vpp/nat"
 	"github.com/ligato/vpp-agent/api/models/vpp/punt"
 	"github.com/ligato/vpp-agent/api/models/vpp/stn"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/l4"
 )
 
 // MockDataChangeDSL is mock for DataChangeDSL.
@@ -64,26 +63,9 @@ func (d *MockPutDSL) VppInterface(val *vpp_interfaces.Interface) linuxclient.Put
 	return d
 }
 
-// BfdSession adds a mock request to create or update bidirectional forwarding
-// detection session.
-func (d *MockPutDSL) BfdSession(val *bfd.SingleHopBFD_Session) linuxclient.PutDSL {
-	key := bfd.SessionKey(val.Interface)
-	d.parent.Values[key] = val
-	return d
-}
-
-// BfdAuthKeys adds a mock request to create or update bidirectional forwarding
-// detection key.
-func (d *MockPutDSL) BfdAuthKeys(val *bfd.SingleHopBFD_Key) linuxclient.PutDSL {
-	key := bfd.AuthKeysKey(string(val.Id))
-	d.parent.Values[key] = val
-	return d
-}
-
-// BfdEchoFunction adds a mock request to create or update bidirectional
-// forwarding detection echo function.
-func (d *MockPutDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) linuxclient.PutDSL {
-	key := bfd.EchoFunctionKey(val.EchoSourceInterface)
+// ABF adds a request to create or update VPP ACL-based forwarding.
+func (d *MockPutDSL) ABF(val *vpp_abf.ABF) linuxclient.PutDSL {
+	key := vpp_abf.Key(val.Index)
 	d.parent.Values[key] = val
 	return d
 }
@@ -131,13 +113,6 @@ func (d *MockPutDSL) Arp(val *vpp_l3.ARPEntry) linuxclient.PutDSL {
 	return d
 }
 
-// L4Features adds a request to enable or disable L4 features
-func (d *MockPutDSL) L4Features(val *l4.L4Features) linuxclient.PutDSL {
-	key := l4.FeatureKey()
-	d.parent.Values[key] = val
-	return d
-}
-
 // ProxyArp adds a request to create or update VPP L3 proxy ARP.
 func (d *MockPutDSL) ProxyArp(val *vpp_l3.ProxyARP) linuxclient.PutDSL {
 	key := vpp_l3.ProxyARPKey()
@@ -148,13 +123,6 @@ func (d *MockPutDSL) ProxyArp(val *vpp_l3.ProxyARP) linuxclient.PutDSL {
 // IPScanNeighbor adds L3 IP Scan Neighbor to the RESYNC request.
 func (d *MockPutDSL) IPScanNeighbor(val *vpp_l3.IPScanNeighbor) linuxclient.PutDSL {
 	key := vpp_l3.IPScanNeighborKey()
-	d.parent.Values[key] = val
-	return d
-}
-
-// AppNamespace adds a request to create or update VPP Application namespace
-func (d *MockPutDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) linuxclient.PutDSL {
-	key := l4.AppNamespacesKey(val.NamespaceId)
 	d.parent.Values[key] = val
 	return d
 }
@@ -227,6 +195,13 @@ func (d *MockPutDSL) PuntToHost(val *vpp_punt.ToHost) linuxclient.PutDSL {
 	return d
 }
 
+// VrfTable adds a request to create or update VPP VRF table.
+func (d *MockPutDSL) VrfTable(val *vpp_l3.VrfTable) linuxclient.PutDSL {
+	key := vpp_l3.VrfTableKey(val.Id, val.Protocol)
+	d.parent.Values[key] = val
+	return d
+}
+
 // Delete changes the DSL mode to allow removal of an existing configuration.
 func (d *MockPutDSL) Delete() linuxclient.DeleteDSL {
 	return &MockDeleteDSL{d.parent}
@@ -244,26 +219,9 @@ func (d *MockDeleteDSL) VppInterface(interfaceName string) linuxclient.DeleteDSL
 	return d
 }
 
-// BfdSession adds a mock request to delete an existing bidirectional forwarding
-// detection session.
-func (d *MockDeleteDSL) BfdSession(bfdSessionIfaceName string) linuxclient.DeleteDSL {
-	key := bfd.SessionKey(bfdSessionIfaceName)
-	d.parent.Values[key] = nil
-	return d
-}
-
-// BfdAuthKeys adds a mock request to delete an existing bidirectional forwarding
-// detection key.
-func (d *MockDeleteDSL) BfdAuthKeys(bfdKey string) linuxclient.DeleteDSL {
-	key := bfd.AuthKeysKey(bfdKey)
-	d.parent.Values[key] = nil
-	return d
-}
-
-// BfdEchoFunction adds a mock request to delete an existing bidirectional
-// forwarding detection echo function.
-func (d *MockDeleteDSL) BfdEchoFunction(bfdEchoName string) linuxclient.DeleteDSL {
-	key := bfd.EchoFunctionKey(bfdEchoName)
+// ABF adds a request to delete and existing VPP Access Control List.
+func (d *MockDeleteDSL) ABF(abfIndex uint32) linuxclient.DeleteDSL {
+	key := vpp_abf.Key(abfIndex)
 	d.parent.Values[key] = nil
 	return d
 }
@@ -304,13 +262,6 @@ func (d *MockDeleteDSL) ACL(aclName string) linuxclient.DeleteDSL {
 	return d
 }
 
-// L4Features delete request for the L4Features
-func (d *MockDeleteDSL) L4Features() linuxclient.DeleteDSL {
-	key := l4.FeatureKey()
-	d.parent.Values[key] = nil
-	return d
-}
-
 // Arp adds a request to delete an existing VPP L3 ARP entry.
 func (d *MockDeleteDSL) Arp(ifaceName string, ipAddr string) linuxclient.DeleteDSL {
 	key := vpp_l3.ArpEntryKey(ifaceName, ipAddr)
@@ -328,13 +279,6 @@ func (d *MockDeleteDSL) ProxyArp() linuxclient.DeleteDSL {
 // IPScanNeighbor adds a request to delete an existing VPP L3 IP Scan Neighbor.
 func (d *MockDeleteDSL) IPScanNeighbor() linuxclient.DeleteDSL {
 	key := vpp_l3.IPScanNeighborKey()
-	d.parent.Values[key] = nil
-	return d
-}
-
-// AppNamespace adds a request to delete an existing VPP Application Namespace.
-func (d *MockDeleteDSL) AppNamespace(id string) linuxclient.DeleteDSL {
-	key := l4.AppNamespacesKey(id)
 	d.parent.Values[key] = nil
 	return d
 }
@@ -404,6 +348,13 @@ func (d *MockDeleteDSL) PuntIPRedirect(l3Proto vpp_punt.L3Protocol, txInterface 
 // PuntToHost adds request to delete a rule used to punt L4 traffic to a host.
 func (d *MockDeleteDSL) PuntToHost(l3Proto vpp_punt.L3Protocol, l4Proto vpp_punt.L4Protocol, port uint32) linuxclient.DeleteDSL {
 	key := vpp_punt.ToHostKey(l3Proto, l4Proto, port)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// VrfTable adds a request to delete existing VPP VRF table.
+func (d *MockDeleteDSL) VrfTable(id uint32, proto vpp_l3.VrfTable_Protocol) linuxclient.DeleteDSL {
+	key := vpp_l3.VrfTableKey(id, proto)
 	d.parent.Values[key] = nil
 	return d
 }

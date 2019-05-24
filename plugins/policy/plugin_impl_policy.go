@@ -20,14 +20,16 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
-	"github.com/contiv/vpp/plugins/ipv4net"
+	"github.com/contiv/vpp/plugins/ipnet"
 	"github.com/contiv/vpp/plugins/ksr/model/namespace"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/ksr/model/policy"
+	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/policy/cache"
 	"github.com/contiv/vpp/plugins/policy/configurator"
 	"github.com/contiv/vpp/plugins/policy/processor"
 	"github.com/contiv/vpp/plugins/policy/renderer/acl"
+	"github.com/contiv/vpp/plugins/policy/renderer/iptables"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -56,6 +58,9 @@ type Plugin struct {
 	// Policy Renderers: layer 4
 	//  -> ACL Renderer
 	aclRenderer *acl.Renderer
+	//  -> iptables Renderer
+	iptablesRenderer *iptables.Renderer
+
 	// New renderers should come here ...
 }
 
@@ -64,7 +69,8 @@ type Deps struct {
 	infra.PluginDeps
 	ContivConf contivconf.API
 	IPAM       ipam.API
-	IPv4Net    ipv4net.API /* for GetIfName() */
+	IPNet      ipnet.API /* for GetIfName() */
+	PodManager podmanager.API
 
 	// Note: L4 was removed from Contiv but may be re-added in the future
 	// GoVPP   govppmux.API  /* for VPPTCP Renderer */
@@ -91,25 +97,46 @@ func (p *Plugin) Init() error {
 		Deps: processor.Deps{
 			Log:          p.Log.NewLogger("-policyProcessor"),
 			IPAM:         p.IPAM,
+			ContivConf:   p.ContivConf,
 			Cache:        p.policyCache,
 			Configurator: p.configurator,
 		},
 	}
 
-	p.aclRenderer = &acl.Renderer{
-		Deps: acl.Deps{
-			Log:        p.Log.NewLogger("-aclRenderer"),
-			LogFactory: p.Log,
-			ContivConf: p.ContivConf,
-			IPv4Net:    p.IPv4Net,
-			UpdateTxnFactory: func() controller.UpdateOperations {
-				p.withChange = true
-				return p.updateTxn
+	if !p.ContivConf.GetIPAMConfig().UseIPv6 {
+
+		p.aclRenderer = &acl.Renderer{
+			Deps: acl.Deps{
+				Log:        p.Log.NewLogger("-aclRenderer"),
+				LogFactory: p.Log,
+				ContivConf: p.ContivConf,
+				IPNet:      p.IPNet,
+				UpdateTxnFactory: func() controller.UpdateOperations {
+					p.withChange = true
+					return p.updateTxn
+				},
+				ResyncTxnFactory: func() controller.ResyncOperations {
+					return p.resyncTxn
+				},
 			},
-			ResyncTxnFactory: func() controller.ResyncOperations {
-				return p.resyncTxn
+		}
+	} else {
+		p.iptablesRenderer = &iptables.Renderer{
+			Deps: iptables.Deps{
+				Log:        p.Log.NewLogger("-iptablesRenderer"),
+				LogFactory: p.Log,
+				PodManager: p.PodManager,
+				IPAM:       p.IPAM,
+				IPNet:      p.IPNet,
+				UpdateTxn: func() controller.UpdateOperations {
+					p.withChange = true
+					return p.updateTxn
+				},
+				ResyncTxn: func() controller.ResyncOperations {
+					return p.resyncTxn
+				},
 			},
-		},
+		}
 	}
 
 	/* Note: L4 was removed from Contiv but may be re-added in the future
@@ -133,10 +160,14 @@ func (p *Plugin) Init() error {
 	p.policyCache.Init()
 	p.processor.Init()
 	p.configurator.Init(false) // Do not render in parallel while we do lot of debugging.
-	p.aclRenderer.Init()
 
-	// Register renderers.
-	p.configurator.RegisterRenderer(p.aclRenderer)
+	if !p.ContivConf.GetIPAMConfig().UseIPv6 {
+		p.aclRenderer.Init()
+		p.configurator.RegisterRenderer(p.aclRenderer)
+	} else {
+		p.iptablesRenderer.Init()
+		p.configurator.RegisterRenderer(p.iptablesRenderer)
+	}
 	return nil
 }
 

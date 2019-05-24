@@ -285,7 +285,7 @@ the dependency injection takes place:
 			nodeSyncPlugin,
 			podManager,
 			ipamPlugin,
-			ipv4NetPlugin,
+			ipNetPlugin,
 			servicePlugin,
 			policyPlugin,
 			statsCollector,
@@ -391,14 +391,14 @@ An example event log:
 *   NEW EVENT: Add Pod kube-system/coredns-78fcdf6894-k5sd4                                                                   #2 *
 *              * Container: 740ee06ac2bc0843291614f4d8348e2a61d78b1ee1681b07a52eff63930ccb6e                                     *
 *              * Network namespace: /proc/25738/ns/net                                                                           *
-*   EVENT HANDLERS: podmanager, ipv4net, service                                                                                 *
+*   EVENT HANDLERS: podmanager, ipnet, service                                                                                 *
 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 // here would be logs from event handlers, transaction log
 
 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 *   FINALIZED EVENT: Add Pod kube-system/coredns-78fcdf6894-k5sd4                                                             #2 *
-*   HANDLED BY: podmanager, ipv4net, service                                                                          took 723ms *
+*   HANDLED BY: podmanager, ipnet, service                                                                          took 723ms *
 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 ```
 

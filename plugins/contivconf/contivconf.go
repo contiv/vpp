@@ -33,10 +33,11 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
+	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"github.com/contiv/vpp/plugins/contivconf/config"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
@@ -71,12 +72,20 @@ const (
 	defaultIPNeighborStaleThreshold = 4
 
 	// default IPAM configuration
-	defaultServiceCIDR                   = "10.96.0.0/12"
-	defaultPodSubnetCIDR                 = "10.1.0.0/16"
-	defaultPodSubnetOneNodePrefixLen     = 24
-	defaultVPPHostSubnetCIDR             = "172.30.0.0/16"
-	defaultVPPHostSubnetOneNodePrefixLen = 24
-	defaultVxlanCIDR                     = "192.168.30.0/24"
+	defaultServiceCIDR                           = "10.96.0.0/12"
+	defaultPodSubnetCIDR                         = "10.1.0.0/16"
+	defaultPodSubnetOneNodePrefixLen             = 24
+	defaultVPPHostSubnetCIDR                     = "172.30.0.0/16"
+	defaultVPPHostSubnetOneNodePrefixLen         = 24
+	defaultVxlanCIDR                             = "192.168.30.0/24"
+	defaultSrv6ServicePolicyBSIDSubnetCIDR       = "5555::/16"
+	defaultSrv6ServicePodLocalSIDSubnetCIDR      = "6666::/16"
+	defaultSrv6ServiceHostLocalSIDSubnetCIDR     = "6655::/16"
+	defaultSrv6ServiceNodeLocalSIDSubnetCIDR     = "7766::/16"
+	defaultSrv6NodeToNodePodLocalSIDSubnetCIDR   = "7777::/16"
+	defaultSrv6NodeToNodeHostLocalSIDSubnetCIDR  = "7799::/16"
+	defaultSrv6NodeToNodePodPolicySIDSubnetCIDR  = "8888::/16"
+	defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR = "9999::/16"
 	// NodeInterconnectCIDR & ContivCIDR can be empty
 
 	// default VRF IDs
@@ -89,6 +98,9 @@ const (
 	// vmxnet3
 	vmxnet3KernelDriver    = "vmxnet3"  // name of the kernel driver for vmxnet3 interfaces
 	vmxnet3InterfacePrefix = "vmxnet3-" // prefix matching all vmxnet3 interfaces on VPP
+
+	ipv6AddrDelimiter       = ":"
+	ipv6AddrLinkLocalPrefix = "fe80"
 )
 
 // ContivConf plugins simplifies the Contiv configuration processing for other
@@ -104,11 +116,11 @@ type ContivConf struct {
 	Deps
 
 	// configuration loaded from the file
-	config     *Config
-	ipamConfig *IPAMConfig // IPAM subnets parsed to net.IPNet
+	config     *config.Config
+	ipamConfig *IPAMConfig // IPAM subnets and SRv6 cidr setting parsed to net.IPNet
 
 	// node-specific configuration defined via CRD, can be nil
-	nodeConfigCRD *NodeConfig
+	nodeConfigCRD *config.NodeConfig
 
 	// GoVPP channel used to get the list of DPDK interfaces
 	govppCh govpp.Channel
@@ -172,7 +184,7 @@ type ContivInitDeps struct {
 
 // UnitTestDeps lists dependencies for unit testing.
 type UnitTestDeps struct {
-	Config                       *Config
+	Config                       *config.Config
 	DumpDPDKInterfacesClb        DumpDPDKInterfacesClb
 	RequestSTNInfoClb            RequestSTNInfoClb
 	GetFirstHostInterfaceNameClb GetFirstHostInterfaceNameClb
@@ -206,58 +218,8 @@ type KVBrokerFactory interface {
 	NewBroker(keyPrefix string) keyval.ProtoBroker
 }
 
-// Config represents configuration for the Contiv agent.
-// The path to the configuration file can be specified in two ways:
-//  - using the `-contiv-config=<path to config>` argument, or
-//  - using the `CONTIV_CONFIG=<path to config>` environment variable
-type Config struct {
-	InterfaceConfig
-	RoutingConfig
-	IPNeighborScanConfig
-
-	StealFirstNIC  bool   `json:"stealFirstNIC,omitempty"`
-	StealInterface string `json:"stealInterface,omitempty"`
-	STNSocketFile  string `json:"stnSocketFile,omitempty"`
-	STNVersion     uint8  `json:"stnVersion,omitempty"`
-
-	NatExternalTraffic           bool `json:"natExternalTraffic,omitempty"`
-	EnablePacketTrace            bool `json:"enablePacketTrace,omitempty"`
-	CRDNodeConfigurationDisabled bool `json:"crdNodeConfigurationDisabled,omitempty"`
-
-	IPAMConfig IPAMConfigForJSON `json:"ipamConfig"`
-	NodeConfig []NodeConfig      `json:"nodeConfig"`
-}
-
-// IPAMConfigForJSON groups IPAM configuration options as basic data types and with
-// JSON tags, ready to be un-marshalled from the configuration.
-// The string fields are then parsed to *net.IPNet and returned as such in IPAMConfig
-// structure.
-type IPAMConfigForJSON struct {
-	UseExternalIPAM               bool   `json:"useExternalIPAM,omitempty"`
-	ContivCIDR                    string `json:"contivCIDR,omitempty"`
-	ServiceCIDR                   string `json:"serviceCIDR,omitempty"`
-	NodeInterconnectDHCP          bool   `json:"nodeInterconnectDHCP,omitempty"`
-	PodSubnetCIDR                 string `json:"podSubnetCIDR,omitempty"`
-	PodSubnetOneNodePrefixLen     uint8  `json:"podSubnetOneNodePrefixLen,omitempty"`
-	VPPHostSubnetCIDR             string `json:"vppHostSubnetCIDR,omitempty"`
-	VPPHostSubnetOneNodePrefixLen uint8  `json:"vppHostSubnetOneNodePrefixLen,omitempty"`
-	NodeInterconnectCIDR          string `json:"nodeInterconnectCIDR,omitempty"`
-	VxlanCIDR                     string `json:"vxlanCIDR,omitempty"`
-	DefaultGateway                string `json:"defaultGateway,omitempty"`
-}
-
-// NodeConfig represents configuration specific to a given node.
-type NodeConfig struct {
-	// name of the node, should match with the hostname
-	NodeName string `json:"nodeName"`
-
-	// node config specification can be defined either via the configuration file
-	// or using CRD
-	nodeconfigcrd.NodeConfigSpec
-}
-
 // GetNodeConfig returns configuration specific to a given node, or nil if none was found.
-func (cfg *Config) getNodeConfig(nodeName string) *NodeConfig {
+func getNodeConfig(cfg *config.Config, nodeName string) *config.NodeConfig {
 	for _, nodeConfig := range cfg.NodeConfig {
 		if nodeConfig.NodeName == nodeName {
 			return &nodeConfig
@@ -304,30 +266,40 @@ func (c *ContivConf) Init() (err error) {
 	}
 
 	// default configuration
-	c.config = &Config{
+	c.config = &config.Config{
 		STNSocketFile:                defaultSTNSocketFile,
 		CRDNodeConfigurationDisabled: defaultCRDNodeConfigurationDisabled,
-		InterfaceConfig: InterfaceConfig{
+		InterfaceConfig: config.InterfaceConfig{
 			UseTAPInterfaces:           defaultUseTAPInterfaces,
 			TAPInterfaceVersion:        defaultTAPInterfaceVersion,
 			TCPChecksumOffloadDisabled: defaultTCPChecksumOffloadDisabled,
 		},
-		IPNeighborScanConfig: IPNeighborScanConfig{
+		IPNeighborScanConfig: config.IPNeighborScanConfig{
 			ScanIPNeighbors:          defaultScanIPNeighbors,
 			IPNeighborScanInterval:   defaultIPNeighborScanInterval,
 			IPNeighborStaleThreshold: defaultIPNeighborStaleThreshold,
 		},
-		RoutingConfig: RoutingConfig{
+		RoutingConfig: config.RoutingConfig{
 			MainVRFID: defaultMainVrfID,
 			PodVRFID:  defaultPodVrfID,
 		},
-		IPAMConfig: IPAMConfigForJSON{
+		IPAMConfig: config.IPAMConfig{
 			ServiceCIDR:                   defaultServiceCIDR,
 			PodSubnetCIDR:                 defaultPodSubnetCIDR,
 			PodSubnetOneNodePrefixLen:     defaultPodSubnetOneNodePrefixLen,
 			VPPHostSubnetCIDR:             defaultVPPHostSubnetCIDR,
 			VPPHostSubnetOneNodePrefixLen: defaultVPPHostSubnetOneNodePrefixLen,
 			VxlanCIDR:                     defaultVxlanCIDR,
+			SRv6: config.SRv6Config{
+				ServicePolicyBSIDSubnetCIDR:       defaultSrv6ServicePolicyBSIDSubnetCIDR,
+				ServicePodLocalSIDSubnetCIDR:      defaultSrv6ServicePodLocalSIDSubnetCIDR,
+				ServiceHostLocalSIDSubnetCIDR:     defaultSrv6ServiceHostLocalSIDSubnetCIDR,
+				ServiceNodeLocalSIDSubnetCIDR:     defaultSrv6ServiceNodeLocalSIDSubnetCIDR,
+				NodeToNodePodLocalSIDSubnetCIDR:   defaultSrv6NodeToNodePodLocalSIDSubnetCIDR,
+				NodeToNodeHostLocalSIDSubnetCIDR:  defaultSrv6NodeToNodeHostLocalSIDSubnetCIDR,
+				NodeToNodePodPolicySIDSubnetCIDR:  defaultSrv6NodeToNodePodPolicySIDSubnetCIDR,
+				NodeToNodeHostPolicySIDSubnetCIDR: defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR,
+			},
 		},
 		NatExternalTraffic: defaultNatExternalTraffic,
 	}
@@ -359,6 +331,7 @@ func (c *ContivConf) Init() (err error) {
 			PodSubnetOneNodePrefixLen:     c.config.IPAMConfig.PodSubnetOneNodePrefixLen,
 			VPPHostSubnetOneNodePrefixLen: c.config.IPAMConfig.VPPHostSubnetOneNodePrefixLen,
 		},
+		SRv6Settings: SRv6Settings{},
 	}
 	if c.config.IPAMConfig.ContivCIDR != "" {
 		_, c.ipamConfig.ContivCIDR, err = net.ParseCIDR(c.config.IPAMConfig.ContivCIDR)
@@ -388,10 +361,53 @@ func (c *ContivConf) Init() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to parse VxlanCIDR: %v", err)
 	}
+	_, c.ipamConfig.SRv6Settings.ServicePolicyBSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.ServicePolicyBSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6ServicePolicyBSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.ServicePodLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.ServicePodLocalSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6ServicePodLocalSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.ServiceHostLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.ServiceHostLocalSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6ServiceHostLocalSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.ServiceNodeLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.ServiceNodeLocalSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6ServiceNodeLocalSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.NodeToNodePodLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.NodeToNodePodLocalSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6NodeToNodePodLocalSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.NodeToNodeHostLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.NodeToNodeHostLocalSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6NodeToNodeHostLocalSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.NodeToNodePodPolicySIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.NodeToNodePodPolicySIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6NodeToNodePodPolicySIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.NodeToNodeHostPolicySIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.NodeToNodeHostPolicySIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse Srv6NodeToNodeHostPolicySIDSubnetCIDR: %v", err)
+	}
+
 	if c.config.IPAMConfig.DefaultGateway != "" {
 		c.ipamConfig.DefaultGateway = net.ParseIP(c.config.IPAMConfig.DefaultGateway)
 		if c.ipamConfig.DefaultGateway == nil {
 			return fmt.Errorf("failed to parse default gateway %v", c.config.IPAMConfig.DefaultGateway)
+		}
+	}
+	if c.config.IPAMConfig.PodSubnetCIDR != "" && isIPv6AddrString(c.config.IPAMConfig.PodSubnetCIDR) {
+		c.ipamConfig.UseIPv6 = true
+	}
+	if c.config.IPAMConfig.ContivCIDR != "" {
+		if isIPv6AddrString(c.config.IPAMConfig.ContivCIDR) {
+			c.ipamConfig.UseIPv6 = true
+		} else {
+			c.ipamConfig.UseIPv6 = false
 		}
 	}
 
@@ -516,7 +532,7 @@ func (c *ContivConf) Resync(event controller.Event, kubeStateData controller.Kub
 
 // Update is called for KubeStateChange for CRD node-specific config of this node.
 func (c *ContivConf) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
-	var nodeConfig *NodeConfig
+	var nodeConfig *config.NodeConfig
 	ksChange := event.(*controller.KubeStateChange)
 	if ksChange.NewValue != nil {
 		nodeConfig = nodeConfigFromProto(ksChange.NewValue.(*nodeconfig.NodeConfig))
@@ -598,23 +614,23 @@ func (c *ContivConf) GetIPAMConfig() *IPAMConfig {
 // GetIPAMConfigForJSON returns IPAM configuration in format suitable
 // for marshalling to JSON (subnets not converted to net.IPNet + defined
 // JSON flag for every option).
-func (c *ContivConf) GetIPAMConfigForJSON() *IPAMConfigForJSON {
+func (c *ContivConf) GetIPAMConfigForJSON() *config.IPAMConfig {
 	return &c.config.IPAMConfig
 }
 
 // GetInterfaceConfig returns configuration related to VPP interfaces.
-func (c *ContivConf) GetInterfaceConfig() *InterfaceConfig {
+func (c *ContivConf) GetInterfaceConfig() *config.InterfaceConfig {
 	return &c.config.InterfaceConfig
 }
 
 // GetRoutingConfig returns configuration related to IP routing.
-func (c *ContivConf) GetRoutingConfig() *RoutingConfig {
+func (c *ContivConf) GetRoutingConfig() *config.RoutingConfig {
 	return &c.config.RoutingConfig
 }
 
 // GetIPNeighborScanConfig returns configuration related to IP Neighbor
 // scanning.
-func (c *ContivConf) GetIPNeighborScanConfig() *IPNeighborScanConfig {
+func (c *ContivConf) GetIPNeighborScanConfig() *config.IPNeighborScanConfig {
 	return &c.config.IPNeighborScanConfig
 }
 
@@ -776,16 +792,16 @@ func (c *ContivConf) reloadNodeInterfaces() error {
 
 // getNodeSpecificConfig returns configuration specific to this node, prioritizing
 // CRD over the configuration file.
-func (c *ContivConf) getNodeSpecificConfig() *NodeConfig {
+func (c *ContivConf) getNodeSpecificConfig() *config.NodeConfig {
 	if c.nodeConfigCRD != nil {
 		return c.nodeConfigCRD
 	}
-	return c.config.getNodeConfig(c.ServiceLabel.GetAgentLabel())
+	return getNodeConfig(c.config, c.ServiceLabel.GetAgentLabel())
 }
 
 // loadNodeConfigFromCRD loads node configuration defined via CRD, which was reflected
 // into a remote kv-store by contiv-crd and mirrored into local kv-store by the agent.
-func (c *ContivConf) loadNodeConfigFromCRD(remoteDB, localDB KVBrokerFactory) *NodeConfig {
+func (c *ContivConf) loadNodeConfigFromCRD(remoteDB, localDB KVBrokerFactory) *config.NodeConfig {
 	var (
 		nodeConfigProto *nodeconfig.NodeConfig
 		err             error
@@ -853,7 +869,7 @@ func (c *ContivConf) getFirstHostInterfaceName() string {
 
 // dumpDPDKInterfaces dumps DPDK interfaces configured on VPP.
 func (c *ContivConf) dumpDPDKInterfaces() (ifaces []string, err error) {
-	ifHandler := intf_vppcalls.NewIfVppHandler(c.govppCh, c.Log)
+	ifHandler := intf_vppcalls.CompatibleInterfaceVppHandler(c.govppCh, c.Log)
 
 	dump, err := ifHandler.DumpInterfacesByType(vpp_interfaces.Interface_DPDK)
 	if err != nil {
@@ -897,6 +913,15 @@ func (c *ContivConf) loadSTNHostConfig(ifName string) error {
 		if err != nil {
 			c.Log.Errorf("Failed to parse IP address returned by STN GRPC: %v", err)
 			return err
+		}
+		if c.ipamConfig.UseIPv6 && !isIPv6AddrString(address) {
+			continue
+		}
+		if c.ipamConfig.UseIPv6 && isLinkLocalIPv6Addr(address) {
+			continue
+		}
+		if !c.ipamConfig.UseIPv6 && isIPv6AddrString(address) {
+			continue
 		}
 		c.stnIPAddresses = append(c.stnIPAddresses, ipNet)
 	}
@@ -954,8 +979,8 @@ func (c *ContivConf) requestSTNInfo(ifName string) (reply *stn_grpc.STNReply, er
 }
 
 // nodeConfigFromProto converts node configuration from protobuf to an instance of NodeConfig structure.
-func nodeConfigFromProto(nodeConfigProto *nodeconfig.NodeConfig) (nodeConfig *NodeConfig) {
-	nodeConfig = &NodeConfig{
+func nodeConfigFromProto(nodeConfigProto *nodeconfig.NodeConfig) (nodeConfig *config.NodeConfig) {
+	nodeConfig = &config.NodeConfig{
 		NodeName: nodeConfigProto.NodeName,
 		NodeConfigSpec: nodeconfigcrd.NodeConfigSpec{
 			StealInterface:     nodeConfigProto.StealInterface,
@@ -1003,4 +1028,20 @@ func vmxnet3PCIFromName(ifName string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%04x:%02x:%02x.%0x", domain, bus, slot, function), nil
+}
+
+// isIPv6AddrString returns true if the provided string contains an IPv6 address, false otherwise.
+func isIPv6AddrString(ip string) bool {
+	if ip == "" {
+		return false
+	}
+	return strings.Contains(ip, ipv6AddrDelimiter)
+}
+
+// isLinkLocalIPv6Addr returns true if the provided string contains a link-local IPv6 address
+func isLinkLocalIPv6Addr(ip string) bool {
+	if ip == "" {
+		return false
+	}
+	return strings.HasPrefix(ip, ipv6AddrLinkLocalPrefix)
 }

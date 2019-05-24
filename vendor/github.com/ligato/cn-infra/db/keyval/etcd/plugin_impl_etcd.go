@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"context"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
@@ -94,12 +95,6 @@ func (p *Plugin) Init() (err error) {
 	// Uses config file to establish connection with the database
 	p.connection, err = NewEtcdConnectionWithBytes(*etcdClientCfg, p.Log)
 
-	// Register for providing status reports (polling mode).
-	if p.StatusCheck != nil {
-		p.StatusCheck.Register(p.PluginName, p.statusCheckProbe)
-	} else {
-		p.Log.Warnf("Unable to start status check for etcd")
-	}
 	if err != nil && p.config.AllowDelayedStart {
 		// If the connection cannot be established during init, keep trying in another goroutine (if allowed) and
 		// end the init
@@ -115,6 +110,16 @@ func (p *Plugin) Init() (err error) {
 
 	// Mark p as connected at this point
 	p.connected = true
+
+	return nil
+}
+
+// AfterInit registers ETCD plugin to status check if needed
+func (p *Plugin) AfterInit() error {
+	if p.StatusCheck != nil && !p.disabled {
+		p.StatusCheck.Register(p.PluginName, p.statusCheckProbe)
+		p.Log.Infof("Status check for %s was started", p.PluginName)
+	}
 
 	return nil
 }
@@ -166,6 +171,16 @@ func (p *Plugin) PutIfNotExists(key string, value []byte) (succeeded bool, err e
 		return p.connection.PutIfNotExists(key, value)
 	}
 	return false, fmt.Errorf("connection is not established")
+}
+
+// CampaignInElection starts campaign in leader election on a given prefix. Multiple instances can compete on a given prefix.
+// Only one can be elected as leader at a time. The function call blocks until either context is canceled or the caller is elected as leader.
+// Upon successful call a resign callback that triggers new election is returned.
+func (p *Plugin) CampaignInElection(ctx context.Context, prefix string) (func(context.Context), error) {
+	if p.connection != nil {
+		return p.connection.CampaignInElection(ctx, prefix)
+	}
+	return nil, fmt.Errorf("connection is not established")
 }
 
 // Compact compatcs the ETCD database to the specific revision

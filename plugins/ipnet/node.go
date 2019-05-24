@@ -127,13 +127,6 @@ func nodeHasIPAddress(node *nodesync.Node) bool {
 func (n *IPNet) partialNodeConnectivityConfig(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
 	config = make(controller.KeyValuePairs)
 
-	// compute other node's IP address
-	otherNodeIP, computeErr := n.otherNodeIP(node.ID)
-	if computeErr != nil {
-		n.Log.Error(computeErr)
-		return config, computeErr
-	}
-
 	// compute nexthop address for routes to other node
 	var nextHop net.IP
 	switch n.ContivConf.GetRoutingConfig().NodeToNodeTransport {
@@ -144,7 +137,12 @@ func (n *IPNet) partialNodeConnectivityConfig(node *nodesync.Node) (config contr
 		if len(node.VppIPAddresses) > 0 {
 			nextHop = node.VppIPAddresses[0].Address
 		} else {
-			nextHop = otherNodeIP
+			var computeErr error
+			nextHop, computeErr = n.otherNodeIP(node.ID)
+			if computeErr != nil {
+				n.Log.Error(computeErr)
+				return config, computeErr
+			}
 		}
 	case contivconf.VXLANTransport:
 		// route traffic destined to the other node via VXLANs
@@ -158,7 +156,7 @@ func (n *IPNet) partialNodeConnectivityConfig(node *nodesync.Node) (config contr
 
 	// route to pods of the other node
 	if !n.ContivConf.GetIPAMConfig().UseExternalIPAM { // skip in case that external IPAM is in use
-		podsCfg, err := n.connectivityToOtherNodePods(node.ID, otherNodeIP, nextHop)
+		podsCfg, err := n.connectivityToOtherNodePods(node.ID, nextHop)
 		if err != nil {
 			n.Log.Error(err)
 			return config, err
@@ -167,7 +165,7 @@ func (n *IPNet) partialNodeConnectivityConfig(node *nodesync.Node) (config contr
 	}
 
 	// route to the host stack of the other node
-	hostStackCfg, err := n.connectivityToOtherNodeHostStack(node.ID, otherNodeIP, nextHop)
+	hostStackCfg, err := n.connectivityToOtherNodeHostStack(node.ID, nextHop)
 	if err != nil {
 		n.Log.Error(err)
 		return config, err
@@ -175,7 +173,7 @@ func (n *IPNet) partialNodeConnectivityConfig(node *nodesync.Node) (config contr
 	n.mergeConfiguration(config, hostStackCfg)
 
 	// route to management IPs of the other node
-	mgmIPConf, err := n.connectivityToOtherNodeManagementIPAddresses(node, otherNodeIP, nextHop)
+	mgmIPConf, err := n.connectivityToOtherNodeManagementIPAddresses(node, nextHop)
 	if err != nil {
 		n.Log.Error(err)
 		return config, err
@@ -806,7 +804,7 @@ func (n *IPNet) srv6NodeToNodeSegmentEgress(sid net.IP) (key string, config *vpp
 }
 
 // connectivityToOtherNodePods returns configuration that will route traffic to pods of another node.
-func (n *IPNet) connectivityToOtherNodePods(otherNodeID uint32, otherNodeIP, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
+func (n *IPNet) connectivityToOtherNodePods(otherNodeID uint32, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
 	config = make(controller.KeyValuePairs, 0)
 	podNetwork, err := n.IPAM.PodSubnetOtherNode(otherNodeID)
 	if err != nil {
@@ -815,12 +813,21 @@ func (n *IPNet) connectivityToOtherNodePods(otherNodeID uint32, otherNodeIP, nex
 
 	switch n.ContivConf.GetRoutingConfig().NodeToNodeTransport {
 	case contivconf.SRv6Transport:
+		// get other node IP
+		otherNodeIP, computeErr := n.otherNodeIP(otherNodeID)
+		if computeErr != nil {
+			n.Log.Error(computeErr)
+			return config, computeErr
+		}
+
+		// get pod tunnel config
 		podTunnelConfig, err := n.srv6NodeToNodePodTunnelIngress(otherNodeID, otherNodeIP, nextHopIP, podNetwork)
 		if err != nil {
 			return config, fmt.Errorf("can't create configuration for node-to-node SRv6 tunnel for Pod traffic due to: %v", err)
 		}
 		n.mergeConfiguration(config, podTunnelConfig)
 
+		// get config of tunnel ending with intermediate(not the last one in segment list) segment
 		segmentConfig, err := n.srv6NodeToNodeSegmentIngress(otherNodeID, nextHopIP)
 		if err != nil {
 			return config, fmt.Errorf("can't create configuration for node passing SRv6 path due to: %v", err)
@@ -837,10 +844,18 @@ func (n *IPNet) connectivityToOtherNodePods(otherNodeID uint32, otherNodeIP, nex
 }
 
 // connectivityToOtherNodeHostStack returns configuration that will route traffic to the host stack of another node.
-func (n *IPNet) connectivityToOtherNodeHostStack(otherNodeID uint32, otherNodeIP, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
+func (n *IPNet) connectivityToOtherNodeHostStack(otherNodeID uint32, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
 	config = make(controller.KeyValuePairs, 0)
 	switch n.ContivConf.GetRoutingConfig().NodeToNodeTransport {
 	case contivconf.SRv6Transport:
+		// get other node IP
+		otherNodeIP, computeErr := n.otherNodeIP(otherNodeID)
+		if computeErr != nil {
+			n.Log.Error(computeErr)
+			return config, computeErr
+		}
+
+		// get host tunnel config
 		hostTunnelConfig, err := n.srv6NodeToNodeHostTunnelIngress(otherNodeID, otherNodeIP, nextHopIP)
 		if err != nil {
 			return config, fmt.Errorf("can't create configuration for node-to-node SRv6 tunnel for Host traffic due to: %v", err)
@@ -879,11 +894,19 @@ func (n *IPNet) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net.I
 }
 
 // connectivityToOtherNodeManagementIPAddresses returns configuration that will route traffic to the management ip addresses of another node.
-func (n *IPNet) connectivityToOtherNodeManagementIPAddresses(node *nodesync.Node, otherNodeIP, nextHop net.IP) (config controller.KeyValuePairs, err error) {
+func (n *IPNet) connectivityToOtherNodeManagementIPAddresses(node *nodesync.Node, nextHop net.IP) (config controller.KeyValuePairs, err error) {
 	config = make(controller.KeyValuePairs, 0)
 	for _, mgmtIP := range node.MgmtIPAddresses {
 		switch n.ContivConf.GetRoutingConfig().NodeToNodeTransport {
 		case contivconf.SRv6Transport:
+			// get other node IP
+			otherNodeIP, computeErr := n.otherNodeIP(node.ID)
+			if computeErr != nil {
+				n.Log.Error(computeErr)
+				return config, computeErr
+			}
+
+			// get tunnel config for management traffic
 			_, ipNet, err := net.ParseCIDR(mgmtIP.String() + fullPrefixForAF(mgmtIP))
 			if err != nil {
 				return config, fmt.Errorf("unable to convert management IP %v into IPv6 destination network: %v", mgmtIP, err)

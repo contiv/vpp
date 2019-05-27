@@ -510,7 +510,8 @@ The SRv6 Renderer maps `ContivService` instances into the corresponding [SRv6 mo
 instances that are then installed into VPP by the Ligato/vpp-agent. The SRv6 is 
 Segment routing on IPv6 protocol (see [srv6][srv6-ietf]), therefore you must enable 
 the [IPv6 support][ipv6-setup] in Contiv to be able to use the SRv6 renderer. Also you must enable
-it in `manifest.yaml` together with noOverlay mode:
+it in `manifest.yaml` together with srv6 node-to-node transport mode (noOverlay mode could be also used, 
+but don't use the vxlan mode):
 ```
 apiVersion: v1
 kind: ConfigMap
@@ -519,7 +520,7 @@ metadata:
   namespace: kube-system
 data:
   contiv.conf: |-
-    nodeToNodeTransport: nooverlay
+    nodeToNodeTransport: srv6
     useSRv6ForServices: true
     ...
 ```
@@ -528,8 +529,8 @@ input values in [values.yaml][values.yaml] (or [values-arm64.yaml][values-arm64.
 ```
 ...
 contiv:
-  nodeToNodeTransport: "nooverlay"
-  useSRv6ForServices: false
+  nodeToNodeTransport: "srv6"
+  useSRv6ForServices: true
   ...
 ```  
 and generate `manifest.yaml` with Helm.

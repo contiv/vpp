@@ -72,7 +72,6 @@ source /home/vagrant/.profile
 # --------------> Kubeadm & Networking <------------------
 # --------------------------------------------------------
 
-# Based on kubernetes version, disable hugepages in Kubelet
 # Initialize Kubernetes master
 
 service_cidr="10.96.0.0/12"
@@ -87,9 +86,9 @@ fi
 split_k8s_version="$(cut -d "." -f 2 <<< "${k8s_version}")"
 if [ $split_k8s_version -gt 10 ] ; then
   if [ "${node_os_release}" == "16.04" ] ; then
-    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
+    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"'/' /etc/default/kubelet
   else
-    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false --resolv-conf=\/run\/systemd\/resolve\/resolv.conf/' /etc/default/kubelet
+    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --resolv-conf=\/run\/systemd\/resolve\/resolv.conf/' /etc/default/kubelet
   fi
   systemctl daemon-reload
   systemctl restart kubelet
@@ -161,7 +160,7 @@ EOF
        echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
   fi
 else
-  sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+  sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"'"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
   systemctl daemon-reload
   systemctl restart kubelet
   echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert

@@ -106,6 +106,10 @@ To make the change permanent after reboot, add the following line to the file `/
 ```bash
 echo "vm.nr_hugepages=512" >> /etc/sysctl.conf
 ```
+After changing hugepages allocation, you must restart kubelet in order to see them, e.g.:
+```bash
+service kubelet restart
+```
 
 The VPP vswitch pod requires 256 MB of hugepages by default, which is also a memory limit for the vswitch pod.
 If needed, these values can be tweaked in the deployment yaml file:

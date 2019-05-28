@@ -127,6 +127,11 @@ if [ "${ip_version}" == "ipv6" ]; then
     fi
 fi
 
+# pre-allocate hugepages
+sudo sysctl -w vm.nr_hugepages=512
+sudo echo "vm.nr_hugepages=512" >> /etc/sysctl.conf
+sudo service kubelet restart
+
 #Load uio_pci_generic driver and setup the loading on each boot up
 installPCIUIO() {
    modprobe uio_pci_generic

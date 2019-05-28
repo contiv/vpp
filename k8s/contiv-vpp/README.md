@@ -87,10 +87,10 @@ Parameter | Description | Default
 `contiv.ipamConfig.defaultGateway` | Default gateway for all nodes (can be overridden by a nodeconfig)| `""`
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
 `contiv.vswitch.useSocketVPPConnection` | use unix domain socket for connection to VPP | `false`
-`contiv.vswitch.defineMemoryLimits` | define limits for vswitch container | `false`
-`contiv.vswitch.hugePages2miLimit` | limit of memory allocated by 2048Kb hugepages for vswitch container| `1024Mi`
-`contiv.vswitch.hugePages1giLimit` | limit of memory allocated by 1Gb hugepages for vswitch container| `""`
-`contiv.vswitch.memoryLimit` | memory limit for vswitch container | `1024Mi`
+`contiv.vswitch.defineMemoryLimits` | define memory requests & limits for vswitch container | `true`
+`contiv.vswitch.hugePages2miLimit` | request & limit of memory allocated by 2048Kb hugepages for vswitch container| `512Mi`
+`contiv.vswitch.hugePages1giLimit` | request & limit of memory allocated by 1Gb hugepages for vswitch container| `""`
+`contiv.vswitch.memoryLimit` | overall memory limit for vswitch container | `512Mi`
 `contiv.vswitch.enableCoreDumps` | enable core dumps of VPP into coreDumpsDir | `false`
 `contiv.vswitch.coreDumpsDir` | location of the VPP core dumps | `/var/contiv/dumps`
 `controller.enableRetry` | Enable retry of failed CRUD operations | `true`

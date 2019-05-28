@@ -111,14 +111,14 @@ After changing hugepages allocation, you must restart kubelet in order to see th
 service kubelet restart
 ```
 
-The VPP vswitch pod requires 256 MB of hugepages by default, which is also a memory limit for the vswitch pod.
+The VPP vswitch pod requires 512 MB of hugepages by default, which is also a memory limit for the vswitch pod.
 If needed, these values can be tweaked in the deployment yaml file:
 
 ```yaml
   resources:
     limits:
-      hugepages-2Mi: 256Mi
-      memory: 256Mi
+      hugepages-2Mi: 512Mi
+      memory: 512Mi
 ```
 or using the `contiv.vswitch.hugePages2miLimit` and `contiv.vswitch.memoryLimit` in [helm values](../../k8s/contiv-vpp/README.md).
 

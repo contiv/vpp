@@ -142,8 +142,8 @@ vswitch:
   probeTimeoutSeconds: 2
   probeFailureThreshold: 3
   defineMemoryLimits: true
-  hugePages2miLimit: 256Mi
-  memoryLimit: 256Mi
+  hugePages2miLimit: 512Mi
+  memoryLimit: 512Mi
   updateStrategy: RollingUpdate
   cpuRequest: 250m
   cpuLimit: 0

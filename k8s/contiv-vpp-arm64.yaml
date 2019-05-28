@@ -531,8 +531,8 @@ spec:
               mountPath: /var/lib/kubelet
           resources:
             limits:
-              hugepages-2Mi: 256Mi
-              memory: 256Mi
+              hugepages-2Mi: 512Mi
+              memory: 512Mi
             requests:
               cpu: 250m
 

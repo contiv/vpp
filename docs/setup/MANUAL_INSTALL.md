@@ -85,33 +85,38 @@ management traffic is not the one pointed to by the default route out of the
 host, a [custom management network][12] for Kubernetes must be configured.
 
 
-#### Hugepages (Kubernetes 1.10 and above)
-VPP requires hugepages to run during VPP operation, to manage large pages of memory. 
-In K8s 1.10, the support for 
-[huge pages in PODs](https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/) 
-has been introduced. Since then, this feature must be either disabled or memory limit
-must be defined for the vSwitch container.
+#### Hugepages
+VPP requires hugepages to run, for managing memory more effectively using large pages.
+Before deploying Contiv-VPP, hugepages had to be pre-allocated in the operating system on each node.
+This can be verified as follows:
 
-(a) To disable huge pages, perform the following steps as root:
-* Using your favorite editor, disable huge pages in the kubelet configuration
-  file `/etc/default/kubelet` (or `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` for versions below 1.11):
-```
-KUBELET_EXTRA_ARGS=--feature-gates HugePages=false
-```
-* Restart the kubelet daemon:
-```
-  systemctl daemon-reload
-  systemctl restart kubelet
+```bash
+cat /proc/meminfo | grep HugePages
+HugePages_Total:     512
+HugePages_Free:      510
+HugePages_Rsvd:        0
+HugePages_Surp:        0
 ```
 
-(b) To define memory limit for the vSwitch container, append the following snippet to vswitch container in deployment yaml file:
+To pre-allocate hugepages, you can use the `sysctl` utility, e.g.:
+```bash
+sysctl -w vm.nr_hugepages=512
+```
+To make the change permanent after reboot, add the following line to the file `/etc/sysctl.conf`:
+```bash
+echo "vm.nr_hugepages=512" >> /etc/sysctl.conf
+```
+
+The VPP vswitch pod requires 256 MB of hugepages by default, which is also a memory limit for the vswitch pod.
+If needed, these values can be tweaked in the deployment yaml file:
+
 ```yaml
-    resources:
-      limits:
-        hugepages-2Mi: 1024Mi
-        memory: 1024Mi
+  resources:
+    limits:
+      hugepages-2Mi: 256Mi
+      memory: 256Mi
 ```
-or set `contiv.vswitch.defineMemoryLimits` to `true` in [helm values](../../k8s/contiv-vpp/README.md).
+or using the `contiv.vswitch.hugePages2miLimit` and `contiv.vswitch.memoryLimit` in [helm values](../../k8s/contiv-vpp/README.md).
 
 
 ### Initializing your master

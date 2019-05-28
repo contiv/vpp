@@ -654,8 +654,6 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 
-		// Get Contiv's view of the VPP's pod-facing tap interface subnet CIDR
-		// on this node (PodVPPSubnetCIDR)
 		if vppNode.NodeIPam == nil {
 			errCnt++
 			v.Log.Infof("No IPAM data for node %s", vppNode.Name)

@@ -125,7 +125,6 @@ var (
 			IPAMConfig: contivconf.IPAMConfig{
 				PodSubnetCIDR:                 "10.1.0.0/16",
 				PodSubnetOneNodePrefixLen:     24,
-				PodVPPSubnetCIDR:              "10.2.1.0/24",
 				VPPHostSubnetCIDR:             "172.30.0.0/16",
 				VPPHostSubnetOneNodePrefixLen: 24,
 				NodeInterconnectCIDR:          "192.168.16.0/24",

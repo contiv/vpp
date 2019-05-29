@@ -33,9 +33,9 @@ fi
 split_k8s_version="$(cut -d "." -f 2 <<< "${k8s_version}")"
 if [ $split_k8s_version -gt 10 ] ; then
   if [ "${node_os_release}" == "16.04" ] ; then
-    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"'/' /etc/default/kubelet
+    echo 'KUBELET_EXTRA_ARGS=--node-ip="$KUBE_WORKER_IP"' > /etc/default/kubelet
   else
-    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--resolv-conf=\/run\/systemd\/resolve\/resolv.conf --node-ip='"$KUBE_WORKER_IP"'/' /etc/default/kubelet
+    echo 'KUBELET_EXTRA_ARGS=--resolv-conf=\/run\/systemd\/resolve\/resolv.conf --node-ip="$KUBE_WORKER_IP"' > /etc/default/kubelet
   fi
   systemctl daemon-reload
   systemctl restart kubelet

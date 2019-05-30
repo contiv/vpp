@@ -84,12 +84,19 @@ type API interface {
 	// Returns nil if the pod does not have allocated IP address.
 	GetPodIP(podID podmodel.ID) *net.IPNet
 
+	// AllocatePodCustomIfIP tries to allocate custom IP address for the given interface of a given pod.
+	AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string) (net.IP, error)
+
+	// GetPodCustomIfIP returns the allocated custom interface pod IP, together with the mask.
+	// Returns nil if the pod does not have allocated custom interface IP address.
+	GetPodCustomIfIP(podID podmodel.ID, ifName, network string) *net.IPNet
+
 	// GetPodFromIP returns the pod information related to the allocated pod IP.
 	// found is false if the provided IP address has not been allocated to any local pod.
 	GetPodFromIP(podIP net.IP) (podID podmodel.ID, found bool)
 
-	// ReleasePodIP releases the pod IP address making it available for new PODs.
-	ReleasePodIP(podID podmodel.ID) error
+	// ReleasePodIPs releases all pod IP addresses making them available for new PODs.
+	ReleasePodIPs(podID podmodel.ID) error
 
 	// BsidForServicePolicy creates a valid SRv6 binding SID for given k8s service IP addresses <serviceIPs>. This sid
 	// should be used only for k8s service policy

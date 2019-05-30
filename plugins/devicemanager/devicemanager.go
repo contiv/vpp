@@ -119,19 +119,25 @@ type DockerClient interface {
 // Init initializes plugin internals.
 func (d *DeviceManager) Init() (err error) {
 
+	d.termSignal = make(chan bool, 1)
+	d.podMemifs = make(map[podmodel.ID]*MemifInfo)
+	d.deviceAllocations = make(map[string]*MemifInfo)
+
 	// init device plugin gRPC during the first resync
 	err = d.startDevicePluginServer()
 	if err != nil {
 		d.Log.Warn(err)
 		// do not return an error if this fails - the CNI is still working
+		return nil
 	}
 
 	// connect to kubelet pod resources server endpoint
 	d.podResClient, d.podResClientConn, err = podresources.GetClient(kubeletPodResourcesEndpoint,
 		grpcClientTimeout, defaultPodResourcesMaxSize)
 	if err != nil {
-		d.Log.Warn(err)
+		d.Log.Warn("Unable to connect to kubelet endpoint %s: %v", kubeletPodResourcesEndpoint, err)
 		// do not return an error if this fails - the CNI is still working
+		return nil
 	}
 
 	// connect to Docker server
@@ -139,11 +145,8 @@ func (d *DeviceManager) Init() (err error) {
 	if err != nil {
 		d.Log.Warn(err)
 		// do not return an error if this fails - the CNI is still working
+		return nil
 	}
-
-	d.termSignal = make(chan bool, 1)
-	d.podMemifs = make(map[podmodel.ID]*MemifInfo)
-	d.deviceAllocations = make(map[string]*MemifInfo)
 
 	d.initialized = true
 
@@ -426,23 +429,24 @@ func (d *DeviceManager) releasePodMemif(pod podmodel.ID) {
 	if !d.initialized {
 		return
 	}
-	info, err := d.GetPodMemifInfo(pod)
-
-	if err == nil && info != nil {
-		// delete memif socket & dir
-		err = os.Remove(info.HostSocket)
-		if err != nil {
-			d.Log.Warnf("Error by deleting memif socket %s: %v", info.HostSocket, err)
-		}
-		dir := filepath.Dir(info.HostSocket)
-		err = os.Remove(dir)
-		if err != nil {
-			d.Log.Warnf("Error by deleting memif dir %s: %v", dir, err)
-		}
-
-		// delete pod to memif info mapping
-		delete(d.podMemifs, pod)
+	info, hasInfo := d.podMemifs[pod]
+	if !hasInfo {
+		return
 	}
+
+	// delete memif socket & dir
+	err := os.Remove(info.HostSocket)
+	if err != nil {
+		d.Log.Warnf("Error by deleting memif socket %s: %v", info.HostSocket, err)
+	}
+	dir := filepath.Dir(info.HostSocket)
+	err = os.Remove(dir)
+	if err != nil {
+		d.Log.Warnf("Error by deleting memif dir %s: %v", dir, err)
+	}
+
+	// delete pod to memif info mapping
+	delete(d.podMemifs, pod)
 }
 
 // getPodDevices looks up devices connected to the given pod.

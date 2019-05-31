@@ -84,17 +84,17 @@ elif [ "${dep_scenario}" != 'calico' ] && [ "${dep_scenario}" != 'calicovpp' ]; 
 fi
 
 split_k8s_version="$(cut -d "." -f 2 <<< "${k8s_version}")"
-if [ $split_k8s_version -gt 10 ] ; then
-  if [ "${node_os_release}" == "16.04" ] ; then
-    echo 'KUBELET_EXTRA_ARGS=--node-ip="$KUBE_MASTER_IP"' > /etc/default/kubelet
-  else
-    echo 'KUBELET_EXTRA_ARGS=--node-ip="$KUBE_MASTER_IP" --resolv-conf=/run/systemd/resolve/resolv.conf' > /etc/default/kubelet
-  fi
-  systemctl daemon-reload
-  systemctl restart kubelet
-  if [ "${dep_scenario}" != 'calico' ] && [ "${dep_scenario}" != 'calicovpp' ]; then
-    if [ ${master_nodes} -gt 1 ]; then
-       cat  > kubeadm.cfg <<EOF
+
+if [ "${node_os_release}" == "16.04" ] ; then
+  echo "KUBELET_EXTRA_ARGS=--node-ip=$KUBE_MASTER_IP" > /etc/default/kubelet
+else
+  echo "KUBELET_EXTRA_ARGS=--node-ip=$KUBE_MASTER_IP --resolv-conf=/run/systemd/resolve/resolv.conf" > /etc/default/kubelet
+fi
+systemctl daemon-reload
+systemctl restart kubelet
+if [ "${dep_scenario}" != 'calico' ] && [ "${dep_scenario}" != 'calicovpp' ]; then
+  if [ ${master_nodes} -gt 1 ]; then
+    cat  > kubeadm.cfg <<EOF
 ---
 apiVersion: kubeadm.k8s.io/v1beta1
 bootstrapTokens:
@@ -136,33 +136,27 @@ networking:
   serviceSubnet: $service_cidr
 scheduler: {}
 EOF
-       if [ "$backup_master" != "true" ]; then
-          echo "$(kubeadm init --config=kubeadm.cfg)" >> /vagrant/config/cert
-       else
-
-         # since master join ignores node-ip arg in kubelet config
-         # modify default route in order to suggest kubelet choosing the correct IP
-         ip route del `ip route | grep default`
-         ip route add default via 10.20.0.100
-
-         # copy certificates from the first master node
-         mkdir -p /etc/kubernetes/pki/etcd
-         cp /vagrant/certs/* /etc/kubernetes/pki/
-         mv /etc/kubernetes/pki/etcd-ca.crt /etc/kubernetes/pki/etcd/ca.crt
-         mv /etc/kubernetes/pki/etcd-ca.key /etc/kubernetes/pki/etcd/ca.key
-         hash=$(awk 'END {print $NF}' /vagrant/config/cert)
-         kubeadm join --token "${KUBEADM_TOKEN}"  10.20.0.100:6443 --discovery-token-ca-cert-hash "$hash" --experimental-control-plane
-       fi
+    if [ "$backup_master" != "true" ]; then
+      echo "$(kubeadm init --config=kubeadm.cfg)" >> /vagrant/config/cert
     else
-       echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+
+    # since master join ignores node-ip arg in kubelet config
+    # modify default route in order to suggest kubelet choosing the correct IP
+    ip route del `ip route | grep default`
+    ip route add default via 10.20.0.100
+
+    # copy certificates from the first master node
+    mkdir -p /etc/kubernetes/pki/etcd
+    cp /vagrant/certs/* /etc/kubernetes/pki/
+    mv /etc/kubernetes/pki/etcd-ca.crt /etc/kubernetes/pki/etcd/ca.crt
+    mv /etc/kubernetes/pki/etcd-ca.key /etc/kubernetes/pki/etcd/ca.key
+    hash=$(awk 'END {print $NF}' /vagrant/config/cert)
+    kubeadm join --token "${KUBEADM_TOKEN}"  10.20.0.100:6443 --discovery-token-ca-cert-hash "$hash" --experimental-control-plane
     fi
   else
-       echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
   fi
 else
-  sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"'"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
-  systemctl daemon-reload
-  systemctl restart kubelet
   echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
 fi
 

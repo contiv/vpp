@@ -16,6 +16,7 @@ export class ModalService {
   public nodeDetailSubject: Subject<ContivNodeDataModel> = new Subject<ContivNodeDataModel>();
   public outputSubject: Subject<{api: string, response: string}> = new Subject<{api: string, response: string}>();
   public podDataSubject: Subject<K8sPodModel> = new Subject<K8sPodModel>();
+  public settingsSubject: Subject<boolean> = new Subject<boolean>();
 
   constructor() { }
 
@@ -41,6 +42,10 @@ export class ModalService {
 
   public showContainers(data: K8sPodModel) {
     this.podDataSubject.next(data);
+  }
+
+  public showSettings() {
+    this.settingsSubject.next(true);
   }
 
 }

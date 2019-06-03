@@ -16,7 +16,7 @@ For more details see [https://contivpp.io/](https://contivpp.io/)
 ## Features
 * kube-proxy implementation on VPP - in the userspace (full implemenatation of [k8s services](docs/dev-guide/SERVICES.md) & [k8s policies](docs/dev-guide/POLICIES.md))
 * support for [multiple interfaces per pod](docs/operation/CUSTOM_POD_INTERFACES.md), including memif interfaces
-* [IPv6 support](master/docs/setup/IPV6.md), segment routing implementation of k8s services ([SRv6](docs/setup/SRV6.md))
+* [IPv6 support](docs/setup/IPV6.md), segment routing implementation of k8s services ([SRv6](docs/setup/SRV6.md))
 * (in progress) service function chaining between the pods for CNF workloads
 
 

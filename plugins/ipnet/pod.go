@@ -365,7 +365,9 @@ func (n *IPNet) podVPPTap(pod *podmanager.LocalPod, podIP *net.IPNet, customIfNa
 		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
 		PhysAddress: n.hwAddrForPod(pod, true),
 		Link: &vpp_interfaces.Interface_Tap{
-			Tap: &vpp_interfaces.TapLink{},
+			Tap: &vpp_interfaces.TapLink{
+				EnableGso: interfaceCfg.EnableGSO,
+			},
 		},
 	}
 	if podIP != nil {

@@ -105,7 +105,9 @@ func (n *IPNet) interconnectTapVPP() (key string, config *vpp_interfaces.Interfa
 		Enabled: true,
 		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
 		Link: &vpp_interfaces.Interface_Tap{
-			Tap: &vpp_interfaces.TapLink{},
+			Tap: &vpp_interfaces.TapLink{
+				EnableGso: interfaceCfg.EnableGSO,
+			},
 		},
 		PhysAddress: hwAddrForNodeInterface(n.NodeSync.GetNodeID(), hostInterconnectHwAddrPrefix),
 	}

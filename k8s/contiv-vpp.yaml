@@ -28,6 +28,7 @@ data:
     tapInterfaceVersion: 2
     tapv2RxRingSize: 256
     tapv2TxRingSize: 256
+    enableGSO: true
     tcpChecksumOffloadDisabled: true
     STNVersion: 2
     natExternalTraffic: true

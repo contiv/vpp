@@ -1480,10 +1480,16 @@ spec:
               mountPath: /tmp/cfg
             - name: http-cfg
               mountPath: /etc/http
+            {{- if and .Values.etcd.useExternalInstance .Values.etcd.externalInstance.secretName }}
+            - name: etcd-secrets
+              mountPath: /var/contiv/etcd-secrets
+              readOnly: true
+            {{- else }}
             {{- if .Values.etcd.secureTransport }}
             - name: etcd-secrets
               mountPath: /var/contiv/etcd-secrets
               readOnly: true
+            {{- end }}
             {{- end }}
             {{- if .Values.http.enableServerCert }}
             - name: http-secrets

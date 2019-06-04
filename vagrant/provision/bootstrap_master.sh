@@ -4,6 +4,7 @@ set -ex
 echo Args passed: [[ $@ ]]
 
 # variable should be set to true unless the script is executed for the first master
+node_name="$1"
 backup_master="$3"
 
 # Pull images if not present
@@ -199,6 +200,29 @@ spec:
 
 ---
 EOL
+
+    counter=1;
+    until ((counter +1 > "${master_nodes}"))
+    do
+
+      # Generate node config for use with CRD
+      cat <<EOL >> ${contiv_dir}/k8s/node-config/crd.yaml
+# Configuration for node config in the cluster
+apiVersion: nodeconfig.contiv.vpp/v1
+kind: NodeConfig
+metadata:
+  name: k8s-master$counter
+spec:
+  mainVPPInterface:
+    interfaceName: "GigabitEthernet0/8/0"
+  gateway: $gw
+
+---
+EOL
+
+    ((counter++))
+    done
+
     counter=1;
     until ((counter > "${num_nodes}"))
     do
@@ -242,6 +266,27 @@ spec:
 EOL
 
     counter=1;
+    until ((counter +1 > "${master_nodes}"))
+    do
+
+      # Generate node config for use with CRD
+      cat <<EOL >> ${contiv_dir}/k8s/node-config/crd.yaml
+# Configuration for node config in the cluster
+apiVersion: nodeconfig.contiv.vpp/v1
+kind: NodeConfig
+metadata:
+  name: k8s-master$counter
+spec:
+  mainVPPInterface:
+    interfaceName: "GigabitEthernet0/8/0"
+
+---
+EOL
+
+    ((counter++))
+    done
+
+    counter=1;
     until ((counter > "${num_nodes}"))
     do
       # Generate node config for use with CRD
@@ -272,6 +317,11 @@ applyVPPnetwork() {
         --export >> coredns-config.yaml
     sed -i 's/\/etc\/resolv.conf/fe10::2:100/' coredns-config.yaml
     kubectl apply -f coredns-config.yaml -n kube-system
+  fi
+
+  # Deploy external etcd, nodeport etcd service and etcd secrets
+  if [ ${master_nodes} -gt 1 ]; then
+    kubectl apply -f ${contiv_dir}/k8s/multi-master/external_etcd.yaml
   fi
 
   helm_opts="${helm_extra_opts}"
@@ -381,4 +431,7 @@ if [ "$backup_master" != "true" ]; then
     export -f applyVPPnetwork
     su vagrant -c "bash -c applyVPPnetwork"
   fi
+else
+  echo "schedule pods on secondary master"
+  su vagrant -c "kubectl taint node ${node_name} node-role.kubernetes.io/master-"
 fi

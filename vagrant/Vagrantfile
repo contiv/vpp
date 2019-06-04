@@ -83,7 +83,7 @@ if (ip_version == 'ipv6' && base_ip == '10.20.0.')
 end
 
 if ( master_nodes > 1 )
-   k8s_version = '1.13.4'
+   k8s_version = '1.14.2'
 end
 
 if (k8s_version == "1.12.3" && docker_version == "18.03.0~ce-0")

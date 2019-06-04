@@ -45,16 +45,17 @@ UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' install-
 rm -rf /var/lib/apt/lists/*
 cd ${VPP_DIR}
 UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' build-release pkg-deb
-cd build-root
-dpkg -i vpp_*.deb vpp-plugin-core_*.deb vpp-plugin-dpdk_*.deb libvppinfra_*.deb
+
 
 # run the debug build too unless the SKIP_DEBUG_BUILD env var is set to non-0 value
 if [ "${SKIP_DEBUG_BUILD}" == "" ] || [ "${SKIP_DEBUG_BUILD}" -eq 0 ]; then
-	cd ${VPP_DIR}
-	make vpp_configure_args_vpp='--disable-japi --disable-vom' build
-	# overwrite prod plugins with debug plugins
-	rm -rf /usr/lib/{vpp_plugins,vpp_api_test_plugins}
-	#cp -r build-root/install-vpp_debug-native/vpp/lib64/{vpp_plugins,vpp_api_test_plugins} /usr/lib
+    cd ${VPP_DIR}
+    make vpp_configure_args_vpp='--disable-japi --disable-vom' build pkg-deb-debug
+    cd build-root
+    dpkg -i vpp_*.deb vpp-plugin-core_*.deb vpp-plugin-dpdk_*.deb libvppinfra_*.deb vpp-dev_*.deb libvppinfra-dev_*.deb
+else
+    cd build-root
+    dpkg -i vpp_*.deb vpp-plugin-core_*.deb vpp-plugin-dpdk_*.deb libvppinfra_*.deb
 fi
 
 # do some cleanup
@@ -62,5 +63,4 @@ cd ${VPP_DIR}
 cd build-root
 find . -name '*.o' -exec rm '{}' \;
 
-apt-get remove --purge -y openjdk*
 rm -rf /var/lib/apt/lists/*

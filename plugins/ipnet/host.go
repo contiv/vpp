@@ -123,9 +123,12 @@ func (n *IPNet) interconnectTapVPP() (key string, config *vpp_interfaces.Interfa
 		tap.GetTap().RxRingSize = uint32(interfaceCfg.TAPv2RxRingSize)
 		tap.GetTap().TxRingSize = uint32(interfaceCfg.TAPv2TxRingSize)
 	}
-	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
-		tap.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
-			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxMode_UNKNOWN {
+		tap.RxModes = []*vpp_interfaces.Interface_RxMode{
+			{
+				DefaultMode: true,
+				Mode:        interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+			},
 		}
 	}
 	key = vpp_interfaces.InterfaceKey(tap.Name)
@@ -194,9 +197,12 @@ func (n *IPNet) interconnectAfpacket() (key string, config *vpp_interfaces.Inter
 	} else {
 		afpacket.IpAddresses = []string{n.IPAM.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)}
 	}
-	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
-		afpacket.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
-			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxMode_DEFAULT {
+		afpacket.RxModes = []*vpp_interfaces.Interface_RxMode{
+			{
+				DefaultMode: true,
+				Mode:        interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+			},
 		}
 	}
 	key = vpp_interfaces.InterfaceKey(afpacket.Name)

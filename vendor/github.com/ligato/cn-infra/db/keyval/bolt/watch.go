@@ -16,27 +16,22 @@ package bolt
 
 import (
 	"bytes"
+	"context"
 	"strings"
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/db/keyval"
 )
 
-type watchEvent struct {
-	Type      datasync.Op
-	Key       string
-	Value     []byte
-	PrevValue []byte
-	Revision  int64
-}
+func (c *Client) bumpWatchers(we *watchEvent) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
-type watchers map[chan string]*watcher // close channel -> watcher
-
-type watcher struct {
-	prefixes    []watchPrefix
-	watchCh     chan *watchEvent
-	closeCh     chan string
-	prefixRegCh chan watchPrefix // for registration of new key prefixes to watch
+	for _, w := range c.watchers {
+		if strings.HasPrefix(we.Key, w.prefix) {
+			w.watchCh <- we
+		}
+	}
 }
 
 type watchResp struct {
@@ -44,25 +39,6 @@ type watchResp struct {
 	key              string
 	value, prevValue []byte
 	rev              int64
-}
-
-type watchPrefix struct {
-	prefix string
-	cb     watchCallback
-}
-
-type watchCallback func(watchResp keyval.BytesWatchResp)
-
-func (c *Client) bumpWatchers(we *watchEvent) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if c.cfg.FilterDupNotifs && bytes.Equal(we.Value, we.PrevValue) {
-		return
-	}
-	for _, w := range c.watchers {
-		w.watchCh <- we
-	}
 }
 
 // GetChangeType returns "Put" for BytesWatchPutResp.
@@ -90,102 +66,85 @@ func (resp *watchResp) GetRevision() int64 {
 	return resp.rev
 }
 
-// Watch watches given list of key prefixes.
-func (c *Client) Watch(resp func(watchResp keyval.BytesWatchResp), closeCh chan string, prefixes ...string) error {
-	boltLogger.Debugf("watch: %q", prefixes)
+func (c *Client) watch(resp func(watchResp keyval.BytesWatchResp), closeCh chan string, prefix string) error {
+	boltLogger.Debug("watch:", prefix)
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	ctx, cancel := context.WithCancel(context.Background())
 
-	w, exists := c.watchers[closeCh]
-	if exists {
-		// this close channel is already in use
-		for _, prefix := range prefixes {
-			w.prefixRegCh <- watchPrefix{
-				prefix: prefix,
-				cb:     resp,
+	recvChan := c.watchPrefix(ctx, prefix)
+
+	go func(regPrefix string) {
+		defer cancel()
+		for {
+			select {
+			case ev, ok := <-recvChan:
+				if !ok {
+					boltLogger.WithField("prefix", prefix).
+						Debug("Watch recv chan was closed")
+					return
+				}
+				if c.cfg.FilterDupNotifs && bytes.Equal(ev.Value, ev.PrevValue) {
+					continue
+				}
+				r := &watchResp{
+					typ:       ev.Type,
+					key:       ev.Key,
+					value:     ev.Value,
+					prevValue: ev.PrevValue,
+					rev:       ev.Revision,
+				}
+				resp(r)
+			case closeVal, ok := <-closeCh:
+				if !ok || closeVal == regPrefix {
+					boltLogger.WithField("prefix", prefix).
+						Debug("Watch ended")
+					return
+				}
 			}
 		}
-		return nil
-	}
+	}(prefix)
 
-	// create and register new watcher
-	w = &watcher{
-		prefixes:    make([]watchPrefix, len(prefixes)),
-		watchCh:     make(chan *watchEvent, 10),
-		closeCh:     closeCh,
-		prefixRegCh: make(chan watchPrefix, 10),
-	}
-	for i, prefix := range prefixes {
-		w.prefixes[i] = watchPrefix{
-			prefix: prefix,
-			cb:     resp,
-		}
-	}
-	c.watchers[closeCh] = w
-
-	go func() {
-		w.watch()
-		// un-register when done
-		c.mu.Lock()
-		delete(c.watchers, closeCh)
-		c.mu.Unlock()
-	}()
 	return nil
 }
 
-func (w *watcher) watch() {
-	for {
+type watchEvent struct {
+	Type      datasync.Op
+	Key       string
+	Value     []byte
+	PrevValue []byte
+	Revision  int64
+}
+
+type prefixWatcher struct {
+	prefix  string
+	watchCh chan *watchEvent
+}
+
+func (c *Client) watchPrefix(ctx context.Context, prefix string) <-chan *watchEvent {
+	boltLogger.Debug("watchPrefix:", prefix)
+
+	ch := make(chan *watchEvent, 1)
+
+	c.mu.Lock()
+	index := len(c.watchers)
+	c.watchers = append(c.watchers, &prefixWatcher{
+		prefix:  prefix,
+		watchCh: ch,
+	})
+	c.mu.Unlock()
+
+	go func() {
 		select {
-		case ev, ok := <-w.watchCh:
-			if !ok {
-				boltLogger.WithField("prefixes", w.prefixes).
-					Debug("Watch channel was closed")
-				return
+		case <-ctx.Done():
+			c.mu.Lock()
+			if len(c.watchers) == index+1 {
+				c.watchers = c.watchers[:index]
+			} else {
+				c.watchers = append(c.watchers[:index], c.watchers[index+1:]...)
 			}
-			var cb watchCallback
-			for _, wp := range w.prefixes {
-				if strings.HasPrefix(ev.Key, wp.prefix) {
-					cb = wp.cb
-					break
-				}
-			}
-			if cb == nil {
-				// key not watched by this watcher
-				continue
-			}
-			r := &watchResp{
-				typ:       ev.Type,
-				key:       ev.Key,
-				value:     ev.Value,
-				prevValue: ev.PrevValue,
-				rev:       ev.Revision,
-			}
-			cb(r)
-
-		case regPrefix, ok := <- w.prefixRegCh:
-			if !ok {
-				boltLogger.WithField("prefixes", w.prefixes).
-					Debug("Prefix-registration channel was closed")
-				return
-			}
-			w.prefixes = append(w.prefixes, regPrefix)
-			boltLogger.WithField("prefixes", w.prefixes).Debug(
-				"The set of watched prefixes was extended")
-
-		case closeVal, ok := <-w.closeCh:
-			if !ok {
-				boltLogger.WithField("prefixes", w.prefixes).Debug("Watch ended")
-				return
-			}
-			for i, wp := range w.prefixes {
-				if wp.prefix == closeVal {
-					boltLogger.WithField("prefix", wp.prefix).Debug("Watch ended")
-					w.prefixes[i] = w.prefixes[len(w.prefixes)-1]
-					w.prefixes = w.prefixes[:len(w.prefixes)-1]
-					break
-				}
-			}
+			c.mu.Unlock()
 		}
-	}
+	}()
+
+	return ch
 }

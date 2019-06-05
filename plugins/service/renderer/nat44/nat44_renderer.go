@@ -33,7 +33,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/nat"
+	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/nat"
 )
 
 const (
@@ -656,23 +656,17 @@ func (rndr *Renderer) idleNATSessionCleanup() {
 						(msg.Protocol != 6 && time.Since(lastHeard) > otherTimeout) {
 						// inactive session
 						delRule := &nat_api.Nat44DelSession{
-							IsIn:     1,
 							Address:  msg.InsideIPAddress,
 							Port:     msg.InsidePort,
 							Protocol: uint8(msg.Protocol),
 							VrfID:    natUser.VrfID,
 						}
-						if msg.ExtHostValid > 0 {
-							delRule.ExtHostValid = 1
 
-							if msg.IsTwicenat > 0 {
-								delRule.ExtHostAddress = msg.ExtHostNatAddress
-								delRule.ExtHostPort = msg.ExtHostNatPort
-							} else {
-								delRule.ExtHostAddress = msg.ExtHostAddress
-								delRule.ExtHostPort = msg.ExtHostPort
-							}
-						}
+						delRule.ExtHostAddress = msg.ExtHostNatAddress
+						delRule.ExtHostPort = msg.ExtHostNatPort
+
+						//delRule.ExtHostAddress = msg.ExtHostAddress
+						//delRule.ExtHostPort = msg.ExtHostPort
 
 						delRules = append(delRules, delRule)
 					}

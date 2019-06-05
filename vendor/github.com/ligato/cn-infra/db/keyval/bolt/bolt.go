@@ -49,7 +49,7 @@ type Client struct {
 	updateChan chan *updateTx
 
 	mu       sync.RWMutex
-	watchers watchers
+	watchers []*prefixWatcher
 
 	wg   sync.WaitGroup
 	quit chan struct{}
@@ -78,7 +78,6 @@ func NewClient(cfg *Config) (client *Client, err error) {
 		cfg:        *cfg,
 		quit:       make(chan struct{}),
 		updateChan: make(chan *updateTx, UpdatesChannelSize),
-		watchers:   make(watchers),
 	}
 
 	c.wg.Add(1)
@@ -198,6 +197,17 @@ func (c *Client) ListValues(keyPrefix string) (keyval.BytesKeyValIterator, error
 	})
 
 	return &bytesKeyValIterator{len: len(pairs), pairs: pairs}, err
+}
+
+// Watch watches given list of key prefixes.
+func (c *Client) Watch(resp func(keyval.BytesWatchResp), closeChan chan string, keys ...string) error {
+	boltLogger.Debugf("Watch: %q", keys)
+	for _, k := range keys {
+		if err := c.watch(resp, closeChan, k); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // NewTxn creates new transaction

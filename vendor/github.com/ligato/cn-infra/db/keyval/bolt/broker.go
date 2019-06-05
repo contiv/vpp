@@ -17,7 +17,6 @@ package bolt
 import (
 	"bytes"
 	"strings"
-	"sync"
 
 	"github.com/boltdb/bolt"
 	"github.com/ligato/cn-infra/datasync"
@@ -30,14 +29,9 @@ import (
 // BrokerWatcher allows defining a keyPrefix that is prepended
 // to all keys in its methods in order to shorten keys used in arguments.
 type BrokerWatcher struct {
-	sync.Mutex
 	*Client
-
-	prefix      string
-	prefixedChs prefixedChannels
+	prefix string
 }
-
-type prefixedChannels map[chan string]chan string
 
 // NewBroker creates a new instance of a proxy that provides
 // access to Bolt. The proxy will reuse the connection from Client.
@@ -46,9 +40,8 @@ type prefixedChannels map[chan string]chan string
 // an argument.
 func (c *Client) NewBroker(prefix string) keyval.BytesBroker {
 	return &BrokerWatcher{
-		Client:      c,
-		prefix:      prefix,
-		prefixedChs: make(prefixedChannels),
+		Client: c,
+		prefix: prefix,
 	}
 }
 
@@ -59,44 +52,13 @@ func (c *Client) NewBroker(prefix string) keyval.BytesBroker {
 // an argument.
 func (c *Client) NewWatcher(prefix string) keyval.BytesWatcher {
 	return &BrokerWatcher{
-		Client:      c,
-		prefix:      prefix,
-		prefixedChs: make(prefixedChannels),
+		Client: c,
+		prefix: prefix,
 	}
 }
 
 func (pdb *BrokerWatcher) prefixKey(key string) string {
 	return pdb.prefix + key
-}
-
-func (pdb *BrokerWatcher) prefixChannel(ch chan string) chan string {
-	pdb.Lock()
-	defer pdb.Unlock()
-
-	if pdb.prefix == "" {
-		return ch
-	}
-
-	if prefCh, has := pdb.prefixedChs[ch]; has {
-		return prefCh
-	}
-
-	origCh := ch
-	ch = make(chan string)
-	pdb.prefixedChs[origCh] = ch
-	go func() {
-		for {
-			select {
-			case key, ok := <-origCh:
-				if !ok {
-					close(ch)
-					return
-				}
-				ch <- pdb.prefixKey(key)
-			}
-		}
-	}()
-	return ch
 }
 
 // Put calls 'Put' function of the underlying Client.
@@ -180,7 +142,6 @@ func (pdb *BrokerWatcher) Watch(resp func(keyval.BytesWatchResp), closeChan chan
 	for _, key := range keys {
 		prefixedKeys = append(prefixedKeys, pdb.prefixKey(key))
 	}
-	closeChan = pdb.prefixChannel(closeChan)
 	return pdb.Client.Watch(func(origResp keyval.BytesWatchResp) {
 		r := origResp.(*watchResp)
 		r.key = strings.TrimPrefix(r.key, pdb.prefix)

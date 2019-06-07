@@ -31,7 +31,7 @@ spec:
           operator: Exists
       # Only run this pod on the master.
       nodeSelector:
-        node-role.kubernetes.io/master: ""
+        kubernetes.io/hostname: "k8s-master1"
       hostNetwork: true
 
       containers:

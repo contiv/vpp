@@ -1,0 +1,33 @@
+diff --git a/src/plugins/nat/nat.c b/src/plugins/nat/nat.c
+index deed87ece..0df4f8186 100755
+--- a/src/plugins/nat/nat.c
++++ b/src/plugins/nat/nat.c
+@@ -2160,6 +2160,7 @@ snat_set_workers (uword * bitmap)
+   return 0;
+ }
+ 
++/*
+ static void
+ snat_update_outside_fib (u32 sw_if_index, u32 new_fib_index,
+ 			 u32 old_fib_index)
+@@ -2219,6 +2220,7 @@ snat_ip4_table_bind (ip4_main_t * im,
+ {
+   snat_update_outside_fib (sw_if_index, new_fib_index, old_fib_index);
+ }
++*/
+ 
+ static void
+ snat_ip4_add_del_interface_address_cb (ip4_main_t * im,
+@@ -2401,10 +2403,12 @@ snat_init (vlib_main_t * vm)
+ 
+   nat66_init (vm);
+ 
++  /*
+   ip4_table_bind_callback_t cbt4 = {
+     .function = snat_ip4_table_bind,
+   };
+   vec_add1 (ip4_main.table_bind_callbacks, cbt4);
++  */
+ 
+   /* Init virtual fragmenentation reassembly */
+   return nat_reass_init (vm);

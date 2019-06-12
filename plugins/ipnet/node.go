@@ -307,9 +307,12 @@ func (n *IPNet) physicalInterface(name string, ips contivconf.IPsWithNetworks) (
 			iface.GetVmxNet3().TxqSize = uint32(ifConfig.Vmxnet3TxRingSize)
 		}
 	}
-	if interfaceRxModeType(ifConfig.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
-		iface.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
-			RxMode: interfaceRxModeType(ifConfig.InterfaceRxMode),
+	if interfaceRxModeType(ifConfig.InterfaceRxMode) != vpp_interfaces.Interface_RxMode_DEFAULT {
+		iface.RxModes = []*vpp_interfaces.Interface_RxMode{
+			{
+				DefaultMode: true,
+				Mode:        interfaceRxModeType(ifConfig.InterfaceRxMode),
+			},
 		}
 	}
 	key = vpp_interfaces.InterfaceKey(name)

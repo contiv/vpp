@@ -271,15 +271,15 @@ EOL
 }
 
 applyVPPnetwork() {
+  # coredns config tweaks
+  kubectl get configmap coredns -o yaml --export -n kube-system > /tmp/coredns-config.yaml
   if [[ $ip_version == "ipv6" ]]; then
-    # Disable coredns loop detection plugin
-    kubectl get configmap coredns \
-        -o yaml \
-        -n kube-system  \
-        --export >> coredns-config.yaml
-    sed -i 's/\/etc\/resolv.conf/fe10::2:100/' coredns-config.yaml
-    kubectl apply -f coredns-config.yaml -n kube-system
+    # set proper upstream dns server
+    sed -i 's/\/etc\/resolv.conf/fe10::2:100/' /tmp/coredns-config.yaml
   fi
+  # disable coredns loop detection plugin
+  sed -i '/loop/d' /tmp/coredns-config.yaml
+  kubectl apply -f /tmp/coredns-config.yaml -n kube-system
 
   helm_opts="${helm_extra_opts}"
 

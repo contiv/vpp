@@ -51,6 +51,7 @@ type InterfaceConfig struct {
 	Vmxnet3TxRingSize          uint16 `json:"vmxnet3TxRingSize,omitempty"`
 	InterfaceRxMode            string `json:"interfaceRxMode,omitempty"` // "" == "default" / "polling" / "interrupt" / "adaptive"
 	TCPChecksumOffloadDisabled bool   `json:"tcpChecksumOffloadDisabled,omitempty"`
+	EnableGSO                  bool   `json:"enableGSO,omitempty"`
 }
 
 // RoutingConfig groups configuration options related to routing.

@@ -38,6 +38,7 @@ data:
     {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}
     tapv2RxRingSize: {{ .Values.contiv.tapv2RxRingSize }}
     tapv2TxRingSize: {{ .Values.contiv.tapv2TxRingSize }}
+    enableGSO: {{ .Values.contiv.enableGSO }}
     {{- end }}
     {{- if ne (.Values.contiv.vmxnet3RxRingSize | int) 1024 }}
     vmxnet3RxRingSize: {{ .Values.contiv.vmxnet3RxRingSize }}

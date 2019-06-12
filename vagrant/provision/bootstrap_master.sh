@@ -4,6 +4,7 @@ set -ex
 echo Args passed: [[ $@ ]]
 
 # variable should be set to true unless the script is executed for the first master
+node_name="$1"
 backup_master="$3"
 
 # Pull images if not present
@@ -72,7 +73,6 @@ source /home/vagrant/.profile
 # --------------> Kubeadm & Networking <------------------
 # --------------------------------------------------------
 
-# Based on kubernetes version, disable hugepages in Kubelet
 # Initialize Kubernetes master
 
 service_cidr="10.96.0.0/12"
@@ -85,17 +85,17 @@ elif [ "${dep_scenario}" != 'calico' ] && [ "${dep_scenario}" != 'calicovpp' ]; 
 fi
 
 split_k8s_version="$(cut -d "." -f 2 <<< "${k8s_version}")"
-if [ $split_k8s_version -gt 10 ] ; then
-  if [ "${node_os_release}" == "16.04" ] ; then
-    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
-  else
-    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false --resolv-conf=\/run\/systemd\/resolve\/resolv.conf/' /etc/default/kubelet
-  fi
-  systemctl daemon-reload
-  systemctl restart kubelet
-  if [ "${dep_scenario}" != 'calico' ] && [ "${dep_scenario}" != 'calicovpp' ]; then
-    if [ ${master_nodes} -gt 1 ]; then
-       cat  > kubeadm.cfg <<EOF
+
+if [ "${node_os_release}" == "16.04" ] ; then
+  echo "KUBELET_EXTRA_ARGS=--node-ip=$KUBE_MASTER_IP" > /etc/default/kubelet
+else
+  echo "KUBELET_EXTRA_ARGS=--node-ip=$KUBE_MASTER_IP --resolv-conf=/run/systemd/resolve/resolv.conf" > /etc/default/kubelet
+fi
+systemctl daemon-reload
+systemctl restart kubelet
+if [ "${dep_scenario}" != 'calico' ] && [ "${dep_scenario}" != 'calicovpp' ]; then
+  if [ ${master_nodes} -gt 1 ]; then
+    cat  > kubeadm.cfg <<EOF
 ---
 apiVersion: kubeadm.k8s.io/v1beta1
 bootstrapTokens:
@@ -130,40 +130,34 @@ etcd:
     dataDir: /var/lib/etcd
 imageRepository: k8s.gcr.io
 kind: ClusterConfiguration
-kubernetesVersion: v1.13.0
+kubernetesVersion: v$k8s_version
 networking:
   dnsDomain: cluster.local
   podSubnet: "$pod_network_cidr"
   serviceSubnet: $service_cidr
 scheduler: {}
 EOF
-       if [ "$backup_master" != "true" ]; then
-          echo "$(kubeadm init --config=kubeadm.cfg)" >> /vagrant/config/cert
-       else
-
-         # since master join ignores node-ip arg in kubelet config
-         # modify default route in order to suggest kubelet choosing the correct IP
-         ip route del `ip route | grep default`
-         ip route add default via 10.20.0.100
-
-         # copy certificates from the first master node
-         mkdir -p /etc/kubernetes/pki/etcd
-         cp /vagrant/certs/* /etc/kubernetes/pki/
-         mv /etc/kubernetes/pki/etcd-ca.crt /etc/kubernetes/pki/etcd/ca.crt
-         mv /etc/kubernetes/pki/etcd-ca.key /etc/kubernetes/pki/etcd/ca.key
-         hash=$(awk 'END {print $NF}' /vagrant/config/cert)
-         kubeadm join --token "${KUBEADM_TOKEN}"  10.20.0.100:6443 --discovery-token-ca-cert-hash "$hash" --experimental-control-plane
-       fi
+    if [ "$backup_master" != "true" ]; then
+      echo "$(kubeadm init --config=kubeadm.cfg)" >> /vagrant/config/cert
     else
-       echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+
+    # since master join ignores node-ip arg in kubelet config
+    # modify default route in order to suggest kubelet choosing the correct IP
+    ip route del `ip route | grep default`
+    ip route add default via 10.20.0.100
+
+    # copy certificates from the first master node
+    mkdir -p /etc/kubernetes/pki/etcd
+    cp /vagrant/certs/* /etc/kubernetes/pki/
+    mv /etc/kubernetes/pki/etcd-ca.crt /etc/kubernetes/pki/etcd/ca.crt
+    mv /etc/kubernetes/pki/etcd-ca.key /etc/kubernetes/pki/etcd/ca.key
+    hash=$(awk 'END {print $NF}' /vagrant/config/cert)
+    kubeadm join --token "${KUBEADM_TOKEN}"  10.20.0.100:6443 --discovery-token-ca-cert-hash "$hash" --experimental-control-plane
     fi
   else
-       echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+    echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
   fi
 else
-  sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
-  systemctl daemon-reload
-  systemctl restart kubelet
   echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"${k8s_version}" --pod-network-cidr="${pod_network_cidr}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --service-cidr="${service_cidr}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
 fi
 
@@ -206,6 +200,29 @@ spec:
 
 ---
 EOL
+
+    counter=1;
+    until ((counter +1 > "${master_nodes}"))
+    do
+
+      # Generate node config for use with CRD
+      cat <<EOL >> ${contiv_dir}/k8s/node-config/crd.yaml
+# Configuration for node config in the cluster
+apiVersion: nodeconfig.contiv.vpp/v1
+kind: NodeConfig
+metadata:
+  name: k8s-master$counter
+spec:
+  mainVPPInterface:
+    interfaceName: "GigabitEthernet0/8/0"
+  gateway: $gw
+
+---
+EOL
+
+    ((counter++))
+    done
+
     counter=1;
     until ((counter > "${num_nodes}"))
     do
@@ -249,6 +266,27 @@ spec:
 EOL
 
     counter=1;
+    until ((counter +1 > "${master_nodes}"))
+    do
+
+      # Generate node config for use with CRD
+      cat <<EOL >> ${contiv_dir}/k8s/node-config/crd.yaml
+# Configuration for node config in the cluster
+apiVersion: nodeconfig.contiv.vpp/v1
+kind: NodeConfig
+metadata:
+  name: k8s-master$counter
+spec:
+  mainVPPInterface:
+    interfaceName: "GigabitEthernet0/8/0"
+
+---
+EOL
+
+    ((counter++))
+    done
+
+    counter=1;
     until ((counter > "${num_nodes}"))
     do
       # Generate node config for use with CRD
@@ -280,6 +318,11 @@ applyVPPnetwork() {
   # disable coredns loop detection plugin
   sed -i '/loop/d' /tmp/coredns-config.yaml
   kubectl apply -f /tmp/coredns-config.yaml -n kube-system
+
+  # Deploy external etcd, nodeport etcd service and etcd secrets
+  if [ ${master_nodes} -gt 1 ]; then
+    kubectl apply -f ${contiv_dir}/k8s/multi-master/external_etcd.yaml
+  fi
 
   helm_opts="${helm_extra_opts}"
 
@@ -388,4 +431,7 @@ if [ "$backup_master" != "true" ]; then
     export -f applyVPPnetwork
     su vagrant -c "bash -c applyVPPnetwork"
   fi
+else
+  echo "schedule pods on secondary master"
+  su vagrant -c "kubectl taint node ${node_name} node-role.kubernetes.io/master-"
 fi

@@ -63,14 +63,14 @@ export class TopologyVizComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnInit() {
     this.topoSubscription = this.topologyService.getTopologyDataObservable().subscribe(() => {
+      this.dataService.preventRefresh();
+
       if (this.isDraggingItem) {
         this.forceRender = true;
       } else {
         this.renderTopology();
       }
     });
-
-    this.dataService.preventRefresh();
   }
 
   ngAfterViewInit() {

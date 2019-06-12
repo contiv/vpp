@@ -529,6 +529,9 @@ spec:
             - name: kubelet-api
               mountPath: /var/lib/kubelet
           resources:
+            limits:
+              hugepages-2Mi: 512Mi
+              memory: 512Mi
             requests:
               cpu: 250m
 

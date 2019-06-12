@@ -20,10 +20,10 @@
     <li class="nav-item">
       <a class="nav-link" routerLink="services" routerLinkActive="active">Services</a>
     </li>
-    <li class="nav-item">
-      <a class="nav-link" (click)="isWebTerminalOpened = true">Netctl</a>
-    </li>
   </ul>
+  <div id="controls">
+    <clr-icon shape="cog" size="20" (click)="openSettings()"></clr-icon>
+  </div>
 </nav>
 
 <div class="content">
@@ -45,3 +45,4 @@
 <app-node-detail-modal></app-node-detail-modal>
 <app-code-modal></app-code-modal>
 <app-containers-modal></app-containers-modal>
+<app-settings-modal></app-settings-modal>

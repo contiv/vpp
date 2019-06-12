@@ -33,11 +33,6 @@ has a `/24` slice of the `PodSubnetCIDR`. The Node ID is used to address the nod
 In case of `PodSubnetCIDR = 10.1.0.0/16`, `PodSubnetOneNodePrefixLen = 24` and `NodeID = 5`,
 the resulting POD subnet for the node would be `10.1.5.0/24`.
 
-- **PodVPPSubnetCIDR** (default `10.2.1.0/24`): VPP-internal addresses used to put
-the VPP interfaces facing towards the PODs into L3 mode. This IP range will be reused 
-on each node, thereby it is never externally addressable outside of the node itself.
-The only requirement is that this subnet should not collide with any other IPAM subnet.
-
 - **VPPHostSubnetCIDR** (default `172.30.0.0/16`): used for addressing 
 the interconnect of the VPP with the Linux network stack within the same node. 
 Since this subnet needs to  be unique on each node, the Node ID is used to determine 

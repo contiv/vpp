@@ -13,6 +13,7 @@
 * [VAGRANT INSTALLATION](../vagrant/README.md) - running Contiv-VPP in Vagrant
 * [MANUAL INSTALLATION](setup/MANUAL_INSTALL.md) - running Contiv-VPP on bare metal
 * [IPV6](setup/IPV6.md) - enabling IPv6 in Contiv-VPP
+* [SRV6.md](setup/SRV6.md) - SRv6 (Segment Routing on IPv6) implementation of k8s services
 * [ARM64 SETUP](arm64) - running Contiv-VPP on ARM platform
 * [CUSTOM MGMT NETWORK](setup/CUSTOM_MGMT_NETWORK.md) - setting up a custom management 
   network on multi-homed nodes
@@ -28,6 +29,7 @@
 
 
 ## Operation
+* [CUSTOM POD INTERFACES](operation/CUSTOM_POD_INTERFACES.md) - deploying pods with custom interfaces
 * [TOOLS](operation/TOOLS.md) - configuration and Troubleshooting Tools
 * [PROMETHEUS](operation/PROMETHEUS.md) - Prometheus statistics
 * [CONTIV UI](../ui/README.md) - web-based Contiv VPP user interface

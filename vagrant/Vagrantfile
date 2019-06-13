@@ -185,13 +185,13 @@ VAGRANTFILE_API_VERSION = "2"
               gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
             else
               gw.vm.network :private_network, ip: "192.168.16.100", netmask: "255.255.255.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
-              if master_nodes > 1
-                 # in order to support multi master add additional connect GW to mgmt network
-                 gw.vm.network :private_network, ip: "#{base_ip}100", netmask: "255.255.255.0", virtualbox__intnet: "true"
-              end
             end
           else
             gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp", nic_type: "82540EM"
+          end
+          if master_nodes > 1
+            # in order to support multi master add additional connect GW to mgmt network
+            gw.vm.network :private_network, ip: "#{base_ip}100", netmask: "255.255.255.0", virtualbox__intnet: "true"
           end
       end
       if dep_scenario == 'calico'

@@ -198,6 +198,9 @@ socksvr {
 statseg {
    default
 }
+buffers {
+   buffers-per-numa 131072
+}
 EOF
 }
 

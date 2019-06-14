@@ -28,6 +28,7 @@ data:
     tapInterfaceVersion: 2
     tapv2RxRingSize: 256
     tapv2TxRingSize: 256
+    enableGSO: false
     tcpChecksumOffloadDisabled: true
     STNVersion: 2
     natExternalTraffic: true
@@ -530,6 +531,9 @@ spec:
             - name: kubelet-api
               mountPath: /var/lib/kubelet
           resources:
+            limits:
+              hugepages-2Mi: 512Mi
+              memory: 512Mi
             requests:
               cpu: 250m
 

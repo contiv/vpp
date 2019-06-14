@@ -39,9 +39,17 @@ if [ "$1" = "install" ];then
     sudo -E apt-get update -q
 
     echo "Installing Kubernetes Components..."
-    sudo -E apt-get install -qy kubelet=${k8s_version}-00 \
+    ver=`echo $k8s_version | cut -c 3-4`
+
+    if [[ ${ver} -eq 13 ]];then
+        sudo -E apt-get install -qy kubelet=${k8s_version}-00 \
                       kubectl=${k8s_version}-00 \
                       kubeadm=${k8s_version}-00 kubernetes-cni=0.6.0-00
+    else
+        sudo -E apt-get install -qy kubelet=${k8s_version}-00 \
+                      kubectl=${k8s_version}-00 \
+                      kubeadm=${k8s_version}-00
+    fi
 
     echo "Installing Docker..."
     if [ "${node_os_release}" == "16.04" ] ; then
@@ -127,6 +135,11 @@ if [ "${ip_version}" == "ipv6" ]; then
     fi
 fi
 
+# pre-allocate hugepages
+sudo sysctl -w vm.nr_hugepages=512
+sudo echo "vm.nr_hugepages=512" >> /etc/sysctl.conf
+sudo service kubelet restart
+
 #Load uio_pci_generic driver and setup the loading on each boot up
 installPCIUIO() {
    modprobe uio_pci_generic
@@ -161,7 +174,6 @@ unix {
    poll-sleep-usec 100
 }
 dpdk {
-   num-mbufs 131072
    dev 0000:00:08.0
 }
 nat {
@@ -185,6 +197,9 @@ socksvr {
 }
 statseg {
    default
+}
+buffers {
+   buffers-per-numa 131072
 }
 EOF
 }

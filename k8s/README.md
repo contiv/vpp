@@ -67,7 +67,6 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
 
   * IPAM (section `ipamConfig`)
     - `podSubnetCIDR`: subnet used for all pods across all nodes
-    - `podVPPSubnetCIDR`: subnet CIDR for VPP-side POD addresses
     - `podSubnetOneNodePrefixLen`: subnet prefix length used for all pods of 1 k8s node
       (pod network = pod subnet for one k8s node);
     - `vppHostSubnetCIDR`: subnet used in each node for VPP-to-host connectivity;

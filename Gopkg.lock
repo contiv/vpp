@@ -10,8 +10,8 @@
   version = "v0.37.2"
 
 [[projects]]
-  branch = "vpp1901"
-  digest = "1:ea26c62248bc837f3a4f504e7868726c9a3ae9f04b9fd007ad303b37984fceb0"
+  branch = "master"
+  digest = "1:dcc5ddb4f84cd78e013cbcf480d8e0f255b57d3c75467bab562f24352555ee38"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
@@ -22,11 +22,10 @@
     "api",
     "codec",
     "core",
-    "examples/bin_api/memclnt",
+    "examples/binapi/memclnt",
   ]
   pruneopts = "UT"
-  revision = "b68632527ae6efd62e7ed63e5142cc719da0047a"
-  source = "github.com/ligato/govpp.git"
+  revision = "c4522fe10317b1729a0820dc880afc78c663f64d"
 
 [[projects]]
   branch = "master"
@@ -744,8 +743,7 @@
   version = "v1.14.1"
 
 [[projects]]
-  branch = "dev"
-  digest = "1:a3663abcb310410dace635c6972fac72c02c45728f60693874ac8f42f728a67c"
+  digest = "1:52deab9cdd0bebb44dd010c960ebd83406fab5976970d24f724ca1049321202d"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -785,11 +783,11 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "77e78aeca2f5c728bcf836bcbd20da7afea8ffde"
+  revision = "ceaf6f4fe9f9fa6aa0629edc20156a969928f0e5"
+  version = "v2.1.0"
 
 [[projects]]
-  branch = "dev"
-  digest = "1:68eccf58d07a6cf3de576ef760444f4f612aa18df2a293cfc47b831dde05b993"
+  digest = "1:99f0eb74ef73748916632f9683f58b19e70031feae7e00fa7786fc35d80b4fff"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -869,7 +867,6 @@
     "plugins/vpp/binapi/vpp1901/memif",
     "plugins/vpp/binapi/vpp1901/nat",
     "plugins/vpp/binapi/vpp1901/punt",
-    "plugins/vpp/binapi/vpp1901/session",
     "plugins/vpp/binapi/vpp1901/sr",
     "plugins/vpp/binapi/vpp1901/stn",
     "plugins/vpp/binapi/vpp1901/tap",
@@ -889,6 +886,7 @@
     "plugins/vpp/binapi/vpp1904/memif",
     "plugins/vpp/binapi/vpp1904/nat",
     "plugins/vpp/binapi/vpp1904/punt",
+    "plugins/vpp/binapi/vpp1904/session",
     "plugins/vpp/binapi/vpp1904/sr",
     "plugins/vpp/binapi/vpp1904/stn",
     "plugins/vpp/binapi/vpp1904/tapv2",
@@ -941,7 +939,8 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1904",
   ]
   pruneopts = "UT"
-  revision = "8511805875b98c0489c72d58130b66d89f7c6ee3"
+  revision = "9f328f75b4a0b742cb9da240ea5c4966adebbeb9"
+  version = "v2.1.1"
 
 [[projects]]
   branch = "master"
@@ -1900,9 +1899,9 @@
     "github.com/ligato/vpp-agent/plugins/restapi/resturl",
     "github.com/ligato/vpp-agent/plugins/telemetry",
     "github.com/ligato/vpp-agent/plugins/vpp/aclplugin",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/nat",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/session",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/vpe",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/nat",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/session",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx",

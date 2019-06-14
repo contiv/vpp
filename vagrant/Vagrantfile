@@ -71,10 +71,6 @@ ip_version = ENV['IP_VERSION'] || 'ipv4'
 contiv_dir = "/home/vagrant/gopath/src/github.com/contiv/vpp"
 helm_extra_opts = ENV['HELM_EXTRA_OPTS'] || ''
 
-if (k8s_version == "1.12.3" && docker_version == "18.03.0~ce-0")
-    prebuilt = true;
-end
-
 if (ip_version == 'ipv6transport' || ip_version == 'ipv6' )
     # ipv6 requires vagrant box with a newer OS version
     node_os_release = '18.04'
@@ -87,7 +83,11 @@ if (ip_version == 'ipv6' && base_ip == '10.20.0.')
 end
 
 if ( master_nodes > 1 )
-   k8s_version = '1.13.4'
+   k8s_version = '1.14.2'
+end
+
+if (k8s_version == "1.12.3" && docker_version == "18.03.0~ce-0")
+    prebuilt = true;
 end
 
 env = { }
@@ -271,6 +271,7 @@ VAGRANTFILE_API_VERSION = "2"
       node_addr = master_ips[n]
       config.vm.define node_name do |node|
         node.vm.hostname = node_name
+        node.vm.synced_folder "../", "#{contiv_dir}"
         node.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp", nic_type: "82540EM"
         node.vm.network :private_network, ip: node_addr, netmask: "#{base_prefix_len}", virtualbox__intnet: "true"
 

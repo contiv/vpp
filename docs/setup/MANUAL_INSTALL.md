@@ -85,33 +85,42 @@ management traffic is not the one pointed to by the default route out of the
 host, a [custom management network][12] for Kubernetes must be configured.
 
 
-#### Hugepages (Kubernetes 1.10 and above)
-VPP requires hugepages to run during VPP operation, to manage large pages of memory. 
-In K8s 1.10, the support for 
-[huge pages in PODs](https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/) 
-has been introduced. Since then, this feature must be either disabled or memory limit
-must be defined for the vSwitch container.
+#### Hugepages
+VPP requires hugepages to run, for managing memory more effectively using large pages.
+Before deploying Contiv-VPP, hugepages had to be pre-allocated in the operating system on each node.
+This can be verified as follows:
 
-(a) To disable huge pages, perform the following steps as root:
-* Using your favorite editor, disable huge pages in the kubelet configuration
-  file `/etc/default/kubelet` (or `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` for versions below 1.11):
-```
-KUBELET_EXTRA_ARGS=--feature-gates HugePages=false
-```
-* Restart the kubelet daemon:
-```
-  systemctl daemon-reload
-  systemctl restart kubelet
+```bash
+cat /proc/meminfo | grep HugePages
+HugePages_Total:     512
+HugePages_Free:      510
+HugePages_Rsvd:        0
+HugePages_Surp:        0
 ```
 
-(b) To define memory limit for the vSwitch container, append the following snippet to vswitch container in deployment yaml file:
+To pre-allocate hugepages, you can use the `sysctl` utility, e.g.:
+```bash
+sysctl -w vm.nr_hugepages=512
+```
+To make the change permanent after reboot, add the following line to the file `/etc/sysctl.conf`:
+```bash
+echo "vm.nr_hugepages=512" >> /etc/sysctl.conf
+```
+After changing hugepages allocation, you must restart kubelet in order to see them, e.g.:
+```bash
+service kubelet restart
+```
+
+The VPP vswitch pod requires 512 MB of hugepages by default, which is also a memory limit for the vswitch pod.
+If needed, these values can be tweaked in the deployment yaml file:
+
 ```yaml
-    resources:
-      limits:
-        hugepages-2Mi: 1024Mi
-        memory: 1024Mi
+  resources:
+    limits:
+      hugepages-2Mi: 512Mi
+      memory: 512Mi
 ```
-or set `contiv.vswitch.defineMemoryLimits` to `true` in [helm values](../../k8s/contiv-vpp/README.md).
+or using the `contiv.vswitch.hugePages2miLimit` and `contiv.vswitch.memoryLimit` in [helm values](../../k8s/contiv-vpp/README.md).
 
 
 ### Initializing your master
@@ -138,7 +147,7 @@ are a special case; they share their respective interfaces and IP addresses with
 the host. For proxying to work properly it is therefore required for services
 with backends running on the host to also **include the node management IP**
 within the `--pod-network-cidr` subnet. For example, with the default
-`PodSubnetCIDR=10.1.0.0/16` and `PodVPPSubnetCIDR=10.2.1.0/24`, the subnet
+`PodSubnetCIDR=10.1.0.0/16`, the subnet
 `10.3.0.0/16` could be allocated for the management network and
 `--pod-network-cidr` could be defined as `10.0.0.0/8`, so as to include IP
 addresses of all pods in all network namespaces:
@@ -174,6 +183,11 @@ If you have already used the Contiv-VPP plugin before, you may need to pull
 the most recent Docker images on each node:
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
+```
+
+If you are using centos, you will need to open the port for the contiv etcd on your master:
+```
+firewall-cmd --permanent --add-port=12379-12380/tcp
 ```
 
 Contiv-VPP CNI plugin can be installed in two ways:

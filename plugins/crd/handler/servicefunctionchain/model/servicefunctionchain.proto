@@ -16,30 +16,42 @@ syntax = "proto3";
 
 package model;
 
-// ServiceFunctionChain is used to store definition of service function chain defined via CRD.
+// ServiceFunctionChain is used to store definition of a service function chain as a k8s CRD resource.
 message ServiceFunctionChain {
-    enum Type {
-        ServiceFunctionPod = 0;
-        InterfaceInput = 1;
-        InterfaceOutput = 2;
-        PodInput = 3;
-        PodOutput = 4;
-    }
+
+    // Name of the chain.
+    string name = 1;
+
+    // Name of the custom pod network where the chain resides
+    // (if applicable, can be left blank for the default pod network).
+    string network = 2;
 
     message ServiceFunction {
+        enum Type {
+            Pod = 0;
+            ExternalInterface = 1;
+        }
+        // Name of the service function (optional).
         string name = 1;
+
+        // Type of the service function.
         Type type = 2;
+
+        // Pod selector (k8s labels) identifying the pod(s)
+        // (applicable for pod service function type).
         map<string, string> pod_selector = 3;
+
+        // Interface trough which the traffic enters the service function. Applicable for:
+        // - pods with multiple interfaces
+        // - external interface if it is the last element (service function) in the chain
         string input_interface = 4;
+
+        // Interface trough which the traffic leaves the service function. Applicable for:
+        // - pods with multiple interfaces
+        // - external interface if it is the first element (service function) in the chain
         string output_interface = 5;
     }
 
-    // name of the custom network
-    string name = 1;
-
-    // type of the custom network
-    string network = 2;
-
+    // List of service functions (chain elements) in the chain.
     repeated ServiceFunction chain = 3;
-
 }

@@ -3,9 +3,11 @@
 
 package model
 
-import proto "github.com/gogo/protobuf/proto"
-import fmt "fmt"
-import math "math"
+import (
+	fmt "fmt"
+	proto "github.com/gogo/protobuf/proto"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -31,6 +33,7 @@ var CustomNetwork_Type_name = map[int32]string{
 	1: "L3",
 	2: "STUB",
 }
+
 var CustomNetwork_Type_value = map[string]int32{
 	"L2":   0,
 	"L3":   1,
@@ -40,8 +43,9 @@ var CustomNetwork_Type_value = map[string]int32{
 func (x CustomNetwork_Type) String() string {
 	return proto.EnumName(CustomNetwork_Type_name, int32(x))
 }
+
 func (CustomNetwork_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_customnetwork_39379face3e0bc6e, []int{0, 0}
+	return fileDescriptor_b52dd016a515b4b0, []int{0, 0}
 }
 
 // CustomNetwork is used to store definition of custom network defined via CRD.
@@ -62,7 +66,7 @@ func (m *CustomNetwork) Reset()         { *m = CustomNetwork{} }
 func (m *CustomNetwork) String() string { return proto.CompactTextString(m) }
 func (*CustomNetwork) ProtoMessage()    {}
 func (*CustomNetwork) Descriptor() ([]byte, []int) {
-	return fileDescriptor_customnetwork_39379face3e0bc6e, []int{0}
+	return fileDescriptor_b52dd016a515b4b0, []int{0}
 }
 func (m *CustomNetwork) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CustomNetwork.Unmarshal(m, b)
@@ -70,8 +74,8 @@ func (m *CustomNetwork) XXX_Unmarshal(b []byte) error {
 func (m *CustomNetwork) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_CustomNetwork.Marshal(b, m, deterministic)
 }
-func (dst *CustomNetwork) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CustomNetwork.Merge(dst, src)
+func (m *CustomNetwork) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CustomNetwork.Merge(m, src)
 }
 func (m *CustomNetwork) XXX_Size() int {
 	return xxx_messageInfo_CustomNetwork.Size(m)
@@ -130,7 +134,7 @@ func (m *CustomNetwork_NodeInterface) Reset()         { *m = CustomNetwork_NodeI
 func (m *CustomNetwork_NodeInterface) String() string { return proto.CompactTextString(m) }
 func (*CustomNetwork_NodeInterface) ProtoMessage()    {}
 func (*CustomNetwork_NodeInterface) Descriptor() ([]byte, []int) {
-	return fileDescriptor_customnetwork_39379face3e0bc6e, []int{0, 0}
+	return fileDescriptor_b52dd016a515b4b0, []int{0, 0}
 }
 func (m *CustomNetwork_NodeInterface) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CustomNetwork_NodeInterface.Unmarshal(m, b)
@@ -138,8 +142,8 @@ func (m *CustomNetwork_NodeInterface) XXX_Unmarshal(b []byte) error {
 func (m *CustomNetwork_NodeInterface) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_CustomNetwork_NodeInterface.Marshal(b, m, deterministic)
 }
-func (dst *CustomNetwork_NodeInterface) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CustomNetwork_NodeInterface.Merge(dst, src)
+func (m *CustomNetwork_NodeInterface) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CustomNetwork_NodeInterface.Merge(m, src)
 }
 func (m *CustomNetwork_NodeInterface) XXX_Size() int {
 	return xxx_messageInfo_CustomNetwork_NodeInterface.Size(m)
@@ -185,7 +189,7 @@ func (m *CustomNetwork_ExternalInterface) Reset()         { *m = CustomNetwork_E
 func (m *CustomNetwork_ExternalInterface) String() string { return proto.CompactTextString(m) }
 func (*CustomNetwork_ExternalInterface) ProtoMessage()    {}
 func (*CustomNetwork_ExternalInterface) Descriptor() ([]byte, []int) {
-	return fileDescriptor_customnetwork_39379face3e0bc6e, []int{0, 1}
+	return fileDescriptor_b52dd016a515b4b0, []int{0, 1}
 }
 func (m *CustomNetwork_ExternalInterface) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CustomNetwork_ExternalInterface.Unmarshal(m, b)
@@ -193,8 +197,8 @@ func (m *CustomNetwork_ExternalInterface) XXX_Unmarshal(b []byte) error {
 func (m *CustomNetwork_ExternalInterface) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_CustomNetwork_ExternalInterface.Marshal(b, m, deterministic)
 }
-func (dst *CustomNetwork_ExternalInterface) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CustomNetwork_ExternalInterface.Merge(dst, src)
+func (m *CustomNetwork_ExternalInterface) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CustomNetwork_ExternalInterface.Merge(m, src)
 }
 func (m *CustomNetwork_ExternalInterface) XXX_Size() int {
 	return xxx_messageInfo_CustomNetwork_ExternalInterface.Size(m)
@@ -220,15 +224,15 @@ func (m *CustomNetwork_ExternalInterface) GetNodes() []*CustomNetwork_NodeInterf
 }
 
 func init() {
+	proto.RegisterEnum("model.CustomNetwork_Type", CustomNetwork_Type_name, CustomNetwork_Type_value)
 	proto.RegisterType((*CustomNetwork)(nil), "model.CustomNetwork")
 	proto.RegisterType((*CustomNetwork_NodeInterface)(nil), "model.CustomNetwork.NodeInterface")
 	proto.RegisterType((*CustomNetwork_ExternalInterface)(nil), "model.CustomNetwork.ExternalInterface")
-	proto.RegisterEnum("model.CustomNetwork_Type", CustomNetwork_Type_name, CustomNetwork_Type_value)
 }
 
-func init() { proto.RegisterFile("customnetwork.proto", fileDescriptor_customnetwork_39379face3e0bc6e) }
+func init() { proto.RegisterFile("customnetwork.proto", fileDescriptor_b52dd016a515b4b0) }
 
-var fileDescriptor_customnetwork_39379face3e0bc6e = []byte{
+var fileDescriptor_b52dd016a515b4b0 = []byte{
 	// 313 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x51, 0x41, 0x4f, 0xf2, 0x40,
 	0x10, 0xfd, 0xba, 0x14, 0xf2, 0x39, 0x06, 0x52, 0x87, 0xc4, 0x54, 0x0e, 0xa6, 0xe1, 0x60, 0x7a,

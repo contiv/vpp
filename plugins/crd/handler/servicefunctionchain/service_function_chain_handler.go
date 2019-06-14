@@ -185,18 +185,12 @@ func (h *Handler) serviceFunctionToProto(sf v1.ServiceFunction) *model.ServiceFu
 	protoVal := &model.ServiceFunctionChain_ServiceFunction{}
 	protoVal.Name = sf.Name
 	switch sf.Type {
-	case "InterfaceInput":
-		protoVal.Type = model.ServiceFunctionChain_InterfaceInput
-	case "InterfaceOutput":
-		protoVal.Type = model.ServiceFunctionChain_InterfaceOutput
-	case "PodInput":
-		protoVal.Type = model.ServiceFunctionChain_PodInput
-	case "PodOutput":
-		protoVal.Type = model.ServiceFunctionChain_PodOutput
-	case "ServiceFunctionPod":
+	case "Pod":
+		protoVal.Type = model.ServiceFunctionChain_ServiceFunction_Pod
+	case "ExternalInterface":
+		protoVal.Type = model.ServiceFunctionChain_ServiceFunction_ExternalInterface
 	default:
-		protoVal.Type = model.ServiceFunctionChain_ServiceFunctionPod
-
+		protoVal.Type = model.ServiceFunctionChain_ServiceFunction_Pod
 	}
 	protoVal.PodSelector = map[string]string{}
 	for k, v := range sf.PodSelector {

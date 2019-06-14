@@ -15,8 +15,8 @@
 package config
 
 const (
-	// by default, service function chains are rendered by the no-op renderer (just prints out the chains)
-	defaultSFCRenderer = "noop"
+	// by default, service function chains are rendered by the l2xconn renderer
+	defaultSFCRenderer = "l2xconn"
 )
 
 // Config holds the Service Function Chain plugin configuration.

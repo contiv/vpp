@@ -19,7 +19,6 @@ package renderer
 import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
-	"strings"
 )
 
 // SFCRendererAPI defines the API of Service Function Chain Renderer.
@@ -51,47 +50,24 @@ type ContivSFC struct {
 	// may be empty in case of the default network.
 	Network string
 
-	// ChainInstances contains a list of instances of the service function chain
+	// Chain contains a list of instances of the service function chain
 	// (each chain can render into multiple instances e.g. in case of multiple pods
 	// matching a pod selector)
-	ChainInstances []*ServiceFunctionChain
+	Chain []*ServiceFunction
 }
 
 // String converts ContivSFC into a human-readable string.
 func (sfc ContivSFC) String() string {
-	instances := ""
-	for idx, i := range sfc.ChainInstances {
-		instances += "["
-		for idx2, f := range i.ServiceFunctions {
-			instances += f.String()
-			if idx2 < len(i.ServiceFunctions)-1 {
-				instances += ", "
-			}
-		}
-		instances += "]"
-		if idx < len(sfc.ChainInstances)-1 {
-			instances += ", "
+	chain := "["
+	for idx, f := range sfc.Chain {
+		chain += f.String()
+		if idx < len(sfc.Chain)-1 {
+			chain += ", "
 		}
 	}
-	return fmt.Sprintf("ContivSFC %s Network: %s, ChainsInstances: {%s}",
-		sfc.Name, sfc.Network, instances)
-}
-
-// ServiceFunctionChain represents a single service function chain instance (chain of individual pods/interfaces).
-type ServiceFunctionChain struct {
-	ServiceFunctions []ServiceFunction
-}
-
-// String converts ServiceFunctionChain into a human-readable string.
-func (chain ServiceFunctionChain) String() string {
-	sfcList := ""
-	for idx, f := range chain.ServiceFunctions {
-		sfcList += f.String()
-		if idx < len(chain.ServiceFunctions)-1 {
-			sfcList += ", "
-		}
-	}
-	return fmt.Sprintf("ServiceFunctions: %s", sfcList)
+	chain += "]"
+	return fmt.Sprintf("ContivSFC Name: %s Network: %s, Chain: %s",
+		sfc.Name, sfc.Network, chain)
 }
 
 // ServiceFunctionType defines type of a service function in the chain.
@@ -116,36 +92,70 @@ func (t ServiceFunctionType) String() string {
 	return "INVALID"
 }
 
-// ServiceFunction represents a single service function chain item.
+// ServiceFunction represents a single service function element in the chain.
+//
+// It can be represented by multiple interfaces or running pods, which can render into
+// multiple traffic paths. It is the responsibility of the SFC renderer to render
+// that into a physical networking configuration that makes sense for the particular case
+// (e.g. load-balance the traffic through multiple chains, or just select one of the
+// candidate pods making the rest of the pods a hot backup).
 type ServiceFunction struct {
+	// Type defines the type of the service function
 	Type ServiceFunctionType
 
-	// Physical locator of a service function
-	NodeID uint32 // ID of the node where the service function runs
-	Local  bool   // true if this is a node-local service function
-	Pod    pod.ID // pod identifier, applicable only for pod type of service functions
+	// Pods satisfying the pod selector criteria for this service function.
+	Pods []*PodSF
 
-	// Names of pod interfaces or external interfaces used for forwarding the traffic to / from a service function:
-	//   - for a service function that starts the chain, only OutputInterface is valid
-	//   - for a service function that ends the chain, only InputInterface is valid
-	InputInterface  string // name of the interface using which the traffic enters the service function
-	OutputInterface string // name of the interface using which the traffic leaves the service function
+	// ExternalInterface satisfying the interface selector criteria for this service function.
+	ExternalInterface *InterfaceSF
 }
 
-// String ServiceFunction Backend into a human-readable string.
+// String converts ServiceFunction into a human-readable string.
 func (sf ServiceFunction) String() string {
-	extras := ""
-	if sf.Type == Pod {
-		extras = "Pod:" + sf.Pod.String() + ", "
+	if sf.Type == ExternalInterface {
+		return fmt.Sprintf("<ExternalInterface: %s>", sf.ExternalInterface.String())
 	}
-	if sf.InputInterface != "" {
-		extras = "InputInterface:" + sf.InputInterface + ", "
+	if len(sf.Pods) == 1 {
+		return fmt.Sprintf("<Pod: %s>", sf.Pods[0].String())
 	}
-	if sf.OutputInterface != "" {
-		extras = "OutputInterface:" + sf.OutputInterface + ", "
+	pods := ""
+	for idx, pod := range sf.Pods {
+		pods += pod.String()
+		if idx < len(sf.Pods)-1 {
+			pods += ", "
+		}
 	}
-	extras = strings.TrimRight(extras, ", ")
-	return fmt.Sprintf("<Type:%s NodeID:%d, Local:%t, %s>", sf.Type, sf.NodeID, sf.Local, extras)
+	pods += ""
+	return fmt.Sprintf("<Pods: %s>", sf.Pods[0].String())
+}
+
+// PodSF represents a pod-type service function.
+type PodSF struct {
+	ID     pod.ID // pod identifier
+	NodeID uint32 // ID of the node where the service function runs
+	Local  bool   // true if this is a node-local pod
+
+	InputInterface  string // name of the interface trough which the traffic enters the pod
+	OutputInterface string // name of the interface using which the traffic leaves the pod
+}
+
+// String converts PodSF into a human-readable string.
+func (pod PodSF) String() string {
+	return fmt.Sprintf("{ID: %s, NodeID: %d, Local:%v, InputInterface: %s, OutputInterface:%s}",
+		pod.ID, pod.NodeID, pod.Local, pod.InputInterface, pod.OutputInterface)
+}
+
+// InterfaceSF represents an interface-type service function.
+type InterfaceSF struct {
+	InterfaceName string // name of the interface trough which the traffic flows
+	NodeID        uint32 // ID of the node where the interface resides
+	Local         bool   // true if this is a node-local interface
+}
+
+// String converts InterfaceSF into a human-readable string.
+func (iface InterfaceSF) String() string {
+	return fmt.Sprintf("{InterfaceName: %s, NodeID: %d, Local:%v}",
+		iface.InterfaceName, iface.NodeID, iface.Local)
 }
 
 // ResyncEventData wraps an entire state of K8s services as provided by the Processor.

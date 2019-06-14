@@ -3,9 +3,11 @@
 
 package vppnode
 
-import proto "github.com/gogo/protobuf/proto"
-import fmt "fmt"
-import math "math"
+import (
+	fmt "fmt"
+	proto "github.com/gogo/protobuf/proto"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -34,7 +36,7 @@ type VppNode struct {
 	Id                   uint32   `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name                 string   `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	IpAddress            string   `protobuf:"bytes,3,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`
-	IpAddresses          []string `protobuf:"bytes,5,rep,name=ip_addresses,json=ipAddresses" json:"ip_addresses,omitempty"`
+	IpAddresses          []string `protobuf:"bytes,5,rep,name=ip_addresses,json=ipAddresses,proto3" json:"ip_addresses,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -44,7 +46,7 @@ func (m *VppNode) Reset()         { *m = VppNode{} }
 func (m *VppNode) String() string { return proto.CompactTextString(m) }
 func (*VppNode) ProtoMessage()    {}
 func (*VppNode) Descriptor() ([]byte, []int) {
-	return fileDescriptor_vppnode_42428938f1865da1, []int{0}
+	return fileDescriptor_1b362a3d7e0816df, []int{0}
 }
 func (m *VppNode) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_VppNode.Unmarshal(m, b)
@@ -52,8 +54,8 @@ func (m *VppNode) XXX_Unmarshal(b []byte) error {
 func (m *VppNode) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_VppNode.Marshal(b, m, deterministic)
 }
-func (dst *VppNode) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_VppNode.Merge(dst, src)
+func (m *VppNode) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_VppNode.Merge(m, src)
 }
 func (m *VppNode) XXX_Size() int {
 	return xxx_messageInfo_VppNode.Size(m)
@@ -96,9 +98,9 @@ func init() {
 	proto.RegisterType((*VppNode)(nil), "vppnode.VppNode")
 }
 
-func init() { proto.RegisterFile("vppnode.proto", fileDescriptor_vppnode_42428938f1865da1) }
+func init() { proto.RegisterFile("vppnode.proto", fileDescriptor_1b362a3d7e0816df) }
 
-var fileDescriptor_vppnode_42428938f1865da1 = []byte{
+var fileDescriptor_1b362a3d7e0816df = []byte{
 	// 157 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x2d, 0x2b, 0x28, 0xc8,
 	0xcb, 0x4f, 0x49, 0xd5, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x87, 0x72, 0x95, 0x7a, 0x18,

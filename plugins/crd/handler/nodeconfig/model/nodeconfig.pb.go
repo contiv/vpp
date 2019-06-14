@@ -3,9 +3,11 @@
 
 package model
 
-import proto "github.com/gogo/protobuf/proto"
-import fmt "fmt"
-import math "math"
+import (
+	fmt "fmt"
+	proto "github.com/gogo/protobuf/proto"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -23,9 +25,9 @@ type NodeConfig struct {
 	// name of the node to which the configuration applies
 	NodeName string `protobuf:"bytes,1,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
 	// main VPP interface used for the inter-node connectivity
-	MainVppInterface *NodeConfig_InterfaceConfig `protobuf:"bytes,2,opt,name=main_vpp_interface,json=mainVppInterface" json:"main_vpp_interface,omitempty"`
+	MainVppInterface *NodeConfig_InterfaceConfig `protobuf:"bytes,2,opt,name=main_vpp_interface,json=mainVppInterface,proto3" json:"main_vpp_interface,omitempty"`
 	// other interfaces on VPP, not necessarily used for inter-node connectivity
-	OtherVppInterfaces []*NodeConfig_InterfaceConfig `protobuf:"bytes,3,rep,name=other_vpp_interfaces,json=otherVppInterfaces" json:"other_vpp_interfaces,omitempty"`
+	OtherVppInterfaces []*NodeConfig_InterfaceConfig `protobuf:"bytes,3,rep,name=other_vpp_interfaces,json=otherVppInterfaces,proto3" json:"other_vpp_interfaces,omitempty"`
 	// interface to be stolen from the host stack and bound to VPP
 	StealInterface string `protobuf:"bytes,4,opt,name=steal_interface,json=stealInterface,proto3" json:"steal_interface,omitempty"`
 	// IP address of the default gateway
@@ -41,7 +43,7 @@ func (m *NodeConfig) Reset()         { *m = NodeConfig{} }
 func (m *NodeConfig) String() string { return proto.CompactTextString(m) }
 func (*NodeConfig) ProtoMessage()    {}
 func (*NodeConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_nodeconfig_36cb1a12573cb08f, []int{0}
+	return fileDescriptor_cf39f786ffb03687, []int{0}
 }
 func (m *NodeConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_NodeConfig.Unmarshal(m, b)
@@ -49,8 +51,8 @@ func (m *NodeConfig) XXX_Unmarshal(b []byte) error {
 func (m *NodeConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_NodeConfig.Marshal(b, m, deterministic)
 }
-func (dst *NodeConfig) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_NodeConfig.Merge(dst, src)
+func (m *NodeConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NodeConfig.Merge(m, src)
 }
 func (m *NodeConfig) XXX_Size() int {
 	return xxx_messageInfo_NodeConfig.Size(m)
@@ -120,7 +122,7 @@ func (m *NodeConfig_InterfaceConfig) Reset()         { *m = NodeConfig_Interface
 func (m *NodeConfig_InterfaceConfig) String() string { return proto.CompactTextString(m) }
 func (*NodeConfig_InterfaceConfig) ProtoMessage()    {}
 func (*NodeConfig_InterfaceConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_nodeconfig_36cb1a12573cb08f, []int{0, 0}
+	return fileDescriptor_cf39f786ffb03687, []int{0, 0}
 }
 func (m *NodeConfig_InterfaceConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_NodeConfig_InterfaceConfig.Unmarshal(m, b)
@@ -128,8 +130,8 @@ func (m *NodeConfig_InterfaceConfig) XXX_Unmarshal(b []byte) error {
 func (m *NodeConfig_InterfaceConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_NodeConfig_InterfaceConfig.Marshal(b, m, deterministic)
 }
-func (dst *NodeConfig_InterfaceConfig) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_NodeConfig_InterfaceConfig.Merge(dst, src)
+func (m *NodeConfig_InterfaceConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NodeConfig_InterfaceConfig.Merge(m, src)
 }
 func (m *NodeConfig_InterfaceConfig) XXX_Size() int {
 	return xxx_messageInfo_NodeConfig_InterfaceConfig.Size(m)
@@ -166,9 +168,9 @@ func init() {
 	proto.RegisterType((*NodeConfig_InterfaceConfig)(nil), "model.NodeConfig.InterfaceConfig")
 }
 
-func init() { proto.RegisterFile("nodeconfig.proto", fileDescriptor_nodeconfig_36cb1a12573cb08f) }
+func init() { proto.RegisterFile("nodeconfig.proto", fileDescriptor_cf39f786ffb03687) }
 
-var fileDescriptor_nodeconfig_36cb1a12573cb08f = []byte{
+var fileDescriptor_cf39f786ffb03687 = []byte{
 	// 285 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x51, 0xcb, 0x4e, 0xc3, 0x30,
 	0x10, 0x54, 0x12, 0xda, 0x26, 0x8b, 0x48, 0x2b, 0xab, 0x07, 0x03, 0x97, 0x80, 0x84, 0xc8, 0x29,

@@ -24,17 +24,15 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	sfcmodel "github.com/contiv/vpp/plugins/crd/handler/servicefunctionchain/model"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipnet"
-	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
-	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
-	"github.com/contiv/vpp/plugins/service/config"
-	"github.com/contiv/vpp/plugins/service/processor"
-	"github.com/contiv/vpp/plugins/service/renderer/ipv6route"
-	"github.com/contiv/vpp/plugins/service/renderer/nat44"
-	"github.com/contiv/vpp/plugins/service/renderer/srv6"
+	"github.com/contiv/vpp/plugins/sfc/config"
+	"github.com/contiv/vpp/plugins/sfc/processor"
+	"github.com/contiv/vpp/plugins/sfc/renderer/l2xconn"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -50,11 +48,9 @@ type Plugin struct {
 	updateTxn controller.UpdateOperations
 	changes   []string
 
-	// layers of the service plugin
-	processor         *processor.ServiceProcessor
-	nat44Renderer     *nat44.Renderer
-	ipv6RouteRenderer *ipv6route.Renderer
-	srv6Renderer      *srv6.Renderer
+	// layers of the SFC plugin
+	processor    *processor.SFCProcessor
+	noopRenderer *l2xconn.Renderer
 }
 
 // Deps defines dependencies of the service plugin.
@@ -89,9 +85,9 @@ func (p *Plugin) Init() error {
 		return err
 	}
 
-	p.processor = &processor.ServiceProcessor{
+	p.processor = &processor.SFCProcessor{
 		Deps: processor.Deps{
-			Log:          p.Log.NewLogger("-serviceProcessor"),
+			Log:          p.Log.NewLogger("-sfcProcessor"),
 			ServiceLabel: p.ServiceLabel,
 			ContivConf:   p.ContivConf,
 			IPAM:         p.IPAM,
@@ -102,80 +98,30 @@ func (p *Plugin) Init() error {
 	}
 	p.processor.Init()
 
-	if !p.ContivConf.GetIPAMConfig().UseIPv6 {
-		// use NAT44 renderer
-		p.nat44Renderer = &nat44.Renderer{
-			Deps: nat44.Deps{
-				Log:        p.Log.NewLogger("-nat44Renderer"),
-				Config:     p.config,
-				ContivConf: p.ContivConf,
-				IPAM:       p.IPAM,
-				IPNet:      p.IPNet,
-				GoVPPChan:  goVppCh,
-				UpdateTxnFactory: func(change string) controller.UpdateOperations {
-					p.changes = append(p.changes, change)
-					return p.updateTxn
-				},
-				ResyncTxnFactory: func() controller.ResyncOperations {
-					return p.resyncTxn
-				},
-				Stats: p.Stats,
+	// TODO: use renderer based on the config
+	p.noopRenderer = &l2xconn.Renderer{
+		Deps: l2xconn.Deps{
+			Log:        p.Log.NewLogger("-sfcL2xconnRenderer"),
+			Config:     p.config,
+			ContivConf: p.ContivConf,
+			IPAM:       p.IPAM,
+			IPNet:      p.IPNet,
+			GoVPPChan:  goVppCh,
+			UpdateTxnFactory: func(change string) controller.UpdateOperations {
+				p.changes = append(p.changes, change)
+				return p.updateTxn
 			},
-		}
-
-		p.nat44Renderer.Init(false)
-		// Register renderer.
-		p.processor.RegisterRenderer(p.nat44Renderer)
-	} else {
-		if p.ContivConf.GetRoutingConfig().UseSRv6Interconnect { // use SRv6 renderer
-			p.srv6Renderer = &srv6.Renderer{
-				Deps: srv6.Deps{
-					Log:             p.Log.NewLogger("-SRv6Renderer"),
-					ContivConf:      p.ContivConf,
-					NodeSync:        p.NodeSync,
-					PodManager:      p.PodManager,
-					IPAM:            p.IPAM,
-					IPNet:           p.IPNet,
-					ConfigRetriever: p.ConfigRetriever,
-					UpdateTxnFactory: func(change string) controller.UpdateOperations {
-						p.changes = append(p.changes, change)
-						return p.updateTxn
-					},
-					ResyncTxnFactory: func() controller.ResyncOperations {
-						return p.resyncTxn
-					},
-				},
-			}
-
-			p.srv6Renderer.Init(false)
-			// Register renderer.
-			p.processor.RegisterRenderer(p.srv6Renderer)
-		} else { // use IPv6 route renderer
-			p.ipv6RouteRenderer = &ipv6route.Renderer{
-				Deps: ipv6route.Deps{
-					Log:             p.Log.NewLogger("-IPv6RouteRenderer"),
-					Config:          p.config,
-					ContivConf:      p.ContivConf,
-					NodeSync:        p.NodeSync,
-					PodManager:      p.PodManager,
-					IPAM:            p.IPAM,
-					IPNet:           p.IPNet,
-					ConfigRetriever: p.ConfigRetriever,
-					UpdateTxnFactory: func(change string) controller.UpdateOperations {
-						p.changes = append(p.changes, change)
-						return p.updateTxn
-					},
-					ResyncTxnFactory: func() controller.ResyncOperations {
-						return p.resyncTxn
-					},
-				},
-			}
-
-			p.ipv6RouteRenderer.Init(false)
-			// Register renderer.
-			p.processor.RegisterRenderer(p.ipv6RouteRenderer)
-		}
+			ResyncTxnFactory: func() controller.ResyncOperations {
+				return p.resyncTxn
+			},
+			Stats: p.Stats,
+		},
 	}
+
+	p.noopRenderer.Init(false)
+
+	// Register renderer.
+	p.processor.RegisterRenderer(p.noopRenderer)
 
 	return nil
 }
@@ -186,9 +132,9 @@ func (p *Plugin) Init() error {
 func (p *Plugin) AfterInit() error {
 	p.processor.AfterInit()
 
-	if p.nat44Renderer != nil {
-		p.nat44Renderer.AfterInit()
-	}
+	// renderers that need after init
+	p.noopRenderer.AfterInit()
+
 	return nil
 }
 
@@ -203,25 +149,15 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 	}
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
 		switch ksChange.Resource {
-		case epmodel.EndpointsKeyword:
+		case sfcmodel.Keyword:
 			return true
-		case svcmodel.ServiceKeyword:
+		case podmodel.PodKeyword:
 			return true
 		default:
 			// unhandled Kubernetes state change
 			return false
 		}
 	}
-	if _, isAddPod := event.(*podmanager.AddPod); isAddPod {
-		return true
-	}
-	if _, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
-		return true
-	}
-	if _, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
-		return true
-	}
-
 	// unhandled event
 	return false
 }
@@ -251,9 +187,8 @@ func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations)
 	return changeDescription, err
 }
 
-// Revert is called for failed AddPod event.
 func (p *Plugin) Revert(event controller.Event) error {
-	return p.processor.Revert(event)
+	return nil
 }
 
 // Close is NOOP.

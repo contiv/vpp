@@ -81,7 +81,7 @@ controller:
   periodicHealingInterval: 30000000000
   delayAfterErrorHealing: 5000000000
   remoteDBProbingInterval: 3000000000
-  recordEventHistory: true
+  recordEventHistory: false
   eventHistoryAgeLimit: 1440
   permanentlyRecordedInitPeriod: 60
 

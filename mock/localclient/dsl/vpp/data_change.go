@@ -173,6 +173,13 @@ func (d *MockPutDSL) PuntToHost(val *vpp_punt.ToHost) vppclient.PutDSL {
 	return d
 }
 
+// PuntException adds request to delete a rule used to add exception in punting of traffic to a host.
+func (d *MockPutDSL) PuntException(val *vpp_punt.Exception) vppclient.PutDSL {
+	key := vpp_punt.ExceptionKey(val.Reason)
+	d.parent.Values[key] = val
+	return d
+}
+
 // VrfTable adds a request to create or update VPP VRF table.
 func (d *MockPutDSL) VrfTable(val *vpp_l3.VrfTable) vppclient.PutDSL {
 	key := vpp_l3.VrfTableKey(val.Id, val.Protocol)
@@ -306,6 +313,13 @@ func (d *MockDeleteDSL) PuntIPRedirect(l3Proto vpp_punt.L3Protocol, txInterface 
 // PuntToHost adds request to delete a rule used to punt L4 traffic to a host.
 func (d *MockDeleteDSL) PuntToHost(l3Proto vpp_punt.L3Protocol, l4Proto vpp_punt.L4Protocol, port uint32) vppclient.DeleteDSL {
 	key := vpp_punt.ToHostKey(l3Proto, l4Proto, port)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// PuntException adds request to delete a rule used to add exception in punting of traffic to a host.
+func (d *MockDeleteDSL) PuntException(reason string) vppclient.DeleteDSL {
+	key := vpp_punt.ExceptionKey(reason)
 	d.parent.Values[key] = nil
 	return d
 }

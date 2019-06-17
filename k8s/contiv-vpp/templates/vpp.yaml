@@ -894,6 +894,8 @@ spec:
               value: "/etc/vpp-agent/linux-l3plugin.conf"
             - name: KVSCHEDULER_CONFIG
               value: "/etc/vpp-agent/kvscheduler.conf"
+            - name: DISABLE_INTERFACE_STATS
+              value: "y"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt

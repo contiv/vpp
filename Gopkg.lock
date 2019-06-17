@@ -743,7 +743,8 @@
   version = "v1.14.1"
 
 [[projects]]
-  digest = "1:52deab9cdd0bebb44dd010c960ebd83406fab5976970d24f724ca1049321202d"
+  branch = "dev"
+  digest = "1:133f65c1b59df3dc749deb5fc9361e4aead1913840105e65bf291127f57fcf2e"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -757,6 +758,10 @@
     "db/keyval/bolt",
     "db/keyval/etcd",
     "db/keyval/kvproto",
+    "exec/processmanager",
+    "exec/processmanager/status",
+    "exec/processmanager/template",
+    "exec/processmanager/template/model/process",
     "health/probe",
     "health/statuscheck",
     "health/statuscheck/model/status",
@@ -768,10 +773,6 @@
     "logging/logrus",
     "logging/measure",
     "logging/measure/model/apitrace",
-    "processmanager",
-    "processmanager/status",
-    "processmanager/template",
-    "processmanager/template/model/process",
     "rpc/grpc",
     "rpc/prometheus",
     "rpc/rest",
@@ -783,11 +784,11 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "ceaf6f4fe9f9fa6aa0629edc20156a969928f0e5"
-  version = "v2.1.0"
+  revision = "0af3fde9febd1315467b2f2367ef5beb814dc21a"
 
 [[projects]]
-  digest = "1:99f0eb74ef73748916632f9683f58b19e70031feae7e00fa7786fc35d80b4fff"
+  branch = "dev"
+  digest = "1:39e757ca2b0996309c8cd8b7c90df87226092cf639d3c2b97fe5031158a30a20"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -819,6 +820,7 @@
     "plugins/govppmux/vppcalls",
     "plugins/govppmux/vppcalls/vpp1901",
     "plugins/govppmux/vppcalls/vpp1904",
+    "plugins/govppmux/vppcalls/vpp1908",
     "plugins/kvscheduler",
     "plugins/kvscheduler/api",
     "plugins/kvscheduler/internal/graph",
@@ -847,6 +849,7 @@
     "plugins/telemetry/vppcalls",
     "plugins/telemetry/vppcalls/vpp1901",
     "plugins/telemetry/vppcalls/vpp1904",
+    "plugins/telemetry/vppcalls/vpp1908",
     "plugins/vpp/abfplugin/vppcalls",
     "plugins/vpp/aclplugin",
     "plugins/vpp/aclplugin/aclidx",
@@ -855,6 +858,7 @@
     "plugins/vpp/aclplugin/vppcalls",
     "plugins/vpp/aclplugin/vppcalls/vpp1901",
     "plugins/vpp/aclplugin/vppcalls/vpp1904",
+    "plugins/vpp/aclplugin/vppcalls/vpp1908",
     "plugins/vpp/binapi/vpp1901/acl",
     "plugins/vpp/binapi/vpp1901/af_packet",
     "plugins/vpp/binapi/vpp1901/bond",
@@ -893,6 +897,24 @@
     "plugins/vpp/binapi/vpp1904/vmxnet3",
     "plugins/vpp/binapi/vpp1904/vpe",
     "plugins/vpp/binapi/vpp1904/vxlan",
+    "plugins/vpp/binapi/vpp1908/acl",
+    "plugins/vpp/binapi/vpp1908/af_packet",
+    "plugins/vpp/binapi/vpp1908/bond",
+    "plugins/vpp/binapi/vpp1908/dhcp",
+    "plugins/vpp/binapi/vpp1908/interfaces",
+    "plugins/vpp/binapi/vpp1908/ip",
+    "plugins/vpp/binapi/vpp1908/ipsec",
+    "plugins/vpp/binapi/vpp1908/l2",
+    "plugins/vpp/binapi/vpp1908/memclnt",
+    "plugins/vpp/binapi/vpp1908/memif",
+    "plugins/vpp/binapi/vpp1908/nat",
+    "plugins/vpp/binapi/vpp1908/punt",
+    "plugins/vpp/binapi/vpp1908/sr",
+    "plugins/vpp/binapi/vpp1908/stn",
+    "plugins/vpp/binapi/vpp1908/tapv2",
+    "plugins/vpp/binapi/vpp1908/vmxnet3",
+    "plugins/vpp/binapi/vpp1908/vpe",
+    "plugins/vpp/binapi/vpp1908/vxlan",
     "plugins/vpp/ifplugin",
     "plugins/vpp/ifplugin/descriptor",
     "plugins/vpp/ifplugin/descriptor/adapter",
@@ -900,6 +922,7 @@
     "plugins/vpp/ifplugin/vppcalls",
     "plugins/vpp/ifplugin/vppcalls/vpp1901",
     "plugins/vpp/ifplugin/vppcalls/vpp1904",
+    "plugins/vpp/ifplugin/vppcalls/vpp1908",
     "plugins/vpp/ipsecplugin/vppcalls",
     "plugins/vpp/l2plugin",
     "plugins/vpp/l2plugin/descriptor",
@@ -907,40 +930,45 @@
     "plugins/vpp/l2plugin/vppcalls",
     "plugins/vpp/l2plugin/vppcalls/vpp1901",
     "plugins/vpp/l2plugin/vppcalls/vpp1904",
+    "plugins/vpp/l2plugin/vppcalls/vpp1908",
     "plugins/vpp/l3plugin",
     "plugins/vpp/l3plugin/descriptor",
     "plugins/vpp/l3plugin/descriptor/adapter",
     "plugins/vpp/l3plugin/vppcalls",
     "plugins/vpp/l3plugin/vppcalls/vpp1901",
     "plugins/vpp/l3plugin/vppcalls/vpp1904",
+    "plugins/vpp/l3plugin/vppcalls/vpp1908",
     "plugins/vpp/natplugin",
     "plugins/vpp/natplugin/descriptor",
     "plugins/vpp/natplugin/descriptor/adapter",
     "plugins/vpp/natplugin/vppcalls",
     "plugins/vpp/natplugin/vppcalls/vpp1901",
     "plugins/vpp/natplugin/vppcalls/vpp1904",
+    "plugins/vpp/natplugin/vppcalls/vpp1908",
     "plugins/vpp/puntplugin",
     "plugins/vpp/puntplugin/descriptor",
     "plugins/vpp/puntplugin/descriptor/adapter",
     "plugins/vpp/puntplugin/vppcalls",
     "plugins/vpp/puntplugin/vppcalls/vpp1901",
     "plugins/vpp/puntplugin/vppcalls/vpp1904",
+    "plugins/vpp/puntplugin/vppcalls/vpp1908",
     "plugins/vpp/srplugin",
     "plugins/vpp/srplugin/descriptor",
     "plugins/vpp/srplugin/descriptor/adapter",
     "plugins/vpp/srplugin/vppcalls",
     "plugins/vpp/srplugin/vppcalls/vpp1901",
     "plugins/vpp/srplugin/vppcalls/vpp1904",
+    "plugins/vpp/srplugin/vppcalls/vpp1908",
     "plugins/vpp/stnplugin",
     "plugins/vpp/stnplugin/descriptor",
     "plugins/vpp/stnplugin/descriptor/adapter",
     "plugins/vpp/stnplugin/vppcalls",
     "plugins/vpp/stnplugin/vppcalls/vpp1901",
     "plugins/vpp/stnplugin/vppcalls/vpp1904",
+    "plugins/vpp/stnplugin/vppcalls/vpp1908",
   ]
   pruneopts = "UT"
-  revision = "9f328f75b4a0b742cb9da240ea5c4966adebbeb9"
-  version = "v2.1.1"
+  revision = "b98498f53aa55984725de3f7b60f5cbd886de30a"
 
 [[projects]]
   branch = "master"
@@ -1851,6 +1879,8 @@
     "github.com/ligato/cn-infra/db/keyval/bolt",
     "github.com/ligato/cn-infra/db/keyval/etcd",
     "github.com/ligato/cn-infra/db/keyval/kvproto",
+    "github.com/ligato/cn-infra/exec/processmanager",
+    "github.com/ligato/cn-infra/exec/processmanager/status",
     "github.com/ligato/cn-infra/health/probe",
     "github.com/ligato/cn-infra/health/statuscheck",
     "github.com/ligato/cn-infra/health/statuscheck/model/status",
@@ -1860,8 +1890,6 @@
     "github.com/ligato/cn-infra/logging",
     "github.com/ligato/cn-infra/logging/logmanager",
     "github.com/ligato/cn-infra/logging/logrus",
-    "github.com/ligato/cn-infra/processmanager",
-    "github.com/ligato/cn-infra/processmanager/status",
     "github.com/ligato/cn-infra/rpc/grpc",
     "github.com/ligato/cn-infra/rpc/prometheus",
     "github.com/ligato/cn-infra/rpc/rest",

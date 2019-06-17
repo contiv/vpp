@@ -30,10 +30,10 @@ import (
 	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
+	"github.com/ligato/cn-infra/exec/processmanager"
+	"github.com/ligato/cn-infra/exec/processmanager/status"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-	"github.com/ligato/cn-infra/processmanager"
-	"github.com/ligato/cn-infra/processmanager/status"
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"

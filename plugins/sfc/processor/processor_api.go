@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) 2018 Cisco and/or its affiliates.
+ * // Copyright (c) 2019 Cisco and/or its affiliates.
  * //
  * // Licensed under the Apache License, Version 2.0 (the "License");
  * // you may not use this file except in compliance with the License.
@@ -21,20 +21,20 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 )
 
-// SFCProcessorAPI orAPI defines the API of the Service Function Chain Processor.
+// SFCProcessorAPI defines the API of the Service Function Chain Processor.
 type SFCProcessorAPI interface {
 	// Update processes a datasync change event associated with the state data
-	// of K8s pods, endpoints, services and nodes.
+	// of K8s pods and SFC and custom network CRDs.
 	// The data change is stored into the cache and all registered renderers
-	// are notified about any changes related to SFCs that need to be
-	// reflected in the underlying network stack(s).
+	// are notified about any changes related to service function chains
+	// that need to be reflected in the underlying network stack(s).
 	Update(dataChngEv datasync.ChangeEvent) error
 
 	// Resync processes a datasync resync event associated with the state data
-	// of K8s pods, endpoints, SFCs and nodes.
+	// of K8s pods and SFC and custom network CRDs.
 	// The cache content is fully replaced and all registered renderers
-	// receive a full snapshot of Contiv SFCs at the present state to be
-	// (re)installed.
+	// receive a full snapshot of service function chains at the present
+	// state to be (re)installed.
 	Resync(resyncEv datasync.ResyncEvent) error
 
 	// RegisterRenderer registers a new service function chain renderer.

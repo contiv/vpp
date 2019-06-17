@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) 2018 Cisco and/or its affiliates.
+ * // Copyright (c) 2019 Cisco and/or its affiliates.
  * //
  * // Licensed under the Apache License, Version 2.0 (the "License");
  * // you may not use this file except in compliance with the License.
@@ -22,8 +22,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
-// ResyncEventData wraps an entire state of K8s services that should be reflected
-// into VPP.
+// ResyncEventData wraps an entire state of K8s resources that should be reflected into VPP.
 type ResyncEventData struct {
 	SFCs []*sfcmodel.ServiceFunctionChain
 	Pods []*podmodel.Pod
@@ -39,7 +38,7 @@ func (sp *SFCProcessor) parseResyncEv(kubeStateData controller.KubeStateData) *R
 		event.SFCs = append(event.SFCs, sfc)
 	}
 
-	// collect endpoints
+	// collect pods
 	for _, epProto := range kubeStateData[podmodel.PodKeyword] {
 		pod := epProto.(*podmodel.Pod)
 		event.Pods = append(event.Pods, pod)

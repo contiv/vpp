@@ -17,9 +17,11 @@
 package l2xconn
 
 import (
+	"fmt"
 	"net"
 
-	govpp "git.fd.io/govpp.git/api"
+	"github.com/ligato/cn-infra/logging"
+
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
@@ -27,10 +29,11 @@ import (
 	"github.com/contiv/vpp/plugins/sfc/config"
 	"github.com/contiv/vpp/plugins/sfc/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
-	"github.com/ligato/cn-infra/logging"
+
+	vpp_l2 "github.com/ligato/vpp-agent/api/models/vpp/l2"
 )
 
-// Renderer implements rendering of services for IPv4 in VPP.
+// Renderer implements L2 cross-connect -based rendering of SFC in Contiv-VPP.
 type Renderer struct {
 	Deps
 
@@ -48,13 +51,10 @@ type Deps struct {
 	IPNet            ipnet.API
 	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
-	GoVPPChan        govpp.Channel      /* used for direct NAT binary API calls */
 	Stats            statscollector.API /* used for exporting the statistics */
 }
 
 // Init initializes the renderer.
-// Set <snatOnly> to true if the renderer should only configure SNAT and leave
-// services to another renderer.
 func (rndr *Renderer) Init(snatOnly bool) error {
 	if rndr.Config == nil {
 		rndr.Config = config.DefaultConfig()
@@ -62,49 +62,54 @@ func (rndr *Renderer) Init(snatOnly bool) error {
 	return nil
 }
 
-// AfterInit starts asynchronous NAT session cleanup.
+// AfterInit does nothing for this renderer.
 func (rndr *Renderer) AfterInit() error {
+	return nil
+}
+
+// AddChain is called for a newly added service function chain.
+func (rndr *Renderer) AddChain(sfc *renderer.ContivSFC) error {
+	rndr.Log.Infof("Add SFC: %v", sfc)
+
+	txn := rndr.UpdateTxnFactory(fmt.Sprintf("add SFC '%s'", sfc.Name))
+
+	config := rndr.renderChain(sfc)
+	controller.PutAll(txn, config)
 
 	return nil
 }
 
-// AddService installs destination-NAT rules for a newly added service.
-func (rndr *Renderer) AddChain(chain *renderer.ContivSFC) error {
+// UpdateChain informs renderer about a change in the configuration or in the state of a service function chain.
+func (rndr *Renderer) UpdateChain(oldSFC, newSFC *renderer.ContivSFC) error {
+	rndr.Log.Infof("Update SFC: %v", newSFC)
 
-	rndr.Log.Infof("Add chain: %v", chain)
+	//txn := rndr.UpdateTxnFactory(fmt.Sprintf("update SFC '%s'", newChain.Name))
 
-	//dnat := rndr.contivServiceToDNat(service)
-	//txn := rndr.UpdateTxnFactory(fmt.Sprintf("add service '%v'", service.ID))
-	//txn.Put(vpp_nat.DNAT44Key(dnat.Label), dnat)
+	// TODO: implement me
+	//txn.Put()
+
 	return nil
 }
 
-// UpdateService updates destination-NAT rules for a changed service.
-func (rndr *Renderer) UpdateChain(oldChain, newChain *renderer.ContivSFC) error {
+// DeleteChain is called for every removed service function chain.
+func (rndr *Renderer) DeleteChain(sfc *renderer.ContivSFC) error {
 
-	rndr.Log.Infof("Update chain: %v", newChain)
+	rndr.Log.Infof("Delete SFC: %v", sfc)
 
-	//newDNAT := rndr.contivServiceToDNat(newService)
-	//txn := rndr.UpdateTxnFactory(fmt.Sprintf("update service '%v'", newService.ID))
-	//txn.Put(vpp_nat.DNAT44Key(newDNAT.Label), newDNAT)
-	return nil
-}
+	//txn := rndr.UpdateTxnFactory(fmt.Sprintf("delete SFC chain '%s'", newChain.Name))
 
-// DeleteService removes destination-NAT configuration associated with a freshly
-// un-deployed service.
-func (rndr *Renderer) DeleteChain(chain *renderer.ContivSFC) error {
+	// TODO: implement me
+	//txn.Put()
 
-	rndr.Log.Infof("Delete chain: %v", chain)
-
-	//txn := rndr.UpdateTxnFactory(fmt.Sprintf("delete service '%v'", service.ID))
-	//txn.Delete(vpp_nat.DNAT44Key(service.ID.String()))
 	return nil
 }
 
 // Resync completely replaces the current configuration with the provided full state of service chains.
 func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
+	//txn := rndr.ResyncTxnFactory()
 
-	// TODO
+	// TODO: implement me
+	//txn.Put()
 
 	return nil
 }
@@ -112,4 +117,67 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 // Close deallocates resources held by the renderer.
 func (rndr *Renderer) Close() error {
 	return nil
+}
+
+// renderChain renders Contiv SFC to VPP configuration.
+func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.KeyValuePairs) {
+	config = make(controller.KeyValuePairs)
+
+	prevIface := ""
+	for _, sf := range sfc.Chain {
+		// get input interface name of this service function
+		iface := rndr.getSFInputInterface(sf)
+
+		if iface != "" && prevIface != "" {
+			// cross-connect the interfaces in both directions
+			xconn := &vpp_l2.XConnectPair{
+				ReceiveInterface:  prevIface,
+				TransmitInterface: iface,
+			}
+			key := vpp_l2.XConnectKey(prevIface)
+			config[key] = xconn
+
+			xconn = &vpp_l2.XConnectPair{
+				ReceiveInterface:  iface,
+				TransmitInterface: prevIface,
+			}
+			key = vpp_l2.XConnectKey(iface)
+			config[key] = xconn
+		}
+		prevIface = rndr.getSFOutputInterface(sf)
+	}
+
+	return config
+}
+
+func (rndr *Renderer) getSFInputInterface(sf *renderer.ServiceFunction) string {
+	if sf.Type != renderer.Pod {
+		return "" // TODO: implement external interfaces as well
+	}
+	if len(sf.Pods) == 0 {
+		return ""
+	}
+	pod := sf.Pods[0] // TODO: handle chains with multiple pod instances per service function?
+
+	vppIfName, exists := rndr.IPNet.GetPodCustomIfName(pod.ID.Namespace, pod.ID.Name, pod.InputInterface, "memif") // TODO: memif-only
+	if !exists {
+		return ""
+	}
+	return vppIfName
+}
+
+func (rndr *Renderer) getSFOutputInterface(sf *renderer.ServiceFunction) string {
+	if sf.Type != renderer.Pod {
+		return "" // TODO: implement external interfaces as well
+	}
+	if len(sf.Pods) == 0 {
+		return ""
+	}
+	pod := sf.Pods[0] // TODO: handle chains with multiple pod instances per service function?
+
+	vppIfName, exists := rndr.IPNet.GetPodCustomIfName(pod.ID.Namespace, pod.ID.Name, pod.OutputInterface, "memif") // TODO: memif-only
+	if !exists {
+		return ""
+	}
+	return vppIfName
 }

@@ -15,10 +15,14 @@ import (
 // main event loop!
 type API interface {
 	// GetPodIfNames looks up logical interface names that correspond to the interfaces
-	// associated with the given POD name.
+	// associated with the given local pod name + namespace.
 	GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string, exists bool)
 
-	// GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
+	// GetPodCustomIfName looks up logical interface name that corresponds to the custom interface
+	// with specified name and type associated with the given local pod name + namespace.
+	GetPodCustomIfName(podNamespace, podName, customIfName, customIfType string) (ifName string, exists bool)
+
+	// GetPodByIf looks up name and namespace that is associated with logical interface name.
 	// The method can be called from outside of the main event loop.
 	GetPodByIf(ifname string) (podNamespace string, podName string, exists bool)
 

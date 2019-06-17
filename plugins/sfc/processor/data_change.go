@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) 2018 Cisco and/or its affiliates.
+ * // Copyright (c) 2019 Cisco and/or its affiliates.
  * //
  * // Licensed under the Apache License, Version 2.0 (the "License");
  * // you may not use this file except in compliance with the License.
@@ -32,7 +32,8 @@ func (sp *SFCProcessor) propagateDataChangeEv(event *controller.KubeStateChange)
 			if event.PrevValue == nil {
 				return sp.processNewSFC(sfc)
 			}
-			return sp.processUpdatedSFC(sfc)
+			oldSfc := event.PrevValue.(*sfcmodel.ServiceFunctionChain)
+			return sp.processUpdatedSFC(oldSfc, sfc)
 		}
 		sfc := event.PrevValue.(*sfcmodel.ServiceFunctionChain)
 		return sp.processDeletedSFC(sfc)

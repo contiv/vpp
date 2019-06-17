@@ -79,12 +79,6 @@ func (p *Plugin) Init() error {
 	}
 	p.Log.Infof("Service plugin configuration: %+v", *p.config)
 
-	const goVPPChanBufSize = 1 << 12
-	goVppCh, err := p.GoVPP.NewAPIChannelBuffered(goVPPChanBufSize, goVPPChanBufSize)
-	if err != nil {
-		return err
-	}
-
 	p.processor = &processor.SFCProcessor{
 		Deps: processor.Deps{
 			Log:          p.Log.NewLogger("-sfcProcessor"),
@@ -106,7 +100,6 @@ func (p *Plugin) Init() error {
 			ContivConf: p.ContivConf,
 			IPAM:       p.IPAM,
 			IPNet:      p.IPNet,
-			GoVPPChan:  goVppCh,
 			UpdateTxnFactory: func(change string) controller.UpdateOperations {
 				p.changes = append(p.changes, change)
 				return p.updateTxn

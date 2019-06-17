@@ -14,5 +14,5 @@
  * // limitations under the License.
  */
 
-// Package sfc implements Service Function Chaining between pods in Kubernetes.
+// Package sfc implements Service Function Chaining between k8s pods and external interfaces in Contiv-VPP.
 package sfc

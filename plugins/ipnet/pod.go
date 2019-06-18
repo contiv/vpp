@@ -365,7 +365,9 @@ func (n *IPNet) podVPPTap(pod *podmanager.LocalPod, podIP *net.IPNet, customIfNa
 		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
 		PhysAddress: n.hwAddrForPod(pod, true),
 		Link: &vpp_interfaces.Interface_Tap{
-			Tap: &vpp_interfaces.TapLink{},
+			Tap: &vpp_interfaces.TapLink{
+				EnableGso: interfaceCfg.EnableGSO,
+			},
 		},
 	}
 	if podIP != nil {
@@ -378,9 +380,12 @@ func (n *IPNet) podVPPTap(pod *podmanager.LocalPod, podIP *net.IPNet, customIfNa
 		tap.GetTap().RxRingSize = uint32(interfaceCfg.TAPv2RxRingSize)
 		tap.GetTap().TxRingSize = uint32(interfaceCfg.TAPv2TxRingSize)
 	}
-	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
-		tap.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
-			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxMode_DEFAULT {
+		tap.RxModes = []*vpp_interfaces.Interface_RxMode{
+			{
+				DefaultMode: true,
+				Mode:        interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+			},
 		}
 	}
 	key = vpp_interfaces.InterfaceKey(tap.Name)
@@ -520,9 +525,12 @@ func (n *IPNet) podAfPacket(pod *podmanager.LocalPod, podIP *net.IPNet, customIf
 			InterfaceWithIp: podGwLoopbackInterfaceName,
 		}
 	}
-	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
-		afpacket.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
-			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxMode_DEFAULT {
+		afpacket.RxModes = []*vpp_interfaces.Interface_RxMode{
+			{
+				DefaultMode: true,
+				Mode:        interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+			},
 		}
 	}
 	key = vpp_interfaces.InterfaceKey(afpacket.Name)
@@ -566,9 +574,12 @@ func (n *IPNet) podVPPMemif(pod *podmanager.LocalPod, podIP *net.IPNet, ifName s
 			InterfaceWithIp: podGwLoopbackInterfaceName,
 		}
 	}
-	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
-		memif.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
-			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxMode_DEFAULT {
+		memif.RxModes = []*vpp_interfaces.Interface_RxMode{
+			{
+				DefaultMode: true,
+				Mode:        interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+			},
 		}
 	}
 	key = vpp_interfaces.InterfaceKey(memif.Name)
@@ -597,9 +608,12 @@ func (n *IPNet) podMicroservioceMemif(pod *podmanager.LocalPod, ip *net.IPNet, i
 	if ip != nil {
 		memif.IpAddresses = []string{ip.String()}
 	}
-	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
-		memif.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
-			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxMode_DEFAULT {
+		memif.RxModes = []*vpp_interfaces.Interface_RxMode{
+			{
+				DefaultMode: true,
+				Mode:        interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+			},
 		}
 	}
 	key = vpp_interfaces.InterfaceKey(memif.Name)

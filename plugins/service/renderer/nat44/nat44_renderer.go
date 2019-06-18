@@ -33,7 +33,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/nat"
+	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/nat"
 )
 
 const (

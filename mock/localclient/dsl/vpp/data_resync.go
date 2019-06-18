@@ -144,6 +144,13 @@ func (d *MockDataResyncDSL) PuntToHost(val *vpp_punt.ToHost) vppclient.DataResyn
 	return d
 }
 
+// PuntException adds request to RESYNC a rule used to add punt exception in punting traffic to a host.
+func (d *MockDataResyncDSL) PuntException(val *vpp_punt.Exception) vppclient.DataResyncDSL {
+	key := vpp_punt.ExceptionKey(val.Reason)
+	d.Values[key] = val
+	return d
+}
+
 // VrfTable adds VRF table to the RESYNC request.
 func (d *MockDataResyncDSL) VrfTable(val *vpp_l3.VrfTable) vppclient.DataResyncDSL {
 	key := vpp_l3.VrfTableKey(val.Id, val.Protocol)

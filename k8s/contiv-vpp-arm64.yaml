@@ -28,6 +28,7 @@ data:
     tapInterfaceVersion: 2
     tapv2RxRingSize: 256
     tapv2TxRingSize: 256
+    enableGSO: false
     tcpChecksumOffloadDisabled: true
     STNVersion: 2
     natExternalTraffic: true
@@ -67,8 +68,8 @@ data:
     delayAfterErrorHealing: 5000000000
     remoteDBProbingInterval: 3000000000
     recordEventHistory: true
-    eventHistoryAgeLimit: 1440
-    permanentlyRecordedInitPeriod: 60
+    eventHistoryAgeLimit: 60
+    permanentlyRecordedInitPeriod: 10
   service.conf: |
     cleanupIdleNATSessions: true
     tcpNATSessionTimeout: 180
@@ -120,8 +121,8 @@ data:
     dump-go-routines-count: 5
   kvscheduler.conf: |
     record-transaction-history: true
-    transaction-history-age-limit: 1440
-    permanently-recorded-init-period: 60
+    transaction-history-age-limit: 60
+    permanently-recorded-init-period: 10
 
 ---
 
@@ -500,6 +501,8 @@ spec:
               value: "/etc/vpp-agent/linux-l3plugin.conf"
             - name: KVSCHEDULER_CONFIG
               value: "/etc/vpp-agent/kvscheduler.conf"
+            - name: DISABLE_INTERFACE_STATS
+              value: "y"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt
@@ -530,6 +533,9 @@ spec:
             - name: kubelet-api
               mountPath: /var/lib/kubelet
           resources:
+            limits:
+              hugepages-2Mi: 512Mi
+              memory: 512Mi
             requests:
               cpu: 250m
 

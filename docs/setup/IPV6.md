@@ -13,6 +13,7 @@
 
 - Service load-balancing in IPv6 setup is not equal, node-local backend pods are always preferred
 and a request is never load-balanced to a remote node's pod if there is a local backend.
+This is addressed in the [experimental SRv6 implementation of k8s services](SRV6.md).
 - Network Policies are implemented using ip6tables rules in individual pods. Because of
 this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4).
 
@@ -93,6 +94,8 @@ you can pass the the above mentioned IPAM setting as helm options, e.g.:
 --set contiv.ipamConfig.vppHostSubnetCIDR=2002::/64 --set contiv.ipamConfig.vppHostSubnetOneNodePrefixLen=112
 --set contiv.ipamConfig.vxlanCIDR=2005::/112 --set contiv.ipamConfig.serviceCIDR=2096::/110
 ```
+
+Note: for experimental SRv6 implementation of k8s services, see the [SRv6 README](SRV6.md).
 
 
 ## Deployment Verification

@@ -6,6 +6,7 @@ contiv:
   tapInterfaceVersion: 2
   tapv2RxRingSize: 256
   tapv2TxRingSize: 256
+  enableGSO: false
   vmxnet3RxRingSize: 1024
   vmxnet3TxRingSize: 1024
   interfaceRxMode: "default"
@@ -81,8 +82,8 @@ controller:
   delayAfterErrorHealing: 5000000000
   remoteDBProbingInterval: 3000000000
   recordEventHistory: true
-  eventHistoryAgeLimit: 1440
-  permanentlyRecordedInitPeriod: 60
+  eventHistoryAgeLimit: 60
+  permanentlyRecordedInitPeriod: 10
 
 
 # ETCD server to be used by Contiv
@@ -141,9 +142,9 @@ vswitch:
   probePeriodSeconds: 3
   probeTimeoutSeconds: 2
   probeFailureThreshold: 3
-  defineMemoryLimits: false
-  hugePages2miLimit: 1024Mi
-  memoryLimit: 1024Mi
+  defineMemoryLimits: true
+  hugePages2miLimit: 512Mi
+  memoryLimit: 512Mi
   updateStrategy: RollingUpdate
   cpuRequest: 250m
   cpuLimit: 0

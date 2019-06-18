@@ -21,7 +21,7 @@ import (
 
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linux/nsplugin/linuxcalls"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/vpe"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/vpe"
 	"github.com/vishvananda/netlink"
 )
 
@@ -144,16 +144,16 @@ func ipNetToString(ipNet *net.IPNet) string {
 }
 
 // interfaceRxModeType returns interface rx-mode type from provided string.
-func interfaceRxModeType(rxMode string) vpp_interfaces.Interface_RxModeSettings_RxModeType {
+func interfaceRxModeType(rxMode string) vpp_interfaces.Interface_RxMode_Type {
 	switch rxMode {
 	case "polling":
-		return vpp_interfaces.Interface_RxModeSettings_POLLING
+		return vpp_interfaces.Interface_RxMode_POLLING
 	case "interrupt":
-		return vpp_interfaces.Interface_RxModeSettings_INTERRUPT
+		return vpp_interfaces.Interface_RxMode_INTERRUPT
 	case "adaptive":
-		return vpp_interfaces.Interface_RxModeSettings_ADAPTIVE
+		return vpp_interfaces.Interface_RxMode_ADAPTIVE
 	default:
-		return vpp_interfaces.Interface_RxModeSettings_DEFAULT
+		return vpp_interfaces.Interface_RxMode_DEFAULT
 	}
 }
 

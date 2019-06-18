@@ -67,6 +67,7 @@ Parameter | Description | Default
 `contiv.tapInterfaceVersion`| TAP interface version | 2
 `contiv.tapv2RxRingSize`| TAPv2 interface receive ring size | 256
 `contiv.tapv2TxRingSize`| TAPv2 interface transmit ring size | 256
+`contiv.enableGSO`| Enable Generic Segmentation Offload on TAP interfaces  | `True`
 `contiv.vmxnet3RxRingSize`| Vmxnet3 interface receive ring size | 1024
 `contiv.vmxnet3TxRingSize`| Vmxnet3 interface transmit ring size | 1024
 `contiv.interfaceRxMode`| Interface packet receive mode: "" == "default" / "polling" / "interrupt" / "adaptive"  | `"default"`
@@ -80,7 +81,6 @@ Parameter | Description | Default
 `contiv.disableNATVirtualReassembly` | Disable NAT virtual reassembly (drop fragmented packets) | `False`
 `contiv.ipamConfig.podSubnetCIDR` | Pod subnet CIDR | `10.1.0.0/16`
 `contiv.ipamConfig.podSubnetOneNodePrefixLen` | Pod network prefix length | `24`
-`contiv.ipamConfig.podVPPSubnetCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
 `contiv.ipamConfig.vppHostSubnetCIDR` | VPP host subnet CIDR | `172.30.0.0/16`
 `contiv.ipamConfig.vppHostSubnetOneNodePrefixLen` | VPP host network prefix length | `24`
 `contiv.ipamConfig.vxlanCIDR` | VXLAN CIDR | `192.168.30.0/24`
@@ -89,10 +89,10 @@ Parameter | Description | Default
 `contiv.ipamConfig.defaultGateway` | Default gateway for all nodes (can be overridden by a nodeconfig)| `""`
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
 `contiv.vswitch.useSocketVPPConnection` | use unix domain socket for connection to VPP | `false`
-`contiv.vswitch.defineMemoryLimits` | define limits for vswitch container | `false`
-`contiv.vswitch.hugePages2miLimit` | limit of memory allocated by 2048Kb hugepages for vswitch container| `1024Mi`
-`contiv.vswitch.hugePages1giLimit` | limit of memory allocated by 1Gb hugepages for vswitch container| `""`
-`contiv.vswitch.memoryLimit` | memory limit for vswitch container | `1024Mi`
+`contiv.vswitch.defineMemoryLimits` | define memory requests & limits for vswitch container | `true`
+`contiv.vswitch.hugePages2miLimit` | request & limit of memory allocated by 2048Kb hugepages for vswitch container| `512Mi`
+`contiv.vswitch.hugePages1giLimit` | request & limit of memory allocated by 1Gb hugepages for vswitch container| `""`
+`contiv.vswitch.memoryLimit` | overall memory limit for vswitch container | `512Mi`
 `contiv.vswitch.enableCoreDumps` | enable core dumps of VPP into coreDumpsDir | `false`
 `contiv.vswitch.coreDumpsDir` | location of the VPP core dumps | `/var/contiv/dumps`
 `controller.enableRetry` | Enable retry of failed CRUD operations | `true`

@@ -99,6 +99,8 @@ func (p *IfPlugin) publishIfStateEvents() {
 			p.publishLock.Lock()
 			key := interfaces.InterfaceStateKey(ifState.State.Name)
 
+			p.Log.Debugf("Publishing interface state: %+v", ifState)
+
 			if p.PublishStatistics != nil {
 				err := p.PublishStatistics.Put(key, ifState.State)
 				if err != nil {
@@ -130,12 +132,15 @@ func (p *IfPlugin) publishIfStateEvents() {
 				})
 			}
 
-			if p.PushNotification != nil &&
-				(ifState.Type == interfaces.InterfaceNotification_UPDOWN ||
-					ifState.State.OperStatus == interfaces.InterfaceState_DELETED) {
-				p.PushNotification(&vpp.Notification{
-					Interface: ifState,
-				})
+			if ifState.Type == interfaces.InterfaceNotification_UPDOWN ||
+				ifState.State.OperStatus == interfaces.InterfaceState_DELETED {
+
+				p.linkStateDescriptor.UpdateLinkState(ifState)
+				if p.PushNotification != nil {
+					p.PushNotification(&vpp.Notification{
+						Interface: ifState,
+					})
+				}
 			}
 
 			p.publishLock.Unlock()

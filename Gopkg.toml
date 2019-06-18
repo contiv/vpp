@@ -139,12 +139,6 @@ required = [
   name = "k8s.io/code-generator"
   version = "kubernetes-1.11.0"
 
-# TODO: remove override once latest govpp can be compiled with vpp 19.01
-[[override]]
-  name = "git.fd.io/govpp.git"
-  source = "github.com/ligato/govpp.git"
-  branch = "vpp1901"
-
 [prune]
   go-tests = true
   unused-packages = true

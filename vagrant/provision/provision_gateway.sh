@@ -119,7 +119,7 @@ EOL
 fi
 
 # in case of nooverlay setup add explict routes to pod subnet on each node
-if [[ $helm_extra_opts =~ contiv.useNoOverlay=(true|True) ]]; then
+if [[ $helm_extra_opts =~ contiv.nodeToNodeTransport=nooverlay ]]; then
    cnt=1;
 
    if [[ $crd_disabled == "true" ]]; then

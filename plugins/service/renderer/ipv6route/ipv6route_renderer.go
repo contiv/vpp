@@ -33,6 +33,8 @@ import (
 	"github.com/ligato/vpp-agent/api/models/linux/iptables"
 	"github.com/ligato/vpp-agent/api/models/linux/namespace"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
+	"github.com/ligato/vpp-agent/pkg/models"
 )
 
 const (
@@ -364,7 +366,8 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 	if service.TrafficPolicy == renderer.ClusterWide && len(localBackends) == 0 && !hasHostNetworkLocalBackend {
 		for _, serviceIP := range serviceIPs {
 			for nodeID := range remoteBackendNodes {
-				if !rndr.ContivConf.GetRoutingConfig().UseNoOverlay {
+				switch rndr.ContivConf.GetRoutingConfig().NodeToNodeTransport {
+				case contivconf.VXLANTransport:
 					// route via the VXLAN
 					nextHop, _, _ := rndr.IPAM.VxlanIPAddress(nodeID)
 					route := &vpp_l3.Route{
@@ -375,7 +378,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 					}
 					key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 					addDelConfig[key] = route
-				} else {
+				case contivconf.NoOverlayTransport:
 					// route from pod VRF to main VRF
 					route := &vpp_l3.Route{
 						Type:        vpp_l3.Route_INTER_VRF,
@@ -396,6 +399,37 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 					}
 					key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 					addDelConfig[key] = route
+				case contivconf.SRv6Transport:
+					// route from pod VRF to main VRF
+					route := &vpp_l3.Route{
+						Type:        vpp_l3.Route_INTER_VRF,
+						DstNetwork:  serviceIP.String() + ipv6HostPrefix,
+						VrfId:       rndr.ContivConf.GetRoutingConfig().PodVRFID,
+						ViaVrfId:    rndr.ContivConf.GetRoutingConfig().MainVRFID,
+						NextHopAddr: ipv6AddrAny,
+					}
+					key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+					addDelConfig[key] = route
+
+					// steering packet into existing SRv6 node-to-node tunnel (main Vrf table on other node will route packet from SRv6 tunnel)
+					nodeIP, _, err := rndr.IPAM.NodeIPAddress(nodeID)
+					if err != nil {
+						rndr.Log.Errorf("can't create SRv6 steering to SRv6 node-to-node tunnel due to: can't get node IP from node ID %v due to: %v", nodeID, err)
+						continue
+					}
+					steering := &vpp_srv6.Steering{
+						Name: fmt.Sprintf("forNodeToNodeTunneling-byServiceIPOfK8sService-node-%v-serviceIP-%v", nodeID, serviceIP),
+						Traffic: &vpp_srv6.Steering_L3Traffic_{
+							L3Traffic: &vpp_srv6.Steering_L3Traffic{
+								PrefixAddress:     serviceIP.String() + ipv6HostPrefix,
+								InstallationVrfId: rndr.ContivConf.GetRoutingConfig().MainVRFID,
+							},
+						},
+						PolicyRef: &vpp_srv6.Steering_PolicyBsid{
+							PolicyBsid: rndr.IPAM.BsidForNodeToNodeHostPolicy(nodeIP).String(), // don't go to other node's host, packet decapsulates and routing will look into main vrf table //TODO misleading naming?
+						},
+					}
+					addDelConfig[models.Key(steering)] = steering
 				}
 			}
 		}

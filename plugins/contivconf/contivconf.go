@@ -44,6 +44,16 @@ import (
 	"github.com/contiv/vpp/plugins/ksr"
 )
 
+// NodeToNodeTransport configuration values enum
+const (
+	// VXLANTransport is config value representing usage of VXLAN in node-to-node communication
+	VXLANTransport = "vxlan"
+	// SRv6Transport is config value representing usage of SRv6 in node-to-node communication
+	SRv6Transport = "srv6"
+	// NoOverlayTransport is config value representing usage of other (not above mentioned) techniques in node-to-node communication (routing tables/...)
+	NoOverlayTransport = "nooverlay"
+)
+
 const (
 	// defaultSTNSocketFile is a path to the socket file where the GRPC STN server
 	// listens for client connections by default
@@ -78,15 +88,18 @@ const (
 	defaultVPPHostSubnetCIDR                     = "172.30.0.0/16"
 	defaultVPPHostSubnetOneNodePrefixLen         = 24
 	defaultVxlanCIDR                             = "192.168.30.0/24"
-	defaultSrv6ServicePolicyBSIDSubnetCIDR       = "5555::/16"
-	defaultSrv6ServicePodLocalSIDSubnetCIDR      = "6666::/16"
-	defaultSrv6ServiceHostLocalSIDSubnetCIDR     = "6655::/16"
-	defaultSrv6ServiceNodeLocalSIDSubnetCIDR     = "7766::/16"
-	defaultSrv6NodeToNodePodLocalSIDSubnetCIDR   = "7777::/16"
-	defaultSrv6NodeToNodeHostLocalSIDSubnetCIDR  = "7799::/16"
-	defaultSrv6NodeToNodePodPolicySIDSubnetCIDR  = "8888::/16"
-	defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR = "9999::/16"
+	defaultSrv6ServicePolicyBSIDSubnetCIDR       = "8fff::/16"
+	defaultSrv6ServicePodLocalSIDSubnetCIDR      = "9300::/16"
+	defaultSrv6ServiceHostLocalSIDSubnetCIDR     = "9300::/16"
+	defaultSrv6ServiceNodeLocalSIDSubnetCIDR     = "9000::/16"
+	defaultSrv6NodeToNodePodLocalSIDSubnetCIDR   = "9501::/16"
+	defaultSrv6NodeToNodeHostLocalSIDSubnetCIDR  = "9500::/16"
+	defaultSrv6NodeToNodePodPolicySIDSubnetCIDR  = "8501::/16"
+	defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR = "8500::/16"
 	// NodeInterconnectCIDR & ContivCIDR can be empty
+
+	// default node to node communication
+	defaultNodeToNodeTransport = VXLANTransport
 
 	// default VRF IDs
 	defaultMainVrfID = 0
@@ -280,8 +293,9 @@ func (c *ContivConf) Init() (err error) {
 			IPNeighborStaleThreshold: defaultIPNeighborStaleThreshold,
 		},
 		RoutingConfig: config.RoutingConfig{
-			MainVRFID: defaultMainVrfID,
-			PodVRFID:  defaultPodVrfID,
+			MainVRFID:           defaultMainVrfID,
+			PodVRFID:            defaultPodVrfID,
+			NodeToNodeTransport: defaultNodeToNodeTransport,
 		},
 		IPAMConfig: config.IPAMConfig{
 			ServiceCIDR:                   defaultServiceCIDR,

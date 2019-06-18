@@ -127,7 +127,7 @@ func (p *Plugin) Init() error {
 		// Register renderer.
 		p.processor.RegisterRenderer(p.nat44Renderer)
 	} else {
-		if p.ContivConf.GetRoutingConfig().UseSRv6Interconnect { // use SRv6 renderer
+		if p.ContivConf.GetRoutingConfig().UseSRv6ForServices { // use SRv6 renderer
 			p.srv6Renderer = &srv6.Renderer{
 				Deps: srv6.Deps{
 					Log:             p.Log.NewLogger("-SRv6Renderer"),

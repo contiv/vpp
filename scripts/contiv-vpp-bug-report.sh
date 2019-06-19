@@ -227,6 +227,7 @@ LOCAL_COMMANDS["contiv-stn.log"]='CONTAINER=$(sudo docker ps --filter name=conti
 LOCAL_COMMANDS["vswitch-version.log"]="curl -m 2 localhost:9999/liveness"
 LOCAL_COMMANDS["docker-ps.log"]="sudo docker ps"
 LOCAL_COMMANDS["core-dump.tar.xz"]="sudo test -d /var/contiv/dumps && sudo tar -Jc -C /var/contiv dumps"
+LOCAL_COMMANDS["tmp-logs.tar.xz"]="sudo tar -Jc -C /tmp contiv-vswitch"
 LOCAL_COMMANDS["cni.log"]="sudo cat /var/run/contiv/cni.log"
 LOCAL_COMMANDS["vpp.conf"]="cat /etc/vpp/contiv-vswitch.conf"
 LOCAL_COMMANDS["syslog.log"]="sudo cat /var/log/syslog"

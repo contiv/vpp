@@ -309,15 +309,15 @@ EOL
 }
 
 applyVPPnetwork() {
+  # coredns config tweaks
+  kubectl get configmap coredns -o yaml --export -n kube-system > /tmp/coredns-config.yaml
   if [[ $ip_version == "ipv6" ]]; then
-    # Disable coredns loop detection plugin
-    kubectl get configmap coredns \
-        -o yaml \
-        -n kube-system  \
-        --export >> coredns-config.yaml
-    sed -i 's/\/etc\/resolv.conf/fe10::2:100/' coredns-config.yaml
-    kubectl apply -f coredns-config.yaml -n kube-system
+    # set proper upstream dns server
+    sed -i 's/\/etc\/resolv.conf/fe10::2:100/' /tmp/coredns-config.yaml
   fi
+  # disable coredns loop detection plugin
+  sed -i '/loop/d' /tmp/coredns-config.yaml
+  kubectl apply -f /tmp/coredns-config.yaml -n kube-system
 
   # Deploy external etcd, nodeport etcd service and etcd secrets
   if [ ${master_nodes} -gt 1 ]; then
@@ -421,7 +421,7 @@ if [ "$backup_master" != "true" ]; then
     export -f applyCalicoNetwork
     su vagrant -c "bash -c applyCalicoNetwork"
   elif [ "${dep_scenario}" == 'calicovpp' ]; then
-    export stn_config="${stn_config} --set contiv.useNoOverlay=true --set contiv.ipamConfig.useExternalIPAM=true --set contiv.ipamConfig.podSubnetCIDR=10.10.0.0/16 --set vswitch.useNodeAffinity=true"
+    export stn_config="${stn_config} --set contiv.nodeToNodeTransport=nooverlay --set contiv.ipamConfig.useExternalIPAM=true --set contiv.ipamConfig.podSubnetCIDR=10.10.0.0/16 --set vswitch.useNodeAffinity=true"
     export -f applyVPPnetwork
     su vagrant -c "bash -c applyVPPnetwork"
     export -f applyCalicoVPPNetwork

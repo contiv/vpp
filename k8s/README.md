@@ -50,8 +50,14 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
   of interfaces and allocation of IP addresses.
 
   * Pod-to-VPP connectivity (top-level options)
-    - `useNoOverlay`: do not use overlay (VXLAN) for node-to-node communication (works e.g. if the nodes are on the same L2 network)
-    - `UseSRv6Interconnect`: use pure SRv6(IPv6) node interconnect (no VXLAN)
+    - `nodeToNodeTransport`: transportation used for node-to-node communication. Possible values:
+      1. `vxlan`: VXLAN overlay encapsulates/decapsulates traffic between nodes using VXLAN.
+      2. `srv6`: SRv6 overlay encapsulates/decapsulates traffic between nodes using SRv6 (segment routing based on IPv6).
+      SRv6's steering and policy will be on ingress node and SRv6's localsid on egress node. This transportation expects
+      ipv6 to be enabled (SRv6 packets=IPv6 packets using SR header extension).
+      3. `nooverlay`: Using none of the previous mentioned overlays and route traffic using routing tables/etc., e.g. if the nodes are on the same L2 network.
+    - `useSRv6ForServices`: use SRv6(IPv6) for k8s service (this handles only packet from service client to backend, but 
+    in case of response packet, other networking settings handle it because it is normal pod/host-to-pod/host connectivity)
     - `useTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP and VPP-to-Host interconnection
     - `tAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
       for a faster, virtio-based, VPP TAPv2 interface (default);
@@ -77,14 +83,26 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
     - `vxlanCIDR`: subnet used for VXLAN addressing providing node-interconnect overlay
     - `serviceCIDR`: subnet used for allocation of Cluster IPs for services. Default value
     is the default kubernetes service range `10.96.0.0/12`
-    - `srv6ServicePolicyBSIDSubnetCIDR`: subnet applied to lowest k8s service IP to get unique (per service,per node) binding sid for SRv6 policy
-    - `srv6ServicePodLocalSIDSubnetCIDR`: subnet applied to k8s service local pod backend IP to get unique sid for SRv6 Localsid referring to local pod beckend using DX6 end function
-    - `srv6ServiceHostLocalSIDSubnetCIDR`: subnet applied to k8s service host pod backend IP to get unique sid for SRv6 Localsid referring to local host beckend using DX6 end function
-    - `srv6ServiceNodeLocalSIDSubnetCIDR`: subnet applied to node IP to get unique sid for SRv6 Localsid that is intermediate segment routing to other nodes in Srv6 segment list (used in k8s services)
-    - `srv6NodeToNodePodLocalSIDSubnetCIDR`: subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into pod VRF table (DT6 end function of localsid)
-    - `srv6NodeToNodeHostLocalSIDSubnetCIDR`: subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into main VRF table (DT6 end function of localsid)
-    - `srv6NodeToNodePodPolicySIDSubnetCIDR`: subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodePodLocalSIDSubnetCIDR`
-    - `srv6NodeToNodeHostPolicySIDSubnetCIDR`: subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodeHostLocalSIDSubnetCIDR`.
+    * SRv6 (section `srv6`)
+      - `servicePolicyBSIDSubnetCIDR`: subnet applied to lowest k8s service IP to get unique (per service,per node) binding sid for SRv6 policy
+      - `servicePodLocalSIDSubnetCIDR`: subnet applied to k8s service local pod backend IP to get unique sid for SRv6 Localsid referring to local pod beckend using DX6 end function
+      - `serviceHostLocalSIDSubnetCIDR`: subnet applied to k8s service host pod backend IP to get unique sid for SRv6 Localsid referring to local host beckend using DX6 end function
+      - `serviceNodeLocalSIDSubnetCIDR`: subnet applied to node IP to get unique sid for SRv6 Localsid that is intermediate segment routing to other nodes in Srv6 segment list (used in k8s services)
+      - `nodeToNodePodLocalSIDSubnetCIDR`: subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into pod VRF table (DT6 end function of localsid)
+      - `nodeToNodeHostLocalSIDSubnetCIDR`: subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into main VRF table (DT6 end function of localsid)
+      - `nodeToNodePodPolicySIDSubnetCIDR`: subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodePodLocalSIDSubnetCIDR`
+      - `nodeToNodeHostPolicySIDSubnetCIDR`: subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodeHostLocalSIDSubnetCIDR`.
+
+      Default config values for SRv6 SID/BSID subnets follow these rules to gain more clarity in debugging/maintaining/adding new functionality(adding new sids/bsids):
+       - 8fff::/16 = service policy
+       - 8\<XYZ\>::/16 = policy for node-to-node communication ending in locasid with SID 9\<XYZ\>::/16
+       - 9000::/16 = localsid with end function End
+       - 9100::/16 = localsid with end function End.DX2 (crossconnect target could be found out from non-prefix part of SID (target interface leads to target pod/node and sid is created from IP of that pod/node))
+       - 9200::/16 = localsid with end function End.DX4 (crossconnect target is known as in DX2 case)
+       - 9300::/16 = localsid with end function End.DX6 (crossconnect target is known as in DX2 case)
+       - 94\<YZ\>::/16 = localsid with end function End.DT4 (\<YZ\> is id of target ipv4 VRF table)
+       - 95\<YZ\>::/16 = localsid with end function End.DT6 (\<YZ\> is id of target ipv6 VRF table)
+       - 9600::/16 = localsid with end function End.AD (crossconnect target is known as in DX2 case)
 
   * Node configuration (section `nodeConfig`; one entry for each node)
     - `nodeName`: name of a Kubernetes node;

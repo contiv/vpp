@@ -201,14 +201,14 @@ func TestDynamicGettersIPv6(t *testing.T) {
 	customConfig.IPAMConfig.VPPHostSubnetOneNodePrefixLen = 126
 	customConfig.IPAMConfig.PodSubnetCIDR = "fe10:f00d::/90"
 	customConfig.IPAMConfig.PodSubnetOneNodePrefixLen = 120
-	customConfig.IPAMConfig.SRv6.ServicePolicyBSIDSubnetCIDR = "5555::/16"
-	customConfig.IPAMConfig.SRv6.ServicePodLocalSIDSubnetCIDR = "6666::/16"
-	customConfig.IPAMConfig.SRv6.ServiceHostLocalSIDSubnetCIDR = "6655::/16"
-	customConfig.IPAMConfig.SRv6.ServiceNodeLocalSIDSubnetCIDR = "7766::/16"
-	customConfig.IPAMConfig.SRv6.NodeToNodePodLocalSIDSubnetCIDR = "7777::/16"
-	customConfig.IPAMConfig.SRv6.NodeToNodeHostLocalSIDSubnetCIDR = "7799::/16"
-	customConfig.IPAMConfig.SRv6.NodeToNodePodPolicySIDSubnetCIDR = "8888::/16"
-	customConfig.IPAMConfig.SRv6.NodeToNodeHostPolicySIDSubnetCIDR = "9999::/16"
+	customConfig.IPAMConfig.SRv6.ServicePolicyBSIDSubnetCIDR = "8fff::/16"
+	customConfig.IPAMConfig.SRv6.ServicePodLocalSIDSubnetCIDR = "9300::/16"
+	customConfig.IPAMConfig.SRv6.ServiceHostLocalSIDSubnetCIDR = "9300::/16"
+	customConfig.IPAMConfig.SRv6.ServiceNodeLocalSIDSubnetCIDR = "9000::/16"
+	customConfig.IPAMConfig.SRv6.NodeToNodePodLocalSIDSubnetCIDR = "9501::/16"
+	customConfig.IPAMConfig.SRv6.NodeToNodeHostLocalSIDSubnetCIDR = "9500::/16"
+	customConfig.IPAMConfig.SRv6.NodeToNodePodPolicySIDSubnetCIDR = "8501::/16"
+	customConfig.IPAMConfig.SRv6.NodeToNodeHostPolicySIDSubnetCIDR = "8500::/16"
 
 	i := setup(t, customConfig)
 	Expect(i).NotTo(BeNil())
@@ -236,14 +236,14 @@ func TestDynamicGettersIPv6(t *testing.T) {
 	Expect(err).To(BeNil())
 	Expect(ipNet.String()).To(BeEquivalentTo("fe30:f00d::14/126"))
 
-	Expect(i.SidForServiceHostLocalsid()).To(BeEquivalentTo(net.ParseIP("6655::1")))
-	Expect(i.BsidForServicePolicy([]net.IP{net.ParseIP("1111:2222::1")})).To(BeEquivalentTo(net.ParseIP("5555:2222::1")))
-	Expect(i.SidForServicePodLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("6666:2222::1")))
-	Expect(i.SidForServiceNodeLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("7766:2222::1")))
-	Expect(i.SidForNodeToNodePodLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("7777:2222::1")))
-	Expect(i.SidForNodeToNodeHostLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("7799:2222::1")))
-	Expect(i.BsidForNodeToNodePodPolicy(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("8888:2222::1")))
-	Expect(i.BsidForNodeToNodeHostPolicy(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("9999:2222::1")))
+	Expect(i.SidForServiceHostLocalsid()).To(BeEquivalentTo(net.ParseIP("9300::1")))
+	Expect(i.BsidForServicePolicy([]net.IP{net.ParseIP("1111:2222::1")})).To(BeEquivalentTo(net.ParseIP("8fff:2222::1")))
+	Expect(i.SidForServicePodLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("9300:2222::1")))
+	Expect(i.SidForServiceNodeLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("9000:2222::1")))
+	Expect(i.SidForNodeToNodePodLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("9501:2222::1")))
+	Expect(i.SidForNodeToNodeHostLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("9500:2222::1")))
+	Expect(i.BsidForNodeToNodePodPolicy(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("8501:2222::1")))
+	Expect(i.BsidForNodeToNodeHostPolicy(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("8500:2222::1")))
 }
 
 // TestBasicAllocateReleasePodAddress test simple happy path scenario for getting 1 pod address and releasing it

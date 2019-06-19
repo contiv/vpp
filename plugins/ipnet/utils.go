@@ -21,7 +21,7 @@ import (
 
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linux/nsplugin/linuxcalls"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/vpe"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/vpe"
 	"github.com/vishvananda/netlink"
 )
 
@@ -36,9 +36,13 @@ const (
 	ipv6AddrAny = "::"
 	ipv6NetAny  = ipv6AddrAny + "/0"
 
+	// full prefixes for different IP address families
+	ipv4FullPrefix = "/32"
+	ipv6FullPrefix = "/128"
+
 	// host prefixes
-	ipv4HostPrefix = "/32"
-	ipv6HostPrefix = "/128"
+	ipv4HostPrefix = ipv4FullPrefix
+	ipv6HostPrefix = ipv6FullPrefix
 )
 
 // getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
@@ -140,16 +144,16 @@ func ipNetToString(ipNet *net.IPNet) string {
 }
 
 // interfaceRxModeType returns interface rx-mode type from provided string.
-func interfaceRxModeType(rxMode string) vpp_interfaces.Interface_RxModeSettings_RxModeType {
+func interfaceRxModeType(rxMode string) vpp_interfaces.Interface_RxMode_Type {
 	switch rxMode {
 	case "polling":
-		return vpp_interfaces.Interface_RxModeSettings_POLLING
+		return vpp_interfaces.Interface_RxMode_POLLING
 	case "interrupt":
-		return vpp_interfaces.Interface_RxModeSettings_INTERRUPT
+		return vpp_interfaces.Interface_RxMode_INTERRUPT
 	case "adaptive":
-		return vpp_interfaces.Interface_RxModeSettings_ADAPTIVE
+		return vpp_interfaces.Interface_RxMode_ADAPTIVE
 	default:
-		return vpp_interfaces.Interface_RxModeSettings_DEFAULT
+		return vpp_interfaces.Interface_RxMode_DEFAULT
 	}
 }
 
@@ -168,6 +172,15 @@ func hostPrefixForAF(ip net.IP) string {
 		return ipv6HostPrefix
 	}
 	return ipv4HostPrefix
+}
+
+// fullPrefixForAF returns prefix length string to address fully prefixed
+// IP address for address family determined from given IP address.
+func fullPrefixForAF(ip net.IP) string {
+	if isIPv6(ip) {
+		return ipv6FullPrefix
+	}
+	return ipv4FullPrefix
 }
 
 // anyAddrForAF returns IP address identifying "any" node

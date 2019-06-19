@@ -33,7 +33,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/nat"
+	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/nat"
 )
 
 const (
@@ -484,7 +484,8 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 				if rndr.isThisNodeOrHostIP(backend.IP) {
 					local.VrfId = routingCfg.MainVRFID
 				} else {
-					if rndr.ContivConf.GetRoutingConfig().UseNoOverlay &&
+					if (rndr.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.NoOverlayTransport ||
+						rndr.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport) &&
 						(!rndr.isLocalPodIP(backend.IP)) {
 						// no overlay mode: use main VRF for non-local PODs and other node's IPs
 						local.VrfId = routingCfg.MainVRFID

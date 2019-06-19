@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
@@ -241,7 +242,7 @@ func (n *IPNet) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn cont
 	if nodeHasIPAddress(nodeUpdate.PrevState) {
 		if !nodeHasIPAddress(nodeUpdate.NewState) {
 			// un-configure connectivity completely
-			connectivity, err := n.nodeConnectivityConfig(nodeUpdate.PrevState)
+			connectivity, err := n.fullNodeConnectivityConfig(nodeUpdate.PrevState)
 			if err != nil {
 				err := fmt.Errorf("failed to generate config for connectivity to node ID=%d: %v",
 					otherNodeID, err)
@@ -251,14 +252,14 @@ func (n *IPNet) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn cont
 			controller.DeleteAll(txn, connectivity)
 			operationName = "disconnect"
 		} else {
-			// remove obsolete routes
-			routes, err := n.routesToNode(nodeUpdate.PrevState)
+			// remove obsolete routes/SRv6 components/...
+			cfg, err := n.partialNodeConnectivityConfig(nodeUpdate.PrevState)
 			if err != nil {
 				// treat as warning
-				n.Log.Warnf("Failed to generate config for obsolete routes for node ID=%d: %v",
+				n.Log.Warnf("Failed to generate config for updating of obsolete node-to-node connectivity config for node ID=%d: %v",
 					otherNodeID, err)
 			} else {
-				controller.DeleteAll(txn, routes)
+				controller.DeleteAll(txn, cfg)
 			}
 			// operation is "Update"
 		}
@@ -268,7 +269,7 @@ func (n *IPNet) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn cont
 	if nodeHasIPAddress(nodeUpdate.NewState) {
 		if !nodeHasIPAddress(nodeUpdate.PrevState) {
 			// configure connectivity completely
-			connectivity, err := n.nodeConnectivityConfig(nodeUpdate.NewState)
+			connectivity, err := n.fullNodeConnectivityConfig(nodeUpdate.NewState)
 			if err != nil {
 				err := fmt.Errorf("failed to generate config for connectivity to node ID=%d: %v",
 					otherNodeID, err)
@@ -278,21 +279,21 @@ func (n *IPNet) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn cont
 			controller.PutAll(txn, connectivity)
 			operationName = "connect"
 		} else {
-			// just add updated routes
-			routes, err := n.routesToNode(nodeUpdate.NewState)
+			// just add updated routes/SRv6 components/...
+			cfg, err := n.partialNodeConnectivityConfig(nodeUpdate.NewState)
 			if err != nil {
-				err := fmt.Errorf("failed to generate config for obsolete routes for node ID=%d: %v",
+				err := fmt.Errorf("failed to generate config for updating of obsolete node-to-node connectivity config for node ID=%d: %v",
 					otherNodeID, err)
 				n.Log.Error(err)
 				return change, err
 			}
-			controller.PutAll(txn, routes)
+			controller.PutAll(txn, cfg)
 			operationName = "update"
 		}
 	}
 
 	// update BD if node was newly connected or disconnected
-	if !n.ContivConf.GetRoutingConfig().UseNoOverlay &&
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport &&
 		nodeHasIPAddress(nodeUpdate.PrevState) != nodeHasIPAddress(nodeUpdate.NewState) {
 
 		key, bd := n.vxlanBridgeDomain()

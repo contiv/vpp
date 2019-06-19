@@ -60,12 +60,14 @@ Some of them are described in more detail in [contiv.conf README](../README.md#c
 
 Parameter | Description | Default
 --------- | ----------- | -------
-`contiv.useNoOverlay` | Do not use overlay (VXLAN) for node-to-node communication | `False`
+`contiv.nodeToNodeTransport` | Transportation used for node-to-node communication | `vxlan`
+`contiv.useSRv6ForServices` | Enable usage of SRv6 for k8s service | `false`
 `contiv.mtuSize` | MTU Size | 1450
 `contiv.useTAPInterfaces` | Enable TAP interfaces | `True`
 `contiv.tapInterfaceVersion`| TAP interface version | 2
 `contiv.tapv2RxRingSize`| TAPv2 interface receive ring size | 256
 `contiv.tapv2TxRingSize`| TAPv2 interface transmit ring size | 256
+`contiv.enableGSO`| Enable Generic Segmentation Offload on TAP interfaces  | `True`
 `contiv.vmxnet3RxRingSize`| Vmxnet3 interface receive ring size | 1024
 `contiv.vmxnet3TxRingSize`| Vmxnet3 interface transmit ring size | 1024
 `contiv.interfaceRxMode`| Interface packet receive mode: "" == "default" / "polling" / "interrupt" / "adaptive"  | `"default"`

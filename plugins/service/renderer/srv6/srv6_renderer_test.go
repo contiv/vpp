@@ -26,6 +26,7 @@ import (
 	"github.com/contiv/vpp/mock/localclient"
 	"github.com/contiv/vpp/mock/vppagent"
 	"github.com/contiv/vpp/mock/vppagent/handler"
+	"github.com/contiv/vpp/plugins/contivconf"
 	"github.com/contiv/vpp/plugins/contivconf/config"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfigcrd "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
@@ -451,8 +452,8 @@ func defaultConfig() *config.Config {
 	return &config.Config{
 		NatExternalTraffic: true,
 		RoutingConfig: config.RoutingConfig{
-			UseNoOverlay:        true,
-			UseSRv6Interconnect: true,
+			NodeToNodeTransport: contivconf.SRv6Transport,
+			UseSRv6ForServices:  true,
 			MainVRFID:           renderer_testing.MainVrfID,
 			PodVRFID:            renderer_testing.PodVrfID,
 		},

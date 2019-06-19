@@ -120,7 +120,7 @@ var (
 	/*
 		configVethL2NoTCP = &contivconf.Config{
 			RoutingConfig: contivconf.RoutingConfig{
-				UseNoOverlay: true,
+				NodeToNodeTransport: contivconf.NoOverlayTransport,
 			},
 			IPAMConfig: contivconf.IPAMConfig{
 				PodSubnetCIDR:                 "10.1.0.0/16",

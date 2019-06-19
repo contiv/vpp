@@ -124,21 +124,23 @@ func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn control
 	}
 
 	// create localsid as receiving end for SRv6 encapsulated communication between 2 nodes
-	if n.ContivConf.GetRoutingConfig().UseSRv6Interconnect {
-		// create localsid with DT6 end function (decapsulate and lookup in POD VRF ipv6 table)
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport {
+		// create localsid with DT6/DT4 end function (decapsulate and lookup in POD VRF ipv6/ipv4 table)
 		// -SRv6 route ends in destination node's VPP
 		// -used for pod-to-pod communication (further routing in destination node is done using ipv6)
 		podSid := n.IPAM.SidForNodeToNodePodLocalsid(n.nodeIP)
 		key, podLocalsid := n.srv6PodTunnelEgress(podSid)
 		txn.Put(key, podLocalsid)
 
-		// create localsid with DT6 end function (decapsulate and lookup in Main VRF ipv6 table)
+		// create localsid with DT6/DT4 end function (decapsulate and lookup in Main VRF ipv6/ipv4 table)
 		// -SRv6 route ends in destination node's VPP
 		// -used for pod-to-other-node's-host communication (further routing in destination node is done using ipv6)
 		hostSid := n.IPAM.SidForNodeToNodeHostLocalsid(n.nodeIP)
 		key, hostLocalsid := n.srv6HostTunnelEgress(hostSid)
 		txn.Put(key, hostLocalsid)
-
+	}
+	// create localsid as receiving end for SRv6 encapsulated communication between 2 nodes (for k8s service purposes)
+	if n.ContivConf.GetRoutingConfig().UseSRv6ForServices {
 		// create localsid with base end function (ending of inner segment of srv6 segment list navigating packet)
 		// -SRv6 route continues, this localsid is only inner segment end
 		// -used i.e. in k8s services
@@ -425,7 +427,7 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations) error {
 		// collect configuration for node connectivity
 		if nodeHasIPAddress(node) {
 			// generate configuration
-			nodeConnectConfig, err := n.nodeConnectivityConfig(node)
+			nodeConnectConfig, err := n.fullNodeConnectivityConfig(node)
 			if err != nil {
 				// treat as warning
 				n.Log.Warnf("Failed to configure connectivity to node ID=%d: %v",
@@ -438,7 +440,7 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations) error {
 		}
 	}
 
-	if !n.ContivConf.GetRoutingConfig().UseNoOverlay {
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
 		// bridge domain with VXLAN interfaces
 
 		// bridge domain

@@ -22,12 +22,13 @@ metadata:
   namespace: kube-system
 data:
   contiv.conf: |-
-    useNoOverlay: false
-    useSRv6Interconnect: false
+    nodeToNodeTransport: vxlan
+    useSRv6ForServices: false
     useTAPInterfaces: true
     tapInterfaceVersion: 2
     tapv2RxRingSize: 256
     tapv2TxRingSize: 256
+    enableGSO: false
     tcpChecksumOffloadDisabled: true
     STNVersion: 2
     natExternalTraffic: true
@@ -47,14 +48,14 @@ data:
       vppHostSubnetOneNodePrefixLen: 24
       vxlanCIDR: 192.168.30.0/24
       srv6:
-        servicePolicyBSIDSubnetCIDR: 5555::/16
-        servicePodLocalSIDSubnetCIDR: 6666::/16
-        serviceHostLocalSIDSubnetCIDR: 6655::/16
-        serviceNodeLocalSIDSubnetCIDR: 7766::/16
-        nodeToNodePodLocalSIDSubnetCIDR: 7777::/16
-        nodeToNodeHostLocalSIDSubnetCIDR: 7799::/16
-        nodeToNodePodPolicySIDSubnetCIDR: 8888::/16
-        nodeToNodeHostPolicySIDSubnetCIDR: 9999::/16
+        servicePolicyBSIDSubnetCIDR: 8fff::/16
+        servicePodLocalSIDSubnetCIDR: 9300::/16
+        serviceHostLocalSIDSubnetCIDR: 9300::/16
+        serviceNodeLocalSIDSubnetCIDR: 9000::/16
+        nodeToNodePodLocalSIDSubnetCIDR: 9501::/16
+        nodeToNodeHostLocalSIDSubnetCIDR: 9500::/16
+        nodeToNodePodPolicySIDSubnetCIDR: 8501::/16
+        nodeToNodeHostPolicySIDSubnetCIDR: 8500::/16
   controller.conf: |
     enableRetry: true
     delayRetry: 1000000000
@@ -67,8 +68,8 @@ data:
     delayAfterErrorHealing: 5000000000
     remoteDBProbingInterval: 3000000000
     recordEventHistory: true
-    eventHistoryAgeLimit: 1440
-    permanentlyRecordedInitPeriod: 60
+    eventHistoryAgeLimit: 60
+    permanentlyRecordedInitPeriod: 10
   service.conf: |
     cleanupIdleNATSessions: true
     tcpNATSessionTimeout: 180
@@ -120,8 +121,8 @@ data:
     dump-go-routines-count: 5
   kvscheduler.conf: |
     record-transaction-history: true
-    transaction-history-age-limit: 1440
-    permanently-recorded-init-period: 60
+    transaction-history-age-limit: 60
+    permanently-recorded-init-period: 10
 
 ---
 
@@ -500,6 +501,8 @@ spec:
               value: "/etc/vpp-agent/linux-l3plugin.conf"
             - name: KVSCHEDULER_CONFIG
               value: "/etc/vpp-agent/kvscheduler.conf"
+            - name: DISABLE_INTERFACE_STATS
+              value: "y"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt

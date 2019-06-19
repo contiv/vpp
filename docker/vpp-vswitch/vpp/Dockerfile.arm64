@@ -13,6 +13,8 @@ RUN apt-get update \
     # ability to run vpptrace.sh
     netcat-openbsd \
  && apt-get remove -y --purge gcc \
+ && apt-get remove -y --purge gcc-8 \
+ && apt-get remove -y --purge g++-8 \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /opt/vpp-agent/dev/vpp /opt/vpp-agent/plugin
 

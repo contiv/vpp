@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) 2018 Cisco and/or its affiliates.
+ * // Copyright (c) 2019 Cisco and/or its affiliates.
  * //
  * // Licensed under the Apache License, Version 2.0 (the "License");
  * // you may not use this file except in compliance with the License.
@@ -83,10 +83,13 @@ func (rndr *Renderer) AddChain(sfc *renderer.ContivSFC) error {
 func (rndr *Renderer) UpdateChain(oldSFC, newSFC *renderer.ContivSFC) error {
 	rndr.Log.Infof("Update SFC: %v", newSFC)
 
-	//txn := rndr.UpdateTxnFactory(fmt.Sprintf("update SFC '%s'", newChain.Name))
+	txn := rndr.UpdateTxnFactory(fmt.Sprintf("update SFC '%s'", newSFC.Name))
 
-	// TODO: implement me
-	//txn.Put()
+	oldConfig := rndr.renderChain(oldSFC)
+	newConfig := rndr.renderChain(newSFC)
+
+	controller.DeleteAll(txn, oldConfig)
+	controller.PutAll(txn, newConfig)
 
 	return nil
 }
@@ -96,20 +99,23 @@ func (rndr *Renderer) DeleteChain(sfc *renderer.ContivSFC) error {
 
 	rndr.Log.Infof("Delete SFC: %v", sfc)
 
-	//txn := rndr.UpdateTxnFactory(fmt.Sprintf("delete SFC chain '%s'", newChain.Name))
+	txn := rndr.UpdateTxnFactory(fmt.Sprintf("delete SFC chain '%s'", sfc.Name))
 
-	// TODO: implement me
-	//txn.Put()
+	config := rndr.renderChain(sfc)
+	controller.DeleteAll(txn, config)
 
 	return nil
 }
 
 // Resync completely replaces the current configuration with the provided full state of service chains.
 func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
-	//txn := rndr.ResyncTxnFactory()
+	txn := rndr.ResyncTxnFactory()
 
-	// TODO: implement me
-	//txn.Put()
+	// resync SFC configuration
+	for _, sfc := range resyncEv.Chains {
+		config := rndr.renderChain(sfc)
+		controller.PutAll(txn, config)
+	}
 
 	return nil
 }
@@ -122,12 +128,17 @@ func (rndr *Renderer) Close() error {
 // renderChain renders Contiv SFC to VPP configuration.
 func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.KeyValuePairs) {
 	config = make(controller.KeyValuePairs)
+	var prevSF *renderer.ServiceFunction
 
-	prevIface := ""
 	for _, sf := range sfc.Chain {
-		// get input interface name of this service function
-		iface := rndr.getSFInputInterface(sf)
+		// get interface names of this and previous service function
+		iface := rndr.getSFInterface(sf, true)
+		prevIface := ""
+		if prevSF != nil {
+			prevIface = rndr.getSFInterface(prevSF, false)
+		}
 
+		// TODO: this works only for local pods, inter-node chains are not supported yet (will be skipped)
 		if iface != "" && prevIface != "" {
 			// cross-connect the interfaces in both directions
 			xconn := &vpp_l2.XConnectPair{
@@ -144,13 +155,13 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 			key = vpp_l2.XConnectKey(iface)
 			config[key] = xconn
 		}
-		prevIface = rndr.getSFOutputInterface(sf)
+		prevSF = sf
 	}
 
 	return config
 }
 
-func (rndr *Renderer) getSFInputInterface(sf *renderer.ServiceFunction) string {
+func (rndr *Renderer) getSFInterface(sf *renderer.ServiceFunction, input bool) string {
 	if sf.Type != renderer.Pod {
 		return "" // TODO: implement external interfaces as well
 	}
@@ -159,23 +170,14 @@ func (rndr *Renderer) getSFInputInterface(sf *renderer.ServiceFunction) string {
 	}
 	pod := sf.Pods[0] // TODO: handle chains with multiple pod instances per service function?
 
-	vppIfName, exists := rndr.IPNet.GetPodCustomIfName(pod.ID.Namespace, pod.ID.Name, pod.InputInterface, "memif") // TODO: memif-only
-	if !exists {
-		return ""
+	podInterface := ""
+	if input {
+		podInterface = pod.InputInterface
+	} else {
+		podInterface = pod.OutputInterface
 	}
-	return vppIfName
-}
 
-func (rndr *Renderer) getSFOutputInterface(sf *renderer.ServiceFunction) string {
-	if sf.Type != renderer.Pod {
-		return "" // TODO: implement external interfaces as well
-	}
-	if len(sf.Pods) == 0 {
-		return ""
-	}
-	pod := sf.Pods[0] // TODO: handle chains with multiple pod instances per service function?
-
-	vppIfName, exists := rndr.IPNet.GetPodCustomIfName(pod.ID.Namespace, pod.ID.Name, pod.OutputInterface, "memif") // TODO: memif-only
+	vppIfName, exists := rndr.IPNet.GetPodCustomIfName(pod.ID.Namespace, pod.ID.Name, podInterface)
 	if !exists {
 		return ""
 	}

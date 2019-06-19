@@ -234,14 +234,26 @@ func (sp *SFCProcessor) processDeletedSFC(sfc *sfcmodel.ServiceFunctionChain) er
 }
 
 func (sp *SFCProcessor) processResyncEvent(resyncEv *ResyncEventData) error {
+	// reset internal state
 	sp.reset()
 
-	// Re-build the current state.
+	// re-build the current state
 	confResyncEv := &renderer.ResyncEventData{}
 
-	// TODO: fill internal maps
-	// TODO: fill confResyncEv
+	for _, pod := range resyncEv.Pods {
+		if pod.IpAddress != "" {
+			sp.updatePodInfo(pod)
+		}
+	}
 
+	for _, sfc := range resyncEv.SFCs {
+		contivSFC := sp.renderServiceFunctionChain(sfc)
+		if contivSFC != nil {
+			confResyncEv.Chains = append(confResyncEv.Chains, contivSFC)
+		}
+	}
+
+	// call resync on all renderers
 	for _, renderer := range sp.renderers {
 		if err := renderer.Resync(confResyncEv); err != nil {
 			return err

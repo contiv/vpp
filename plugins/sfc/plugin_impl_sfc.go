@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Cisco and/or its affiliates.
+// Copyright (c) 2019 Cisco and/or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,9 +35,8 @@ import (
 	"github.com/contiv/vpp/plugins/sfc/renderer/l2xconn"
 )
 
-// Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
-// for changes in services, endpoints and pods and updates the NAT configuration
-// in the VPP accordingly.
+// Plugin watches configuration of K8s resources (as reflected by KSR+CRD into ETCD)
+// for changes in SFCs and pods and updates the chaining configuration in the VPP accordingly.
 type Plugin struct {
 	Deps
 
@@ -49,25 +48,25 @@ type Plugin struct {
 	changes   []string
 
 	// layers of the SFC plugin
-	processor    *processor.SFCProcessor
-	noopRenderer *l2xconn.Renderer
+	processor       *processor.SFCProcessor
+	l2xconnRenderer *l2xconn.Renderer
 }
 
-// Deps defines dependencies of the service plugin.
+// Deps defines dependencies of the SFC plugin.
 type Deps struct {
 	infra.PluginDeps
 	ServiceLabel    servicelabel.ReaderAPI
 	ContivConf      contivconf.API
 	IPAM            ipam.API
-	IPNet           ipnet.API          /* to get the Node IP and all interface names */
-	NodeSync        nodesync.API       /* to get the list of all node IPs for nodePort services */
-	PodManager      podmanager.API     /* to get the list or running pods which determines frontend interfaces */
-	GoVPP           govppmux.API       /* used for direct NAT binary API calls */
-	Stats           statscollector.API /* used for exporting the statistics */
+	IPNet           ipnet.API
+	NodeSync        nodesync.API
+	PodManager      podmanager.API
+	GoVPP           govppmux.API
+	Stats           statscollector.API
 	ConfigRetriever controller.ConfigRetriever
 }
 
-// Init initializes the service plugin and starts watching ETCD for K8s configuration.
+// Init initializes the SFC plugin and starts watching ETCD for K8s configuration.
 func (p *Plugin) Init() error {
 	var err error
 
@@ -77,7 +76,7 @@ func (p *Plugin) Init() error {
 	if err != nil {
 		return err
 	}
-	p.Log.Infof("Service plugin configuration: %+v", *p.config)
+	p.Log.Infof("SFC plugin configuration: %+v", *p.config)
 
 	p.processor = &processor.SFCProcessor{
 		Deps: processor.Deps{
@@ -90,10 +89,13 @@ func (p *Plugin) Init() error {
 			PodManager:   p.PodManager,
 		},
 	}
-	p.processor.Init()
+	err = p.processor.Init()
+	if err != nil {
+		return err
+	}
 
-	// TODO: use renderer based on the config
-	p.noopRenderer = &l2xconn.Renderer{
+	// TODO: in case of multiple renederers, use the renderer based on the config
+	p.l2xconnRenderer = &l2xconn.Renderer{
 		Deps: l2xconn.Deps{
 			Log:        p.Log.NewLogger("-sfcL2xconnRenderer"),
 			Config:     p.config,
@@ -110,11 +112,9 @@ func (p *Plugin) Init() error {
 			Stats: p.Stats,
 		},
 	}
-
-	p.noopRenderer.Init(false)
-
-	// Register renderer.
-	p.processor.RegisterRenderer(p.noopRenderer)
+	// init & register the renderer
+	p.l2xconnRenderer.Init(false)
+	p.processor.RegisterRenderer(p.l2xconnRenderer)
 
 	return nil
 }
@@ -126,16 +126,14 @@ func (p *Plugin) AfterInit() error {
 	p.processor.AfterInit()
 
 	// renderers that need after init
-	p.noopRenderer.AfterInit()
+	p.l2xconnRenderer.AfterInit()
 
 	return nil
 }
 
 // HandlesEvent selects:
 //  - any resync event
-//  - KubeStateChange for service-related data
-//  - AddPod & DeletePod
-//  - NodeUpdate event
+//  - KubeStateChange for SFCs and pods
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
 	if event.Method() != controller.Update {
 		return true
@@ -155,10 +153,8 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 	return false
 }
 
-// Resync is called by Controller to handle event that requires full
-// re-synchronization.
-// For startup resync, resyncCount is 1. Higher counter values identify
-// run-time resync.
+// Resync is called by Controller to handle event that requires full re-synchronization.
+// For startup resync, resyncCount is 1. Higher counter values identify run-time resync.
 func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeStateData,
 	resyncCount int, txn controller.ResyncOperations) error {
 
@@ -168,9 +164,7 @@ func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeSta
 }
 
 // Update is called for:
-//  - KubeStateChange for service-related data
-//  - AddPod & DeletePod
-//  - NodeUpdate event
+//  - KubeStateChange for or SFCs and pods
 func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
 	p.resyncTxn = nil
 	p.updateTxn = txn
@@ -180,6 +174,7 @@ func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations)
 	return changeDescription, err
 }
 
+// Revert is NOOP.
 func (p *Plugin) Revert(event controller.Event) error {
 	return nil
 }

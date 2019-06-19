@@ -20,7 +20,7 @@ type API interface {
 
 	// GetPodCustomIfName looks up logical interface name that corresponds to the custom interface
 	// with specified name and type associated with the given local pod name + namespace.
-	GetPodCustomIfName(podNamespace, podName, customIfName, customIfType string) (ifName string, exists bool)
+	GetPodCustomIfName(podNamespace, podName, customIfName string) (ifName string, exists bool)
 
 	// GetPodByIf looks up name and namespace that is associated with logical interface name.
 	// The method can be called from outside of the main event loop.

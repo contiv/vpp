@@ -79,7 +79,7 @@ do
             echo "You chose IPv6 deployment with SRv6"
             export K8S_DEPLOYMENT_SCENARIO="nostn"
             export IP_VERSION="ipv6"
-            export HELM_EXTRA_OPTS="-set contiv.nodeToNodeTransport=srv6 --set contiv.useSRv6ForServices=true"
+            export HELM_EXTRA_OPTS="--set contiv.nodeToNodeTransport=srv6 --set contiv.useSRv6ForServices=true"
             break
             ;;
         "IPv6 Transport")
@@ -97,7 +97,7 @@ do
         "No-Overlay (without VXLAN)")
             echo "You chose No-Overlay deployment (without VXLAN)"
             export K8S_DEPLOYMENT_SCENARIO="nostn"
-            export HELM_EXTRA_OPTS="-set contiv.nodeToNodeTransport=nooverlay"
+            export HELM_EXTRA_OPTS="--set contiv.nodeToNodeTransport=nooverlay"
             break
             ;;
         "Calico")

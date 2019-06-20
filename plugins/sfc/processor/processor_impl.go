@@ -112,6 +112,7 @@ func (sp *SFCProcessor) Close() error {
 	return nil
 }
 
+// processNewPod handles the event of adding of a new pod.
 func (sp *SFCProcessor) processNewPod(pod *podmodel.Pod) error {
 	// ignore pods without IP (not yet scheduled)
 	if pod.IpAddress == "" {
@@ -127,6 +128,7 @@ func (sp *SFCProcessor) processNewPod(pod *podmodel.Pod) error {
 	return err
 }
 
+// processUpdatedPod handles the event of updating runtime state of a pod.
 func (sp *SFCProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 	// ignore pods without IP (not yet scheduled)
 	if pod.IpAddress == "" {
@@ -142,30 +144,34 @@ func (sp *SFCProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 	return err
 }
 
+// processDeletedPod handles the event of deletion of a pod.
 func (sp *SFCProcessor) processDeletedPod(pod *podmodel.Pod) error {
 
-	// update pod info
+	// parse pod info
 	podData := sp.updatePodInfo(pod)
-
-	// process SFCs that this pod may be affecting
-	err := sp.processSFCsForPod(podData)
 
 	// delete pod info from the internal cache
 	delete(sp.pods, podmodel.GetID(pod))
 
+	// process SFCs that this pod may be affecting
+	err := sp.processSFCsForPod(podData)
+
 	return err
 }
 
+// processNewSFC handles the event of adding a new service function chain.
 func (sp *SFCProcessor) processNewSFC(sfc *sfcmodel.ServiceFunctionChain) error {
 
 	sp.Log.Infof("New SFC: %v", sfc)
 	sp.configuredSFCs[sfc.Name] = sfc
 
+	// render the SFC to a less-abstract SFC representation
 	contivSFC := sp.renderServiceFunctionChain(sfc)
 	if contivSFC == nil {
 		return nil
 	}
 
+	// call chain add on all renderers
 	for _, renderer := range sp.renderers {
 		if err := renderer.AddChain(contivSFC); err != nil {
 			return err
@@ -176,6 +182,7 @@ func (sp *SFCProcessor) processNewSFC(sfc *sfcmodel.ServiceFunctionChain) error 
 	return nil
 }
 
+// processUpdatedSFC handles the event of updating an existing service function chain.
 func (sp *SFCProcessor) processUpdatedSFC(oldSFC, newSFC *sfcmodel.ServiceFunctionChain) (err error) {
 
 	sp.Log.Infof("Updated SFC: %v", newSFC)
@@ -184,9 +191,10 @@ func (sp *SFCProcessor) processUpdatedSFC(oldSFC, newSFC *sfcmodel.ServiceFuncti
 	oldContivSFC := sp.renderServiceFunctionChain(oldSFC)
 	newContivSFC := sp.renderServiceFunctionChain(newSFC)
 	if oldContivSFC == nil && newContivSFC == nil {
-		return nil
+		return nil // no-op, old nor new SFC cannot be rendered
 	}
 
+	// new SFC renders as nil = delete the old one
 	if newContivSFC == nil {
 		for _, renderer := range sp.renderers {
 			err = renderer.DeleteChain(oldContivSFC)
@@ -198,6 +206,7 @@ func (sp *SFCProcessor) processUpdatedSFC(oldSFC, newSFC *sfcmodel.ServiceFuncti
 		return nil
 	}
 
+	// call add / update on all renderers
 	for _, renderer := range sp.renderers {
 		if _, exists := sp.renderedSFCs[newSFC.Name]; exists {
 			err = renderer.UpdateChain(oldContivSFC, newContivSFC)
@@ -213,16 +222,19 @@ func (sp *SFCProcessor) processUpdatedSFC(oldSFC, newSFC *sfcmodel.ServiceFuncti
 	return nil
 }
 
+// processDeletedSFC handles the event of deletion of an existing service function chain.
 func (sp *SFCProcessor) processDeletedSFC(sfc *sfcmodel.ServiceFunctionChain) error {
 
 	sp.Log.Infof("Deleted SFC: %v", sfc)
 	delete(sp.configuredSFCs, sfc.Name)
 
+	// render the SFC to a less-abstract SFC representation
 	contivSFC := sp.renderServiceFunctionChain(sfc)
 	if contivSFC == nil {
 		return nil
 	}
 
+	// call chain del on all renderers
 	for _, renderer := range sp.renderers {
 		if err := renderer.DeleteChain(contivSFC); err != nil {
 			return err
@@ -233,19 +245,18 @@ func (sp *SFCProcessor) processDeletedSFC(sfc *sfcmodel.ServiceFunctionChain) er
 	return nil
 }
 
+// processResyncEvent handles the resync event.
 func (sp *SFCProcessor) processResyncEvent(resyncEv *ResyncEventData) error {
 	// reset internal state
 	sp.reset()
 
 	// re-build the current state
 	confResyncEv := &renderer.ResyncEventData{}
-
 	for _, pod := range resyncEv.Pods {
 		if pod.IpAddress != "" {
 			sp.updatePodInfo(pod)
 		}
 	}
-
 	for _, sfc := range resyncEv.SFCs {
 		contivSFC := sp.renderServiceFunctionChain(sfc)
 		if contivSFC != nil {

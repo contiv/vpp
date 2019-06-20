@@ -1,7 +1,8 @@
 # Contiv - VPP SFC-CONTROLLER DEMO
 
-This Kubernetes network plugin uses FD.io VPP to provide network connectivity
-between PODs. Currently, only Kubernetes 1.9.X versions are supported. This deployment uses SFC controller to deploy and manage VNF(s).
+*WARNING: This demo is outdated, please use Contiv-VPP integrated 
+[SFC functionality](../sfc/README.md) instead.*
+
 
 ## Topology
 The vagrant setup deploys the following topology. Two VNF service chains spanning 2 hosts, using memif interfaces and vxlan tunnel overlays. Tap interfaces are used for the management interface of the Pods.

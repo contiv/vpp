@@ -71,10 +71,16 @@ func (mn *MockIPNet) SetHostIPs(ips []net.IP) {
 	mn.hostIPs = ips
 }
 
-// GetIfName returns pod's interface name as set previously using SetPodIfName.
+// GetPodIfNames returns pod's interface name as set previously using SetPodIfName.
 func (mn *MockIPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string, exists bool) {
 	vppIfName, exists = mn.podIf[podmodel.ID{Name: podName, Namespace: podNamespace}]
 	return vppIfName, "", mn.GetPodLoopIfName(podNamespace, podName), exists
+}
+
+// GetPodCustomIfName looks up logical interface name that corresponds to the custom interface
+// with specified name and type associated with the given local pod name + namespace.
+func (mn *MockIPNet) GetPodCustomIfName(podNamespace, podName, customIfName string) (ifName string, exists bool) {
+	return "", false
 }
 
 func (mn *MockIPNet) GetPodLoopIfName(podNamespace string, podName string) string {

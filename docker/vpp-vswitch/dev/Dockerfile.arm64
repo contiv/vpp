@@ -6,7 +6,12 @@ RUN apt-get update && apt-get install -y \
  make \
  wget \
  git \
- gcc
+ gcc\
+ gcc-8 g++-8 \
+ && rm /usr/bin/gcc \
+ && rm /usr/bin/g++ \
+ && ln -s /usr/bin/gcc-8 /usr/bin/gcc \
+ && ln -s /usr/bin/g++-8 /usr/bin/g++
 
 # install vpp
 WORKDIR $VPP_BUILD_DIR

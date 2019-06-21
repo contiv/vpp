@@ -1,0 +1,81 @@
+---
+# this config maps tells the vpp-agent running as a CNF how to connect to ETCD
+# from where the VPP agent gets its configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: etcd-cfg
+  labels:
+    name: etcd-cfg
+  namespace: default
+data:
+  etcd.conf: |
+    insecure-transport: true
+    dial-timeout: 10000000000
+    allow-delayed-start: true
+    endpoints:
+      - "contiv-etcd.kube-system.svc.cluster.local:12379"
+
+---
+# VPP CNF 1 pod definition. Pod is connected with one additional memif interface
+# in the "stub" network = meaning that it won't have any IP address assigned
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vpp-cnf1
+  annotations:
+    contivpp.io/custom-if: memif1/memif/stub
+    contivpp.io/microservice-label: vpp-cnf1
+  labels:
+    cnf: vpp-cnf1
+spec:
+  containers:
+    - name: vpp-agent
+      image: ligato/vpp-agent:v2.1.1
+      env:
+        - name: ETCD_CONFIG
+          value: "/etc/etcd/etcd.conf"
+        - name: MICROSERVICE_LABEL
+          value: vpp-cnf1
+      resources:
+        limits:
+          contivpp.io/memif: 1
+      volumeMounts:
+        - name: etcd-cfg
+          mountPath: /etc/etcd
+  volumes:
+    - name: etcd-cfg
+      configMap:
+        name: etcd-cfg
+
+---
+# CNF 2 pod definition. Pod is connected with one additional memif interface
+# in the "stub" network = meaning that it won't have any IP address assigned
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vpp-cnf2
+  annotations:
+    contivpp.io/custom-if: memif1/memif/stub
+    contivpp.io/microservice-label: vpp-cnf2
+  labels:
+    cnf: vpp-cnf2
+spec:
+  containers:
+    - name: vpp-agent
+      image: ligato/vpp-agent:v2.1.1
+      env:
+        - name: ETCD_CONFIG
+          value: "/etc/etcd/etcd.conf"
+        - name: MICROSERVICE_LABEL
+          value: vpp-cnf2
+      resources:
+        limits:
+          contivpp.io/memif: 1
+      volumeMounts:
+        - name: etcd-cfg
+          mountPath: /etc/etcd
+  volumes:
+    - name: etcd-cfg
+      configMap:
+        name: etcd-cfg

@@ -94,6 +94,9 @@ type internalState struct {
 	vppIfaceToPodMutex sync.RWMutex
 	vppIfaceToPod      map[string]podmodel.ID
 
+	// custom interface information
+	podCustomIf map[string]*podCustomIfInfo // key = pod.ID.String() + interface-name
+
 	// cache of pods pending for AddPodCustomIfs event (waiting for metadata)
 	pendingAddPodCustomIf map[podmodel.ID]bool
 }
@@ -247,7 +250,8 @@ func (n *IPNet) GetPodByIf(ifName string) (podNamespace string, podName string, 
 	return podID.Namespace, podID.Name, true
 }
 
-// GetPodIfNames looks up logical interface names that correspond to the interfaces associated with the given POD name.
+// GetPodIfNames looks up logical interface names that correspond to the interfaces
+// associated with the given local pod name + namespace.
 func (n *IPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string, exists bool) {
 	// check that the pod is locally deployed
 	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
@@ -267,6 +271,25 @@ func (n *IPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, l
 	}
 
 	return vppIfName, linuxIfName, loopIfName, true
+}
+
+// GetPodCustomIfName looks up logical interface name that corresponds to the custom interface
+// with specified name and type associated with the given local pod name + namespace.
+func (n *IPNet) GetPodCustomIfName(podNamespace, podName, customIfName string) (ifName string, exists bool) {
+	// check that the pod is locally deployed
+	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
+	pod, exists := n.PodManager.GetLocalPods()[podID]
+	if !exists {
+		return "", false
+	}
+
+	customIf, exists := n.podCustomIf[pod.ID.String()+customIfName]
+	if !exists {
+		return "", false
+	}
+
+	ifName, _ = n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
+	return ifName, true
 }
 
 // GetNodeIP returns the IP address of this node.

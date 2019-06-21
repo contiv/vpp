@@ -79,6 +79,13 @@ const (
 	vethIfType  = "veth"
 )
 
+// podCustomIfInfo holds information about a custom pod interface
+type podCustomIfInfo struct {
+	ifName string
+	ifType string
+	ifNet  string
+}
+
 /****************************** Pod Configuration ******************************/
 
 // podConnectivityConfig returns configuration for VPP<->Pod connectivity.
@@ -167,25 +174,31 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 	customIfs := getContivCustomIfs(pod.Metadata.Annotations)
 	serviceLabel := getContivMicroserviceLabel(pod.Metadata.Annotations)
 
-	for _, customIf := range customIfs {
-		ifName, ifType, ifNet, err := parseCustomIfInfo(customIf)
+	for _, customIfStr := range customIfs {
+		customIf, err := parseCustomIfInfo(customIfStr)
 		if err != nil {
 			n.Log.Warnf("Error parsing custom interface definition (%v), skipping the interface %s", err, customIf)
 			continue
 		}
-		n.Log.Debugf("Configuring custom %s interface, name: %s, network: %s", ifType, ifName, ifNet)
+		if isAdd {
+			n.podCustomIf[pod.ID.String()+customIf.ifName] = customIf
+		} else {
+			delete(n.podCustomIf, pod.ID.String()+customIf.ifName)
+		}
+		n.Log.Debugf("Configuring custom %s interface, name: %s, network: %s",
+			customIf.ifType, customIf.ifName, customIf.ifNet)
 
 		// allocate IP for the pod-side of the interface
 		var podIP, podIPNet *net.IPNet
-		if ifNet != stubNetworkName {
+		if customIf.ifNet != stubNetworkName {
 			if isAdd {
-				_, err = n.IPAM.AllocatePodCustomIfIP(pod.ID, ifName, ifNet)
+				_, err = n.IPAM.AllocatePodCustomIfIP(pod.ID, customIf.ifName, customIf.ifNet)
 				if err != nil {
 					n.Log.Warnf("%v, skipping the interface %s", err, customIf)
 					continue
 				}
 			}
-			podIP = n.IPAM.GetPodCustomIfIP(pod.ID, ifName, ifNet)
+			podIP = n.IPAM.GetPodCustomIfIP(pod.ID, customIf.ifName, customIf.ifNet)
 			if podIP == nil {
 				n.Log.Warnf("No IP allocated for the interface %s, will be left in L2 mode", customIf)
 			} else {
@@ -193,7 +206,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 			}
 		}
 
-		switch ifType {
+		switch customIf.ifType {
 		case memifIfType:
 			// handle custom memif interface
 			if memifInfo == nil {
@@ -204,42 +217,42 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 				}
 			}
 			// VPP side of the memif
-			k, v := n.podVPPMemif(pod, podIPNet, ifName, memifInfo, memifID)
+			k, v := n.podVPPMemif(pod, podIPNet, customIf.ifName, memifInfo, memifID)
 			config[k] = v
 			// config for pod-side of the memif (if microservice label is defined)
 			if serviceLabel != "" {
-				k, memif := n.podMicroservioceMemif(pod, podIPNet, ifName, memifInfo, memifID)
+				k, memif := n.podMicroservioceMemif(pod, podIPNet, customIf.ifName, memifInfo, memifID)
 				microserviceConfig[k] = memif
 
-				k, route := n.podMicroservioceDefaultRoute(pod, ifName, ifType)
+				k, route := n.podMicroservioceDefaultRoute(pod, customIf.ifName, customIf.ifType)
 				microserviceConfig[k] = route
 			}
 			memifID++
 
 		case tapIfType:
 			// handle custom tap interface
-			key, vppTap := n.podVPPTap(pod, podIPNet, ifName)
+			key, vppTap := n.podVPPTap(pod, podIPNet, customIf.ifName)
 			config[key] = vppTap
-			key, linuxTap := n.podLinuxTAP(pod, podIPNet, ifName)
+			key, linuxTap := n.podLinuxTAP(pod, podIPNet, customIf.ifName)
 			config[key] = linuxTap
 
 		case vethIfType:
 			// handle custom veth interface
-			key, veth1 := n.podVeth1(pod, podIPNet, ifName)
+			key, veth1 := n.podVeth1(pod, podIPNet, customIf.ifName)
 			config[key] = veth1
-			key, veth2 := n.podVeth2(pod, ifName)
+			key, veth2 := n.podVeth2(pod, customIf.ifName)
 			config[key] = veth2
-			key, afpacket := n.podAfPacket(pod, podIPNet, ifName)
+			key, afpacket := n.podAfPacket(pod, podIPNet, customIf.ifName)
 			config[key] = afpacket
 
 		default:
-			n.Log.Warnf("Unsupported custom interface type %s, skipping", ifType)
+			n.Log.Warnf("Unsupported custom interface type %s, skipping", customIf.ifType)
 			continue
 		}
 
 		// route to pod IP from VPP
 		if podIP != nil {
-			key, vppRoute := n.vppToPodRoute(pod, podIP, ifName, ifType)
+			key, vppRoute := n.vppToPodRoute(pod, podIP, customIf.ifName, customIf.ifType)
 			config[key] = vppRoute
 		}
 	}
@@ -291,19 +304,21 @@ func getContivCustomIfs(annotations map[string]string) []string {
 	return out
 }
 
-// parseCustomIfInfo
-func parseCustomIfInfo(ifAnnotation string) (ifName, ifType, ifNet string, err error) {
+// parseCustomIfInfo parses custom interface annotation into individual parts.
+func parseCustomIfInfo(ifAnnotation string) (ifInfo *podCustomIfInfo, err error) {
 	ifParts := strings.Split(ifAnnotation, "/")
 	if len(ifParts) < 2 {
 		err = fmt.Errorf("invalid %s annotation value: %s", contivCustomIfAnnotation, ifAnnotation)
 		return
 	}
 
-	ifName = ifParts[0]
-	ifType = ifParts[1]
+	ifInfo = &podCustomIfInfo{
+		ifName: ifParts[0],
+		ifType: ifParts[1],
+	}
 
 	if len(ifParts) > 2 {
-		ifNet = ifParts[2]
+		ifInfo.ifNet = ifParts[2]
 	}
 	return
 }

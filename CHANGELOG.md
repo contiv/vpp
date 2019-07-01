@@ -1,3 +1,22 @@
+# Release v3.2.0 (2019-07-02)
+
+### VPP
+ - version **v19.04** (latest stable/1904)
+
+### New Features & Enhancements
+ - GSO (Generic Segmentation Offload) is enabled on VPP by default, which brings better performance
+ for pod-to-pod communication via TAP interfaces
+ - SRv6 as a new node-to-node transport option
+ - new helm option `contiv.nodeToNodeTransport` with possible values: `vxlan` (default), `srv6`, or `nooverlay`
+ - experimental (PoC) support for [service chaining between pods](k8s/examples/sfc/README.md)
+
+### Known Issues
+ - (IPv6 only): service load-balancing in IPv6 setup is not equal, node-local backend pods are always
+   preferred and a request is never load-balanced to a remote node's pod if there is a local backend
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
 # Release v3.1.0 (2019-05-17)
 
 ### VPP

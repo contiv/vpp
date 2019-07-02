@@ -31,10 +31,10 @@ that will be addressed in the next releases:
 is planned to be implemented as an alternative.
  
 ### Prerequisites
- 
-In order to use memif interfaces in Contiv, the Kubelet feature gate `KubeletPodResources`
-needs to be enabled,  e.g. the following has to be added into the `/etc/default/kubelet` 
-file and Kubelet has to be restarted:
+
+In k8s versions below 1.15, the Kubelet feature gate `KubeletPodResources`
+needs to be enabled in order to use memif interfaces, 
+e.g. the following has to be added into the `/etc/default/kubelet` file and Kubelet has to be restarted:
 ```
 KUBELET_EXTRA_ARGS=--feature-gates KubeletPodResources=true
 ```

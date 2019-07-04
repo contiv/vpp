@@ -1,3 +1,17 @@
+// Copyright (c) 2019 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package socketclient
 
 import (
@@ -22,15 +36,15 @@ import (
 )
 
 const (
-	// DefaultSocketName is default VPP API socket file name
-	DefaultSocketName = "/run/vpp-api.sock"
+	// DefaultSocketName is default VPP API socket file path.
+	DefaultSocketName = adapter.DefaultBinapiSocket
 )
 
 var (
 	// DefaultConnectTimeout is default timeout for connecting
 	DefaultConnectTimeout = time.Second * 3
 	// DefaultDisconnectTimeout is default timeout for discconnecting
-	DefaultDisconnectTimeout = time.Second
+	DefaultDisconnectTimeout = time.Millisecond * 100
 	// MaxWaitReady defines maximum duration before waiting for socket file
 	// times out
 	MaxWaitReady = time.Second * 15
@@ -44,7 +58,8 @@ var (
 	// DebugMsgIds is global variable that determines debug mode for msg ids
 	DebugMsgIds = os.Getenv("DEBUG_GOVPP_SOCKMSG") != ""
 
-	Log = logger.New() // global logger
+	// Log is global logger
+	Log = logger.New()
 )
 
 // init initializes global logger, which logs debug level messages to stdout.
@@ -52,6 +67,7 @@ func init() {
 	Log.Out = os.Stdout
 	if Debug {
 		Log.Level = logger.DebugLevel
+		Log.Debug("govpp/socketclient: enabled debug mode")
 	}
 }
 

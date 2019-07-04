@@ -11,13 +11,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:dcc5ddb4f84cd78e013cbcf480d8e0f255b57d3c75467bab562f24352555ee38"
+  digest = "1:c1e11643ac5c1f822bdc215131d9455c281cc19e119d56fad44cbf51916722ac"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
     "adapter/mock",
     "adapter/mock/binapi",
     "adapter/socketclient",
+    "adapter/statsclient",
     "adapter/vppapiclient",
     "api",
     "codec",
@@ -25,7 +26,7 @@
     "examples/binapi/memclnt",
   ]
   pruneopts = "UT"
-  revision = "c4522fe10317b1729a0820dc880afc78c663f64d"
+  revision = "15334aab4ad1b09cb698175adf5a02d7cb6fa410"
 
 [[projects]]
   branch = "master"
@@ -436,6 +437,14 @@
   version = "v1.2.2"
 
 [[projects]]
+  branch = "master"
+  digest = "1:ea797b536b154f62d2e1c49b61d5a1088782111563eb59837ff2b83fd2a65184"
+  name = "github.com/ftrvxmtrx/fd"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c6d800382fff6dc1412f34269f71b7f83bd059ad"
+
+[[projects]]
   digest = "1:0594af97b2f4cec6554086eeace6597e20a4b69466eb4ada25adf9f4300dddd2"
   name = "github.com/garyburd/redigo"
   packages = [
@@ -788,7 +797,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:39e757ca2b0996309c8cd8b7c90df87226092cf639d3c2b97fe5031158a30a20"
+  digest = "1:a087b37f9e3cbbcbf752164f7a05c62e692e5dd7cb57248e57a63edfd6a6646e"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -968,7 +977,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1908",
   ]
   pruneopts = "UT"
-  revision = "b98498f53aa55984725de3f7b60f5cbd886de30a"
+  revision = "2fa8373919019b61c7796f141b66f389182cac9b"
 
 [[projects]]
   branch = "master"

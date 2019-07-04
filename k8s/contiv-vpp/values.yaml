@@ -150,7 +150,7 @@ vswitch:
   cpuLimit: 0
   enableCoreDumps: true
   coreDumpsDir: /var/contiv/dumps
-  useSocketVPPConnection: false
+  useSocketVPPConnection: true
 
 cni:
   image:

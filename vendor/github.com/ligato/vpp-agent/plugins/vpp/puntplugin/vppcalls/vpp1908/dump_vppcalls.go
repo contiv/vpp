@@ -16,11 +16,83 @@ package vpp1908
 
 import (
 	"bytes"
+	"net"
 
 	vpp_punt "github.com/ligato/vpp-agent/api/models/vpp/punt"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/ip"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/punt"
 	"github.com/ligato/vpp-agent/plugins/vpp/puntplugin/vppcalls"
 )
+
+// DumpPuntRedirect dumps ip redirect punts
+func (h *PuntVppHandler) DumpPuntRedirect() (punts []*vpp_punt.IPRedirect, err error) {
+	punt4, err := h.dumpPuntRedirect(false)
+	if err != nil {
+		return nil, err
+	}
+	punts = append(punts, punt4...)
+
+	punt6, err := h.dumpPuntRedirect(true)
+	if err != nil {
+		return nil, err
+	}
+	punts = append(punts, punt6...)
+
+	return punts, nil
+}
+
+func (h *PuntVppHandler) dumpPuntRedirect(ipv6 bool) (punts []*vpp_punt.IPRedirect, err error) {
+	req := h.callsChannel.SendMultiRequest(&ip.IPPuntRedirectDump{
+		SwIfIndex: ^uint32(0),
+		IsIPv6:    boolToUint(ipv6),
+	})
+	for {
+		d := &ip.IPPuntRedirectDetails{}
+		stop, err := req.ReceiveReply(d)
+		if stop {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		rxIface, _, exists := h.ifIndexes.LookupBySwIfIndex(d.Punt.RxSwIfIndex)
+		if !exists {
+			h.log.Warnf("RX interface (%v) not found", d.Punt.RxSwIfIndex)
+			continue
+		}
+		txIface, _, exists := h.ifIndexes.LookupBySwIfIndex(d.Punt.TxSwIfIndex)
+		if !exists {
+			h.log.Warnf("TX interface (%v) not found", d.Punt.TxSwIfIndex)
+			continue
+		}
+
+		var l3proto vpp_punt.L3Protocol
+		var nextHop string
+
+		if d.Punt.Nh.Af == ip.ADDRESS_IP4 {
+			l3proto = vpp_punt.L3Protocol_IPv4
+			addr := d.Punt.Nh.Un.GetIP4()
+			nextHop = net.IP(addr[:]).To4().String()
+		} else if d.Punt.Nh.Af == ip.ADDRESS_IP6 {
+			l3proto = vpp_punt.L3Protocol_IPv6
+			addr := d.Punt.Nh.Un.GetIP6()
+			nextHop = net.IP(addr[:]).To16().String()
+		} else {
+			h.log.Warnf("invalid address family (%v)", d.Punt.Nh.Af)
+			continue
+		}
+
+		punts = append(punts, &vpp_punt.IPRedirect{
+			L3Protocol:  l3proto,
+			RxInterface: rxIface,
+			TxInterface: txIface,
+			NextHop:     nextHop,
+		})
+	}
+
+	return punts, nil
+}
 
 // DumpExceptions returns dump of registered punt exceptions.
 func (h *PuntVppHandler) DumpExceptions() (punts []*vppcalls.ExceptionDetails, err error) {
@@ -34,7 +106,6 @@ func (h *PuntVppHandler) DumpExceptions() (punts []*vppcalls.ExceptionDetails, e
 	}
 
 	if punts, err = h.dumpPuntExceptions(reasonMap); err != nil {
-		h.log.Errorf("punt exception dump failed: %v", err)
 		return nil, err
 	}
 
@@ -42,8 +113,6 @@ func (h *PuntVppHandler) DumpExceptions() (punts []*vppcalls.ExceptionDetails, e
 }
 
 func (h *PuntVppHandler) dumpPuntExceptions(reasons map[uint32]string) (punts []*vppcalls.ExceptionDetails, err error) {
-	h.log.Debug("=> dumping exception punts")
-
 	req := h.callsChannel.SendMultiRequest(&punt.PuntSocketDump{
 		Type: punt.PUNT_API_TYPE_EXCEPTION,
 	})
@@ -65,13 +134,13 @@ func (h *PuntVppHandler) dumpPuntExceptions(reasons map[uint32]string) (punts []
 		puntData := d.Punt.Punt.GetException()
 		reason := reasons[puntData.ID]
 		socketPath := string(bytes.Trim(d.Pathname, "\x00"))
-		h.log.Debugf(" - dumped exception punt: %+v (pathname: %s, reason: %s)", puntData, socketPath, reason)
 
 		punts = append(punts, &vppcalls.ExceptionDetails{
 			Exception: &vpp_punt.Exception{
 				Reason:     reason,
 				SocketPath: vppConfigSocketPath,
 			},
+			SocketPath: socketPath,
 		})
 	}
 
@@ -81,7 +150,6 @@ func (h *PuntVppHandler) dumpPuntExceptions(reasons map[uint32]string) (punts []
 // DumpRegisteredPuntSockets returns punt to host via registered socket entries
 func (h *PuntVppHandler) DumpRegisteredPuntSockets() (punts []*vppcalls.PuntDetails, err error) {
 	if punts, err = h.dumpPuntL4(); err != nil {
-		h.log.Errorf("punt L4 dump failed: %v", err)
 		return nil, err
 	}
 
@@ -89,8 +157,6 @@ func (h *PuntVppHandler) DumpRegisteredPuntSockets() (punts []*vppcalls.PuntDeta
 }
 
 func (h *PuntVppHandler) dumpPuntL4() (punts []*vppcalls.PuntDetails, err error) {
-	h.log.Debug("=> dumping L4 punts")
-
 	req := h.callsChannel.SendMultiRequest(&punt.PuntSocketDump{
 		Type: punt.PUNT_API_TYPE_L4,
 	})
@@ -111,7 +177,6 @@ func (h *PuntVppHandler) dumpPuntL4() (punts []*vppcalls.PuntDetails, err error)
 
 		puntData := d.Punt.Punt.GetL4()
 		socketPath := string(bytes.Trim(d.Pathname, "\x00"))
-		h.log.Debugf(" - dumped L4 punt: %+v (pathname: %s)", puntData, socketPath)
 
 		punts = append(punts, &vppcalls.PuntDetails{
 			PuntData: &vpp_punt.ToHost{
@@ -130,7 +195,6 @@ func (h *PuntVppHandler) dumpPuntL4() (punts []*vppcalls.PuntDetails, err error)
 // DumpPuntReasons returns all known punt reasons from VPP
 func (h *PuntVppHandler) DumpPuntReasons() (reasons []*vppcalls.ReasonDetails, err error) {
 	if reasons, err = h.dumpPuntReasons(); err != nil {
-		h.log.Errorf("punt reasons dump failed: %v", err)
 		return nil, err
 	}
 
@@ -138,8 +202,6 @@ func (h *PuntVppHandler) DumpPuntReasons() (reasons []*vppcalls.ReasonDetails, e
 }
 
 func (h *PuntVppHandler) dumpPuntReasons() (reasons []*vppcalls.ReasonDetails, err error) {
-	h.log.Debugf("=> dumping punt reasons")
-
 	req := h.callsChannel.SendMultiRequest(&punt.PuntReasonDump{})
 	for {
 		d := &punt.PuntReasonDetails{}
@@ -150,7 +212,6 @@ func (h *PuntVppHandler) dumpPuntReasons() (reasons []*vppcalls.ReasonDetails, e
 		if err != nil {
 			return nil, err
 		}
-		h.log.Debugf(" - dumped punt reason: %+v", d.Reason)
 
 		reasons = append(reasons, &vppcalls.ReasonDetails{
 			Reason: &vpp_punt.Reason{

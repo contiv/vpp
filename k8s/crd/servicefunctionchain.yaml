@@ -2,25 +2,28 @@
 apiVersion: contivpp.io/v1
 kind: ServiceFunctionChain
 metadata:
-  name: chain1
+  name: example-chain
 spec:
-  network: network2
+  network: example-network
   chain:
-    - name: chain input - network2 interface
-      type: InterfaceInput
-      inputInterface: if-input
-    - name: firewall CNF (1 input + 1 output interface)
-      type: ServiceFunctionPod
+    - name: interface input of the chain
+      type: ExternalInterface
+      outputInterface: if-input
+
+    - name: firewall CNF
+      type: Pod
       podSelector:
-        app: pod2
+        cnf: firewall
       inputInterface: memif1
       outputInterface: memif2
-    - name: NAT CNF (single interface)
-      type: ServiceFunctionPod
+
+    - name: NAT CNF
+      type: Pod
       podSelector:
-        app: pod2
-      inputInterface: memif2
+        cnf: nat
+      inputInterface: memif1
       outputInterface: memif2
-    - name: chain output - network2 interface
-      type: InterfaceOutput
-      outputInterface: if-output
+
+    - name: interface output of the chain
+      type: ExternalInterface
+      inputInterface: if-output

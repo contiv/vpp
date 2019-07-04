@@ -1,0 +1,18 @@
+---
+apiVersion: contivpp.io/v1
+kind: ServiceFunctionChain
+metadata:
+  name: linux-chain
+spec:
+  chain:
+    - name: CNF 1
+      type: Pod
+      podSelector:
+        cnf: linux-cnf1
+      outputInterface: tap1
+
+    - name: CNF 2
+      type: Pod
+      podSelector:
+        cnf: linux-cnf2
+      inputInterface: tap1

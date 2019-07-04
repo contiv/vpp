@@ -10,10 +10,10 @@ be one of the 3 supported types:
  - Linux veth (virtual ethernet) interface
  - memif interface (requires memif-compatible application running in the pod)
 
-In order to use this feature, `KubeletPodResources` feature gate needs to be enabled,
+In order to use this feature, the Kubelet feature gate `KubeletPodResources` needs to be enabled,
 e.g. add the following into in the `KUBELET_EXTRA_ARGS` in the `/etc/default/kubelet` file:
 ```
---feature-gates KubeletPodResources=true
+KUBELET_EXTRA_ARGS=--feature-gates KubeletPodResources=true
 ```
 
 Custom interfaces can be requested using annotations in pod definition. The name

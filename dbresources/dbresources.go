@@ -18,6 +18,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
+	sfcmodel "github.com/contiv/vpp/plugins/crd/handler/servicefunctionchain/model"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
@@ -83,6 +84,11 @@ func GetDBResources() []*DBResource {
 			Keyword:          epmodel.EndpointsKeyword,
 			ProtoMessageName: proto.MessageName((*epmodel.Endpoints)(nil)),
 			KeyPrefix:        epmodel.KeyPrefix(),
+		},
+		{
+			Keyword:          sfcmodel.Keyword,
+			ProtoMessageName: proto.MessageName((*sfcmodel.ServiceFunctionChain)(nil)),
+			KeyPrefix:        sfcmodel.KeyPrefix(),
 		},
 	}
 }

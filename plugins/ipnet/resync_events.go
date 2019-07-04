@@ -57,6 +57,8 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 			n.vppIfaceToPod[vppIfName] = pod.ID
 		}
 		n.vppIfaceToPodMutex.Unlock()
+		// init pod custom if map
+		n.podCustomIf = make(map[string]*podCustomIfInfo)
 	}
 	for _, pod := range n.PodManager.GetLocalPods() {
 		if n.IPAM.GetPodIP(pod.ID) == nil {

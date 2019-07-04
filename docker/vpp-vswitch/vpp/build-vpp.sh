@@ -42,6 +42,15 @@ fi
 
 # run the production build
 UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' install-dep dpdk-install-dev
+
+if [ "$(uname -m)" = "aarch64" ] ; then
+  apt-get install -y gcc-8 g++-8
+  rm /usr/bin/gcc
+  rm /usr/bin/g++
+  ln -s /usr/bin/gcc-8 /usr/bin/gcc
+  ln -s /usr/bin/g++-8 /usr/bin/g++
+fi
+
 rm -rf /var/lib/apt/lists/*
 cd ${VPP_DIR}
 UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' build-release pkg-deb

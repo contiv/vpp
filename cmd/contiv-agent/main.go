@@ -42,6 +42,7 @@ import (
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/contiv/vpp/plugins/service"
+	"github.com/contiv/vpp/plugins/sfc"
 	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/ligato/vpp-agent/plugins/kvscheduler"
@@ -104,6 +105,7 @@ type ContivAgent struct {
 	IPNet         *ipnet.IPNet
 	Policy        *policy.Plugin
 	Service       *service.Plugin
+	SFC           *sfc.Plugin
 	DeviceManager *devicemanager.DeviceManager
 	BGPReflector  *bgpreflector.BGPReflector
 }
@@ -207,6 +209,14 @@ func main() {
 		deps.PodManager = podManager
 	}))
 
+	sfcPlugin := sfc.NewPlugin(sfc.UseDeps(func(deps *sfc.Deps) {
+		deps.ContivConf = contivConf
+		deps.IPAM = ipamPlugin
+		deps.IPNet = ipNetPlugin
+		deps.NodeSync = nodeSyncPlugin
+		deps.PodManager = podManager
+	}))
+
 	bgpReflector := bgpreflector.NewPlugin(bgpreflector.UseDeps(func(deps *bgpreflector.Deps) {
 		deps.ContivConf = contivConf
 	}))
@@ -222,6 +232,7 @@ func main() {
 			ipamPlugin,
 			ipNetPlugin,
 			servicePlugin,
+			sfcPlugin,
 			policyPlugin,
 			bgpReflector,
 			statsCollector,
@@ -242,6 +253,7 @@ func main() {
 	deviceManager.EventLoop = controller
 	bgpReflector.EventLoop = controller
 	servicePlugin.ConfigRetriever = controller
+	sfcPlugin.ConfigRetriever = controller
 
 	// initialize the agent
 	contivAgent := &ContivAgent{
@@ -275,6 +287,7 @@ func main() {
 		IPNet:               ipNetPlugin,
 		Policy:              policyPlugin,
 		Service:             servicePlugin,
+		SFC:                 sfcPlugin,
 		BGPReflector:        bgpReflector,
 	}
 

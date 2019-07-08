@@ -119,6 +119,8 @@ func (sp *SFCProcessor) processNewPod(pod *podmodel.Pod) error {
 		return nil
 	}
 
+	sp.Log.Debugf("New pod: %v", pod)
+
 	// update pod info
 	podData := sp.updatePodInfo(pod)
 
@@ -135,6 +137,8 @@ func (sp *SFCProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 		return nil
 	}
 
+	sp.Log.Debugf("Update pod: %v", pod)
+
 	// update pod info
 	podData := sp.updatePodInfo(pod)
 
@@ -146,6 +150,8 @@ func (sp *SFCProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 
 // processDeletedPod handles the event of deletion of a pod.
 func (sp *SFCProcessor) processDeletedPod(pod *podmodel.Pod) error {
+
+	sp.Log.Debugf("Delete pod: %v", pod)
 
 	// parse pod info
 	podData := sp.updatePodInfo(pod)
@@ -258,6 +264,7 @@ func (sp *SFCProcessor) processResyncEvent(resyncEv *ResyncEventData) error {
 		}
 	}
 	for _, sfc := range resyncEv.SFCs {
+		sp.configuredSFCs[sfc.Name] = sfc
 		contivSFC := sp.renderServiceFunctionChain(sfc)
 		if contivSFC != nil {
 			confResyncEv.Chains = append(confResyncEv.Chains, contivSFC)
@@ -296,6 +303,10 @@ func (sp *SFCProcessor) updatePodInfo(pod *podmodel.Pod) *podInfo {
 func (sp *SFCProcessor) processSFCsForPod(pod *podInfo) (err error) {
 	sfcs := sp.getSFCsReferencingPod(pod)
 
+	if len(sfcs) > 1 {
+		sp.Log.Debugf("SFCs affected by the pod %s: %d", pod.id.String(), sfcs)
+	}
+
 	for _, sfc := range sfcs {
 		oldSFC := sp.renderedSFCs[sfc.Name]
 		err = sp.processUpdatedSFC(oldSFC, sfc)
@@ -314,6 +325,7 @@ func (sp *SFCProcessor) getSFCsReferencingPod(pod *podInfo) []*sfcmodel.ServiceF
 	for _, sfc := range sp.configuredSFCs {
 		for _, f := range sfc.Chain {
 			if sp.podMatchesSelector(pod, f.PodSelector) {
+				sp.Log.Debugf("Pod %s matches SFC %s", pod.id.String(), sfc)
 				matches = append(matches, sfc)
 			}
 		}

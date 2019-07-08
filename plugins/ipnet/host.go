@@ -115,11 +115,6 @@ func (n *IPNet) interconnectTapVPP() (key string, config *vpp_interfaces.Interfa
 		tap.Unnumbered = &vpp_interfaces.Interface_Unnumbered{
 			InterfaceWithIp: n.ContivConf.GetMainInterfaceName(),
 		}
-		tap.Link = &vpp_interfaces.Interface_Tap{
-			Tap: &vpp_interfaces.TapLink{
-				EnableGso: false, // GSO does not work correctly with STN / IP redirect
-			},
-		}
 	} else {
 		tap.IpAddresses = []string{n.IPAM.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)}
 	}

@@ -251,10 +251,11 @@ func (pm *PodManager) Update(event controller.Event, _ controller.UpdateOperatio
 	if k8sChange, isK8sChange := event.(*controller.KubeStateChange); isK8sChange {
 		if k8sChange.Resource == podmodel.PodKeyword {
 			// handle pod metadata update
-			k8sPod := k8sChange.NewValue.(*podmodel.Pod)
 			if k8sChange.NewValue != nil {
+				k8sPod := k8sChange.NewValue.(*podmodel.Pod)
 				pm.updatePodInfo(k8sPod)
-			} else {
+			} else if k8sChange.PrevValue != nil {
+				k8sPod := k8sChange.PrevValue.(*podmodel.Pod)
 				delete(pm.pods, podmodel.GetID(k8sPod))
 			}
 		}

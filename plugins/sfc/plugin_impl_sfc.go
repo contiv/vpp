@@ -134,6 +134,7 @@ func (p *Plugin) AfterInit() error {
 // HandlesEvent selects:
 //  - any resync event
 //  - KubeStateChange for SFCs and pods
+//  - pod custom interfaces update
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
 	if event.Method() != controller.Update {
 		return true
@@ -148,6 +149,9 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 			// unhandled Kubernetes state change
 			return false
 		}
+	}
+	if _, isPodCustomIfUpdate := event.(*ipnet.PodCustomIfUpdate); isPodCustomIfUpdate {
+		return true
 	}
 	// unhandled event
 	return false
@@ -165,6 +169,7 @@ func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeSta
 
 // Update is called for:
 //  - KubeStateChange for or SFCs and pods
+//  - pod custom interfaces update
 func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
 	p.resyncTxn = nil
 	p.updateTxn = txn

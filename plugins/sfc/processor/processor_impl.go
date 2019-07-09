@@ -17,10 +17,9 @@
 package processor
 
 import (
-	"net"
-
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
+	"net"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -40,7 +39,6 @@ type SFCProcessor struct {
 	renderers []renderer.SFCRendererAPI
 
 	/* internal maps */
-	pods           map[podmodel.ID]*podInfo                  // running pod information
 	configuredSFCs map[string]*sfcmodel.ServiceFunctionChain // maps sfc name to NB (configured) SFC
 	renderedSFCs   map[string]*sfcmodel.ServiceFunctionChain // maps sfc name to SB (rendered) SFC
 }
@@ -56,13 +54,6 @@ type Deps struct {
 	IPNet        ipnet.API
 }
 
-// podInfo holds information about a pod in the local cache.
-type podInfo struct {
-	id     podmodel.ID
-	ip     net.IP
-	labels map[string]string
-}
-
 // Init initializes SFC processor.
 func (sp *SFCProcessor) Init() error {
 	sp.reset()
@@ -71,7 +62,6 @@ func (sp *SFCProcessor) Init() error {
 
 // reset (re)initializes all internal maps.
 func (sp *SFCProcessor) reset() {
-	sp.pods = make(map[podmodel.ID]*podInfo)
 	sp.configuredSFCs = make(map[string]*sfcmodel.ServiceFunctionChain)
 	sp.renderedSFCs = make(map[string]*sfcmodel.ServiceFunctionChain)
 }
@@ -86,7 +76,35 @@ func (sp *SFCProcessor) AfterInit() error {
 func (sp *SFCProcessor) Update(event controller.Event) error {
 
 	if k8sChange, isK8sChange := event.(*controller.KubeStateChange); isK8sChange {
-		return sp.propagateDataChangeEv(k8sChange)
+		switch k8sChange.Resource {
+
+		case sfcmodel.Keyword:
+			if k8sChange.NewValue != nil {
+				sfc := k8sChange.NewValue.(*sfcmodel.ServiceFunctionChain)
+				if k8sChange.PrevValue == nil {
+					return sp.processNewSFC(sfc)
+				}
+				oldSfc := k8sChange.PrevValue.(*sfcmodel.ServiceFunctionChain)
+				return sp.processUpdatedSFC(oldSfc, sfc)
+			}
+			sfc := k8sChange.PrevValue.(*sfcmodel.ServiceFunctionChain)
+			return sp.processDeletedSFC(sfc)
+
+		case podmodel.PodKeyword:
+			if k8sChange.NewValue != nil {
+				pod := k8sChange.NewValue.(*podmodel.Pod)
+				if k8sChange.PrevValue == nil {
+					return sp.processNewPod(pod)
+				}
+				return sp.processUpdatedPod(pod)
+			}
+			pod := k8sChange.PrevValue.(*podmodel.Pod)
+			return sp.processDeletedPod(pod)
+		}
+	}
+
+	if podCustomIfUpdate, isPodCustomIfUpdate := event.(*ipnet.PodCustomIfUpdate); isPodCustomIfUpdate {
+		return sp.processUpdatedPodCustomIfs(podCustomIfUpdate)
 	}
 
 	return nil
@@ -96,8 +114,29 @@ func (sp *SFCProcessor) Update(event controller.Event) error {
 // The cache content is fully replaced and all registered renderers
 // receive a full snapshot of Contiv SFCs at the present state to be (re)installed.
 func (sp *SFCProcessor) Resync(kubeStateData controller.KubeStateData) error {
-	resyncEvData := sp.parseResyncEv(kubeStateData)
-	return sp.processResyncEvent(resyncEvData)
+
+	// reset internal state
+	sp.reset()
+
+	// re-build the current state
+	confResyncEv := &renderer.ResyncEventData{}
+
+	for _, svcProto := range kubeStateData[sfcmodel.Keyword] {
+		sfc := svcProto.(*sfcmodel.ServiceFunctionChain)
+		sp.configuredSFCs[sfc.Name] = sfc
+		contivSFC := sp.renderServiceFunctionChain(sfc)
+		if contivSFC != nil {
+			confResyncEv.Chains = append(confResyncEv.Chains, contivSFC)
+		}
+	}
+
+	// call resync on all renderers
+	for _, renderer := range sp.renderers {
+		if err := renderer.Resync(confResyncEv); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RegisterRenderer registers a new SFC renderer.
@@ -121,8 +160,10 @@ func (sp *SFCProcessor) processNewPod(pod *podmodel.Pod) error {
 
 	sp.Log.Debugf("New pod: %v", pod)
 
-	// update pod info
-	podData := sp.updatePodInfo(pod)
+	podData := sp.PodManager.GetPods()[podmodel.GetID(pod)]
+	if podData == nil {
+		return nil
+	}
 
 	// process SFCs that this pod may be affecting
 	err := sp.processSFCsForPod(podData)
@@ -139,8 +180,10 @@ func (sp *SFCProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 
 	sp.Log.Debugf("Update pod: %v", pod)
 
-	// update pod info
-	podData := sp.updatePodInfo(pod)
+	podData := sp.PodManager.GetPods()[podmodel.GetID(pod)]
+	if podData == nil {
+		return nil
+	}
 
 	// process SFCs that this pod may be affecting
 	err := sp.processSFCsForPod(podData)
@@ -153,11 +196,29 @@ func (sp *SFCProcessor) processDeletedPod(pod *podmodel.Pod) error {
 
 	sp.Log.Debugf("Delete pod: %v", pod)
 
-	// parse pod info
-	podData := sp.updatePodInfo(pod)
+	// construct pod info from k8s data (already deleted in PodManager)
+	podData := &podmanager.Pod{
+		ID:          podmodel.GetID(pod),
+		IPAddress:   pod.IpAddress,
+		Labels:      pod.Labels,
+		Annotations: pod.Annotations,
+	}
 
-	// delete pod info from the internal cache
-	delete(sp.pods, podmodel.GetID(pod))
+	// process SFCs that this pod may be affecting
+	err := sp.processSFCsForPod(podData)
+
+	return err
+}
+
+// processUpdatedPodCustomIfs handles the event of updating pod custom interfaces.
+func (sp *SFCProcessor) processUpdatedPodCustomIfs(pod *ipnet.PodCustomIfUpdate) error {
+
+	sp.Log.Debugf("Update pod custom ifs: %v", pod)
+
+	podData := sp.PodManager.GetPods()[pod.PodID]
+	if podData == nil {
+		return nil
+	}
 
 	// process SFCs that this pod may be affecting
 	err := sp.processSFCsForPod(podData)
@@ -251,60 +312,12 @@ func (sp *SFCProcessor) processDeletedSFC(sfc *sfcmodel.ServiceFunctionChain) er
 	return nil
 }
 
-// processResyncEvent handles the resync event.
-func (sp *SFCProcessor) processResyncEvent(resyncEv *ResyncEventData) error {
-	// reset internal state
-	sp.reset()
-
-	// re-build the current state
-	confResyncEv := &renderer.ResyncEventData{}
-	for _, pod := range resyncEv.Pods {
-		if pod.IpAddress != "" {
-			sp.updatePodInfo(pod)
-		}
-	}
-	for _, sfc := range resyncEv.SFCs {
-		sp.configuredSFCs[sfc.Name] = sfc
-		contivSFC := sp.renderServiceFunctionChain(sfc)
-		if contivSFC != nil {
-			confResyncEv.Chains = append(confResyncEv.Chains, contivSFC)
-		}
-	}
-
-	// call resync on all renderers
-	for _, renderer := range sp.renderers {
-		if err := renderer.Resync(confResyncEv); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// updatePodInfo updates pod information in the local cache.
-func (sp *SFCProcessor) updatePodInfo(pod *podmodel.Pod) *podInfo {
-	podID := podmodel.GetID(pod)
-
-	podData := sp.pods[podID]
-	if podData == nil {
-		podData = &podInfo{
-			id:     podID,
-			labels: map[string]string{},
-		}
-		sp.pods[podID] = podData
-	}
-
-	for _, l := range pod.Label {
-		podData.labels[l.Key] = l.Value
-	}
-	return podData
-}
-
 // processSFCsForPod process SFCs that may be affected by presence/absence of the specified pod.
-func (sp *SFCProcessor) processSFCsForPod(pod *podInfo) (err error) {
+func (sp *SFCProcessor) processSFCsForPod(pod *podmanager.Pod) (err error) {
 	sfcs := sp.getSFCsReferencingPod(pod)
 
 	if len(sfcs) > 1 {
-		sp.Log.Debugf("SFCs affected by the pod %s: %d", pod.id.String(), sfcs)
+		sp.Log.Debugf("SFCs affected by the pod %s: %d", pod.ID.String(), sfcs)
 	}
 
 	for _, sfc := range sfcs {
@@ -319,13 +332,13 @@ func (sp *SFCProcessor) processSFCsForPod(pod *podInfo) (err error) {
 }
 
 // getSFCsReferencingPod returns all SFCs that are referencing given pod.
-func (sp *SFCProcessor) getSFCsReferencingPod(pod *podInfo) []*sfcmodel.ServiceFunctionChain {
+func (sp *SFCProcessor) getSFCsReferencingPod(pod *podmanager.Pod) []*sfcmodel.ServiceFunctionChain {
 	matches := make([]*sfcmodel.ServiceFunctionChain, 0)
 
 	for _, sfc := range sp.configuredSFCs {
 		for _, f := range sfc.Chain {
 			if sp.podMatchesSelector(pod, f.PodSelector) {
-				sp.Log.Debugf("Pod %s matches SFC %s", pod.id.String(), sfc)
+				sp.Log.Debugf("Pod %s matches SFC %s", pod.ID.String(), sfc)
 				matches = append(matches, sfc)
 			}
 		}
@@ -369,10 +382,13 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 	sfPods := make([]*renderer.PodSF, 0)
 
 	// look for matching pods
-	for podID, pod := range sp.pods {
+	for podID, pod := range sp.PodManager.GetPods() {
 		if sp.podMatchesSelector(pod, f.PodSelector) {
 			_, isLocal := sp.PodManager.GetLocalPods()[podID]
-			nodeID, _ := sp.IPAM.NodeIDFromPodIP(pod.ip)
+			if pod.IPAddress == "" {
+				continue
+			}
+			nodeID, _ := sp.IPAM.NodeIDFromPodIP(net.ParseIP(pod.IPAddress))
 
 			sfPods = append(sfPods, &renderer.PodSF{
 				ID:              podID,
@@ -398,13 +414,13 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 }
 
 // podMatchesSelector returns true if the pod matches provided label selector, false otherwise.
-func (sp *SFCProcessor) podMatchesSelector(pod *podInfo, podSelector map[string]string) bool {
-	if len(pod.labels) == 0 {
+func (sp *SFCProcessor) podMatchesSelector(pod *podmanager.Pod, podSelector map[string]string) bool {
+	if len(pod.Labels) == 0 {
 		return false
 	}
 	for selKey, selVal := range podSelector {
 		match := false
-		for podLabelKey, podLabelVal := range pod.labels {
+		for podLabelKey, podLabelVal := range pod.Labels {
 			if podLabelKey == selKey && podLabelVal == selVal {
 				match = true
 				break

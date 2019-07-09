@@ -33,6 +33,8 @@ import (
 	"github.com/kubernetes/kubernetes/staging/src/k8s.io/apimachinery/pkg/util/rand"
 	"github.com/ligato/cn-infra/infra"
 	devicepluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
+	"k8s.io/kubernetes/pkg/kubelet/apis/podresources"
+	podresourcesapi "k8s.io/kubernetes/pkg/kubelet/apis/podresources/v1alpha1"
 )
 
 const (
@@ -56,8 +58,9 @@ const (
 	k8sAnnotationPrefix            = "annotation."
 
 	// grpc endpoints for communication with kubelet
-	devicePluginSocketName = "contiv-vpp.sock"
-	devicePluginEndpoint   = devicepluginapi.DevicePluginPath + devicePluginSocketName
+	devicePluginSocketName      = "contiv-vpp.sock"
+	devicePluginEndpoint        = devicepluginapi.DevicePluginPath + devicePluginSocketName
+	kubeletPodResourcesEndpoint = "unix:///var/lib/kubelet/pod-resources/kubelet.sock"
 
 	// labels attached to (not only sandbox) container to identify the pod it belongs to
 	k8sLabelForPodName      = "io.kubernetes.pod.name"
@@ -67,7 +70,9 @@ const (
 	runningPodState = "running"
 
 	// timers & others
-	deviceListPeriod = 20 * time.Second
+	grpcClientTimeout          = 10 * time.Second
+	deviceListPeriod           = 20 * time.Second
+	defaultPodResourcesMaxSize = 1024 * 1024 * 16 // 16 Mb
 )
 
 var (
@@ -81,11 +86,14 @@ type DeviceManager struct {
 
 	initialized bool // guards whether the plugin has initialized successfully
 
-	grpcServer   *grpc.Server
-	dockerClient DockerClient
-	termSignal   chan bool
+	grpcServer       *grpc.Server
+	podResClient     podresourcesapi.PodResourcesListerClient
+	podResClientConn *grpc.ClientConn
+	dockerClient     DockerClient
+	termSignal       chan bool
 
-	podMemifs map[podmodel.ID]*MemifInfo // pod ID to memif info map
+	podMemifs         map[podmodel.ID]*MemifInfo // pod ID to memif info map
+	deviceAllocations map[string]*MemifInfo      // device name to memif info map
 }
 
 // Deps lists dependencies of the DeviceManager plugin.
@@ -112,11 +120,21 @@ func (d *DeviceManager) Init() (err error) {
 
 	d.termSignal = make(chan bool, 1)
 	d.podMemifs = make(map[podmodel.ID]*MemifInfo)
+	d.deviceAllocations = make(map[string]*MemifInfo)
 
 	// init device plugin gRPC during the first resync
 	err = d.startDevicePluginServer()
 	if err != nil {
 		d.Log.Warn(err)
+		// do not return an error if this fails - the CNI is still working
+		return nil
+	}
+
+	// connect to kubelet pod resources server endpoint
+	d.podResClient, d.podResClientConn, err = podresources.GetClient(kubeletPodResourcesEndpoint,
+		grpcClientTimeout, defaultPodResourcesMaxSize)
+	if err != nil {
+		d.Log.Warn("Unable to connect to kubelet endpoint %s: %v", kubeletPodResourcesEndpoint, err)
 		// do not return an error if this fails - the CNI is still working
 		return nil
 	}
@@ -241,6 +259,14 @@ func (d *DeviceManager) Update(event controller.Event, txn controller.UpdateOper
 				ContainerPath: memifContainerDir,
 			},
 		}
+		// store allocated data in the internal map
+		for _, dev := range ad.DevicesIDs {
+			d.deviceAllocations[dev] = &MemifInfo{
+				Secret:          secret,
+				HostSocket:      hostPath,
+				ContainerSocket: containerPath,
+			}
+		}
 	}
 
 	// handle DeletePod
@@ -267,6 +293,10 @@ func (d *DeviceManager) Close() error {
 
 	if d.grpcServer != nil {
 		d.grpcServer.Stop()
+	}
+
+	if d.podResClientConn != nil {
+		d.podResClientConn.Close()
 	}
 
 	return nil
@@ -372,10 +402,33 @@ func (d *DeviceManager) GetPodMemifInfo(pod podmodel.ID) (info *MemifInfo, err e
 		return nil, errNotInitialized
 	}
 
+	/* method 1 - use cached info */
+
 	// look into the cache first
 	if info, hasInfo := d.podMemifs[pod]; hasInfo {
 		return info, nil
 	}
+
+	/* method 2 - use ListPodResources Kubelet API
+	   - works for pods that are just being added (not yet started)
+	   - does not work after node restart (Kubelet would not return anything)
+	*/
+
+	// ask kubelet about about the devices connected to this pod
+	devs, err := d.getPodDevices(pod)
+	if err != nil {
+		d.Log.Warn(err)
+	}
+	if len(devs) > 0 {
+		// return info for the first device (all others have the same memif info)
+		info = d.deviceAllocations[devs[0]]
+		d.podMemifs[pod] = info
+	}
+
+	/* method 3 - list container labels
+	   - works after node restart
+	   - does not work for containers just being added (not yet started)
+	*/
 
 	// find the docker containers of the pod
 	listOpts := docker.ListContainersOptions{
@@ -417,6 +470,37 @@ func (d *DeviceManager) GetPodMemifInfo(pod podmodel.ID) (info *MemifInfo, err e
 	}
 
 	return nil, nil
+}
+
+// getPodDevices looks up devices connected to the given pod.
+func (d *DeviceManager) getPodDevices(pod podmodel.ID) (devicesIDs []string, err error) {
+	if d.podResClient == nil {
+		err = fmt.Errorf("not connected to the kubelet pod resouces server")
+		d.Log.Errorf("Cannot list pod %v devices: %v", pod, err)
+		return
+	}
+
+	// list pod resources
+	ctx, cancel := context.WithTimeout(context.Background(), grpcClientTimeout)
+	defer cancel()
+
+	resp, err := d.podResClient.List(ctx, &podresourcesapi.ListPodResourcesRequest{})
+	if err != nil {
+		d.Log.Errorf("Cannot list pod %v devices: %v", pod, err)
+		return
+	}
+
+	for _, r := range resp.PodResources {
+		if r.Namespace == pod.Namespace && r.Name == pod.Name {
+			for _, c := range r.Containers {
+				for _, d := range c.Devices {
+					devicesIDs = append(devicesIDs, d.DeviceIds...)
+				}
+			}
+			break
+		}
+	}
+	return devicesIDs, nil
 }
 
 // releasePodMemif cleans up memif-related resources for the given pod.

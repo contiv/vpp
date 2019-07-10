@@ -403,50 +403,74 @@ func (d *DeviceManager) GetPodMemifInfo(pod podmodel.ID) (info *MemifInfo, err e
 		return nil, errNotInitialized
 	}
 
+	/* method 1 - use cached info */
+
 	// look into the cache first
 	if info, hasInfo := d.podMemifs[pod]; hasInfo {
 		return info, nil
 	}
 
+	/* method 2 - use ListPodResources Kubelet API
+	   - works for pods that are just being added (not yet started)
+	   - does not work after node restart (Kubelet would not return anything)
+	*/
+
 	// ask kubelet about about the devices connected to this pod
 	devs, err := d.getPodDevices(pod)
 	if err != nil {
-		return
+		d.Log.Warn(err)
 	}
-	if len(devs) == 0 {
-		return nil, fmt.Errorf("no devices found for pod %v", pod)
-	}
-
-	// return info for the first device (all others have the same memif info)
-	info = d.deviceAllocations[devs[0]]
-	d.podMemifs[pod] = info
-
-	return info, nil
-}
-
-// releasePodMemif cleans up memif-related resources for the given pod.
-func (d *DeviceManager) releasePodMemif(pod podmodel.ID) {
-	if !d.initialized {
-		return
-	}
-	info, hasInfo := d.podMemifs[pod]
-	if !hasInfo {
-		return
+	if len(devs) > 0 {
+		// return info for the first device (all others have the same memif info)
+		info = d.deviceAllocations[devs[0]]
+		d.podMemifs[pod] = info
 	}
 
-	// delete memif socket & dir
-	err := os.Remove(info.HostSocket)
+	/* method 3 - list container labels
+	   - works after node restart
+	   - does not work for containers just being added (not yet started)
+	*/
+
+	// find the docker containers of the pod
+	listOpts := docker.ListContainersOptions{
+		All: false,
+		Filters: map[string][]string{
+			"label": {
+				k8sLabelForPodName + "=" + pod.Name,
+				k8sLabelForPodNamespace + "=" + pod.Namespace,
+			},
+		},
+	}
+	containers, err := d.dockerClient.ListContainers(listOpts)
 	if err != nil {
-		d.Log.Warnf("Error by deleting memif socket %s: %v", info.HostSocket, err)
+		return nil, err
 	}
-	dir := filepath.Dir(info.HostSocket)
-	err = os.Remove(dir)
-	if err != nil {
-		d.Log.Warnf("Error by deleting memif dir %s: %v", dir, err)
+	// read memif info from container labels
+	for _, container := range containers {
+		if container.State != runningPodState {
+			continue
+		}
+		// read pod identifier from labels
+		podName, hasPodName := container.Labels[k8sLabelForPodName]
+		podNamespace, hasPodNamespace := container.Labels[k8sLabelForPodNamespace]
+		if !hasPodName || !hasPodNamespace || pod.Name != podName || pod.Namespace != podNamespace {
+			continue
+		}
+
+		// check if the container has memif metadata
+		memifHostSocket, hasMemifHostSocket := container.Labels[k8sAnnotationPrefix+memifHostSocketAnnotation]
+		if hasMemifHostSocket {
+			info = &MemifInfo{
+				HostSocket:      memifHostSocket,
+				ContainerSocket: container.Labels[k8sAnnotationPrefix+memifContainerSocketAnnotation],
+				Secret:          container.Labels[k8sAnnotationPrefix+memifSecretAnnotation],
+			}
+			d.podMemifs[pod] = info
+			return info, nil
+		}
 	}
 
-	// delete pod to memif info mapping
-	delete(d.podMemifs, pod)
+	return nil, nil
 }
 
 // getPodDevices looks up devices connected to the given pod.
@@ -478,6 +502,31 @@ func (d *DeviceManager) getPodDevices(pod podmodel.ID) (devicesIDs []string, err
 		}
 	}
 	return devicesIDs, nil
+}
+
+// releasePodMemif cleans up memif-related resources for the given pod.
+func (d *DeviceManager) releasePodMemif(pod podmodel.ID) {
+	if !d.initialized {
+		return
+	}
+	info, hasInfo := d.podMemifs[pod]
+	if !hasInfo {
+		return
+	}
+
+	// delete memif socket & dir
+	err := os.Remove(info.HostSocket)
+	if err != nil {
+		d.Log.Warnf("Error by deleting memif socket %s: %v", info.HostSocket, err)
+	}
+	dir := filepath.Dir(info.HostSocket)
+	err = os.Remove(dir)
+	if err != nil {
+		d.Log.Warnf("Error by deleting memif dir %s: %v", dir, err)
+	}
+
+	// delete pod to memif info mapping
+	delete(d.podMemifs, pod)
 }
 
 // startDevicePluginServer starts gRPC server serving device allocation requests.

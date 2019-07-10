@@ -165,14 +165,19 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 		memifID   uint32
 		memifInfo *devicemanager.MemifInfo
 	)
-	if pod == nil || pod.Metadata == nil {
+	if pod == nil {
 		return config
 	}
+	podMeta, hadPodMeta := n.PodManager.GetPods()[pod.ID]
+	if !hadPodMeta {
+		return config
+	}
+
 	config = make(controller.KeyValuePairs)
 	microserviceConfig := make(controller.KeyValuePairs)
 
-	customIfs := getContivCustomIfs(pod.Metadata.Annotations)
-	serviceLabel := getContivMicroserviceLabel(pod.Metadata.Annotations)
+	customIfs := getContivCustomIfs(podMeta.Annotations)
+	serviceLabel := getContivMicroserviceLabel(podMeta.Annotations)
 
 	for _, customIfStr := range customIfs {
 		customIf, err := parseCustomIfInfo(customIfStr)
@@ -221,7 +226,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 			config[k] = v
 			// config for pod-side of the memif (if microservice label is defined)
 			if serviceLabel != "" {
-				k, memif := n.podMicroservioceMemif(pod, podIPNet, customIf.ifName, memifInfo, memifID)
+				k, memif := n.podMicroserviceMemif(pod, podIPNet, customIf.ifName, memifInfo, memifID)
 				microserviceConfig[k] = memif
 
 				k, route := n.podMicroservioceDefaultRoute(pod, customIf.ifName, customIf.ifType)
@@ -286,6 +291,16 @@ func getContivMicroserviceLabel(annotations map[string]string) string {
 		}
 	}
 	return ""
+}
+
+// hasContivCustomIfAnnotation returns true if provided annotations contain contiv custom-if annotation, false otherwise.
+func hasContivCustomIfAnnotation(annotations map[string]string) bool {
+	for k := range annotations {
+		if strings.HasPrefix(k, contivCustomIfAnnotation) {
+			return true
+		}
+	}
+	return false
 }
 
 // getContivCustomIfs returns alphabetically ordered slice of custom interfaces defined in pod annotations.
@@ -601,8 +616,8 @@ func (n *IPNet) podVPPMemif(pod *podmanager.LocalPod, podIP *net.IPNet, ifName s
 	return key, memif
 }
 
-// podMicroservioceMemif returns the configuration for memif interface on the Pod (microservice) side.
-func (n *IPNet) podMicroservioceMemif(pod *podmanager.LocalPod, ip *net.IPNet, ifName string,
+// podMicroserviceMemif returns the configuration for memif interface on the Pod (microservice) side.
+func (n *IPNet) podMicroserviceMemif(pod *podmanager.LocalPod, ip *net.IPNet, ifName string,
 	memifInfo *devicemanager.MemifInfo, memifID uint32) (key string, config *vpp_interfaces.Interface) {
 
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()

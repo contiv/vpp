@@ -146,9 +146,13 @@ func (i *IPAM) Init() (err error) {
 	// register REST handlers
 	i.registerRESTHandlers()
 
+	return nil
+}
+
+// AfterInit initializes the DB broker.
+func (i *IPAM) AfterInit() error {
 	// init DB broker
 	i.dbBroker = i.RemoteDB.NewBroker(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel))
-
 	return nil
 }
 

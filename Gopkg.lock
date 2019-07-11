@@ -977,7 +977,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1908",
   ]
   pruneopts = "UT"
-  revision = "b09c3d120ac81a946175ed7813f52a0d9be8dbed"
+  revision = "aa8ecb3f5a5922c49fe8bdeefb236819558a0a55"
 
 [[projects]]
   branch = "master"

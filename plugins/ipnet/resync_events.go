@@ -69,7 +69,7 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 		controller.PutAll(txn, config)
 
 		// custom interfaces config
-		config = n.podCustomIfsConfig(pod, true)
+		config = n.podCustomIfsConfig(pod, resync)
 		controller.PutAll(txn, config)
 	}
 

@@ -60,7 +60,7 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 	// del pod from CNI
 	if delPod, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
 		// delete custom interfaces
-		change, err := n.updatePodCustomIfs(delPod.Pod, txn, false)
+		change, err := n.updatePodCustomIfs(delPod.Pod, txn, podDelete)
 		if err != nil {
 			return "", err
 		}
@@ -97,7 +97,7 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 
 	// pod custom interfaces update
 	if podCustomIfUpdate, isPodCustomIfUpdate := event.(*PodCustomIfUpdate); isPodCustomIfUpdate {
-		return n.updatePodCustomIfs(podCustomIfUpdate.PodID, txn, true)
+		return n.updatePodCustomIfs(podCustomIfUpdate.PodID, txn, podAdd)
 	}
 
 	// node info update
@@ -227,17 +227,17 @@ func (n *IPNet) deletePod(event *podmanager.DeletePod, txn controller.UpdateOper
 }
 
 // updatePodCustomIfs adds or deletes custom interfaces configuration (if requested by pod annotations).
-func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOperations, isAdd bool) (change string, err error) {
+func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOperations, eventType podConfigEventType) (change string, err error) {
 
 	pod := n.PodManager.GetLocalPods()[podID]
-	config := n.podCustomIfsConfig(pod, isAdd)
+	config := n.podCustomIfsConfig(pod, eventType)
 
 	// no custom ifs for this pod
 	if len(config) == 0 {
 		return "", nil
 	}
 
-	if isAdd {
+	if eventType != podDelete {
 		controller.PutAll(txn, config)
 		return "configure custom interfaces", nil
 	}

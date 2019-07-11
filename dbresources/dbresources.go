@@ -15,6 +15,7 @@
 package dbresources
 
 import (
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
 	"github.com/gogo/protobuf/proto"
 
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
@@ -89,6 +90,11 @@ func GetDBResources() []*DBResource {
 			Keyword:          sfcmodel.Keyword,
 			ProtoMessageName: proto.MessageName((*sfcmodel.ServiceFunctionChain)(nil)),
 			KeyPrefix:        sfcmodel.KeyPrefix(),
+		},
+		{
+			Keyword:          ipalloc.Keyword,
+			ProtoMessageName: proto.MessageName((*ipalloc.CustomIPAllocation)(nil)),
+			KeyPrefix:        ipalloc.KeyPrefix(),
 		},
 	}
 }

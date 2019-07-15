@@ -122,7 +122,7 @@ done
 
 for IMAGE in "${IMAGES_BIN[@]}"
 do
-    if [ "${BRANCH_NAME}" != "master" ] || [ "${SKIP_UPLOAD}" == "true" ]; then
+    if [ "${SKIP_UPLOAD}" == "true" ]; then
 		continue
 	fi
 

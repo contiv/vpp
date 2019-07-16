@@ -11,7 +11,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:c1e11643ac5c1f822bdc215131d9455c281cc19e119d56fad44cbf51916722ac"
+  digest = "1:5b637a006eaafab621767c9cbe8f4e21ca4b81344f93ea442fbed02c8de104c2"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
@@ -26,7 +26,7 @@
     "examples/binapi/memclnt",
   ]
   pruneopts = "UT"
-  revision = "15334aab4ad1b09cb698175adf5a02d7cb6fa410"
+  revision = "4dca07c803308611275f78b490ac0352c1052fe2"
 
 [[projects]]
   branch = "master"
@@ -797,7 +797,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:a087b37f9e3cbbcbf752164f7a05c62e692e5dd7cb57248e57a63edfd6a6646e"
+  digest = "1:c7ed70b8794b928468f1c3c22135932bf076832929d014434989a8b4c213b88b"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -899,7 +899,6 @@
     "plugins/vpp/binapi/vpp1904/memif",
     "plugins/vpp/binapi/vpp1904/nat",
     "plugins/vpp/binapi/vpp1904/punt",
-    "plugins/vpp/binapi/vpp1904/session",
     "plugins/vpp/binapi/vpp1904/sr",
     "plugins/vpp/binapi/vpp1904/stn",
     "plugins/vpp/binapi/vpp1904/tapv2",
@@ -947,6 +946,7 @@
     "plugins/vpp/l3plugin/vppcalls/vpp1901",
     "plugins/vpp/l3plugin/vppcalls/vpp1904",
     "plugins/vpp/l3plugin/vppcalls/vpp1908",
+    "plugins/vpp/l3plugin/vrfidx",
     "plugins/vpp/natplugin",
     "plugins/vpp/natplugin/descriptor",
     "plugins/vpp/natplugin/descriptor/adapter",
@@ -977,7 +977,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1908",
   ]
   pruneopts = "UT"
-  revision = "2fa8373919019b61c7796f141b66f389182cac9b"
+  revision = "aa8ecb3f5a5922c49fe8bdeefb236819558a0a55"
 
 [[projects]]
   branch = "master"
@@ -1856,10 +1856,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "git.fd.io/govpp.git/adapter/mock",
     "git.fd.io/govpp.git/api",
-    "git.fd.io/govpp.git/codec",
-    "git.fd.io/govpp.git/core",
     "github.com/apparentlymart/go-cidr/cidr",
     "github.com/containernetworking/cni/pkg/skel",
     "github.com/containernetworking/cni/pkg/types",
@@ -1936,9 +1933,8 @@
     "github.com/ligato/vpp-agent/plugins/restapi/resturl",
     "github.com/ligato/vpp-agent/plugins/telemetry",
     "github.com/ligato/vpp-agent/plugins/vpp/aclplugin",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/nat",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/session",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/vpe",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/nat",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx",

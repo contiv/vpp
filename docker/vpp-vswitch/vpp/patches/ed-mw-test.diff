@@ -1,0 +1,67 @@
+diff --git a/src/plugins/nat/in2out_ed.c b/src/plugins/nat/in2out_ed.c
+index 3bcde10a4..ddfb7d81e 100644
+--- a/src/plugins/nat/in2out_ed.c
++++ b/src/plugins/nat/in2out_ed.c
+@@ -562,8 +562,8 @@ nat44_ed_not_translate_output_feature (snat_main_t * sm, ip4_header_t * ip,
+       s = pool_elt_at_index (tsm->sessions, value.value);
+       if (nat44_is_ses_closed (s))
+ 	{
+-	  nat_log_debug ("TCP close connection %U", format_snat_session,
+-			 &sm->per_thread_data[thread_index], s);
++	  /*nat_log_debug ("TCP close connection %U", format_snat_session,
++			 &sm->per_thread_data[thread_index], s);*/
+ 	  nat_free_session_data (sm, s, thread_index, 0);
+ 	  nat44_delete_session (sm, s, thread_index);
+ 	}
+diff --git a/src/plugins/nat/nat_inlines.h b/src/plugins/nat/nat_inlines.h
+index 64b1f2554..e850c1511 100644
+--- a/src/plugins/nat/nat_inlines.h
++++ b/src/plugins/nat/nat_inlines.h
+@@ -175,7 +175,7 @@ nat44_delete_session (snat_main_t * sm, snat_session_t * ses,
+   snat_user_key_t u_key;
+   snat_user_t *u;
+ 
+-  nat_log_debug ("session deleted %U", format_snat_session, tsm, ses);
++  /*nat_log_debug ("session deleted %U", format_snat_session, tsm, ses);*/
+ 
+   clib_dlist_remove (tsm->list_pool, ses->per_user_index);
+   pool_put_index (tsm->list_pool, ses->per_user_index);
+@@ -227,8 +227,8 @@ nat44_set_tcp_session_state_i2o (snat_main_t * sm, snat_session_t * ses,
+   if (nat44_is_ses_closed (ses)
+       && !(ses->flags & SNAT_SESSION_FLAG_OUTPUT_FEATURE))
+     {
+-      nat_log_debug ("TCP close connection %U", format_snat_session,
+-		     &sm->per_thread_data[thread_index], ses);
++      /*nat_log_debug ("TCP close connection %U", format_snat_session,
++		     &sm->per_thread_data[thread_index], ses);*/
+       nat_free_session_data (sm, ses, thread_index, 0);
+       nat44_delete_session (sm, ses, thread_index);
+       return 1;
+@@ -261,8 +261,8 @@ nat44_set_tcp_session_state_o2i (snat_main_t * sm, snat_session_t * ses,
+     }
+   if (nat44_is_ses_closed (ses))
+     {
+-      nat_log_debug ("TCP close connection %U", format_snat_session,
+-		     &sm->per_thread_data[thread_index], ses);
++      /*nat_log_debug ("TCP close connection %U", format_snat_session,
++		     &sm->per_thread_data[thread_index], ses);*/
+       nat_free_session_data (sm, ses, thread_index, 0);
+       nat44_delete_session (sm, ses, thread_index);
+       return 1;
+diff --git a/src/vlib/log.c b/src/vlib/log.c
+index 9a0d75fe3..a37821fa0 100644
+--- a/src/vlib/log.c
++++ b/src/vlib/log.c
+@@ -150,7 +150,10 @@ vlib_log (vlib_log_level_t level, vlib_log_class_t class, char *fmt, ...)
+   vec_validate (lm->entries, lm->size);
+   /* make sure we are running on the main thread to avoid use in dataplane
+      code, for dataplane logging consider use of event-logger */
+-  ASSERT (vlib_get_thread_index () == 0);
++  // ASSERT (vlib_get_thread_index () == 0);
++  // TODO: remove
++  if (vlib_get_thread_index () != 0)
++    fprintf (stderr, "vlib_log: thread_index != 0, %s\n", fmt);
+ 
+   if (level > sc->level)
+     {
+

@@ -94,7 +94,7 @@ func (d *MockPutDSL) XConnect(val *vpp_l2.XConnectPair) linuxclient.PutDSL {
 
 // StaticRoute adds a mock request to create or update VPP L3 Static Route.
 func (d *MockPutDSL) StaticRoute(val *vpp_l3.Route) linuxclient.PutDSL {
-	key := vpp_l3.RouteKey(val.VrfId, val.DstNetwork, val.NextHopAddr)
+	key := vpp_l3.RouteKey(val.OutgoingInterface, val.VrfId, val.DstNetwork, val.NextHopAddr)
 	d.parent.Values[key] = val
 	return d
 }
@@ -256,8 +256,8 @@ func (d *MockDeleteDSL) XConnect(rxIfName string) linuxclient.DeleteDSL {
 }
 
 // StaticRoute adds a mock request to delete an existing VPP L3 Static Route..
-func (d *MockDeleteDSL) StaticRoute(vrf uint32, dstAddr string, nextHopAddr string) linuxclient.DeleteDSL {
-	key := vpp_l3.RouteKey(vrf, dstAddr, nextHopAddr)
+func (d *MockDeleteDSL) StaticRoute(iface string, vrf uint32, dstAddr string, nextHopAddr string) linuxclient.DeleteDSL {
+	key := vpp_l3.RouteKey(iface, vrf, dstAddr, nextHopAddr)
 	d.parent.Values[key] = nil
 	return d
 }

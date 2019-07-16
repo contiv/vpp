@@ -370,7 +370,7 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 			ViaVrfId:    r.ContivConf.GetRoutingConfig().PodVRFID,
 			NextHopAddr: ipv6AddrAny,
 		}
-		key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+		key := models.Key(route)
 		addDelConfig[key] = route
 
 		// getting more info about local backend

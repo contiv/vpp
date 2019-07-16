@@ -286,7 +286,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 				OutgoingInterface: vppIfName,
 				VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
 			}
-			key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+			key := models.Key(route)
 			addDelConfig[key] = route
 
 			// assign serviceIP on the pod loopback
@@ -343,7 +343,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 				ViaVrfId:    rndr.ContivConf.GetRoutingConfig().MainVRFID,
 				NextHopAddr: ipv6AddrAny,
 			}
-			key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+			key := models.Key(route)
 			addDelConfig[key] = route
 
 			// route from main VRF to host
@@ -357,7 +357,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 				OutgoingInterface: rndr.IPNet.GetHostInterconnectIfName(),
 				VrfId:             rndr.ContivConf.GetRoutingConfig().MainVRFID,
 			}
-			key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+			key = models.Key(route)
 			addDelConfig[key] = route
 		}
 	}
@@ -376,7 +376,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 						OutgoingInterface: ipnet.VxlanBVIInterfaceName,
 						VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
 					}
-					key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+					key := models.Key(route)
 					addDelConfig[key] = route
 				case contivconf.NoOverlayTransport:
 					// route from pod VRF to main VRF
@@ -387,7 +387,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 						ViaVrfId:    rndr.ContivConf.GetRoutingConfig().MainVRFID,
 						NextHopAddr: ipv6AddrAny,
 					}
-					key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+					key := models.Key(route)
 					addDelConfig[key] = route
 
 					// route from main VRF towards the other node IP
@@ -397,7 +397,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 						NextHopAddr: nextHop.String(),
 						VrfId:       rndr.ContivConf.GetRoutingConfig().MainVRFID,
 					}
-					key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+					key = models.Key(route)
 					addDelConfig[key] = route
 				case contivconf.SRv6Transport:
 					// route from pod VRF to main VRF
@@ -408,7 +408,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 						ViaVrfId:    rndr.ContivConf.GetRoutingConfig().MainVRFID,
 						NextHopAddr: ipv6AddrAny,
 					}
-					key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+					key := models.Key(route)
 					addDelConfig[key] = route
 
 					// steering packet into existing SRv6 node-to-node tunnel (main Vrf table on other node will route packet from SRv6 tunnel)

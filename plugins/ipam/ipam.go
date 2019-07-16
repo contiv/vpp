@@ -149,13 +149,6 @@ func (i *IPAM) Init() (err error) {
 	return nil
 }
 
-// AfterInit initializes the DB broker.
-func (i *IPAM) AfterInit() error {
-	// init DB broker
-	i.dbBroker = i.RemoteDB.NewBroker(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel))
-	return nil
-}
-
 // HandlesEvent selects any Resync event.
 //   - any Resync event
 //   - NodeUpdate for the current node if external IPAM is in use (may trigger PodCIDRChange)
@@ -650,8 +643,13 @@ func (i *IPAM) persistCustomIfIPAllocation(podID podmodel.ID, ifName, network st
 	key := ipalloc.Key(podID.Name, podID.Namespace)
 	allocation := &ipalloc.CustomIPAllocation{}
 
+	db, err := i.getDBBroker()
+	if err != nil {
+		return err
+	}
+
 	// try to read existing allocation, otherwise create new
-	found, _, err := i.dbBroker.GetValue(key, allocation)
+	found, _, err := db.GetValue(key, allocation)
 	if err != nil {
 		i.Log.Errorf("Unable to read pod custom interface IP allocation: %v", err)
 		return err
@@ -671,12 +669,30 @@ func (i *IPAM) persistCustomIfIPAllocation(podID podmodel.ID, ifName, network st
 	})
 
 	// save in ETCD
-	err = i.dbBroker.Put(key, allocation)
+	err = db.Put(key, allocation)
 	if err != nil {
 		i.Log.Errorf("Unable to persist pod custom interface IP allocation: %v", err)
 		return err
 	}
 	return nil
+}
+
+// getDBBroker returns broker for accessing remote database, error if database is not connected.
+func (i IPAM) getDBBroker() (keyval.ProtoBroker, error) {
+	// return error if ETCD is not connected
+	dbIsConnected := false
+	i.RemoteDB.OnConnect(func() error {
+		dbIsConnected = true
+		return nil
+	})
+	if !dbIsConnected {
+		return nil, fmt.Errorf("remote database is not connected")
+	}
+	// return existing broker if possible
+	if i.dbBroker == nil {
+		i.dbBroker = i.RemoteDB.NewBroker(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel))
+	}
+	return i.dbBroker, nil
 }
 
 // allocateExternalPodIP allocates IP address for the given pod using the external IPAM.

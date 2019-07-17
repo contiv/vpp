@@ -33,6 +33,7 @@ import (
 	"github.com/ligato/vpp-agent/api/models/linux/namespace"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"github.com/ligato/vpp-agent/pkg/models"
 )
 
 const (
@@ -643,7 +644,7 @@ func (n *IPNet) podMicroservioceDefaultRoute(pod *podmanager.LocalPod, customIfN
 		DstNetwork:        anyNetAddrForAF(n.IPAM.PodGatewayIP()),
 		NextHopAddr:       n.IPAM.PodGatewayIP().String(),
 	}
-	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	key = models.Key(route)
 	return key, route
 }
 
@@ -715,7 +716,7 @@ func (n *IPNet) vppToPodRoute(pod *podmanager.LocalPod, podIP *net.IPNet, custom
 		NextHopAddr:       podIP.IP.String(),
 		VrfId:             n.ContivConf.GetRoutingConfig().PodVRFID,
 	}
-	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	key = models.Key(route)
 	return key, route
 }
 

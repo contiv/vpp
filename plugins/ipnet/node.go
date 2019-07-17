@@ -336,7 +336,7 @@ func (n *IPNet) defaultRoute(gwIP net.IP, outIfName string) (key string, config 
 		OutgoingInterface: outIfName,
 		VrfId:             n.ContivConf.GetRoutingConfig().MainVRFID,
 	}
-	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	key = models.Key(route)
 	return key, route
 }
 
@@ -406,7 +406,7 @@ func (n *IPNet) routesPodToMainVRF() map[string]*vpp_l3.Route {
 		ViaVrfId:    routingCfg.MainVRFID,
 		NextHopAddr: anyAddrForAF(n.IPAM.PodGatewayIP()),
 	}
-	r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+	r1Key := models.Key(r1)
 	routes[r1Key] = r1
 
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
@@ -419,7 +419,7 @@ func (n *IPNet) routesPodToMainVRF() map[string]*vpp_l3.Route {
 			ViaVrfId:    routingCfg.MainVRFID,
 			NextHopAddr: anyAddrForAF(n.IPAM.HostInterconnectSubnetThisNode().IP),
 		}
-		r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
+		r2Key := models.Key(r2)
 		routes[r2Key] = r2
 	}
 
@@ -440,7 +440,7 @@ func (n *IPNet) routesMainToPodVRF() map[string]*vpp_l3.Route {
 			ViaVrfId:    routingCfg.PodVRFID,
 			NextHopAddr: anyAddrForAF(n.IPAM.PodSubnetAllNodes().IP),
 		}
-		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+		r1Key := models.Key(r1)
 		routes[r1Key] = r1
 
 		// host network (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
@@ -451,7 +451,7 @@ func (n *IPNet) routesMainToPodVRF() map[string]*vpp_l3.Route {
 			ViaVrfId:    routingCfg.PodVRFID,
 			NextHopAddr: anyAddrForAF(n.IPAM.HostInterconnectSubnetAllNodes().IP),
 		}
-		r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
+		r2Key := models.Key(r2)
 		routes[r2Key] = r2
 	} else {
 		// pod subnet (this node only) routed from Main VRF to Pod VRF
@@ -462,7 +462,7 @@ func (n *IPNet) routesMainToPodVRF() map[string]*vpp_l3.Route {
 			ViaVrfId:    routingCfg.PodVRFID,
 			NextHopAddr: anyAddrForAF(n.IPAM.PodSubnetThisNode().IP),
 		}
-		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+		r1Key := models.Key(r1)
 		routes[r1Key] = r1
 	}
 
@@ -475,7 +475,7 @@ func (n *IPNet) routesMainToPodVRF() map[string]*vpp_l3.Route {
 			ViaVrfId:    routingCfg.PodVRFID,
 			NextHopAddr: anyAddrForAF(n.IPAM.ServiceNetwork().IP),
 		}
-		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+		r1Key := models.Key(r1)
 		routes[r1Key] = r1
 	}
 
@@ -490,19 +490,19 @@ func (n *IPNet) dropRoutesIntoPodVRF() map[string]*vpp_l3.Route {
 	if n.ContivConf.GetIPAMConfig().UseIPv6 {
 		// drop packets destined to service subnet with no more specific routes
 		r1 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.ServiceNetwork())
-		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+		r1Key := models.Key(r1)
 		routes[r1Key] = r1
 	}
 
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
 		// drop packets destined to pods no longer deployed
 		r1 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.PodSubnetAllNodes())
-		r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+		r1Key := models.Key(r1)
 		routes[r1Key] = r1
 
 		// drop packets destined to nodes no longer deployed
 		r2 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.HostInterconnectSubnetAllNodes())
-		r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
+		r2Key := models.Key(r2)
 		routes[r2Key] = r2
 	}
 
@@ -892,7 +892,7 @@ func (n *IPNet) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net.I
 		route.OutgoingInterface = VxlanBVIInterfaceName
 		route.VrfId = n.ContivConf.GetRoutingConfig().PodVRFID
 	}
-	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	key = models.Key(route)
 	return key, route
 }
 
@@ -952,7 +952,7 @@ func (n *IPNet) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP, vrf
 		VrfId:             vrfID,
 		OutgoingInterface: outgoingInterface,
 	}
-	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	key = models.Key(route)
 	return key, route
 }
 
@@ -967,6 +967,6 @@ func (n *IPNet) routeToOtherNodeManagementIPViaPodVRF(managementIP net.IP) (key 
 		ViaVrfId:    n.ContivConf.GetRoutingConfig().PodVRFID,
 		NextHopAddr: anyAddrForAF(managementIP),
 	}
-	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	key = models.Key(route)
 	return key, route
 }

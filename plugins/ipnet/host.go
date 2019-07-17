@@ -26,6 +26,7 @@ import (
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
 	"github.com/ligato/vpp-agent/api/models/vpp/punt"
 	"github.com/ligato/vpp-agent/api/models/vpp/stn"
+	"github.com/ligato/vpp-agent/pkg/models"
 )
 
 /* VPP - Host interconnect */
@@ -283,7 +284,7 @@ func (n *IPNet) routesToHost(nextHopIP net.IP) map[string]*vpp_l3.Route {
 			OutgoingInterface: n.hostInterconnectVPPIfName(),
 			VrfId:             n.ContivConf.GetRoutingConfig().MainVRFID,
 		}
-		key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+		key := models.Key(route)
 		routes[key] = route
 	}
 
@@ -302,7 +303,7 @@ func (n *IPNet) routePODsFromHost(nextHopIP net.IP) (key string, config *linux_l
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
 	}
-	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
+	key = models.Key(route)
 	return key, route
 }
 
@@ -318,7 +319,7 @@ func (n *IPNet) routeServicesFromHost(nextHopIP net.IP) (key string, config *lin
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
 	}
-	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
+	key = models.Key(route)
 	return key, route
 }
 
@@ -408,7 +409,7 @@ func (n *IPNet) routeToOriginalSTNSubnet() (key string, route *linux_l3.Route) {
 		Scope:             linux_l3.Route_GLOBAL,
 		OutgoingInterface: n.hostInterconnectLinuxIfName(),
 	}
-	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
+	key = models.Key(route)
 	return key, route
 }
 
@@ -457,7 +458,7 @@ func (n *IPNet) stnRoutesForVPP() map[string]*vpp_l3.Route {
 		if route.DstNetwork == "" {
 			route.DstNetwork = anyNetAddrForAF(net.ParseIP(stnRoute.NextHopIp))
 		}
-		key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+		key := models.Key(route)
 		routes[key] = route
 	}
 
@@ -482,7 +483,7 @@ func (n *IPNet) stnRoutesForHost() map[string]*linux_l3.Route {
 		if route.DstNetwork == "" {
 			route.DstNetwork = anyNetAddrForAF(net.ParseIP(stnRoute.NextHopIp))
 		}
-		key := linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
+		key := models.Key(route)
 		routes[key] = route
 	}
 

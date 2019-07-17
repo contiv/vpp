@@ -40,9 +40,18 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 			return "", err
 		}
 
-		// mark for custom interfaces handling
-		// NOTE: we rely on the fact that after CNI, k8s state of the pod gets updated with
-		// the main pod ip, and we get a KubeStateChange event for this pod later
+		// if the pod metadata is already known and pod already has an IP address, progress with pod custom ifs update
+		if podMeta, hadPodMeta := n.PodManager.GetPods()[addPod.Pod]; hadPodMeta {
+			if podMeta.IPAddress != "" && hasContivCustomIfAnnotation(podMeta.Annotations) {
+				err = n.EventLoop.PushEvent(&PodCustomIfUpdate{
+					PodID:       addPod.Pod,
+					Labels:      podMeta.Labels,
+					Annotations: podMeta.Annotations,
+				})
+				return change, err
+			}
+		}
+		// else mark for later custom interfaces handling (after we get KubeStateChange event with metadata of the pod)
 		n.pendingAddPodCustomIf[addPod.Pod] = true
 
 		return change, err
@@ -51,7 +60,7 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 	// del pod from CNI
 	if delPod, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
 		// delete custom interfaces
-		change, err := n.updatePodCustomIfs(delPod.Pod, txn, false)
+		change, err := n.updatePodCustomIfs(delPod.Pod, txn, podDelete)
 		if err != nil {
 			return "", err
 		}
@@ -67,17 +76,28 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 
 	// pod k8s data change
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
-		if ksChange.Resource == podmodel.PodKeyword {
-			if ksChange.NewValue != nil {
-				// if there is a pending addPodCustomIfs operation for this pod, process it now
-				pod := ksChange.NewValue.(*podmodel.Pod)
-				podID := podmodel.GetID(pod)
-				if _, pending := n.pendingAddPodCustomIf[podID]; pending {
-					delete(n.pendingAddPodCustomIf, podID)
-					return n.updatePodCustomIfs(podID, txn, true)
+		if ksChange.Resource == podmodel.PodKeyword && ksChange.NewValue != nil {
+			pod := ksChange.NewValue.(*podmodel.Pod)
+			podID := podmodel.GetID(pod)
+
+			// if there is a pending addPodCustomIfs operation for this pod,
+			// and the pod already has an IP address assigned, process it now
+			if _, pending := n.pendingAddPodCustomIf[podID]; pending && pod.IpAddress != "" {
+				delete(n.pendingAddPodCustomIf, podID)
+				if hasContivCustomIfAnnotation(pod.Annotations) {
+					err = n.EventLoop.PushEvent(&PodCustomIfUpdate{
+						PodID:       podID,
+						Labels:      pod.Labels,
+						Annotations: pod.Annotations,
+					})
 				}
 			}
 		}
+	}
+
+	// pod custom interfaces update
+	if podCustomIfUpdate, isPodCustomIfUpdate := event.(*PodCustomIfUpdate); isPodCustomIfUpdate {
+		return n.updatePodCustomIfs(podCustomIfUpdate.PodID, txn, podAdd)
 	}
 
 	// node info update
@@ -207,17 +227,17 @@ func (n *IPNet) deletePod(event *podmanager.DeletePod, txn controller.UpdateOper
 }
 
 // updatePodCustomIfs adds or deletes custom interfaces configuration (if requested by pod annotations).
-func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOperations, isAdd bool) (change string, err error) {
+func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOperations, eventType podConfigEventType) (change string, err error) {
 
 	pod := n.PodManager.GetLocalPods()[podID]
-	config := n.podCustomIfsConfig(pod, isAdd)
+	config := n.podCustomIfsConfig(pod, eventType)
 
 	// no custom ifs for this pod
 	if len(config) == 0 {
 		return "", nil
 	}
 
-	if isAdd {
+	if eventType != podDelete {
 		controller.PutAll(txn, config)
 		return "configure custom interfaces", nil
 	}

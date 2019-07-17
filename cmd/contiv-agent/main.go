@@ -175,6 +175,7 @@ func main() {
 	}))
 
 	ipamPlugin := ipam.NewPlugin(ipam.UseDeps(func(deps *ipam.Deps) {
+		deps.RemoteDB = &etcd.DefaultPlugin
 		deps.ContivConf = contivConf
 		deps.NodeSync = nodeSyncPlugin
 	}))

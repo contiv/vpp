@@ -192,6 +192,7 @@ get-generators:
 generate: get-generators
 	@echo "# generating sources"
 	cd plugins/nodesync && go generate
+	cd plugins/ipam && go generate
 	cd plugins/podmanager && go generate
 	cd plugins/ksr && go generate
 	cd cmd/contiv-stn && go generate

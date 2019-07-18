@@ -125,7 +125,7 @@ func (r *Renderer) AddService(service *renderer.ContivService) error {
 
 	txn := r.UpdateTxnFactory(fmt.Sprintf("add service '%v'", service.ID))
 
-	addDelConfig, updateConfig := r.renderService(service, serviceAdd)
+	addDelConfig, updateConfig := r.renderService(service, serviceAdd, nil)
 	controller.PutAll(txn, addDelConfig)
 	controller.PutAll(txn, updateConfig)
 
@@ -133,18 +133,18 @@ func (r *Renderer) AddService(service *renderer.ContivService) error {
 }
 
 // UpdateService updates VPP config for a changed service.
-func (r *Renderer) UpdateService(oldService, newService *renderer.ContivService) error {
+func (r *Renderer) UpdateService(oldService, newService *renderer.ContivService, otherExistingServices []*renderer.ContivService) error {
 	if r.snatOnly {
 		return nil
 	}
 
 	txn := r.UpdateTxnFactory(fmt.Sprintf("update service '%v'", newService.ID))
 
-	addDelConfig, updateConfig := r.renderService(oldService, serviceDel)
+	addDelConfig, updateConfig := r.renderService(oldService, serviceDel, otherExistingServices)
 	controller.DeleteAll(txn, addDelConfig)
 	controller.PutAll(txn, updateConfig)
 
-	addDelConfig, updateConfig = r.renderService(newService, serviceAdd)
+	addDelConfig, updateConfig = r.renderService(newService, serviceAdd, nil)
 	controller.PutAll(txn, addDelConfig)
 	controller.PutAll(txn, updateConfig)
 
@@ -152,14 +152,14 @@ func (r *Renderer) UpdateService(oldService, newService *renderer.ContivService)
 }
 
 // DeleteService removes VPP config associated with a freshly un-deployed service.
-func (r *Renderer) DeleteService(service *renderer.ContivService) error {
+func (r *Renderer) DeleteService(service *renderer.ContivService, otherExistingServices []*renderer.ContivService) error {
 	if r.snatOnly {
 		return nil
 	}
 
 	txn := r.UpdateTxnFactory(fmt.Sprintf("delete service '%v'", service.ID))
 
-	addDelConfig, updateConfig := r.renderService(service, serviceDel)
+	addDelConfig, updateConfig := r.renderService(service, serviceDel, otherExistingServices)
 	controller.DeleteAll(txn, addDelConfig)
 	controller.PutAll(txn, updateConfig)
 
@@ -191,7 +191,7 @@ func (r *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 
 	// add configuration for current services (resync should return desired state, not remove previous state)
 	for _, service := range resyncEv.Services {
-		addDelConfig, updateConfig := r.renderService(service, serviceAdd)
+		addDelConfig, updateConfig := r.renderService(service, serviceAdd, nil)
 		controller.PutAll(txn, addDelConfig)
 		controller.PutAll(txn, updateConfig)
 	}
@@ -202,7 +202,7 @@ func (r *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 // renderService renders Contiv service to VPP configuration.
 // addDelConfig sliceContains KV pairs that should be added/deleted,
 // updateConfig sliceContains KV pair that should be updated.
-func (r *Renderer) renderService(service *renderer.ContivService, oper operation) (
+func (r *Renderer) renderService(service *renderer.ContivService, oper operation, otherExistingServices []*renderer.ContivService) (
 	addDelConfig controller.KeyValuePairs, updateConfig controller.KeyValuePairs) {
 
 	r.Log.Debugf("Rendering %s", service.String())
@@ -448,22 +448,37 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 		// policy in main vrf table -> no need to for inter-vrf table route like in ipv6 renderer
 
 		// from main VRF to host (create localsid with decapsulation and crossconnect to the host (DX6 end function))
-		nextHop := r.IPAM.HostInterconnectIPInLinux()
-		if r.ContivConf.InSTNMode() {
-			nextHop, _ = r.IPNet.GetNodeIP()
+		if !(oper == serviceDel && r.isHostNetworkLocalBackendSharedWith(otherExistingServices)) { // don't delete host network local sid if it is used in other service
+			nextHop := r.IPAM.HostInterconnectIPInLinux()
+			if r.ContivConf.InSTNMode() {
+				nextHop, _ = r.IPNet.GetNodeIP()
+			}
+			localSID := &vpp_srv6.LocalSID{
+				Sid:               r.IPAM.SidForServiceHostLocalsid().String(),
+				InstallationVrfId: r.ContivConf.GetRoutingConfig().MainVRFID,
+				EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+					NextHop:           nextHop.String(),
+					OutgoingInterface: r.IPNet.GetHostInterconnectIfName(),
+				}},
+			}
+			addDelConfig[models.Key(localSID)] = localSID
 		}
-		localSID := &vpp_srv6.LocalSID{
-			Sid:               r.IPAM.SidForServiceHostLocalsid().String(),
-			InstallationVrfId: r.ContivConf.GetRoutingConfig().MainVRFID,
-			EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-				NextHop:           nextHop.String(),
-				OutgoingInterface: r.IPNet.GetHostInterconnectIfName(),
-			}},
-		}
-		addDelConfig[models.Key(localSID)] = localSID
 	}
 
 	return addDelConfig, updateConfig
+}
+
+func (r *Renderer) isHostNetworkLocalBackendSharedWith(services []*renderer.ContivService) bool {
+	for _, service := range services {
+		for servicePortName := range service.Ports {
+			for _, backend := range service.Backends[servicePortName] {
+				if backend.Local && backend.HostNetwork {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // getPodPFRuleChain returns the config of the pod-local iptables rule chain of given chain type -

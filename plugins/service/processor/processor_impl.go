@@ -368,7 +368,9 @@ func (sp *ServiceProcessor) otherContivServices(excludedService *Service) []*ren
 	otherServices := make([]*renderer.ContivService, 0, len(sp.services))
 	for _, service := range sp.services {
 		if service != excludedService {
-			otherServices = append(otherServices, service.GetContivService())
+			if contivService := service.GetContivService(); contivService != nil {
+				otherServices = append(otherServices, contivService)
+			}
 		}
 	}
 	return otherServices

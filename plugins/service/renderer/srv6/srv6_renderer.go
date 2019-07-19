@@ -209,66 +209,17 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 
 	addDelConfig = make(controller.KeyValuePairs)
 	updateConfig = make(controller.KeyValuePairs)
-	localBackends := make(map[localBackendKey]*localBackend, 0)
-	hasHostNetworkLocalBackend := false
-	remoteBackends := make(map[remoteBackendKey]*remoteBackend, 0)
 
-	// collect info about the backends
-	for servicePortName, servicePort := range service.Ports {
-		for _, backend := range service.Backends[servicePortName] {
-			if backend.Local {
-				// collect local backend info
-				if backend.HostNetwork {
-					hasHostNetworkLocalBackend = true
-					lb := &localBackend{
-						useHostNetwork: true,
-						ip:             backend.IP,
-					}
-					localBackends[lb.Key()] = lb
-				} else {
-					lb := &localBackend{ip: backend.IP}
-					if servicePort.Port != backend.Port {
-						previousForwards := lb.portForwards
-						if previousLB, exists := localBackends[lb.Key()]; exists {
-							previousForwards = previousLB.portForwards
-						}
-						lb.portForwards = append(previousForwards, &portForward{
-							proto: servicePort.Protocol,
-							from:  servicePort.Port,
-							to:    backend.Port,
-						})
-					}
-					localBackends[lb.Key()] = lb
-				}
-			} else {
-				// collect remote backend info
-				var nodeID uint32
-				var err error
-				if backend.HostNetwork {
-					nodeID, err = r.nodeIDFromNodeOrHostIP(backend.IP)
-					if err != nil {
-						r.Log.Warnf("Error by extracting node ID from host IP: %v", err)
-						continue
-					}
-				} else {
-					nodeID, err = r.IPAM.NodeIDFromPodIP(backend.IP)
-					if err != nil {
-						r.Log.Warnf("Error by extracting node ID from pod ID: %v", err)
-						continue
-					}
-				}
-				nodeIP, _, err := r.IPAM.NodeIPAddress(nodeID)
-				if err != nil {
-					r.Log.Warnf("Error by extracting node IP from node ID %v due to: %v", nodeID, err)
-				} else {
-					rb := &remoteBackend{
-						ip:             backend.IP,
-						nodeID:         nodeID,
-						nodeIP:         nodeIP,
-						useHostNetwork: backend.HostNetwork,
-					}
-					remoteBackends[rb.Key()] = rb
-				}
+	// collecting/transforming needed information
+	localBackends, remoteBackends, hasHostNetworkLocalBackend := r.collectBackendInfo(service)
+	var hostNetworkLocalBackendInOtherServices bool
+	otherServiceLocalBackends := make(map[localBackendKey]*localBackend)
+	if oper == serviceDel {
+		for _, otherService := range otherExistingServices {
+			otherLocalBackends, _, otherHostLocalBackend := r.collectBackendInfo(otherService)
+			hostNetworkLocalBackendInOtherServices = hostNetworkLocalBackendInOtherServices || otherHostLocalBackend
+			for k, v := range otherLocalBackends {
+				otherServiceLocalBackends[k] = v
 			}
 		}
 	}
@@ -386,15 +337,18 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 		}
 
 		// adding LocalSID
-		localSID := &vpp_srv6.LocalSID{
-			Sid:               r.IPAM.SidForServicePodLocalsid(backend.ip).String(),
-			InstallationVrfId: r.ContivConf.GetRoutingConfig().PodVRFID,
-			EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-				NextHop:           backend.ip.String(),
-				OutgoingInterface: vppIfName,
-			}},
+		_, usedInOtherService := otherServiceLocalBackends[backend.Key()]
+		if !(oper == serviceDel && usedInOtherService) { // don't delete local sid if it is used in other service
+			localSID := &vpp_srv6.LocalSID{
+				Sid:               r.IPAM.SidForServicePodLocalsid(backend.ip).String(),
+				InstallationVrfId: r.ContivConf.GetRoutingConfig().PodVRFID,
+				EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+					NextHop:           backend.ip.String(),
+					OutgoingInterface: vppIfName,
+				}},
+			}
+			addDelConfig[models.Key(localSID)] = localSID
 		}
-		addDelConfig[models.Key(localSID)] = localSID
 
 		for _, serviceIP := range serviceIPs {
 			// assign serviceIPs on the backend pod loopbacks
@@ -448,7 +402,7 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 		// policy in main vrf table -> no need to for inter-vrf table route like in ipv6 renderer
 
 		// from main VRF to host (create localsid with decapsulation and crossconnect to the host (DX6 end function))
-		if !(oper == serviceDel && r.isHostNetworkLocalBackendSharedWith(otherExistingServices)) { // don't delete host network local sid if it is used in other service
+		if !(oper == serviceDel && hostNetworkLocalBackendInOtherServices) { // don't delete host network local sid if it is used in other services
 			nextHop := r.IPAM.HostInterconnectIPInLinux()
 			if r.ContivConf.InSTNMode() {
 				nextHop, _ = r.IPNet.GetNodeIP()
@@ -468,17 +422,70 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 	return addDelConfig, updateConfig
 }
 
-func (r *Renderer) isHostNetworkLocalBackendSharedWith(services []*renderer.ContivService) bool {
-	for _, service := range services {
-		for servicePortName := range service.Ports {
-			for _, backend := range service.Backends[servicePortName] {
-				if backend.Local && backend.HostNetwork {
-					return true
+func (r *Renderer) collectBackendInfo(service *renderer.ContivService) (map[localBackendKey]*localBackend, map[remoteBackendKey]*remoteBackend, bool) {
+	localBackends := make(map[localBackendKey]*localBackend, 0)
+	hasHostNetworkLocalBackend := false
+	remoteBackends := make(map[remoteBackendKey]*remoteBackend, 0)
+
+	for servicePortName, servicePort := range service.Ports {
+		for _, backend := range service.Backends[servicePortName] {
+			if backend.Local {
+				// collect local backend info
+				if backend.HostNetwork {
+					hasHostNetworkLocalBackend = true
+					lb := &localBackend{
+						useHostNetwork: true,
+						ip:             backend.IP,
+					}
+					localBackends[lb.Key()] = lb
+				} else {
+					lb := &localBackend{ip: backend.IP}
+					if servicePort.Port != backend.Port {
+						previousForwards := lb.portForwards
+						if previousLB, exists := localBackends[lb.Key()]; exists {
+							previousForwards = previousLB.portForwards
+						}
+						lb.portForwards = append(previousForwards, &portForward{
+							proto: servicePort.Protocol,
+							from:  servicePort.Port,
+							to:    backend.Port,
+						})
+					}
+					localBackends[lb.Key()] = lb
+				}
+			} else {
+				// collect remote backend info
+				var nodeID uint32
+				var err error
+				if backend.HostNetwork {
+					nodeID, err = r.nodeIDFromNodeOrHostIP(backend.IP)
+					if err != nil {
+						r.Log.Warnf("Error by extracting node ID from host IP: %v", err)
+						continue
+					}
+				} else {
+					nodeID, err = r.IPAM.NodeIDFromPodIP(backend.IP)
+					if err != nil {
+						r.Log.Warnf("Error by extracting node ID from pod ID: %v", err)
+						continue
+					}
+				}
+				nodeIP, _, err := r.IPAM.NodeIPAddress(nodeID)
+				if err != nil {
+					r.Log.Warnf("Error by extracting node IP from node ID %v due to: %v", nodeID, err)
+				} else {
+					rb := &remoteBackend{
+						ip:             backend.IP,
+						nodeID:         nodeID,
+						nodeIP:         nodeIP,
+						useHostNetwork: backend.HostNetwork,
+					}
+					remoteBackends[rb.Key()] = rb
 				}
 			}
 		}
 	}
-	return false
+	return localBackends, remoteBackends, hasHostNetworkLocalBackend
 }
 
 // getPodPFRuleChain returns the config of the pod-local iptables rule chain of given chain type -

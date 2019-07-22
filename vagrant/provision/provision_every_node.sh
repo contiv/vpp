@@ -233,3 +233,6 @@ else
     ip link set enp0s8 down
   fi
 fi
+
+# Allow password login from virtualbox, in case guest network is down
+echo "vagrant:vagrant" | chpasswd

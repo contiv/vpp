@@ -155,7 +155,7 @@ func (rndr *Renderer) AddService(service *renderer.ContivService) error {
 }
 
 // UpdateService updates destination-NAT rules for a changed service.
-func (rndr *Renderer) UpdateService(oldService, newService *renderer.ContivService) error {
+func (rndr *Renderer) UpdateService(oldService, newService *renderer.ContivService, otherExistingServices []*renderer.ContivService) error {
 	if rndr.snatOnly {
 		return nil
 	}
@@ -167,7 +167,7 @@ func (rndr *Renderer) UpdateService(oldService, newService *renderer.ContivServi
 
 // DeleteService removes destination-NAT configuration associated with a freshly
 // un-deployed service.
-func (rndr *Renderer) DeleteService(service *renderer.ContivService) error {
+func (rndr *Renderer) DeleteService(service *renderer.ContivService, otherExistingServices []*renderer.ContivService) error {
 	if rndr.snatOnly {
 		return nil
 	}

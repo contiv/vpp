@@ -15,6 +15,7 @@
 package service
 
 import (
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
 	"strings"
 
 	"github.com/contiv/vpp/plugins/statscollector"
@@ -206,6 +207,8 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 		case epmodel.EndpointsKeyword:
 			return true
 		case svcmodel.ServiceKeyword:
+			return true
+		case ipalloc.Keyword:
 			return true
 		default:
 			// unhandled Kubernetes state change

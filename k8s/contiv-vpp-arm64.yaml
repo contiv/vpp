@@ -28,7 +28,7 @@ data:
     tapInterfaceVersion: 2
     tapv2RxRingSize: 256
     tapv2TxRingSize: 256
-    enableGSO: true
+    enableGSO: false
     tcpChecksumOffloadDisabled: true
     STNVersion: 2
     natExternalTraffic: true
@@ -467,8 +467,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: GOVPPMUX_NOSOCK
-              value: "1"
             - name: CONTIV_CONFIG
               value: "/etc/contiv/contiv.conf"
             - name: CONTROLLER_CONFIG

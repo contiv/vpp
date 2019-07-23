@@ -416,6 +416,7 @@ func (sp *ServiceProcessor) renderService(svc *Service, oldContivSvc *renderer.C
 	var err error
 	newContivSvc := svc.GetContivService()
 	newBackends := svc.GetLocalBackends()
+	otherContiveServices := sp.otherContivServices(svc)
 
 	// Render service.
 	if newContivSvc != nil {
@@ -427,7 +428,7 @@ func (sp *ServiceProcessor) renderService(svc *Service, oldContivSvc *renderer.C
 			}
 		} else {
 			for _, renderer := range sp.renderers {
-				if err = renderer.UpdateService(oldContivSvc, newContivSvc); err != nil {
+				if err = renderer.UpdateService(oldContivSvc, newContivSvc, otherContiveServices); err != nil {
 					return err
 				}
 			}
@@ -435,7 +436,7 @@ func (sp *ServiceProcessor) renderService(svc *Service, oldContivSvc *renderer.C
 	} else {
 		if oldContivSvc != nil {
 			for _, renderer := range sp.renderers {
-				if err = renderer.DeleteService(oldContivSvc); err != nil {
+				if err = renderer.DeleteService(oldContivSvc, otherContiveServices); err != nil {
 					return err
 				}
 			}
@@ -493,6 +494,19 @@ func (sp *ServiceProcessor) renderService(svc *Service, oldContivSvc *renderer.C
 	}
 
 	return err
+}
+
+// otherContivServices retrieves all existing ContivService-s except the one given as parameter <exceludeService>
+func (sp *ServiceProcessor) otherContivServices(excludedService *Service) []*renderer.ContivService {
+	otherServices := make([]*renderer.ContivService, 0, len(sp.services))
+	for _, service := range sp.services {
+		if service != excludedService {
+			if contivService := service.GetContivService(); contivService != nil {
+				otherServices = append(otherServices, contivService)
+			}
+		}
+	}
+	return otherServices
 }
 
 // renderNodePorts re-renders all services with a node port.

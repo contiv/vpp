@@ -838,9 +838,23 @@ func (i *IPAM) ReleasePodIPs(podID podmodel.ID) error {
 
 	delete(i.assignedPodIPs, allocation.mainIP.String())
 	for _, ip := range allocation.customIfIPs {
+		i.Log.Infof("Released custom interface IP %v for pod ID %v", ip, podID)
 		delete(i.assignedPodIPs, ip.String())
 	}
-	// TODO: release pod allocation from ETCD
+	if len(allocation.customIfIPs) > 0 {
+		// release pod allocation from ETCD
+		db, err := i.getDBBroker()
+		if err != nil {
+			i.Log.Errorf("Unable to erase persisted pod custom interface IP allocation: %v", err)
+			return err
+		}
+		key := ipalloc.Key(podID.Name, podID.Namespace)
+		_, err = db.Delete(key)
+		if err != nil {
+			i.Log.Errorf("Unable to erase persisted pod custom interface IP allocation: %v", err)
+			return err
+		}
+	}
 
 	i.logAssignedPodIPPool()
 	return nil

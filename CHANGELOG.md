@@ -1,3 +1,17 @@
+# Release v3.2.1 (2019-07-24)
+
+### VPP
+ - version **v19.04** (latest stable/1904)
+
+### Bugfixes
+ - fixed GSO (Generic Segmentation Offload) issue on VPP
+ - fixed an SRv6 k8s service implementation issue
+
+### Known Issues
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
 # Release v3.2.0 (2019-07-02)
 
 ### VPP

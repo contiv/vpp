@@ -1,0 +1,52 @@
+---
+# This config maps tells the vpp-agent running in the memif-pod how to connect to ETCD
+# from where the VPP agent gets its memif configuration.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: etcd-cfg
+  labels:
+    name: etcd-cfg
+  namespace: default
+data:
+  etcd.conf: |
+    insecure-transport: true
+    dial-timeout: 10000000000
+    allow-delayed-start: true
+    endpoints:
+      - "contiv-etcd.kube-system.svc.cluster.local:12379"
+
+---
+# Memif pod definition. Pod is connected with one additional memif interface
+# in the "default" pod network = IP address assigned from the standard pod subnet.
+# The "service-endpoint-if" annotation tells Contiv to route all k8s service endpoint traffic
+# destined to this pod towards the memif interfaces instead of the primary pod interface.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memif-pod
+  annotations:
+    contivpp.io/custom-if: memif1/memif
+    contivpp.io/service-endpoint-if: memif1
+    contivpp.io/microservice-label: memif-pod
+  labels:
+    app: memif-pod
+spec:
+  containers:
+    - name: vpp-agent
+      image: ligato/vpp-agent:latest
+      env:
+        - name: ETCD_CONFIG
+          value: "/etc/etcd/etcd.conf"
+        - name: MICROSERVICE_LABEL
+          value: memif-pod
+      resources:
+        limits:
+          contivpp.io/memif: 1
+      volumeMounts:
+        - name: etcd-cfg
+          mountPath: /etc/etcd
+  volumes:
+    - name: etcd-cfg
+      configMap:
+        name: etcd-cfg

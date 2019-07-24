@@ -8,6 +8,7 @@
  - fixed an SRv6 k8s service implementation issue
 
 ### Known Issues
+ - GSO does not work correctly with SRv6
  - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
    this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
 

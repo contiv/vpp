@@ -8,5 +8,5 @@ spec:
   selector:
     app: memif-pod
   ports:
-  - protocol: TCP
-    port: 80
+    - protocol: TCP
+      port: 80

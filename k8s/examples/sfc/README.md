@@ -13,10 +13,10 @@ There are 2 demo scenarios available in this folder:
 - [Linux CNFs](#deployment-1---linux-cnfs): each CNF pod is connected with one additional 
 tap interface  (see [cnfs-linux.yaml](cnfs-linux.yaml))
 - [VPP CNFs](#deployment-2---vpp-cnfs): each CNF pod runs its own VPP instance and is 
-connected with one additional memif interface (see [cnfs-vpp.yaml](cnfs-vpp.yaml))
+connected with one or two additional memif interfaces (see [cnfs-vpp.yaml](cnfs-vpp.yaml))
  
-In both cases, a service function chain interconnecting the 2 pods is deployed.
-The extra tap/memif interfaces between the 2 pods are inter-connected on L2 layer,
+In both cases, a service function chain interconnecting the pods is deployed.
+The extra tap/memif interfaces between the pods are inter-connected on L2 layer,
 using a l2 cross-connect on the vswitch VPP 
 (see [sfc-linux.yaml](sfc-linux.yaml) / [sfc-vpp.yaml](sfc-vpp.yaml)).
 
@@ -138,12 +138,13 @@ $ kubectl exec -it linux-cnf2 sh
 
 
 ## Deployment 2 - VPP CNFs
-This demo deploys 2 CNF pods, each with one additional memif interface. 
-There is a VPP running inside of each one of the CNF pods, which is automatically
+This demo deploys 3 CNF pods, CNF1 and CNF3 with one additional memif interface,
+CNF2 with two additional memif interfaces.
+There is a VPP running inside each one of the CNF pods, which is automatically
 configured with the memif interface.
  
-Additionally, a service function chain interconnecting these 2 pods is deployed.
-The memif interfaces between the 2 podes are inter-connected on L2 layer,
+Additionally, a service function chain interconnecting these 3 pods is deployed.
+The memif interfaces between the 3 pods are inter-connected on L2 layer,
 using a l2 cross-connect on the vswitch VPP.
 
 
@@ -156,12 +157,13 @@ kubectl apply -f sfc-vpp.yaml
 Two CNF pods should start:
 ```
 $ kubectl get pods -o wide
-NAME   READY   STATUS    RESTARTS   AGE   IP         NODE      NOMINATED NODE   READINESS GATES
-default       vpp-cnf1                          1/1     Running   0          4s      10.1.1.7    lubuntu   <none>           <none>
-default       vpp-cnf2                          1/1     Running   0          4s      10.1.1.6    lubuntu   <none>           <none>
+NAMESPACE     NAME                       READY   STATUS    RESTARTS   AGE   IP          NODE   
+default       vpp-cnf1                   1/1     Running   0          5s    10.1.1.4    lubuntu
+default       vpp-cnf2                   1/1     Running   0          5s    10.1.1.5    lubuntu
+default       vpp-cnf3                   1/1     Running   0          4s    10.1.1.6    lubuntu 
 ```
 
-In VPP vswitch CLI console, you should see 2 memif interfaces interconnected:
+In VPP vswitch CLI console, you should see 4 memif interfaces interconnected:
 ```
 $ sudo vppctl
     _______    _        _   _____  ___ 
@@ -173,12 +175,16 @@ vpp# sh inter addr
 ...
 memif1/0 (up):
   L2 xconnect memif2/0
+memif1/1 (up):
+  L2 xconnect memif3/0
 memif2/0 (up):
   L2 xconnect memif1/0
+memif3/0 (up):
+  L2 xconnect memif1/1
 ...
 ```
 
-You can also connect to one of the two CNF VPP and verify that 
+You can also connect to any of the three CNF VPPs and verify that 
 the memif interfaces are connected:
 ```
 $ kubectl exec -it vpp-cnf1 -- vppctl -s :5002
@@ -196,9 +202,22 @@ memif0/0                          1      up          9000/0/0/0
 Since the memif interfaces of the CNF pods were configured in "stub" network 
 (see [cnfs-vpp.yaml](cnfs-vpp.yaml)), the memif interfaces were not configured 
 with any IP address. To verify that the two CNFs are really interconnected
-on L2 level, let's assign an IP address to one of them and send a ping to a non-existing
+on L2 level, let's configure cross-connect between memif interfaces in CNF2, 
+assign an IP address to memif interface in CNF1 and send a ping to a non-existing
 IP address within that subnet. We should see some dropped packets (ARP requests) 
-on the other CNF VPP:
+on the CNF3 VPP:
+
+CNF2:
+```
+$ kubectl exec -it vpp-cnf2 -- vppctl -s :5002
+    _______    _        _   _____  ___ 
+ __/ __/ _ \  (_)__    | | / / _ \/ _ \
+ _/ _// // / / / _ \   | |/ / ___/ ___/
+ /_/ /____(_)_/\___/   |___/_/  /_/    
+
+vpp# set interface l2 xconnect memif0/0 memif0/1
+vpp# set interface l2 xconnect memif0/1 memif0/0       
+```
 
 CNF 1:
 ```
@@ -210,11 +229,13 @@ $ kubectl exec -it vpp-cnf1 -- vppctl -s :5002
 
 vpp# set interface ip address memif0/0 1.2.3.4/24
 vpp# ping 1.2.3.5
+
+Statistics: 5 sent, 0 received, 100% packet loss
 ```
 
-CNF2:
+CNF3:
 ```
-$ kubectl exec -it vpp-cnf2 -- vppctl -s :5002
+$ kubectl exec -it vpp-cnf3 -- vppctl -s :5002
     _______    _        _   _____  ___ 
  __/ __/ _ \  (_)__    | | / / _ \/ _ \
  _/ _// // / / / _ \   | |/ / ___/ ___/

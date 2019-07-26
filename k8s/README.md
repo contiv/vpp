@@ -58,6 +58,7 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
       3. `nooverlay`: Using none of the previous mentioned overlays and route traffic using routing tables/etc., e.g. if the nodes are on the same L2 network.
     - `useSRv6ForServices`: use SRv6(IPv6) for k8s service (this handles only packet from service client to backend, but 
     in case of response packet, other networking settings handle it because it is normal pod/host-to-pod/host connectivity)
+    - `useDX6ForSrv6NodetoNodeTransport`: enable usage of DX6 instead of DT6 for node-to-node communication (only for pod-to-pod case with full IPv6 environment), default is false
     - `useTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP and VPP-to-Host interconnection
     - `tAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
       for a faster, virtio-based, VPP TAPv2 interface (default);

@@ -15,8 +15,10 @@
 package service
 
 import (
-	"git.fd.io/govpp.git/api"
 	"strings"
+
+	"git.fd.io/govpp.git/api"
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
 
 	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/cn-infra/infra"
@@ -224,6 +226,8 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 		case epmodel.EndpointsKeyword:
 			return true
 		case svcmodel.ServiceKeyword:
+			return true
+		case ipalloc.Keyword:
 			return true
 		default:
 			// unhandled Kubernetes state change

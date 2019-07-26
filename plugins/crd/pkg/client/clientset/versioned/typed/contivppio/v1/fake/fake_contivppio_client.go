@@ -30,6 +30,10 @@ func (c *FakeContivppV1) CustomNetworks(namespace string) v1.CustomNetworkInterf
 	return &FakeCustomNetworks{c, namespace}
 }
 
+func (c *FakeContivppV1) ExternalInterfaces(namespace string) v1.ExternalInterfaceInterface {
+	return &FakeExternalInterfaces{c, namespace}
+}
+
 func (c *FakeContivppV1) ServiceFunctionChains(namespace string) v1.ServiceFunctionChainInterface {
 	return &FakeServiceFunctionChains{c, namespace}
 }

@@ -44,7 +44,10 @@ import (
 	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/telemetry/v1"
 )
 
-const maxRetries = 5
+const (
+	k8sResyncInterval = 10 * time.Minute
+	maxRetries        = 5
+)
 
 var serverStartTime time.Time
 
@@ -109,7 +112,7 @@ func (c *Controller) Init() error {
 		return err
 	}
 
-	sharedFactory := factory.NewSharedInformerFactory(c.CrdClient, time.Second*30)
+	sharedFactory := factory.NewSharedInformerFactory(c.CrdClient, k8sResyncInterval)
 	c.telemetryInformer = sharedFactory.Telemetry().V1().TelemetryReports()
 	c.telemetryReportLister = c.telemetryInformer.Lister()
 

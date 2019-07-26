@@ -42,7 +42,10 @@ import (
 	"github.com/contiv/vpp/plugins/crd/utils"
 )
 
-const maxRetries = 5
+const (
+	k8sResyncInterval = 10 * time.Minute
+	maxRetries        = 5
+)
 
 var serverStartTime time.Time
 
@@ -99,7 +102,7 @@ func (c *Controller) Init() error {
 		return err
 	}
 
-	sharedFactory := factory.NewSharedInformerFactory(c.CrdClient, time.Second*30)
+	sharedFactory := factory.NewSharedInformerFactory(c.CrdClient, k8sResyncInterval)
 	c.extInterfaceInformer = sharedFactory.Contivpp().V1().ExternalInterfaces()
 	c.extInterfaceLister = c.extInterfaceInformer.Lister()
 

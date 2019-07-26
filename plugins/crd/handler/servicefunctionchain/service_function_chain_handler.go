@@ -169,7 +169,6 @@ func (h *Handler) ObjectUpdated(oldObj, newObj interface{}) {
 // serviceFunctionChainToProto converts service function chain data from the Contiv's own CRD representation
 // to the corresponding protobuf-modelled data format.
 func (h *Handler) serviceFunctionChainToProto(serviceFunctionChain *v1.ServiceFunctionChain) *model.ServiceFunctionChain {
-	h.Log.Info("!!", serviceFunctionChain)
 	chain := &model.ServiceFunctionChain{}
 	chain.Name = serviceFunctionChain.Name
 

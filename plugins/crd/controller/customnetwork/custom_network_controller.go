@@ -40,7 +40,10 @@ import (
 	"reflect"
 )
 
-const maxRetries = 5
+const (
+	k8sResyncInterval = 10 * time.Minute
+	maxRetries        = 5
+)
 
 var serverStartTime time.Time
 
@@ -97,7 +100,7 @@ func (c *Controller) Init() error {
 		return err
 	}
 
-	sharedFactory := factory.NewSharedInformerFactory(c.CrdClient, time.Second*30)
+	sharedFactory := factory.NewSharedInformerFactory(c.CrdClient, k8sResyncInterval)
 	c.customNetworkInformer = sharedFactory.Contivpp().V1().CustomNetworks()
 	c.customNetworkLister = c.customNetworkInformer.Lister()
 

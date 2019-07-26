@@ -71,7 +71,7 @@ type KeyProtoValBroker interface {
 	Put(key string, data proto.Message, opts ...datasync.PutOption) error
 
 	// Delete data under the <key> in ETCD or in any other key-value based data
-	// source.    repeated ExternalInterface externalInterfaces = 5;
+	// source.
 	Delete(key string, opts ...datasync.DelOption) (existed bool, err error)
 
 	// GetValue reads a value from etcd stored under the given key.

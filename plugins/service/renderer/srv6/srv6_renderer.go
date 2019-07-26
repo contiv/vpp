@@ -45,6 +45,7 @@ const (
 )
 
 const (
+	ipv4HostPrefix   = "/32"
 	ipv6HostPrefix   = "/128"
 	ipv6PodSidPrefix = "/128"
 	ipv6AddrAny      = "::"
@@ -199,6 +200,38 @@ func (r *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	return nil
 }
 
+// isIPv6 returns true if the IP address is an IPv6 address, false otherwise.
+func isIPv6(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	return strings.Contains(ip.String(), ":")
+}
+
+func convertIPv4ToIPv6(ip net.IP) net.IP {
+	if ip == nil {
+		return nil
+	}
+
+	if isIPv6(ip) {
+		return ip
+	}
+
+	return ip.To16()
+}
+
+func getHostPrefix(ip net.IP) string {
+	if ip == nil {
+		return ""
+	}
+
+	if isIPv6(ip) {
+		return ipv6HostPrefix
+	}
+
+	return ipv4HostPrefix
+}
+
 // renderService renders Contiv service to VPP configuration.
 // addDelConfig sliceContains KV pairs that should be added/deleted,
 // updateConfig sliceContains KV pair that should be updated.
@@ -257,7 +290,7 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 			Name: "forK8sService-" + service.ID.Namespace + "-" + service.ID.Name, // avoiding "/" to not hit special cases for key handling in vpp-agent
 			Traffic: &vpp_srv6.Steering_L3Traffic_{
 				L3Traffic: &vpp_srv6.Steering_L3Traffic{
-					PrefixAddress:     serviceIP.String() + ipv6HostPrefix,
+					PrefixAddress:     serviceIP.String() + getHostPrefix(serviceIP),
 					InstallationVrfId: r.ContivConf.GetRoutingConfig().PodVRFID,
 				},
 			},
@@ -314,9 +347,10 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 		}
 
 		// adding route from main VRF to pod VRF for cases when service backend should be reachable by service client from other node
+		ip := convertIPv4ToIPv6(backend.ip)
 		route := &vpp_l3.Route{
 			Type:        vpp_l3.Route_INTER_VRF,
-			DstNetwork:  r.IPAM.SidForServicePodLocalsid(backend.ip).String() + ipv6PodSidPrefix,
+			DstNetwork:  r.IPAM.SidForServicePodLocalsid(ip).String() + ipv6PodSidPrefix,
 			VrfId:       r.ContivConf.GetRoutingConfig().MainVRFID,
 			ViaVrfId:    r.ContivConf.GetRoutingConfig().PodVRFID,
 			NextHopAddr: ipv6AddrAny,
@@ -342,11 +376,21 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 			localSID := &vpp_srv6.LocalSID{
 				Sid:               r.IPAM.SidForServicePodLocalsid(backend.ip).String(),
 				InstallationVrfId: r.ContivConf.GetRoutingConfig().PodVRFID,
-				EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-					NextHop:           backend.ip.String(),
-					OutgoingInterface: vppIfName,
-				}},
 			}
+			if r.ContivConf.GetIPAMConfig().UseIPv6 {
+				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
+					EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+						NextHop:           backend.ip.String(),
+						OutgoingInterface: vppIfName,
+					}}
+			} else {
+				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX4{
+					EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
+						NextHop:           backend.ip.String(),
+						OutgoingInterface: vppIfName,
+					}}
+			}
+
 			addDelConfig[models.Key(localSID)] = localSID
 		}
 
@@ -359,7 +403,7 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 				continue
 			}
 			loop := val.(*linux_interfaces.Interface)
-			ip := serviceIP.String() + ipv6HostPrefix
+			ip := serviceIP.String() + getHostPrefix(serviceIP)
 			if oper == serviceAdd {
 				if !sliceContains(loop.IpAddresses, ip) {
 					loop.IpAddresses = append(loop.IpAddresses, ip)
@@ -410,10 +454,19 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 			localSID := &vpp_srv6.LocalSID{
 				Sid:               r.IPAM.SidForServiceHostLocalsid().String(),
 				InstallationVrfId: r.ContivConf.GetRoutingConfig().MainVRFID,
-				EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-					NextHop:           nextHop.String(),
-					OutgoingInterface: r.IPNet.GetHostInterconnectIfName(),
-				}},
+			}
+			if r.ContivConf.GetIPAMConfig().UseIPv6 {
+				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
+					EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+						NextHop:           nextHop.String(),
+						OutgoingInterface: r.IPNet.GetHostInterconnectIfName(),
+					}}
+			} else {
+				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX4{
+					EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
+						NextHop:           nextHop.String(),
+						OutgoingInterface: r.IPNet.GetHostInterconnectIfName(),
+					}}
 			}
 			addDelConfig[models.Key(localSID)] = localSID
 		}
@@ -530,7 +583,7 @@ func (r *Renderer) getServicePortForwardRule(serviceIP net.IP, pf *portForward) 
 		proto = "udp"
 	}
 	return fmt.Sprintf("-d %s -p %s -m %s --dport %d -j REDIRECT --to-ports %d",
-		serviceIP.String()+ipv6HostPrefix, proto, proto, pf.from, pf.to)
+		serviceIP.String()+getHostPrefix(serviceIP), proto, proto, pf.from, pf.to)
 }
 
 // nodeIDFromNodeOrHostIP returns node ID matching with the provided node (VPP) or host (mgmt) IP.

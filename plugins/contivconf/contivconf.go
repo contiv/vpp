@@ -424,6 +424,11 @@ func (c *ContivConf) Init() (err error) {
 			c.ipamConfig.UseIPv6 = false
 		}
 	}
+	// disable GSO for SRv6 - not yet supported by VPP
+	if c.ipamConfig.UseIPv6 && c.config.RoutingConfig.NodeToNodeTransport == SRv6Transport && c.config.EnableGSO {
+		c.Log.Warnf("GSO not supported for SRv6, disabling")
+		c.config.EnableGSO = false
+	}
 
 	// create GoVPP channel for contiv-agent
 	if c.ContivAgentDeps != nil && c.UnitTestDeps == nil {

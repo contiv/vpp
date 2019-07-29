@@ -292,7 +292,7 @@ You can check the pods' connectivity in one of the following ways:
 * Connect to the VPP debug CLI and ping any pod:
 ```
   sudo vppctl
-  vpp# ping 10.1.1.3
+  vpp# ping 10.1.1.3 source loop0
 ```
 * Start busybox and ping any pod:
 ```

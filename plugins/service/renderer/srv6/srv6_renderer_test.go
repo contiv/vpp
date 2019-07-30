@@ -17,6 +17,7 @@ package srv6_test
 import (
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -63,6 +64,7 @@ var (
 	// worker
 	workerIP = net.ParseIP("fe10:f00d::3")
 	pod3IP   = net.ParseIP("2001:0:0:2::1")
+	pod3IPv4 = net.ParseIP("10.1.2.1")
 )
 
 // data is holder all test related data (fixture, tested renderer, result catching srv6Handler mock)
@@ -79,7 +81,70 @@ type data struct {
 func TestBasicService(t *testing.T) {
 	RegisterTestingT(t)
 	retriever := configRetriever.NewMockConfigRetriever()
-	data := initTest("TestBasicService", defaultConfig(), retriever, false)
+	data := initTest("TestBasicService", defaultConfig(false), retriever, false)
+
+	// setup service
+	emptyResync(data)
+	service1 := addServiceMetadata(data, defaultPort)
+	pod1IP := addLocalPod(renderer_testing.Pod1, data, retriever)
+	pod2IP := addLocalPod(renderer_testing.Pod2, data, retriever)
+	assertEmptyVPPAgentConfiguration(data) // checking that nothing gets configured without service having properly set backends
+	addServiceEndpoints(renderer_testing.Pod1, pod1IP, renderer_testing.Pod2, pod2IP, defaultPort, data)
+
+	// check locasids/policy/steering on VPP-agent side
+	localsidForPod1 := assertLocalSid(data.IPAM.SidForServicePodLocalsid(pod1IP), renderer_testing.PodVrfID, pod1IP, renderer_testing.Pod1If, data)
+	localsidForPod2 := assertLocalSid(data.IPAM.SidForServicePodLocalsid(pod2IP), renderer_testing.PodVrfID, pod2IP, renderer_testing.Pod2If, data)
+	Expect(data.srv6Handler.LocalSids).To(HaveLen(2))
+	bsid := assertPolicy(service1, [][]string{
+		{data.IPAM.SidForServicePodLocalsid(pod1IP).String()},
+		{data.IPAM.SidForServicePodLocalsid(pod2IP).String()},
+	}, data)
+	assertSteering(service1, bsid, data)
+
+	// checking redirection routes that moves packet from main vrf to pod vrf (to pod1 backend)
+	routeForPod1 := &vpp_l3.Route{
+		Type:        vpp_l3.Route_INTER_VRF,
+		DstNetwork:  localsidForPod1.Sid + "/128",
+		VrfId:       renderer_testing.MainVrfID,
+		ViaVrfId:    renderer_testing.PodVrfID,
+		NextHopAddr: "::",
+	}
+	routeForPod2 := &vpp_l3.Route{
+		Type:        vpp_l3.Route_INTER_VRF,
+		DstNetwork:  localsidForPod2.Sid + "/128",
+		VrfId:       renderer_testing.MainVrfID,
+		ViaVrfId:    renderer_testing.PodVrfID,
+		NextHopAddr: "::",
+	}
+	Expect(data.routeHandler.Route).To(ContainElement(routeForPod1))
+	Expect(data.routeHandler.Route).To(ContainElement(routeForPod2))
+	Expect(data.routeHandler.Route).To(HaveLen(2))
+
+	// check loop interface for pods
+	loopInterface := &linux_interfaces.Interface{
+		IpAddresses: []string{service1.ClusterIp + "/128"},
+	}
+	Expect(data.interfaceHandler.Interfaces).Should(HaveKeyWithValue("linux-loop-"+renderer_testing.Pod1.Name+"-"+renderer_testing.Pod1.Namespace, loopInterface))
+	Expect(data.interfaceHandler.Interfaces).Should(HaveKeyWithValue("linux-loop-"+renderer_testing.Pod2.Name+"-"+renderer_testing.Pod2.Namespace, loopInterface))
+	Expect(data.interfaceHandler.Interfaces).To(HaveLen(2))
+
+	// check not used port forwarding (service port = backend port)
+	Expect(data.ruleChainHandler.RuleChains).To(BeEmpty())
+
+	// finally remove the service.
+	removeService(data, service1)
+
+	// check service removal on vpp-agent side
+	assertEmptyVPPAgentConfiguration(data)
+
+	// cleanup
+	closeResources(data)
+}
+
+func TestBasicIPv4PodIPv6Service(t *testing.T) {
+	RegisterTestingT(t)
+	retriever := configRetriever.NewMockConfigRetriever()
+	data := initTest("TestBasicService", defaultConfig(true), retriever, false)
 
 	// setup service
 	emptyResync(data)
@@ -142,7 +207,7 @@ func TestBasicService(t *testing.T) {
 func TestServiceWithBackendPortForwarding(t *testing.T) {
 	RegisterTestingT(t)
 	retriever := configRetriever.NewMockConfigRetriever()
-	data := initTest("TestServiceWithBackendPortForwarding", defaultConfig(), retriever, false)
+	data := initTest("TestServiceWithBackendPortForwarding", defaultConfig(false), retriever, false)
 
 	// setup service
 	emptyResync(data)
@@ -167,7 +232,7 @@ func TestServiceWithBackendPortForwarding(t *testing.T) {
 func TestServiceWithHostLocalBackend(t *testing.T) {
 	RegisterTestingT(t)
 	retriever := configRetriever.NewMockConfigRetriever()
-	data := initTest("TestServiceWithHostLocalBackend", defaultConfig(), retriever, false)
+	data := initTest("TestServiceWithHostLocalBackend", defaultConfig(false), retriever, false)
 
 	// setup service
 	emptyResync(data)
@@ -194,7 +259,7 @@ func TestServiceWithHostLocalBackend(t *testing.T) {
 func TestServiceWithRemoteBackend(t *testing.T) {
 	RegisterTestingT(t)
 	retriever := configRetriever.NewMockConfigRetriever()
-	data := initTest("TestServiceWithRemoteBackend", defaultConfig(), retriever, false)
+	data := initTest("TestServiceWithRemoteBackend", defaultConfig(false), retriever, false)
 
 	// setup service
 	emptyResync(data)
@@ -207,6 +272,32 @@ func TestServiceWithRemoteBackend(t *testing.T) {
 	Expect(data.srv6Handler.LocalSids).To(HaveLen(1))
 	bsid := assertPolicy(service1, [][]string{
 		{data.IPAM.SidForServiceNodeLocalsid(workerIP).String(), data.IPAM.SidForServicePodLocalsid(pod3IP).String()}, // path to pod on remote node
+		{data.IPAM.SidForServicePodLocalsid(pod2IP).String()},
+	}, data)
+	assertSteering(service1, bsid, data)
+
+	// cleanup
+	removeService(data, service1)
+	assertEmptyVPPAgentConfiguration(data)
+	closeResources(data)
+}
+
+func TestServiceWithRemoteBackendIPv4(t *testing.T) {
+	RegisterTestingT(t)
+	retriever := configRetriever.NewMockConfigRetriever()
+	data := initTest("TestServiceWithRemoteBackend", defaultConfig(true), retriever, false)
+
+	// setup service
+	emptyResync(data)
+	service1 := addServiceMetadata(data, defaultPort)
+	pod2IP := addLocalPod(renderer_testing.Pod2, data, retriever)
+	addServiceEndpointsInMultipleNodes(renderer_testing.Pod3, pod3IPv4, renderer_testing.WorkerLabel, renderer_testing.Pod2, pod2IP, renderer_testing.MasterLabel, defaultPort, data)
+
+	// check locasids/policy/steering on VPP-agent side
+	assertLocalSid(data.IPAM.SidForServicePodLocalsid(pod2IP), renderer_testing.PodVrfID, pod2IP, renderer_testing.Pod2If, data)
+	Expect(data.srv6Handler.LocalSids).To(HaveLen(1))
+	bsid := assertPolicy(service1, [][]string{
+		{data.IPAM.SidForServiceNodeLocalsid(workerIP).String(), data.IPAM.SidForServicePodLocalsid(pod3IPv4).String()}, // path to pod on remote node
 		{data.IPAM.SidForServicePodLocalsid(pod2IP).String()},
 	}, data)
 	assertSteering(service1, bsid, data)
@@ -232,10 +323,20 @@ func assertLocalSid(sid net.IP, installationVrfId uint32, destIP net.IP, outgoin
 	localsid := &vpp_srv6.LocalSID{
 		Sid:               sid.String(),
 		InstallationVrfId: installationVrfId,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-			OutgoingInterface: outgoingInterface,
-			NextHop:           destIP.String(),
-		}},
+	}
+	if isIPv6(destIP) {
+		localsid.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
+			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+				OutgoingInterface: outgoingInterface,
+				NextHop:           destIP.String(),
+			}}
+	} else {
+		localsid.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX4{
+			EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
+				OutgoingInterface: outgoingInterface,
+				NextHop:           destIP.String(),
+			}}
+
 	}
 	Expect(data.srv6Handler.LocalSids).To(ContainElement(localsid))
 	return localsid
@@ -448,8 +549,16 @@ func newMockIPNet() *ipnet.MockIPNet {
 	return ipNet
 }
 
-func defaultConfig() *config.Config {
-	return &config.Config{
+// isIPv6 returns true if the IP address is an IPv6 address, false otherwise.
+func isIPv6(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	return strings.Contains(ip.String(), ":")
+}
+
+func defaultConfig(ipv4Pod bool) *config.Config {
+	conf := &config.Config{
 		NatExternalTraffic: true,
 		RoutingConfig: config.RoutingConfig{
 			NodeToNodeTransport: contivconf.SRv6Transport,
@@ -470,14 +579,25 @@ func defaultConfig() *config.Config {
 			},
 		},
 		IPAMConfig: config.IPAMConfig{
-			NodeInterconnectDHCP:          false,
-			NodeInterconnectCIDR:          "fe10:f00d::/90",
-			PodSubnetCIDR:                 "2001::/48",
-			PodSubnetOneNodePrefixLen:     64,
-			VPPHostSubnetCIDR:             "2002::/64",
-			VPPHostSubnetOneNodePrefixLen: 112,
-			VxlanCIDR:                     "2005::/112",
-			ServiceCIDR:                   "2096::/110",
+			NodeInterconnectDHCP: false,
+			NodeInterconnectCIDR: "fe10:f00d::/90",
 		},
 	}
+	if ipv4Pod {
+		conf.IPAMConfig.PodSubnetCIDR = "10.1.0.0/16"
+		conf.IPAMConfig.PodSubnetOneNodePrefixLen = 24
+		conf.IPAMConfig.VPPHostSubnetCIDR = "172.30.0.0/16"
+		conf.IPAMConfig.VPPHostSubnetOneNodePrefixLen = 24
+		//conf.IPAMConfig.VxlanCIDR = "192.168.30.0/24"
+		conf.IPAMConfig.ServiceCIDR = "10.96.0.0/24"
+	} else {
+		conf.IPAMConfig.PodSubnetCIDR = "2001::/48"
+		conf.IPAMConfig.PodSubnetOneNodePrefixLen = 64
+		conf.IPAMConfig.VPPHostSubnetCIDR = "2002::/64"
+		conf.IPAMConfig.VPPHostSubnetOneNodePrefixLen = 112
+		//conf.IPAMConfig.VxlanCIDR = "2005::/112"
+		conf.IPAMConfig.ServiceCIDR = "2096::/110"
+	}
+
+	return conf
 }

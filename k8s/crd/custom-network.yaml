@@ -1,0 +1,9 @@
+---
+apiVersion: contivpp.io/v1
+kind: CustomNetwork
+metadata:
+  name: network2
+spec:
+  type: L3    # L2 / L3 / stub
+  subnetCIDR: 10.100.0.0/16
+  subnetOneNodePrefixLen: 24

@@ -31,26 +31,11 @@ type CustomNetwork struct {
 	Spec CustomNetworkSpec `json:"spec"`
 }
 
-// NodeInterface describe config for an interface referenced by logical name on a node
-type NodeInterface struct {
-	Node             string `json:"node"`
-	VppInterfaceName string `json:"vppInterfaceName"`
-	IP               string `json:"IP"`
-}
-
-// ExternalInterface defines mapping between logical name and particular
-// interfaces on nodes
-type ExternalInterface struct {
-	Name  string          `json:"name"`
-	Nodes []NodeInterface `json:"nodes"`
-}
-
 // CustomNetworkSpec is the spec for custom network configuration resource
 type CustomNetworkSpec struct {
-	Type                   string              `json:"type"`
-	SubnetCIDR             string              `json:"subnetCIDR"`
-	SubnetOneNodePrefixLen uint32              `json:"subnetOneNodePrefixLen"`
-	ExternalInterfaces     []ExternalInterface `json:"externalInterfaces"`
+	Type                   string `json:"type"`
+	SubnetCIDR             string `json:"subnetCIDR"`
+	SubnetOneNodePrefixLen uint32 `json:"subnetOneNodePrefixLen"`
 }
 
 // CustomNetworkList is a list of CustomNetwork resources
@@ -60,6 +45,44 @@ type CustomNetworkList struct {
 	meta_v1.ListMeta `json:"metadata"`
 
 	Items []CustomNetwork `json:"items"`
+}
+
+// ExternalInterface is used to store definition of an external interface defined via CRD.
+// It is a logical entity that may mean different physical interfaces on different nodes.
+// +genclient
+// +genclient:noStatus
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ExternalInterface struct {
+	// TypeMeta is the metadata for the resource, like kind and apiversion
+	meta_v1.TypeMeta `json:",inline"`
+	// ObjectMeta contains the metadata for the particular object
+	meta_v1.ObjectMeta `json:"metadata,omitempty"`
+	// Spec is the custom resource spec
+	Spec ExternalInterfaceSpec `json:"spec"`
+}
+
+// ExternalInterfaceSpec is the spec for external interface configuration resource
+type ExternalInterfaceSpec struct {
+	Name  string          `json:"name"`
+	Type  string          `json:"type"`
+	Nodes []NodeInterface `json:"nodes"`
+}
+
+// NodeInterface describe config for an interface referenced by logical name on a node
+type NodeInterface struct {
+	Node             string `json:"node"`
+	VppInterfaceName string `json:"vppInterfaceName"`
+	IP               string `json:"IP"`
+	VLAN             uint32 `json:"VLAN"`
+}
+
+// ExternalInterfaceList is a list of ExternalInterface resources
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ExternalInterfaceList struct {
+	meta_v1.TypeMeta `json:",inline"`
+	meta_v1.ListMeta `json:"metadata"`
+
+	Items []ExternalInterface `json:"items"`
 }
 
 // ServiceFunctionChain define service function chain crd for contiv/vpp
@@ -75,19 +98,20 @@ type ServiceFunctionChain struct {
 	Spec ServiceFunctionChainSpec `json:"spec"`
 }
 
+// ServiceFunctionChainSpec describe service function chain
+type ServiceFunctionChainSpec struct {
+	Network string            `json:"network"`
+	Chain   []ServiceFunction `json:"chain"`
+}
+
 // ServiceFunction describes single segment of the chain
 type ServiceFunction struct {
 	Name            string            `json:"name"`
 	Type            string            `json:"type"`
 	PodSelector     map[string]string `json:"podSelector"`
+	Interface       string            `json:"interface"`
 	InputInterface  string            `json:"inputInterface"`
 	OutputInterface string            `json:"outputInterface"`
-}
-
-// ServiceFunctionChainSpec describe service function chain
-type ServiceFunctionChainSpec struct {
-	Network string            `json:"network"`
-	Chain   []ServiceFunction `json:"chain"`
 }
 
 // ServiceFunctionChainList is a list of ServiceFunctionChain resources

@@ -24,6 +24,8 @@ import (
 type Interface interface {
 	// CustomNetworks returns a CustomNetworkInformer.
 	CustomNetworks() CustomNetworkInformer
+	// ExternalInterfaces returns a ExternalInterfaceInformer.
+	ExternalInterfaces() ExternalInterfaceInformer
 	// ServiceFunctionChains returns a ServiceFunctionChainInformer.
 	ServiceFunctionChains() ServiceFunctionChainInformer
 }
@@ -42,6 +44,11 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // CustomNetworks returns a CustomNetworkInformer.
 func (v *version) CustomNetworks() CustomNetworkInformer {
 	return &customNetworkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// ExternalInterfaces returns a ExternalInterfaceInformer.
+func (v *version) ExternalInterfaces() ExternalInterfaceInformer {
+	return &externalInterfaceInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // ServiceFunctionChains returns a ServiceFunctionChainInformer.

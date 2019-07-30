@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package customnetwork
+package externalinterface
 
 import (
 	"fmt"
-	"github.com/contiv/vpp/plugins/crd/handler"
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio"
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
-	"github.com/contiv/vpp/plugins/crd/utils"
+	"github.com/contiv/vpp/plugins/crd/handler/externalinterface"
+	"reflect"
+	"time"
+
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/logging"
+
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,14 +31,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	k8sCache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"time"
 
-	cn "github.com/contiv/vpp/plugins/crd/handler/customnetwork"
+	"github.com/contiv/vpp/plugins/crd/handler"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	factory "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions"
 	informers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivppio/v1"
 	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/contivppio/v1"
-	"reflect"
+	"github.com/contiv/vpp/plugins/crd/utils"
 )
 
 const (
@@ -57,10 +59,10 @@ type Controller struct {
 	APIClient *apiextcs.Clientset
 
 	queue workqueue.RateLimitingInterface
-	// CustomNetwork CRD specifics
-	customNetworkInformer informers.CustomNetworkInformer
-	customNetworkLister   listers.CustomNetworkLister
-	// event handlers for CustomNetwork CRDs
+	// external interface  CRD specifics
+	extInterfaceInformer informers.ExternalInterfaceInformer
+	extInterfaceLister   listers.ExternalInterfaceLister
+	// event handlers for ExternalInterfaceI CRDs
 	eventHandler handler.Handler
 }
 
@@ -86,13 +88,13 @@ func (c *Controller) Init() error {
 		err   error
 	)
 
-	c.Log.Info("CustomNetwork-Controller: initializing...")
+	c.Log.Info("ExternalInterface-Controller: initializing...")
 
-	crdName := reflect.TypeOf(v1.CustomNetwork{}).Name()
-	err = c.createCRD("customnetworks"+"."+contivppio.GroupName,
+	crdName := reflect.TypeOf(v1.ExternalInterface{}).Name()
+	err = c.createCRD("externalinterfaces"+"."+contivppio.GroupName,
 		contivppio.GroupName,
 		"v1",
-		"customnetworks",
+		"externalinterfaces",
 		crdName)
 
 	if err != nil {
@@ -101,20 +103,20 @@ func (c *Controller) Init() error {
 	}
 
 	sharedFactory := factory.NewSharedInformerFactory(c.CrdClient, k8sResyncInterval)
-	c.customNetworkInformer = sharedFactory.Contivpp().V1().CustomNetworks()
-	c.customNetworkLister = c.customNetworkInformer.Lister()
+	c.extInterfaceInformer = sharedFactory.Contivpp().V1().ExternalInterfaces()
+	c.extInterfaceLister = c.extInterfaceInformer.Lister()
 
 	// Create a new queue in that when the informer gets a resource from listing or watching,
 	// adding the identifying key to the queue for the handler
 	c.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	// Add event handlers to handle the three types of events for resources (add, update, delete)
-	c.customNetworkInformer.Informer().AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
+	c.extInterfaceInformer.Informer().AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			event.key, err = k8sCache.MetaNamespaceKeyFunc(obj)
 			event.eventType = "create"
 			event.resource = obj
-			c.Log.Infof("Add CustomNetwork resource with key: %s", event.key)
+			c.Log.Infof("Add ExternalInterface resource with key: %s", event.key)
 			if err == nil {
 				c.queue.Add(event)
 			}
@@ -124,7 +126,7 @@ func (c *Controller) Init() error {
 			event.resource = newObj
 			event.oldResource = oldObj
 			event.eventType = "update"
-			c.Log.Infof("Update CustomNetwork resource with key: %s", event.key)
+			c.Log.Infof("Update ExternalInterface resource with key: %s", event.key)
 			if err == nil {
 				c.queue.Add(event)
 			}
@@ -133,17 +135,17 @@ func (c *Controller) Init() error {
 			event.key, err = k8sCache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 			event.eventType = "delete"
 			event.resource = obj
-			c.Log.Infof("Delete CustomNetwork resource with key: %s", event.key)
+			c.Log.Infof("Delete ExternalInterface resource with key: %s", event.key)
 			if err == nil {
 				c.queue.Add(event)
 			}
 		},
 	})
-	c.eventHandler = &cn.Handler{
-		Deps: cn.Deps{
+	c.eventHandler = &externalinterface.Handler{
+		Deps: externalinterface.Deps{
 			Log:                c.Log,
 			Publish:            c.Publish,
-			ControllerInformer: c.customNetworkInformer,
+			ControllerInformer: c.extInterfaceInformer,
 		},
 	}
 
@@ -157,10 +159,10 @@ func (c *Controller) Run(ctx <-chan struct{}) {
 	// ignore new items and shutdown when done
 	defer c.queue.ShutDown()
 
-	c.Log.Info("CustomNetwork-Controller: Starting...")
+	c.Log.Info("ExternalInterface-Controller: Starting...")
 
 	// runs the informer to list and watch on a goroutine
-	go c.customNetworkInformer.Informer().Run(ctx)
+	go c.extInterfaceInformer.Informer().Run(ctx)
 
 	// populate resources one after synchronization
 	if !k8sCache.WaitForCacheSync(ctx, c.HasSynced) {
@@ -175,20 +177,20 @@ func (c *Controller) Run(ctx <-chan struct{}) {
 
 // HasSynced indicates when the controller is synced up with the K8s.
 func (c *Controller) HasSynced() bool {
-	return c.customNetworkInformer.Informer().HasSynced()
+	return c.extInterfaceInformer.Informer().HasSynced()
 }
 
 // runWorker processes new items in the queue
 func (c *Controller) runWorker() {
-	c.Log.Info("CustomNetwork-Controller: Running..")
+	c.Log.Info("ExternalInterface-Controller: Running..")
 
 	// invoke processNextItem to fetch and consume the next change
 	// to a watched or listed resource
 	for c.processNextItem() {
-		c.Log.Info("CustomNetwork-Controller-runWorker: processing next item...")
+		c.Log.Info("ExternalInterface-Controller-runWorker: processing next item...")
 	}
 
-	c.Log.Info("CustomNetwork-Controller-runWorker: Completed")
+	c.Log.Info("ExternalInterface-Controller-runWorker: Completed")
 }
 
 // processNextItem retrieves next queued item, acts accordingly for object CRUD
@@ -220,7 +222,7 @@ func (c *Controller) processNextItem() bool {
 }
 
 // processItem processes the next item from the queue and send the event update
-// to the customNetwork event handler
+// to the ExternalInterfaceI event handler
 func (c *Controller) processItem(event Event) error {
 	// process events based on its type
 	switch event.eventType {
@@ -246,12 +248,12 @@ func (c *Controller) processItem(event Event) error {
 
 // Create the CRD resource, ignore error if it already exists
 func (c *Controller) createCRD(FullName, Group, Version, Plural, Name string) error {
-	c.Log.Info("Creating CustomNetwork CRD")
+	c.Log.Info("Creating ExternalInterface CRD")
 
 	var validation *apiextv1beta1.CustomResourceValidation
 	switch Name {
-	case "CustomNetwork":
-		validation = customNetworkValidation()
+	case "ExternalInterface":
+		validation = externalInterfaceValidation()
 	default:
 		validation = &apiextv1beta1.CustomResourceValidation{}
 	}
@@ -276,8 +278,8 @@ func (c *Controller) createCRD(FullName, Group, Version, Plural, Name string) er
 	return err
 }
 
-// customNetworkValidation generates OpenAPIV3 validator for CustomNetwork CRD
-func customNetworkValidation() *apiextv1beta1.CustomResourceValidation {
+// externalInterfaceValidation generates OpenAPIV3 validator for CustomNetwork CRD
+func externalInterfaceValidation() *apiextv1beta1.CustomResourceValidation {
 	validation := &apiextv1beta1.CustomResourceValidation{
 		OpenAPIV3Schema: &apiextv1beta1.JSONSchemaProps{
 			Required: []string{"spec"},
@@ -289,7 +291,7 @@ func customNetworkValidation() *apiextv1beta1.CustomResourceValidation {
 					Properties: map[string]apiextv1beta1.JSONSchemaProps{
 						"type": {
 							Type:    "string",
-							Pattern: "^(L2|L3|stub)$",
+							Pattern: "^(L2|L3)$",
 						},
 					},
 				},

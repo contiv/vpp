@@ -47,6 +47,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		SchemeGroupVersion,
 		&CustomNetwork{},
 		&CustomNetworkList{},
+		&ExternalInterface{},
+		&ExternalInterfaceList{},
 		&ServiceFunctionChain{},
 		&ServiceFunctionChainList{},
 	)

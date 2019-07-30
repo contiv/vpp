@@ -8,7 +8,7 @@ spec:
   chain:
     - name: interface input of the chain
       type: ExternalInterface
-      outputInterface: if-input
+      interface: vlan200-if
 
     - name: firewall CNF
       type: Pod
@@ -26,4 +26,4 @@ spec:
 
     - name: interface output of the chain
       type: ExternalInterface
-      inputInterface: if-output
+      interface: vlan300-if

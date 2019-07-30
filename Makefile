@@ -199,6 +199,7 @@ generate: get-generators
 	cd plugins/crd/handler/nodeconfig && go generate
 	cd plugins/crd/handler/servicefunctionchain && go generate
 	cd plugins/crd/handler/customnetwork && go generate
+	cd plugins/crd/handler/externalinterface && go generate
 
 # Get linter tools
 get-linters:

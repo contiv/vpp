@@ -14,25 +14,25 @@
  * // limitations under the License.
  */
 
-//go:generate protoc -I ./model --gogo_out=plugins=grpc:./model ./model/customnetwork.proto
+//go:generate protoc -I ./model --gogo_out=plugins=grpc:./model ./model/externalinterface.proto
 
-package customnetwork
+package externalinterface
 
 import (
 	"fmt"
+	"reflect"
+	"sync"
+	"time"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
 
-	"reflect"
-	"sync"
-	"time"
-
 	informers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivppio/v1"
 
-	"github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
+	"github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 )
 
@@ -41,7 +41,7 @@ const (
 	maxResyncTimeout = 1000 // maximum timeout between resync attempts, in ms
 )
 
-// Handler handler implements Handler interface,
+// Handler implements external interface CRD handler.
 type Handler struct {
 	Deps
 
@@ -56,11 +56,11 @@ type Handler struct {
 	syncStopCh chan bool
 }
 
-// Deps defines dependencies for NodeConfig CRD Handler.
+// Deps defines dependencies for external interface CRD Handler.
 type Deps struct {
 	Log                logging.Logger
 	Publish            *kvdbsync.Plugin // KeyProtoValWriter does not define Delete
-	ControllerInformer informers.CustomNetworkInformer
+	ControllerInformer informers.ExternalInterfaceInformer
 }
 
 // KeyProtoValBroker defines handler's interface to the key-value data store. It
@@ -82,14 +82,14 @@ type KeyProtoValBroker interface {
 }
 
 // K8sToProtoConverter defines the signature for a function converting k8s
-// objects to custom network protobuf objects.
+// objects to external interface protobuf objects.
 type K8sToProtoConverter func(interface{}) (interface{}, string, bool)
 
 // DsItems defines the structure holding items listed from the data store.
 type DsItems map[string]interface{}
 
 // Init initializes handler configuration
-// CustomNetwork Handler will be taking action on resource CRUD
+// external interface handler will be taking action on resource CRUD
 func (h *Handler) Init() error {
 	ksrPrefix := h.Publish.ServiceLabel.GetAgentPrefix()
 	h.broker = h.Publish.Deps.KvPlugin.NewBroker(ksrPrefix)
@@ -98,12 +98,12 @@ func (h *Handler) Init() error {
 	h.prefix = model.KeyPrefix()
 
 	h.kpc = func(obj interface{}) (interface{}, string, bool) {
-		customNetwork, ok := obj.(*v1.CustomNetwork)
+		externalIf, ok := obj.(*v1.ExternalInterface)
 		if !ok {
-			h.Log.Warn("Failed to cast newly created custom network object")
+			h.Log.Warn("Failed to cast newly created external interface object")
 			return nil, "", false
 		}
-		return h.customNetworkToProto(customNetwork), model.Key(customNetwork.Name), true
+		return h.externalInterfaceToProto(externalIf), model.Key(externalIf.Name), true
 	}
 	return nil
 }
@@ -111,14 +111,14 @@ func (h *Handler) Init() error {
 // ObjectCreated is called when a CRD object is created
 func (h *Handler) ObjectCreated(obj interface{}) {
 	h.Log.Debugf("Object created with value: %v", obj)
-	customNetwork, ok := obj.(*v1.CustomNetwork)
+	externalIf, ok := obj.(*v1.ExternalInterface)
 	if !ok {
-		h.Log.Warn("Failed to cast newly created custom network object")
+		h.Log.Warn("Failed to cast newly created external interface object")
 		return
 	}
 
-	customNetworkProto := h.customNetworkToProto(customNetwork)
-	err := h.Publish.Put(model.Key(customNetwork.GetName()), customNetworkProto)
+	externalIfProto := h.externalInterfaceToProto(externalIf)
+	err := h.Publish.Put(model.Key(externalIf.Name), externalIfProto)
 	if err != nil {
 		h.dsSynced = false
 		h.startDataStoreResync()
@@ -128,17 +128,17 @@ func (h *Handler) ObjectCreated(obj interface{}) {
 // ObjectDeleted is called when a CRD object is deleted
 func (h *Handler) ObjectDeleted(obj interface{}) {
 	h.Log.Debugf("Object deleted with value: %v", obj)
-	customNetwork, ok := obj.(*v1.CustomNetwork)
+	externalIf, ok := obj.(*v1.ExternalInterface)
 	if !ok {
 		h.Log.Warn("Failed to cast delete event")
 		return
 	}
 
-	customNetworkProto := h.customNetworkToProto(customNetwork)
-	_, err := h.Publish.Delete(model.Key(customNetwork.GetName()))
+	externalIfProto := h.externalInterfaceToProto(externalIf)
+	_, err := h.Publish.Delete(model.Key(externalIf.Name))
 	if err != nil {
 		h.Log.WithField("rwErr", err).
-			Warnf("custom network failed to delete item from data store: %v", customNetworkProto)
+			Warnf("failed to delete external interface  from data store: %v", externalIfProto)
 	}
 }
 
@@ -147,18 +147,18 @@ func (h *Handler) ObjectUpdated(oldObj, newObj interface{}) {
 	h.Log.Debugf("Object updated with value: %v", newObj)
 	if !reflect.DeepEqual(oldObj, newObj) {
 
-		h.Log.Debugf("custom network updating item in data store, %v", newObj)
-		customNetwork, ok := newObj.(*v1.CustomNetwork)
+		h.Log.Debugf("external interface updating item in data store, %v", newObj)
+		externalIf, ok := newObj.(*v1.ExternalInterface)
 		if !ok {
 			h.Log.Warn("Failed to cast delete event")
 			return
 		}
 
-		customNetworkProto := h.customNetworkToProto(customNetwork)
-		err := h.Publish.Put(model.Key(customNetwork.GetName()), customNetworkProto)
+		externalIfProto := h.externalInterfaceToProto(externalIf)
+		err := h.Publish.Put(model.Key(externalIf.Name), externalIfProto)
 		if err != nil {
 			h.Log.WithField("rwErr", err).
-				Warnf("custom network failed to update item in data store %v", customNetworkProto)
+				Warnf("failed to update external interface  in data store %v", externalIfProto)
 			h.dsSynced = false
 			h.startDataStoreResync()
 			return
@@ -166,23 +166,30 @@ func (h *Handler) ObjectUpdated(oldObj, newObj interface{}) {
 	}
 }
 
-// customNetworkToProto converts custom-network data from the Contiv's own CRD representation
-// to the corresponding protobuf-modelled data format.
-func (h *Handler) customNetworkToProto(customNetwork *v1.CustomNetwork) *model.CustomNetwork {
-	customNetworkProto := &model.CustomNetwork{}
-	customNetworkProto.Name = customNetwork.Name
-
-	switch customNetwork.Spec.Type {
-	case "L2":
-		customNetworkProto.Type = model.CustomNetwork_L2
-	case "L3":
-		customNetworkProto.Type = model.CustomNetwork_L3
-	case "stub":
-		customNetworkProto.Type = model.CustomNetwork_STUB
+func (h *Handler) externalInterfaceToProto(externalIf *v1.ExternalInterface) *model.ExternalInterface {
+	protoVal := &model.ExternalInterface{
+		Name: externalIf.Name,
 	}
-	customNetworkProto.SubnetCIDR = customNetwork.Spec.SubnetCIDR
-	customNetworkProto.SubnetOneNodePrefix = customNetwork.Spec.SubnetOneNodePrefixLen
-	return customNetworkProto
+	switch externalIf.Spec.Type {
+	case "L2":
+		protoVal.Type = model.ExternalInterface_L2
+	case "L3":
+		protoVal.Type = model.ExternalInterface_L3
+	}
+	for _, ni := range externalIf.Spec.Nodes {
+		protoVal.Nodes = append(protoVal.Nodes, h.nodeInterfaceToProto(ni))
+	}
+	return protoVal
+}
+
+func (h *Handler) nodeInterfaceToProto(nodeIf v1.NodeInterface) *model.ExternalInterface_NodeInterface {
+	protoVal := &model.ExternalInterface_NodeInterface{
+		Node:             nodeIf.Node,
+		VppInterfaceName: nodeIf.VppInterfaceName,
+		Ip:               nodeIf.IP,
+		Vlan:             nodeIf.VLAN,
+	}
+	return protoVal
 }
 
 // listDataStoreItems gets all items of a given type from Etcd
@@ -192,7 +199,7 @@ func (h *Handler) listDataStoreItems() (DsItems, error) {
 	// Retrieve all data items for a given data type (i.e. key prefix)
 	kvi, err := h.broker.ListValues(h.prefix)
 	if err != nil {
-		return dsDump, fmt.Errorf("custom network handler can not get kv iterator, error: %s", err)
+		return dsDump, fmt.Errorf("external interface handler can not get kv iterator, error: %s", err)
 	}
 
 	// Put the retrieved items to a map where an item can be addressed
@@ -203,11 +210,11 @@ func (h *Handler) listDataStoreItems() (DsItems, error) {
 			break
 		}
 		key := kv.GetKey()
-		item := &model.CustomNetwork{}
+		item := &model.ExternalInterface{}
 		err := kv.GetValue(item)
 		if err != nil {
 			h.Log.WithField("Key", key).
-				Errorf("custom network handle failed to get object from data store, error %s", err)
+				Errorf("external interface handle failed to get object from data store, error %s", err)
 		} else {
 			dsDump[key] = item
 		}
@@ -266,7 +273,7 @@ func (h *Handler) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error {
 	return nil
 }
 
-// syncDataStoreWithK8sCache syncs data in etcd with data in custom network crd in
+// syncDataStoreWithK8sCache syncs data in etcd with data in external interface crd in
 // k8s cache. Returns ok if reconciliation is successful, error otherwise.
 func (h *Handler) syncDataStoreWithK8sCache(dsItems DsItems) error {
 	h.dsMutex.Lock()
@@ -274,13 +281,13 @@ func (h *Handler) syncDataStoreWithK8sCache(dsItems DsItems) error {
 
 	// don't do anything unless the K8s cache itself is synced
 	if !h.ControllerInformer.Informer().HasSynced() {
-		return fmt.Errorf("custom network data sync: k8sController not synced")
+		return fmt.Errorf("external interface data sync: k8sController not synced")
 	}
 
 	// Reconcile data store with k8s cache using mark-and-sweep
 	err := h.markAndSweep(dsItems, h.kpc)
 	if err != nil {
-		return fmt.Errorf("customnetwork data sync: mark-and-sweep failed, '%s'", err)
+		return fmt.Errorf("external interface data sync: mark-and-sweep failed, '%s'", err)
 	}
 
 	h.dsSynced = true
@@ -334,10 +341,10 @@ func (h *Handler) startDataStoreResync() {
 					// Try to resync the data store with the K8s cache
 					err := h.syncDataStoreWithK8sCache(dsItemsCopy)
 					if err == nil {
-						h.Log.Info("custom network data sync done")
+						h.Log.Info("external interface data sync done")
 						break Loop
 					}
-					h.Log.Infof("custom network data sync: syncDataStoreWithK8sCache failed, '%s'", err)
+					h.Log.Infof("external interface data sync: syncDataStoreWithK8sCache failed, '%s'", err)
 
 					// Wait before attempting the resync again
 					if abort := h.dataStoreResyncWait(&timeout); abort == true {
@@ -345,7 +352,7 @@ func (h *Handler) startDataStoreResync() {
 					}
 				}
 			}
-			h.Log.Infof("custom network data sync: error listing data store items, '%s'", err)
+			h.Log.Infof("external interface data sync: error listing data store items, '%s'", err)
 
 			// Wait before attempting to list data store items again
 			if abort := h.dataStoreResyncWait(&timeout); abort == true {

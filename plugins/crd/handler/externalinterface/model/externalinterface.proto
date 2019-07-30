@@ -16,24 +16,26 @@ syntax = "proto3";
 
 package model;
 
-// CustomNetwork is used to store definition of custom network defined via CRD.
-message CustomNetwork {
+// ExternalInterface is used to store definition of an external interface defined via CRD.
+// It is a logical entity that may mean different physical interfaces on different nodes.
+message ExternalInterface {
+
+    // logical name of the external interface
+    string name = 1;
+
+    // type of the external interface
     enum Type {
         L2 = 0;
         L3 = 1;
-        STUB = 2;
     }
-
-    // name of the custom network
-    string name = 1;
-
-    // type of the custom network
     Type type = 2;
 
-    // subnet of the custom network
-    string subnetCIDR = 3;
-
-    // prefix length defining network subnet used for each node in the cluster
-    uint32 subnet_one_node_prefix = 4;
-
+    // list of physical interfaces on individual nodes
+    message NodeInterface {
+        string node = 1;
+        string vpp_interface_name = 2;
+        string ip = 3;
+        uint32 vlan = 4;
+    }
+    repeated NodeInterface nodes = 3;
 }

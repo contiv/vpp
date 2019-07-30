@@ -16,6 +16,7 @@ package handler
 
 import (
 	"github.com/contiv/vpp/plugins/crd/handler/customnetwork"
+	"github.com/contiv/vpp/plugins/crd/handler/externalinterface"
 	"github.com/contiv/vpp/plugins/crd/handler/nodeconfig"
 	"github.com/contiv/vpp/plugins/crd/handler/servicefunctionchain"
 	"github.com/contiv/vpp/plugins/crd/handler/telemetry"
@@ -40,6 +41,7 @@ var Map = map[string]interface{}{
 	"telemetry":            &telemetry.Handler{},
 	"nodeConfig":           &nodeconfig.Handler{},
 	"customNetwork":        &customnetwork.Handler{},
+	"externalInterface":    &externalinterface.Handler{},
 	"serviceFunctionChain": &servicefunctionchain.Handler{},
 }
 

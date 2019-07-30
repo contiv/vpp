@@ -46,6 +46,8 @@ func GetObjectMetaData(obj interface{}) meta.ObjectMeta {
 		objectMeta = object.ObjectMeta
 	case *contivppio.CustomNetwork:
 		objectMeta = object.ObjectMeta
+	case *contivppio.ExternalInterface:
+		objectMeta = object.ObjectMeta
 	case *contivppio.ServiceFunctionChain:
 		objectMeta = object.ObjectMeta
 	}

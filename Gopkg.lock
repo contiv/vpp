@@ -11,7 +11,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5b637a006eaafab621767c9cbe8f4e21ca4b81344f93ea442fbed02c8de104c2"
+  digest = "1:dc28236f577d133d64e636a3729738141cd0eb754f6597e9f2fd667ff9338bc5"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
@@ -26,7 +26,7 @@
     "examples/binapi/memclnt",
   ]
   pruneopts = "UT"
-  revision = "4dca07c803308611275f78b490ac0352c1052fe2"
+  revision = "572c0840e77d2c34077a054548e7559cb3670308"
 
 [[projects]]
   branch = "master"
@@ -797,7 +797,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:57e8d04b9ba4b67a41708f762b781e5112589c5834df8cac143abdf9947a165f"
+  digest = "1:357bc5e87652717c592b7523df33ad4b2ed9f036999b5d4866ce3cc892f17925"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -977,7 +977,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1908",
   ]
   pruneopts = "UT"
-  revision = "a38e608f0d79a190b1ebdd1e6835d002beba7da8"
+  revision = "d9c23e1e39946e55390ec5cb65ae45db912b4f94"
 
 [[projects]]
   branch = "master"

@@ -32,6 +32,8 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
+	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	"github.com/contiv/vpp/plugins/devicemanager"
 	"github.com/contiv/vpp/plugins/ipam"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -220,10 +222,17 @@ func (n *IPNet) HandlesEvent(event controller.Event) bool {
 		return true
 	}
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
-		if ksChange.Resource == podmodel.PodKeyword {
+		switch ksChange.Resource {
+		case podmodel.PodKeyword:
 			return true
+		case customnetmodel.Keyword:
+			return true
+		case extifmodel.Keyword:
+			return true
+		default:
+			// unhandled Kubernetes state change
+			return false
 		}
-		return false
 	}
 	if _, isPodCustomIfUpdate := event.(*PodCustomIfUpdate); isPodCustomIfUpdate {
 		return true

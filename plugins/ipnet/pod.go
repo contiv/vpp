@@ -23,10 +23,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/podmanager"
-
 	"github.com/contiv/vpp/plugins/devicemanager"
+	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
@@ -116,12 +116,14 @@ func (n *IPNet) podConnectivityConfig(pod *podmanager.LocalPod) (config controll
 	podIP := n.IPAM.GetPodIP(pod.ID)
 
 	// create VPP to POD interconnect interface
+	var vppInterfaceToPod string
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		// TAP
 		key, vppTap := n.podVPPTap(pod, podIP, "")
 		config[key] = vppTap
 		key, linuxTap := n.podLinuxTAP(pod, podIP, "")
 		config[key] = linuxTap
+		vppInterfaceToPod = vppTap.Name
 	} else {
 		// VETH pair + AF_PACKET
 		key, veth1 := n.podVeth1(pod, podIP, "")
@@ -130,6 +132,7 @@ func (n *IPNet) podConnectivityConfig(pod *podmanager.LocalPod) (config controll
 		config[key] = veth2
 		key, afpacket := n.podAfPacket(pod, podIP, "")
 		config[key] = afpacket
+		vppInterfaceToPod = afpacket.Name
 	}
 
 	// ARP to VPP
@@ -156,6 +159,18 @@ func (n *IPNet) podConnectivityConfig(pod *podmanager.LocalPod) (config controll
 	if n.ContivConf.GetIPAMConfig().UseExternalIPAM {
 		key, route := n.hostToPodRoute(pod)
 		config[key] = route
+	}
+
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport && n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport {
+		// create localsid with DX6 end function (decapsulate and crossconnect to interface of local pod)
+		// -used for pod-to-pod communication
+		podSid := n.IPAM.SidForNodeToNodePodLocalsid(podIP.IP)
+		key, podLocalsid, err := n.srv6DX6PodTunnelEgress(podSid, vppInterfaceToPod, podIP.IP)
+		if err != nil {
+			n.Log.Errorf("can't create egress configuration part of SRv6 node-to-node tunnel ending with DX6 targeting interface to pod: %v", err)
+		} else {
+			config[key] = podLocalsid
+		}
 	}
 
 	return config

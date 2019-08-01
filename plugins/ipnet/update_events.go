@@ -23,6 +23,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/pkg/errors"
 )
 
 // Update is called for:
@@ -76,22 +77,19 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 
 	// pod k8s data change
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
-		if ksChange.Resource == podmodel.PodKeyword && ksChange.NewValue != nil {
-			pod := ksChange.NewValue.(*podmodel.Pod)
-			podID := podmodel.GetID(pod)
-
-			// if there is a pending addPodCustomIfs operation for this pod,
-			// and the pod already has an IP address assigned, process it now
-			if _, pending := n.pendingAddPodCustomIf[podID]; pending && pod.IpAddress != "" {
-				delete(n.pendingAddPodCustomIf, podID)
-				if hasContivCustomIfAnnotation(pod.Annotations) {
-					err = n.EventLoop.PushEvent(&PodCustomIfUpdate{
-						PodID:       podID,
-						Labels:      pod.Labels,
-						Annotations: pod.Annotations,
-					})
+		if ksChange.Resource == podmodel.PodKeyword {
+			var change string
+			if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport && n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport {
+				change, err = n.updateSrv6DX6NodeToNodeTunnel(ksChange, txn)
+				if err != nil {
+					return "", err
 				}
 			}
+
+			if err = n.pushPodCustomIfUpdateEventIfNeeded(ksChange); err != nil {
+				return "", err
+			}
+			return change, nil
 		}
 	}
 
@@ -111,6 +109,67 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 	}
 
 	return "", nil
+}
+
+// updateSrv6DX6NodeToNodeTunnel updates ingress part of SRv6 node-to-node tunnel that leads directly to remote pod (DX6 end function)
+func (n *IPNet) updateSrv6DX6NodeToNodeTunnel(ksChange *controller.KubeStateChange, txn controller.UpdateOperations) (change string, err error) {
+	// get pod with assigned IP address (for cases of just assigning or just removing IP address to/from pod)
+	var pod *podmodel.Pod
+	newPod, _ := ksChange.NewValue.(*podmodel.Pod)
+	prevPod, _ := ksChange.PrevValue.(*podmodel.Pod)
+	if n.isParsableIPAddressAdded(newPod, prevPod) { // just got assigned IP address
+		pod = ksChange.NewValue.(*podmodel.Pod)
+	}
+	if n.isParsableIPAddressAdded(prevPod, newPod) { // just got removed IP address
+		pod = ksChange.PrevValue.(*podmodel.Pod)
+	}
+	if pod == nil { // ignore other state changes
+		return "", nil
+	}
+
+	// adding ingress for tunnel to remote pods
+	if _, isLocal := n.PodManager.GetLocalPods()[podmodel.GetID(pod)]; !isLocal { // ingress of tunnel to remote pod -> ignoring updates of local pods
+		config, err := n.srv6NodeToNodeDX6PodTunnelIngress(pod)
+		if err != nil {
+			return "", errors.Wrapf(err, "can't add SRv6 node-to-node tunnel crossconnecting to pod %+v", podmodel.GetID(pod))
+		}
+		if n.isParsableIPAddressAdded(newPod, prevPod) { // addition of tunnel ingress
+			addToTxn(config, txn)
+			return "adding ingress configuration for SRv6 node-to-node tunnel (DX6 crossconnecting directly to remote pod)", nil
+		}
+		// removal of tunnel ingress
+		controller.DeleteAll(txn, config)
+		return "removing ingress configuration for SRv6 node-to-node tunnel (DX6 crossconnecting directly to remote pod)", nil
+	}
+	return "", nil
+}
+
+// isParsableIPAddressAdded checks whether parsable IP addresses was added to pod in new state
+func (n *IPNet) isParsableIPAddressAdded(podWithNewState *podmodel.Pod, podWithPrevState *podmodel.Pod) bool {
+	return podWithNewState != nil && net.ParseIP(podWithNewState.IpAddress) != nil &&
+		(podWithPrevState == nil || net.ParseIP(podWithPrevState.IpAddress) == nil)
+}
+
+// pushPodCustomIfUpdateEventIfNeeded pushes PodCustomIfUpdate event to event loop when pod KubeState changes in specific manner. Otherwise it does nothing
+func (n *IPNet) pushPodCustomIfUpdateEventIfNeeded(ksChange *controller.KubeStateChange) error {
+	if ksChange.NewValue != nil {
+		pod := ksChange.NewValue.(*podmodel.Pod)
+		podID := podmodel.GetID(pod)
+
+		// if there is a pending addPodCustomIfs operation for this pod,
+		// and the pod already has an IP address assigned, process it now
+		if _, pending := n.pendingAddPodCustomIf[podID]; pending && pod.IpAddress != "" {
+			delete(n.pendingAddPodCustomIf, podID)
+			if hasContivCustomIfAnnotation(pod.Annotations) {
+				return n.EventLoop.PushEvent(&PodCustomIfUpdate{
+					PodID:       podID,
+					Labels:      pod.Labels,
+					Annotations: pod.Annotations,
+				})
+			}
+		}
+	}
+	return nil
 }
 
 // Revert is called for AddPod.

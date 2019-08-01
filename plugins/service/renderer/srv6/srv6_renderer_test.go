@@ -78,6 +78,12 @@ type data struct {
 	ruleChainHandler *handler.RuleChainMockHandler
 }
 
+type podEndPoints struct {
+	pod     podmodel.ID
+	podIP   net.IP
+	podNode string
+}
+
 func TestBasicService(t *testing.T) {
 	RegisterTestingT(t)
 	retriever := configRetriever.NewMockConfigRetriever()
@@ -149,18 +155,19 @@ func TestBasicIPv4PodIPv6Service(t *testing.T) {
 	// setup service
 	emptyResync(data)
 	service1 := addServiceMetadata(data, defaultPort)
-	pod1IP := addLocalPod(renderer_testing.Pod1, data, retriever)
-	pod2IP := addLocalPod(renderer_testing.Pod2, data, retriever)
+	// Type of return pod IP address depends on configuration file
+	pod1IPv4 := addLocalPod(renderer_testing.Pod1, data, retriever)
+	pod2IPv4 := addLocalPod(renderer_testing.Pod2, data, retriever)
 	assertEmptyVPPAgentConfiguration(data) // checking that nothing gets configured without service having properly set backends
-	addServiceEndpoints(renderer_testing.Pod1, pod1IP, renderer_testing.Pod2, pod2IP, defaultPort, data)
+	addServiceEndpoints(renderer_testing.Pod1, pod1IPv4, renderer_testing.Pod2, pod2IPv4, defaultPort, data)
 
 	// check locasids/policy/steering on VPP-agent side
-	localsidForPod1 := assertLocalSid(data.IPAM.SidForServicePodLocalsid(pod1IP), renderer_testing.PodVrfID, pod1IP, renderer_testing.Pod1If, data)
-	localsidForPod2 := assertLocalSid(data.IPAM.SidForServicePodLocalsid(pod2IP), renderer_testing.PodVrfID, pod2IP, renderer_testing.Pod2If, data)
+	localsidForPod1 := assertLocalSid(data.IPAM.SidForServicePodLocalsid(pod1IPv4), renderer_testing.PodVrfID, pod1IPv4, renderer_testing.Pod1If, data)
+	localsidForPod2 := assertLocalSid(data.IPAM.SidForServicePodLocalsid(pod2IPv4), renderer_testing.PodVrfID, pod2IPv4, renderer_testing.Pod2If, data)
 	Expect(data.srv6Handler.LocalSids).To(HaveLen(2))
 	bsid := assertPolicy(service1, [][]string{
-		{data.IPAM.SidForServicePodLocalsid(pod1IP).String()},
-		{data.IPAM.SidForServicePodLocalsid(pod2IP).String()},
+		{data.IPAM.SidForServicePodLocalsid(pod1IPv4).String()},
+		{data.IPAM.SidForServicePodLocalsid(pod2IPv4).String()},
 	}, data)
 	assertSteering(service1, bsid, data)
 
@@ -264,15 +271,18 @@ func TestServiceWithRemoteBackend(t *testing.T) {
 	// setup service
 	emptyResync(data)
 	service1 := addServiceMetadata(data, defaultPort)
-	pod2IP := addLocalPod(renderer_testing.Pod2, data, retriever)
-	addServiceEndpointsInMultipleNodes(renderer_testing.Pod3, pod3IP, renderer_testing.WorkerLabel, renderer_testing.Pod2, pod2IP, renderer_testing.MasterLabel, defaultPort, data)
+	pods := []podEndPoints{
+		{
+			pod:     renderer_testing.Pod3,
+			podIP:   pod3IP,
+			podNode: renderer_testing.WorkerLabel,
+		},
+	}
+	addServiceEndpointsInMultipleNodes(pods, defaultPort, data)
 
 	// check locasids/policy/steering on VPP-agent side
-	assertLocalSid(data.IPAM.SidForServicePodLocalsid(pod2IP), renderer_testing.PodVrfID, pod2IP, renderer_testing.Pod2If, data)
-	Expect(data.srv6Handler.LocalSids).To(HaveLen(1))
 	bsid := assertPolicy(service1, [][]string{
 		{data.IPAM.SidForServiceNodeLocalsid(workerIP).String(), data.IPAM.SidForServicePodLocalsid(pod3IP).String()}, // path to pod on remote node
-		{data.IPAM.SidForServicePodLocalsid(pod2IP).String()},
 	}, data)
 	assertSteering(service1, bsid, data)
 
@@ -290,15 +300,18 @@ func TestServiceWithRemoteBackendIPv4(t *testing.T) {
 	// setup service
 	emptyResync(data)
 	service1 := addServiceMetadata(data, defaultPort)
-	pod2IP := addLocalPod(renderer_testing.Pod2, data, retriever)
-	addServiceEndpointsInMultipleNodes(renderer_testing.Pod3, pod3IPv4, renderer_testing.WorkerLabel, renderer_testing.Pod2, pod2IP, renderer_testing.MasterLabel, defaultPort, data)
+	pods := []podEndPoints{
+		{
+			pod:     renderer_testing.Pod3,
+			podIP:   pod3IPv4,
+			podNode: renderer_testing.WorkerLabel,
+		},
+	}
+	addServiceEndpointsInMultipleNodes(pods, defaultPort, data)
 
 	// check locasids/policy/steering on VPP-agent side
-	assertLocalSid(data.IPAM.SidForServicePodLocalsid(pod2IP), renderer_testing.PodVrfID, pod2IP, renderer_testing.Pod2If, data)
-	Expect(data.srv6Handler.LocalSids).To(HaveLen(1))
 	bsid := assertPolicy(service1, [][]string{
 		{data.IPAM.SidForServiceNodeLocalsid(workerIP).String(), data.IPAM.SidForServicePodLocalsid(pod3IPv4).String()}, // path to pod on remote node
-		{data.IPAM.SidForServicePodLocalsid(pod2IP).String()},
 	}, data)
 	assertSteering(service1, bsid, data)
 
@@ -417,35 +430,28 @@ func createRuleChain(chainType linux_iptables.RuleChain_ChainType, serviceIP str
 }
 
 func addServiceEndpoints(pod1 podmodel.ID, pod1IP net.IP, pod2 podmodel.ID, pod2IP net.IP, port int32, data *data) {
-	addServiceEndpointsInMultipleNodes(pod1, pod1IP, renderer_testing.MasterLabel, pod2, pod2IP, renderer_testing.MasterLabel, port, data)
+	pods := []podEndPoints{
+		{
+			pod:     pod1,
+			podIP:   pod1IP,
+			podNode: renderer_testing.MasterLabel,
+		},
+		{
+			pod:     pod2,
+			podIP:   pod2IP,
+			podNode: renderer_testing.MasterLabel,
+		},
+	}
+	addServiceEndpointsInMultipleNodes(pods, port, data)
 }
 
-func addServiceEndpointsInMultipleNodes(pod1 podmodel.ID, pod1IP net.IP, pod1Node string, pod2 podmodel.ID, pod2IP net.IP, pod2Node string, port int32, data *data) {
+func addServiceEndpointsInMultipleNodes(pods []podEndPoints, port int32, data *data) {
 	eps1 := &epmodel.Endpoints{
 		Name:      "service1",
 		Namespace: renderer_testing.Namespace1,
 		EndpointSubsets: []*epmodel.EndpointSubset{
 			{
-				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
-					{
-						Ip:       pod1IP.String(),
-						NodeName: pod1Node,
-						TargetRef: &epmodel.ObjectReference{
-							Kind:      "Pod",
-							Namespace: pod1.Namespace,
-							Name:      pod1.Name,
-						},
-					},
-					{
-						Ip:       pod2IP.String(),
-						NodeName: pod2Node,
-						TargetRef: &epmodel.ObjectReference{
-							Kind:      "Pod",
-							Namespace: pod2.Namespace,
-							Name:      pod2.Name,
-						},
-					},
-				},
+				Addresses: make([]*epmodel.EndpointSubset_EndpointAddress, len(pods)),
 				Ports: []*epmodel.EndpointSubset_EndpointPort{
 					{
 						Name:     "http",
@@ -455,6 +461,17 @@ func addServiceEndpointsInMultipleNodes(pod1 podmodel.ID, pod1IP net.IP, pod1Nod
 				},
 			},
 		},
+	}
+	for _, pod := range pods {
+		addr := new(epmodel.EndpointSubset_EndpointAddress)
+		addr.Ip = pod.podIP.String()
+		addr.NodeName = pod.podNode
+		addr.TargetRef = &epmodel.ObjectReference{
+			Kind:      "Pod",
+			Namespace: pod.pod.Namespace,
+			Name:      pod.pod.Name,
+		}
+		eps1.EndpointSubsets[0].Addresses = append(eps1.EndpointSubsets[0].Addresses, addr)
 	}
 	updateEv := data.Datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
 	Expect(data.SVCProcessor.Update(updateEv)).To(BeNil())

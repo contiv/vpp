@@ -305,6 +305,15 @@ func (n *IPNet) GetPodCustomIfName(podNamespace, podName, customIfName string) (
 	return ifName, true
 }
 
+// GetExternalIfName returns logical name that corresponds to the specified external interface name and VLAN ID.
+func (n *IPNet) GetExternalIfName(extIfName string, vlan uint32) (ifName string) {
+	if vlan == 0 {
+		return extIfName
+	} else {
+		return n.getSubInterfaceName(extIfName, vlan)
+	}
+}
+
 // GetNodeIP returns the IP address of this node.
 func (n *IPNet) GetNodeIP() (ip net.IP, network *net.IPNet) {
 	return n.nodeIP, n.nodeIPNet

@@ -353,7 +353,7 @@ func (n *IPNet) physicalInterface(name string, ips contivconf.IPsWithNetworks) (
 // subInterface returns configuration for a VLAN subinterface of an interface.
 func (n *IPNet) subInterface(parentIfName string, vlan uint32, ips contivconf.IPsWithNetworks) (key string, config *vpp_interfaces.Interface) {
 	iface := &vpp_interfaces.Interface{
-		Name:    fmt.Sprintf("%s.%d", parentIfName, vlan),
+		Name:    n.getSubInterfaceName(parentIfName, vlan),
 		Type:    vpp_interfaces.Interface_SUB_INTERFACE,
 		Enabled: true,
 		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
@@ -369,6 +369,11 @@ func (n *IPNet) subInterface(parentIfName string, vlan uint32, ips contivconf.IP
 	}
 	key = vpp_interfaces.InterfaceKey(iface.Name)
 	return key, iface
+}
+
+// getSubInterfaceName returns logical name for a VLAN subinterface of an interface.
+func (n *IPNet) getSubInterfaceName(parentIfName string, vlan uint32) string {
+	return fmt.Sprintf("%s.%d", parentIfName, vlan)
 }
 
 // loopbackInterface returns configuration for loopback created when no physical interfaces

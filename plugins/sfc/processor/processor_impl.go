@@ -24,6 +24,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	sfcmodel "github.com/contiv/vpp/plugins/crd/handler/servicefunctionchain/model"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipnet"
@@ -42,6 +43,7 @@ type SFCProcessor struct {
 	/* internal maps */
 	configuredSFCs map[string]*sfcmodel.ServiceFunctionChain // maps sfc name to NB (configured) SFC
 	renderedSFCs   map[string]*sfcmodel.ServiceFunctionChain // maps sfc name to SB (rendered) SFC
+	externalIfs    map[string]*extifmodel.ExternalInterface  // maps external interface name to NB external intf. data
 }
 
 // Deps lists dependencies of SFC Processor.
@@ -65,6 +67,7 @@ func (sp *SFCProcessor) Init() error {
 func (sp *SFCProcessor) reset() {
 	sp.configuredSFCs = make(map[string]*sfcmodel.ServiceFunctionChain)
 	sp.renderedSFCs = make(map[string]*sfcmodel.ServiceFunctionChain)
+	sp.externalIfs = make(map[string]*extifmodel.ExternalInterface)
 }
 
 // AfterInit does nothing for the SFC processor.
@@ -101,6 +104,17 @@ func (sp *SFCProcessor) Update(event controller.Event) error {
 			}
 			pod := k8sChange.PrevValue.(*podmodel.Pod)
 			return sp.processDeletedPod(pod)
+
+		case extifmodel.Keyword:
+			if k8sChange.NewValue != nil {
+				extIf := k8sChange.NewValue.(*extifmodel.ExternalInterface)
+				if k8sChange.PrevValue == nil {
+					return sp.processNewExtInterface(extIf)
+				}
+				return sp.processUpdatedExtInterface(extIf)
+			}
+			extIf := k8sChange.PrevValue.(*extifmodel.ExternalInterface)
+			return sp.processDeletedExtInterface(extIf)
 		}
 	}
 
@@ -118,10 +132,15 @@ func (sp *SFCProcessor) Resync(kubeStateData controller.KubeStateData) error {
 
 	// reset internal state
 	sp.reset()
-
-	// re-build the current state
 	confResyncEv := &renderer.ResyncEventData{}
 
+	// rebuild external interfaces
+	for _, extIfProto := range kubeStateData[extifmodel.Keyword] {
+		extIf := extIfProto.(*extifmodel.ExternalInterface)
+		sp.externalIfs[extIf.Name] = extIf
+	}
+
+	// rebuild SFCs
 	for _, svcProto := range kubeStateData[sfcmodel.Keyword] {
 		sfc := svcProto.(*sfcmodel.ServiceFunctionChain)
 		sp.configuredSFCs[sfc.Name] = sfc
@@ -154,22 +173,7 @@ func (sp *SFCProcessor) Close() error {
 
 // processNewPod handles the event of adding of a new pod.
 func (sp *SFCProcessor) processNewPod(pod *podmodel.Pod) error {
-	// ignore pods without IP (not yet scheduled)
-	if pod.IpAddress == "" {
-		return nil
-	}
-
-	sp.Log.Debugf("New pod: %v", pod)
-
-	podData := sp.PodManager.GetPods()[podmodel.GetID(pod)]
-	if podData == nil {
-		return nil
-	}
-
-	// process SFCs that this pod may be affecting
-	err := sp.processSFCsForPod(podData)
-
-	return err
+	return sp.processUpdatedPod(pod)
 }
 
 // processUpdatedPod handles the event of updating runtime state of a pod.
@@ -179,7 +183,7 @@ func (sp *SFCProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 		return nil
 	}
 
-	sp.Log.Debugf("Update pod: %v", pod)
+	sp.Log.Debugf("New / Updated pod: %v", pod)
 
 	podData := sp.PodManager.GetPods()[podmodel.GetID(pod)]
 	if podData == nil {
@@ -225,6 +229,33 @@ func (sp *SFCProcessor) processUpdatedPodCustomIfs(pod *ipnet.PodCustomIfUpdate)
 	err := sp.processSFCsForPod(podData)
 
 	return err
+}
+
+// processNewExtInterface handles the event of adding of a new external interface.
+func (sp *SFCProcessor) processNewExtInterface(extIf *extifmodel.ExternalInterface) error {
+	return sp.processUpdatedExtInterface(extIf)
+}
+
+// processUpdatedExtInterface handles the event of updating runtime state of an external interface.
+func (sp *SFCProcessor) processUpdatedExtInterface(extIf *extifmodel.ExternalInterface) error {
+
+	sp.Log.Debugf("New / Updated external interface: %+v", extIf)
+
+	sp.externalIfs[extIf.Name] = extIf
+
+	// process SFCs that this ext. interface may be affecting
+	return sp.processSFCsForExtIf(extIf)
+}
+
+// processDeletedExtInterface handles the event of deletion of an external interface.
+func (sp *SFCProcessor) processDeletedExtInterface(extIf *extifmodel.ExternalInterface) error {
+
+	sp.Log.Debugf("Delete external interface: %+v", extIf)
+
+	delete(sp.externalIfs, extIf.Name)
+
+	// process SFCs that this ext. interface may be affecting
+	return sp.processSFCsForExtIf(extIf)
 }
 
 // processNewSFC handles the event of adding a new service function chain.
@@ -338,8 +369,43 @@ func (sp *SFCProcessor) getSFCsReferencingPod(pod *podmanager.Pod) []*sfcmodel.S
 
 	for _, sfc := range sp.configuredSFCs {
 		for _, f := range sfc.Chain {
-			if sp.podMatchesSelector(pod, f.PodSelector) {
+			if f.Type == sfcmodel.ServiceFunctionChain_ServiceFunction_Pod && sp.podMatchesSelector(pod, f.PodSelector) {
 				sp.Log.Debugf("Pod %s matches SFC %s", pod.ID.String(), sfc)
+				matches = append(matches, sfc)
+			}
+		}
+	}
+	return matches
+}
+
+// processSFCsForExtIf process SFCs that may be affected by presence/absence of the specified external interface.
+func (sp *SFCProcessor) processSFCsForExtIf(extIf *extifmodel.ExternalInterface) (err error) {
+	sfcs := sp.getSFCsReferencingExtIf(extIf)
+
+	if len(sfcs) > 1 {
+		sp.Log.Debugf("SFCs affected by the external interface %s: %d", extIf.Name, sfcs)
+	}
+
+	for _, sfc := range sfcs {
+		oldSFC := sp.renderedSFCs[sfc.Name]
+		err = sp.processUpdatedSFC(oldSFC, sfc)
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// getSFCsReferencingExtIf returns all SFCs that are referencing given external interface.
+func (sp *SFCProcessor) getSFCsReferencingExtIf(extIf *extifmodel.ExternalInterface) []*sfcmodel.ServiceFunctionChain {
+	matches := make([]*sfcmodel.ServiceFunctionChain, 0)
+
+	for _, sfc := range sp.configuredSFCs {
+		for _, f := range sfc.Chain {
+			if f.Type == sfcmodel.ServiceFunctionChain_ServiceFunction_ExternalInterface &&
+				(f.Interface == extIf.Name || f.InputInterface == extIf.Name || f.OutputInterface == extIf.Name) {
+				sp.Log.Debugf("Interface %s matches SFC %s", extIf.Name, sfc)
 				matches = append(matches, sfc)
 			}
 		}
@@ -367,8 +433,12 @@ func (sp *SFCProcessor) renderServiceFunctionChain(sfc *sfcmodel.ServiceFunction
 				return nil
 			}
 		case sfcmodel.ServiceFunctionChain_ServiceFunction_ExternalInterface:
-			sp.Log.Warnf("External interfaces not yet supported in SFC, ignoring")
-			// TODO: external interfaces not yet supported - not rendered at all
+			found := sp.renderServiceFunctionInterface(serviceFunc, contivSFC)
+			if !found {
+				sp.Log.Debugf("External interfaces were not found for the service function %v, "+
+					"skipping this SFC", serviceFunc)
+				return nil
+			}
 		}
 	}
 
@@ -381,6 +451,16 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 	sfc *renderer.ContivSFC) bool {
 
 	sfPods := make([]*renderer.PodSF, 0)
+
+	// if only "interface" is defined, render that as both input and output interface
+	inputIf := f.InputInterface
+	outputIf := f.OutputInterface
+	if inputIf == "" {
+		inputIf = f.Interface
+	}
+	if outputIf == "" {
+		outputIf = f.Interface
+	}
 
 	// look for matching pods
 	for podID, pod := range sp.PodManager.GetPods() {
@@ -395,8 +475,8 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 				ID:              podID,
 				NodeID:          nodeID,
 				Local:           isLocal,
-				InputInterface:  f.InputInterface,
-				OutputInterface: f.OutputInterface,
+				InputInterface:  inputIf,
+				OutputInterface: outputIf,
 			})
 		}
 	}
@@ -411,6 +491,62 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 	}
 
 	// no matching pods found
+	return false
+}
+
+// renderServiceFunctionInterface renders a service function element of "external interface" type.
+// Returns true if a matching interface(s) has been found, false otherwise.
+func (sp *SFCProcessor) renderServiceFunctionInterface(f *sfcmodel.ServiceFunctionChain_ServiceFunction,
+	sfc *renderer.ContivSFC) bool {
+
+	sfIfs := make([]*renderer.InterfaceSF, 0)
+
+	// if input or output interface is given instead of just "interface", use those values
+	extIfName := f.Interface
+	if f.Interface == "" && f.InputInterface != "" {
+		extIfName = f.InputInterface
+	}
+	if f.Interface == "" && f.OutputInterface != "" {
+		extIfName = f.OutputInterface
+	}
+
+	// check if an external interface with that name is known
+	extIf, exists := sp.externalIfs[extIfName]
+	if !exists {
+		return false
+	}
+
+	// process the interfaces with given name
+	myNodeName := sp.ServiceLabel.GetAgentLabel()
+	for _, nodeIf := range extIf.Nodes {
+		local := true
+		nodeID := sp.NodeSync.GetNodeID()
+		if nodeIf.Node != myNodeName {
+			local = false
+			node := sp.NodeSync.GetAllNodes()[nodeIf.Node]
+			if node == nil {
+				continue // unknown node
+			}
+			nodeID = node.ID
+		}
+		sfIfs = append(sfIfs, &renderer.InterfaceSF{
+			InterfaceName: nodeIf.VppInterfaceName,
+			VLAN:          nodeIf.Vlan,
+			NodeID:        nodeID,
+			Local:         local,
+		})
+	}
+
+	// if some matching interfaces were found, add into the chain
+	if len(sfIfs) > 0 {
+		sfc.Chain = append(sfc.Chain, &renderer.ServiceFunction{
+			Type:               renderer.ExternalInterface,
+			ExternalInterfaces: sfIfs,
+		})
+		return true
+	}
+
+	// no matching interface found
 	return false
 }
 

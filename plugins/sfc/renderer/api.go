@@ -106,14 +106,24 @@ type ServiceFunction struct {
 	// Pods satisfying the pod selector criteria for this service function.
 	Pods []*PodSF
 
-	// ExternalInterface satisfying the interface selector criteria for this service function.
-	ExternalInterface *InterfaceSF
+	// ExternalInterfaces contains list of interfaces satisfying the interface selector criteria for this service function.
+	ExternalInterfaces []*InterfaceSF
 }
 
 // String converts ServiceFunction into a human-readable string.
 func (sf ServiceFunction) String() string {
 	if sf.Type == ExternalInterface {
-		return fmt.Sprintf("<ExternalInterface: %s>", sf.ExternalInterface.String())
+		if len(sf.ExternalInterfaces) == 1 {
+			return fmt.Sprintf("<ExternalInterface: %s>", sf.ExternalInterfaces[0].String())
+		}
+		ifs := ""
+		for idx, iface := range sf.ExternalInterfaces {
+			ifs += iface.String()
+			if idx < len(sf.Pods)-1 {
+				ifs += ", "
+			}
+		}
+		return fmt.Sprintf("<ExternalInterfaces: %s>", ifs)
 	}
 	if len(sf.Pods) == 1 {
 		return fmt.Sprintf("<Pod: %s>", sf.Pods[0].String())
@@ -125,8 +135,7 @@ func (sf ServiceFunction) String() string {
 			pods += ", "
 		}
 	}
-	pods += ""
-	return fmt.Sprintf("<Pods: %s>", sf.Pods[0].String())
+	return fmt.Sprintf("<Pods: %s>", pods)
 }
 
 // PodSF represents a pod-type service function.
@@ -135,8 +144,8 @@ type PodSF struct {
 	NodeID uint32 // ID of the node where the service function runs
 	Local  bool   // true if this is a node-local pod
 
-	InputInterface  string // name of the interface trough which the traffic enters the pod
-	OutputInterface string // name of the interface using which the traffic leaves the pod
+	InputInterface  string // logical name (as defined in CRD) of the interface trough which the traffic enters the pod
+	OutputInterface string // logical name (as defined in CRD) of the interface using which the traffic leaves the pod
 }
 
 // String converts PodSF into a human-readable string.
@@ -147,7 +156,8 @@ func (pod PodSF) String() string {
 
 // InterfaceSF represents an interface-type service function.
 type InterfaceSF struct {
-	InterfaceName string // name of the interface trough which the traffic flows
+	InterfaceName string // name of the interface (as defined in CRD) to/from which the traffic flows
+	VLAN          uint32 // VLAN ID if this is a subinterface
 	NodeID        uint32 // ID of the node where the interface resides
 	Local         bool   // true if this is a node-local interface
 }

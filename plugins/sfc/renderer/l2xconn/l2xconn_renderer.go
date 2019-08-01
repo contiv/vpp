@@ -162,9 +162,21 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 }
 
 func (rndr *Renderer) getSFInterface(sf *renderer.ServiceFunction, input bool) string {
-	if sf.Type != renderer.Pod {
-		return "" // TODO: implement external interfaces as well
+	if sf.Type == renderer.ExternalInterface {
+		// external interface service function
+		if len(sf.ExternalInterfaces) == 0 {
+			return ""
+		}
+		// find first local interface
+		for _, extIf := range sf.ExternalInterfaces {
+			if extIf.Local {
+				return rndr.IPNet.GetExternalIfName(extIf.InterfaceName, extIf.VLAN)
+			}
+		}
+		// TODO: chain to a remote external interface
 	}
+
+	// pod service function
 	if len(sf.Pods) == 0 {
 		return ""
 	}

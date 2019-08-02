@@ -19,6 +19,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
@@ -44,6 +45,18 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 	if err != nil {
 		wasErr = err
 		n.Log.Error(err)
+	}
+
+	// external interfaces
+	for _, extIfProto := range kubeStateData[extifmodel.Keyword] {
+		extIf := extIfProto.(*extifmodel.ExternalInterface)
+		config, err := n.externalInterfaceConfig(extIf)
+		if err == nil {
+			controller.PutAll(txn, config)
+		} else {
+			wasErr = err
+			n.Log.Error(err)
+		}
 	}
 
 	// pods <-> vswitch

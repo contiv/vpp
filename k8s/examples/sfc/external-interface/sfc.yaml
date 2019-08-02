@@ -1,0 +1,21 @@
+---
+apiVersion: contivpp.io/v1
+kind: ServiceFunctionChain
+metadata:
+  name: vpp-chain
+spec:
+  chain:
+    - name: VLAN 200 interface
+      type: ExternalInterface
+      interface: vlan-200
+
+    - name: CNF
+      type: Pod
+      podSelector:
+        cnf: vpp-cnf
+      inputInterface: memif1
+      outputInterface: memif2
+
+    - name: VLAN 300 interface
+      type: ExternalInterface
+      interface: vlan-300

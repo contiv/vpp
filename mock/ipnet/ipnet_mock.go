@@ -15,6 +15,7 @@
 package ipnet
 
 import (
+	"fmt"
 	"net"
 	"sync"
 
@@ -81,6 +82,14 @@ func (mn *MockIPNet) GetPodIfNames(podNamespace string, podName string) (vppIfNa
 // with specified name and type associated with the given local pod name + namespace.
 func (mn *MockIPNet) GetPodCustomIfName(podNamespace, podName, customIfName string) (ifName string, exists bool) {
 	return "", false
+}
+
+// GetExternalIfName returns logical name that corresponds to the specified external interface name and VLAN ID.
+func (mn *MockIPNet) GetExternalIfName(extIfName string, vlan uint32) (ifName string) {
+	if vlan == 0 {
+		return extIfName
+	}
+	return fmt.Sprintf("%s.%d", extIfName, vlan)
 }
 
 func (mn *MockIPNet) GetPodLoopIfName(podNamespace string, podName string) string {

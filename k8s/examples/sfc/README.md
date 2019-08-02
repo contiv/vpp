@@ -20,6 +20,9 @@ The extra tap/memif interfaces between the pods are inter-connected on L2 layer,
 using a l2 cross-connect on the vswitch VPP 
 (see [sfc-linux.yaml](sfc-linux.yaml) / [sfc-vpp.yaml](sfc-vpp.yaml)).
 
+The third demo, with external interface involved, can be found in the 
+[external-interface subdirectory](external-interface).
+
 ### Limitations
  
 Since SFC implementation in Contiv is still a work in progress, there are still several limitations

@@ -465,11 +465,28 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 	// look for matching pods
 	for podID, pod := range sp.PodManager.GetPods() {
 		if sp.podMatchesSelector(pod, f.PodSelector) {
-			_, isLocal := sp.PodManager.GetLocalPods()[podID]
 			if pod.IPAddress == "" {
 				continue
 			}
 			nodeID, _ := sp.IPAM.NodeIDFromPodIP(net.ParseIP(pod.IPAddress))
+			_, isLocal := sp.PodManager.GetLocalPods()[podID]
+
+			if isLocal {
+				// process interface names to actual pod interface names
+				exists := false
+				if inputIf != "" {
+					inputIf, exists = sp.IPNet.GetPodCustomIfName(pod.ID.Namespace, pod.ID.Name, inputIf)
+					if !exists {
+						continue
+					}
+				}
+				if outputIf != "" {
+					outputIf, exists = sp.IPNet.GetPodCustomIfName(pod.ID.Namespace, pod.ID.Name, outputIf)
+					if !exists {
+						continue
+					}
+				}
+			}
 
 			sfPods = append(sfPods, &renderer.PodSF{
 				ID:              podID,
@@ -530,8 +547,7 @@ func (sp *SFCProcessor) renderServiceFunctionInterface(f *sfcmodel.ServiceFuncti
 			nodeID = node.ID
 		}
 		sfIfs = append(sfIfs, &renderer.InterfaceSF{
-			InterfaceName: nodeIf.VppInterfaceName,
-			VLAN:          nodeIf.Vlan,
+			InterfaceName: sp.IPNet.GetExternalIfName(nodeIf.VppInterfaceName, nodeIf.Vlan),
 			NodeID:        nodeID,
 			Local:         local,
 		})

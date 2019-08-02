@@ -144,8 +144,10 @@ type PodSF struct {
 	NodeID uint32 // ID of the node where the service function runs
 	Local  bool   // true if this is a node-local pod
 
-	InputInterface  string // logical name (as defined in CRD) of the interface trough which the traffic enters the pod
-	OutputInterface string // logical name (as defined in CRD) of the interface using which the traffic leaves the pod
+	// For local pods, interface names contain actual pod interface names which can be used for configuration
+	// without further processing. Non-local pods contain logical names as they came from CRD.
+	InputInterface  string // name of the interface trough which the traffic enters the pod
+	OutputInterface string // name of the interface using which the traffic leaves the pod
 }
 
 // String converts PodSF into a human-readable string.
@@ -156,10 +158,12 @@ func (pod PodSF) String() string {
 
 // InterfaceSF represents an interface-type service function.
 type InterfaceSF struct {
-	InterfaceName string // name of the interface (as defined in CRD) to/from which the traffic flows
-	VLAN          uint32 // VLAN ID if this is a subinterface
-	NodeID        uint32 // ID of the node where the interface resides
-	Local         bool   // true if this is a node-local interface
+	// InterfaceName contains name of the interface to/from which the traffic flows
+	// (can be used for the configuration without further processing).
+	InterfaceName string
+
+	NodeID uint32 // ID of the node where the interface resides
+	Local  bool   // true if this is a node-local interface
 }
 
 // String converts InterfaceSF into a human-readable string.

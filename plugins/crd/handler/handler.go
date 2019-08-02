@@ -34,35 +34,3 @@ type Handler interface {
 	//
 	ObjectUpdated(oldObj, newObj interface{})
 }
-
-// Map maps each event handler function to a name for easily lookup
-var Map = map[string]interface{}{
-	"default":              &Default{},
-	"telemetry":            &telemetry.Handler{},
-	"nodeConfig":           &nodeconfig.Handler{},
-	"customNetwork":        &customnetwork.Handler{},
-	"externalInterface":    &externalinterface.Handler{},
-	"serviceFunctionChain": &servicefunctionchain.Handler{},
-}
-
-// Default handler implements Handler interface
-type Default struct {
-}
-
-// Init initializes handler configuration
-// Do nothing for default handler
-func (d *Default) Init() error {
-	return nil
-}
-
-// ObjectCreated is called when a CRD object is created
-func (d *Default) ObjectCreated(obj interface{}) {
-}
-
-// ObjectDeleted is called when a CRD object is deleted
-func (d *Default) ObjectDeleted(obj interface{}) {
-}
-
-// ObjectUpdated is called when a CRD object is updated
-func (d *Default) ObjectUpdated(oldObj, newObj interface{}) {
-}

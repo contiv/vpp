@@ -14,17 +14,5 @@
 
 package model
 
-import "github.com/contiv/vpp/plugins/ksr/model/ksrkey"
-
 // Keyword defines the keyword identifying NodeConfig data.
 const Keyword = "nodeconfig"
-
-// KeyPrefix return prefix where all node configs are persisted.
-func KeyPrefix() string {
-	return ksrkey.KsrK8sPrefix + "/" + Keyword + "/"
-}
-
-// Key returns the key for configuration of a given node.
-func Key(node string) string {
-	return KeyPrefix() + node
-}

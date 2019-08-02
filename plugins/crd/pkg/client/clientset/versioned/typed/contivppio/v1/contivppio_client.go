@@ -25,6 +25,7 @@ import (
 
 type ContivppV1Interface interface {
 	RESTClient() rest.Interface
+	CustomConfigurationsGetter
 	CustomNetworksGetter
 	ExternalInterfacesGetter
 	ServiceFunctionChainsGetter
@@ -33,6 +34,10 @@ type ContivppV1Interface interface {
 // ContivppV1Client is used to interact with features provided by the contivpp.io group.
 type ContivppV1Client struct {
 	restClient rest.Interface
+}
+
+func (c *ContivppV1Client) CustomConfigurations(namespace string) CustomConfigurationInterface {
+	return newCustomConfigurations(c, namespace)
 }
 
 func (c *ContivppV1Client) CustomNetworks(namespace string) CustomNetworkInterface {

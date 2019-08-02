@@ -26,6 +26,10 @@ type FakeContivppV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeContivppV1) CustomConfigurations(namespace string) v1.CustomConfigurationInterface {
+	return &FakeCustomConfigurations{c, namespace}
+}
+
 func (c *FakeContivppV1) CustomNetworks(namespace string) v1.CustomNetworkInterface {
 	return &FakeCustomNetworks{c, namespace}
 }

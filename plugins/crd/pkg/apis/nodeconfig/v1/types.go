@@ -24,7 +24,6 @@ const (
 	CRDGroup                    string = nodeconfig.GroupName
 	CRDGroupVersion             string = "v1"
 	CRDContivNodeConfigPlural   string = "nodeconfigs"
-	CRDFullContivNodeConfigName string = CRDContivNodeConfigPlural + "." + CRDGroup
 )
 
 // NodeConfig describes contiv node configuration custom resource

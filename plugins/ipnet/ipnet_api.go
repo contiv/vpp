@@ -113,7 +113,7 @@ func (ev *PodCustomIfUpdate) Method() controller.EventMethodType {
 
 // TransactionType is RevertOnFailure.
 func (ev *PodCustomIfUpdate) TransactionType() controller.UpdateTransactionType {
-	return controller.RevertOnFailure
+	return controller.BestEffort
 }
 
 // Direction is forward.

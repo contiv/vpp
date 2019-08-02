@@ -23,6 +23,10 @@ format. The `<network>` part is optional, leaving it unspecified means the defau
 network. Apart from the default pod network, only a special `stub` network is 
 currently supported, which leaves the interface without any IP address and routes pointing to it.
 
+K8s service traffic can be also redirected towards custom interfaces using the `contivpp.io/service-endpoint-if` 
+pod annotation, where the value should refer to the name of a custom interface in the default pod network.
+An example of this feature can be found in the [k8s example folder](../../k8s/examples/memif).
+
 An example of a pod definition that connects a pod with a default interface plus one 
 extra tap interface with the name `tap1` and one extra veth interface with the name `veth1`:
 

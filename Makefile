@@ -188,12 +188,14 @@ get-generators:
 generate: get-generators
 	@echo "# generating sources"
 	cd plugins/nodesync && go generate
+	cd plugins/ipam && go generate
 	cd plugins/podmanager && go generate
 	cd plugins/ksr && go generate
 	cd cmd/contiv-stn && go generate
 	cd plugins/crd/handler/nodeconfig && go generate
 	cd plugins/crd/handler/servicefunctionchain && go generate
 	cd plugins/crd/handler/customnetwork && go generate
+	cd plugins/crd/handler/externalinterface && go generate
 
 # Get linter tools
 get-linters:

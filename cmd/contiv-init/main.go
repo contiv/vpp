@@ -69,6 +69,8 @@ var (
 	etcdCfgFile     = flag.String("etcd-config", defaultEtcdCfgFile, "location of the ETCD config file")
 	boltCfgFile     = flag.String("bolt-config", defaultBoltCfgFile, "location of the Bolt config file")
 	stnServerSocket = flag.String("stn-server-socket", defaultStnServerSocket, "socket file where STN GRPC server listens for connections")
+
+	crashDebugEnabled = os.Getenv("CRASH_DEBUG_ENABLED") != "" // used to debug VPP/agent crashes - would not exit on crash
 )
 
 var logger logging.Logger // global logger
@@ -437,16 +439,24 @@ eventLoop:
 
 		case stat := <-vppStat:
 			if stat == status.Terminated {
-				logger.Error("VPP terminated, stopping contiv-agent")
-				agent.StopAndWait()
-				break eventLoop
+				if crashDebugEnabled {
+					logger.Error("VPP terminated !!!")
+				} else {
+					logger.Error("VPP terminated, stopping contiv-agent")
+					agent.StopAndWait()
+					break eventLoop
+				}
 			}
 
 		case stat := <-agentStat:
 			if stat == status.Terminated {
-				logger.Error("contiv-agent terminated, stopping VPP")
-				vpp.StopAndWait()
-				break eventLoop
+				if crashDebugEnabled {
+					logger.Error("contiv-agent terminated !!!")
+				} else {
+					logger.Error("contiv-agent terminated, stopping VPP")
+					vpp.StopAndWait()
+					break eventLoop
+				}
 			}
 		}
 	}

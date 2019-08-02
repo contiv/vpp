@@ -26,6 +26,7 @@ import (
 type ContivppV1Interface interface {
 	RESTClient() rest.Interface
 	CustomNetworksGetter
+	ExternalInterfacesGetter
 	ServiceFunctionChainsGetter
 }
 
@@ -36,6 +37,10 @@ type ContivppV1Client struct {
 
 func (c *ContivppV1Client) CustomNetworks(namespace string) CustomNetworkInterface {
 	return newCustomNetworks(c, namespace)
+}
+
+func (c *ContivppV1Client) ExternalInterfaces(namespace string) ExternalInterfaceInterface {
+	return newExternalInterfaces(c, namespace)
 }
 
 func (c *ContivppV1Client) ServiceFunctionChains(namespace string) ServiceFunctionChainInterface {

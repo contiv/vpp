@@ -45,6 +45,7 @@ const (
 )
 
 const (
+	ipv4HostPrefix   = "/32"
 	ipv6HostPrefix   = "/128"
 	ipv6PodSidPrefix = "/128"
 	ipv6AddrAny      = "::"
@@ -125,7 +126,7 @@ func (r *Renderer) AddService(service *renderer.ContivService) error {
 
 	txn := r.UpdateTxnFactory(fmt.Sprintf("add service '%v'", service.ID))
 
-	addDelConfig, updateConfig := r.renderService(service, serviceAdd)
+	addDelConfig, updateConfig := r.renderService(service, serviceAdd, nil)
 	controller.PutAll(txn, addDelConfig)
 	controller.PutAll(txn, updateConfig)
 
@@ -133,18 +134,18 @@ func (r *Renderer) AddService(service *renderer.ContivService) error {
 }
 
 // UpdateService updates VPP config for a changed service.
-func (r *Renderer) UpdateService(oldService, newService *renderer.ContivService) error {
+func (r *Renderer) UpdateService(oldService, newService *renderer.ContivService, otherExistingServices []*renderer.ContivService) error {
 	if r.snatOnly {
 		return nil
 	}
 
 	txn := r.UpdateTxnFactory(fmt.Sprintf("update service '%v'", newService.ID))
 
-	addDelConfig, updateConfig := r.renderService(oldService, serviceDel)
+	addDelConfig, updateConfig := r.renderService(oldService, serviceDel, otherExistingServices)
 	controller.DeleteAll(txn, addDelConfig)
 	controller.PutAll(txn, updateConfig)
 
-	addDelConfig, updateConfig = r.renderService(newService, serviceAdd)
+	addDelConfig, updateConfig = r.renderService(newService, serviceAdd, nil)
 	controller.PutAll(txn, addDelConfig)
 	controller.PutAll(txn, updateConfig)
 
@@ -152,14 +153,14 @@ func (r *Renderer) UpdateService(oldService, newService *renderer.ContivService)
 }
 
 // DeleteService removes VPP config associated with a freshly un-deployed service.
-func (r *Renderer) DeleteService(service *renderer.ContivService) error {
+func (r *Renderer) DeleteService(service *renderer.ContivService, otherExistingServices []*renderer.ContivService) error {
 	if r.snatOnly {
 		return nil
 	}
 
 	txn := r.UpdateTxnFactory(fmt.Sprintf("delete service '%v'", service.ID))
 
-	addDelConfig, updateConfig := r.renderService(service, serviceDel)
+	addDelConfig, updateConfig := r.renderService(service, serviceDel, otherExistingServices)
 	controller.DeleteAll(txn, addDelConfig)
 	controller.PutAll(txn, updateConfig)
 
@@ -191,7 +192,7 @@ func (r *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 
 	// add configuration for current services (resync should return desired state, not remove previous state)
 	for _, service := range resyncEv.Services {
-		addDelConfig, updateConfig := r.renderService(service, serviceAdd)
+		addDelConfig, updateConfig := r.renderService(service, serviceAdd, nil)
 		controller.PutAll(txn, addDelConfig)
 		controller.PutAll(txn, updateConfig)
 	}
@@ -199,21 +200,286 @@ func (r *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	return nil
 }
 
+// isIPv6 returns true if the IP address is an IPv6 address, false otherwise.
+func isIPv6(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	return strings.Contains(ip.String(), ":")
+}
+
+func convertIPv4ToIPv6(ip net.IP) net.IP {
+	if ip == nil {
+		return nil
+	}
+
+	if isIPv6(ip) {
+		return ip
+	}
+
+	return ip.To16()
+}
+
+func getHostPrefix(ip net.IP) string {
+	if ip == nil {
+		return ""
+	}
+
+	if isIPv6(ip) {
+		return ipv6HostPrefix
+	}
+
+	return ipv4HostPrefix
+}
+
 // renderService renders Contiv service to VPP configuration.
 // addDelConfig sliceContains KV pairs that should be added/deleted,
 // updateConfig sliceContains KV pair that should be updated.
-func (r *Renderer) renderService(service *renderer.ContivService, oper operation) (
+func (r *Renderer) renderService(service *renderer.ContivService, oper operation, otherExistingServices []*renderer.ContivService) (
 	addDelConfig controller.KeyValuePairs, updateConfig controller.KeyValuePairs) {
 
 	r.Log.Debugf("Rendering %s", service.String())
 
 	addDelConfig = make(controller.KeyValuePairs)
 	updateConfig = make(controller.KeyValuePairs)
+
+	// collecting/transforming needed information
+	localBackends, remoteBackends, hasHostNetworkLocalBackend := r.collectBackendInfo(service)
+	var hostNetworkLocalBackendInOtherServices bool
+	otherServiceLocalBackends := make(map[localBackendKey]*localBackend)
+	if oper == serviceDel {
+		for _, otherService := range otherExistingServices {
+			otherLocalBackends, _, otherHostLocalBackend := r.collectBackendInfo(otherService)
+			hostNetworkLocalBackendInOtherServices = hostNetworkLocalBackendInOtherServices || otherHostLocalBackend
+			for k, v := range otherLocalBackends {
+				otherServiceLocalBackends[k] = v
+			}
+		}
+	}
+
+	r.Log.WithFields(logging.Fields{
+		"service":                    service.ID,
+		"localBackends":              stringForLocalBackends(localBackends),
+		"hasHostNetworkLocalBackend": hasHostNetworkLocalBackend,
+		"remoteBackends":             remoteBackends,
+	}).Debugf("Processing service backends")
+
+	// ignore services without backend (can't create SRv6 policy without segment lists to backends anyway, vppagent would
+	// fail to add such a policy and this is due to VPP not able to create SRv6 policy without at least one segment list)
+	// Note: if backend is added later, service update is triggered and service is recreated (delete old and create new)
+	// so we can safely ignore services without backends
+	if len(localBackends) == 0 && (len(remoteBackends) == 0 || service.TrafficPolicy != renderer.ClusterWide) {
+		info := "traffic policy is ClusterWide, so remote backends pods are accounted for"
+		if service.TrafficPolicy != renderer.ClusterWide {
+			if len(remoteBackends) > 0 {
+				info = "please consider whether you want to use non-ClusterWide traffic policy, because there are some remote backends and no local backends"
+			} else {
+				info = "traffic policy is set to non-ClusterWide traffic policy, but there are no remote backends anyway so it doesn't matter"
+			}
+		}
+		r.Log.Warnf("ignoring service %s because it has no backend pods (%v)", service.ID, info)
+		return
+	}
+
+	serviceIPs := append(service.ClusterIPs.List(), service.ExternalIPs.List()...)
+
+	// steer packets into service's SRv6 policy (one service = one SRv6 policy) (packet entry part)
+	bsid := r.IPAM.BsidForServicePolicy(serviceIPs)
+	for _, serviceIP := range serviceIPs {
+		steering := &vpp_srv6.Steering{
+			Name: "forK8sService-" + service.ID.Namespace + "-" + service.ID.Name, // avoiding "/" to not hit special cases for key handling in vpp-agent
+			Traffic: &vpp_srv6.Steering_L3Traffic_{
+				L3Traffic: &vpp_srv6.Steering_L3Traffic{
+					PrefixAddress:     serviceIP.String() + getHostPrefix(serviceIP),
+					InstallationVrfId: r.ContivConf.GetRoutingConfig().PodVRFID,
+				},
+			},
+			PolicyRef: &vpp_srv6.Steering_PolicyBsid{
+				PolicyBsid: bsid.String(),
+			},
+		}
+		addDelConfig[models.Key(steering)] = steering
+	}
+
+	// create Srv6 policy with segment list for each backend (loadbalancing and packet switching part)
+	segmentLists := make([]*vpp_srv6.Policy_SegmentList, 0)
+	for _, localBackend := range localBackends {
+		var segments []string
+		if localBackend.useHostNetwork {
+			segments = []string{r.IPAM.SidForServiceHostLocalsid().String()}
+		} else {
+			segments = []string{r.IPAM.SidForServicePodLocalsid(localBackend.ip).String()}
+		}
+		segmentLists = append(segmentLists,
+			&vpp_srv6.Policy_SegmentList{
+				Weight:   1,
+				Segments: segments,
+			})
+	}
+	if service.TrafficPolicy == renderer.ClusterWide { // use remote backends only if traffic policy allows it
+		for _, remoteBackend := range remoteBackends {
+			segments := []string{r.IPAM.SidForServiceNodeLocalsid(remoteBackend.nodeIP).String()}
+			if remoteBackend.useHostNetwork {
+				segments = append(segments, r.IPAM.SidForServiceHostLocalsid().String())
+			} else {
+				segments = append(segments, r.IPAM.SidForServicePodLocalsid(remoteBackend.ip).String())
+			}
+			segmentLists = append(segmentLists,
+				&vpp_srv6.Policy_SegmentList{
+					Weight:   1,
+					Segments: segments,
+				})
+		}
+	}
+	policy := &vpp_srv6.Policy{
+		InstallationVrfId: r.ContivConf.GetRoutingConfig().MainVRFID,
+		Bsid:              bsid.String(),
+		SegmentLists:      segmentLists,
+		SprayBehaviour:    false, // loadbalance packets and not duplicate(spray) it to all segment lists
+		SrhEncapsulation:  true,
+	}
+	addDelConfig[models.Key(policy)] = policy
+
+	// create localSIDs/inter-vrf routes/... for local pod backends (after IPv6 routing of packets emitted from policy, localSIDs will catch them in correct node and send to local backend pods)
+	for _, backend := range localBackends {
+		if backend.useHostNetwork {
+			continue // hostNetwork local backends handled separatelly
+		}
+
+		// adding route from main VRF to pod VRF for cases when service backend should be reachable by service client from other node
+		ip := convertIPv4ToIPv6(backend.ip)
+		route := &vpp_l3.Route{
+			Type:        vpp_l3.Route_INTER_VRF,
+			DstNetwork:  r.IPAM.SidForServicePodLocalsid(ip).String() + ipv6PodSidPrefix,
+			VrfId:       r.ContivConf.GetRoutingConfig().MainVRFID,
+			ViaVrfId:    r.ContivConf.GetRoutingConfig().PodVRFID,
+			NextHopAddr: ipv6AddrAny,
+		}
+		key := models.Key(route)
+		addDelConfig[key] = route
+
+		// getting more info about local backend
+		podID, found := r.IPAM.GetPodFromIP(backend.ip)
+		if !found {
+			r.Log.Warnf("Unable to get pod info for backend IP %v", backend.ip)
+			continue
+		}
+		vppIfName, _, loopIfName, exists := r.IPNet.GetPodIfNames(podID.Namespace, podID.Name)
+		if !exists {
+			r.Log.Warnf("Unable to get interfaces for pod %v", podID)
+			continue
+		}
+
+		// adding LocalSID
+		_, usedInOtherService := otherServiceLocalBackends[backend.Key()]
+		if !(oper == serviceDel && usedInOtherService) { // don't delete local sid if it is used in other service
+			localSID := &vpp_srv6.LocalSID{
+				Sid:               r.IPAM.SidForServicePodLocalsid(backend.ip).String(),
+				InstallationVrfId: r.ContivConf.GetRoutingConfig().PodVRFID,
+			}
+			if r.ContivConf.GetIPAMConfig().UseIPv6 {
+				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
+					EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+						NextHop:           backend.ip.String(),
+						OutgoingInterface: vppIfName,
+					}}
+			} else {
+				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX4{
+					EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
+						NextHop:           backend.ip.String(),
+						OutgoingInterface: vppIfName,
+					}}
+			}
+
+			addDelConfig[models.Key(localSID)] = localSID
+		}
+
+		for _, serviceIP := range serviceIPs {
+			// assign serviceIPs on the backend pod loopbacks
+			key := linux_interfaces.InterfaceKey(loopIfName)
+			val := r.ConfigRetriever.GetConfig(key)
+			if val == nil {
+				r.Log.Warnf("Loopback interface for pod %v not found", podID)
+				continue
+			}
+			loop := val.(*linux_interfaces.Interface)
+			ip := serviceIP.String() + getHostPrefix(serviceIP)
+			if oper == serviceAdd {
+				if !sliceContains(loop.IpAddresses, ip) {
+					loop.IpAddresses = append(loop.IpAddresses, ip)
+				}
+			} else {
+				loop.IpAddresses = sliceRemove(loop.IpAddresses, ip)
+			}
+			updateConfig[key] = loop
+
+			// port forward service port to application port in pod
+			pod, exists := r.PodManager.GetLocalPods()[podID]
+			if !exists {
+				r.Log.Warnf("pod %v not found in local pods list", podID)
+				continue
+			}
+			for _, pf := range backend.portForwards {
+				// add / del an iptables rule into pod's PREROUTING chain (external traffic)
+				// and OUTPUT chain (local, pod-to-itself traffic)
+				extRuleCh := r.getPodPFRuleChain(pod, linux_iptables.RuleChain_PREROUTING, updateConfig)
+				localRuleCh := r.getPodPFRuleChain(pod, linux_iptables.RuleChain_OUTPUT, updateConfig)
+				rule := r.getServicePortForwardRule(serviceIP, pf)
+				if oper == serviceAdd {
+					extRuleCh.Rules = sliceAddIfNotExists(extRuleCh.Rules, rule)
+					localRuleCh.Rules = sliceAddIfNotExists(localRuleCh.Rules, rule)
+				} else {
+					extRuleCh.Rules = sliceRemove(extRuleCh.Rules, rule)
+					localRuleCh.Rules = sliceRemove(localRuleCh.Rules, rule)
+				}
+				key = linux_iptables.RuleChainKey(extRuleCh.Name)
+				updateConfig[key] = extRuleCh
+				key = linux_iptables.RuleChainKey(localRuleCh.Name)
+				updateConfig[key] = localRuleCh
+			}
+		}
+	}
+
+	// create localsids/inter-vrf routes for local host backends
+	if hasHostNetworkLocalBackend {
+		// Note: in case of clients of service being local pods, traffic is steered from pod vrf table, but pushed out from
+		// policy in main vrf table -> no need to for inter-vrf table route like in ipv6 renderer
+
+		// from main VRF to host (create localsid with decapsulation and crossconnect to the host (DX6 end function))
+		if !(oper == serviceDel && hostNetworkLocalBackendInOtherServices) { // don't delete host network local sid if it is used in other services
+			nextHop := r.IPAM.HostInterconnectIPInLinux()
+			if r.ContivConf.InSTNMode() {
+				nextHop, _ = r.IPNet.GetNodeIP()
+			}
+			localSID := &vpp_srv6.LocalSID{
+				Sid:               r.IPAM.SidForServiceHostLocalsid().String(),
+				InstallationVrfId: r.ContivConf.GetRoutingConfig().MainVRFID,
+			}
+			if r.ContivConf.GetIPAMConfig().UseIPv6 {
+				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
+					EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+						NextHop:           nextHop.String(),
+						OutgoingInterface: r.IPNet.GetHostInterconnectIfName(),
+					}}
+			} else {
+				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX4{
+					EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
+						NextHop:           nextHop.String(),
+						OutgoingInterface: r.IPNet.GetHostInterconnectIfName(),
+					}}
+			}
+			addDelConfig[models.Key(localSID)] = localSID
+		}
+	}
+
+	return addDelConfig, updateConfig
+}
+
+func (r *Renderer) collectBackendInfo(service *renderer.ContivService) (map[localBackendKey]*localBackend, map[remoteBackendKey]*remoteBackend, bool) {
 	localBackends := make(map[localBackendKey]*localBackend, 0)
 	hasHostNetworkLocalBackend := false
 	remoteBackends := make(map[remoteBackendKey]*remoteBackend, 0)
 
-	// collect info about the backends
 	for servicePortName, servicePort := range service.Ports {
 		for _, backend := range service.Backends[servicePortName] {
 			if backend.Local {
@@ -272,198 +538,7 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 			}
 		}
 	}
-
-	r.Log.WithFields(logging.Fields{
-		"service":                    service.ID,
-		"localBackends":              stringForLocalBackends(localBackends),
-		"hasHostNetworkLocalBackend": hasHostNetworkLocalBackend,
-		"remoteBackends":             remoteBackends,
-	}).Debugf("Processing service backends")
-
-	// ignore services without backend (can't create SRv6 policy without segment lists to backends anyway, vppagent would
-	// fail to add such a policy and this is due to VPP not able to create SRv6 policy without at least one segment list)
-	// Note: if backend is added later, service update is triggered and service is recreated (delete old and create new)
-	// so we can safely ignore services without backends
-	if len(localBackends) == 0 && (len(remoteBackends) == 0 || service.TrafficPolicy != renderer.ClusterWide) {
-		info := "traffic policy is ClusterWide, so remote backends pods are accounted for"
-		if service.TrafficPolicy != renderer.ClusterWide {
-			if len(remoteBackends) > 0 {
-				info = "please consider whether you want to use non-ClusterWide traffic policy, because there are some remote backends and no local backends"
-			} else {
-				info = "traffic policy is set to non-ClusterWide traffic policy, but there are no remote backends anyway so it doesn't matter"
-			}
-		}
-		r.Log.Warnf("ignoring service %s because it has no backend pods (%v)", service.ID, info)
-		return
-	}
-
-	serviceIPs := append(service.ClusterIPs.List(), service.ExternalIPs.List()...)
-
-	// steer packets into service's SRv6 policy (one service = one SRv6 policy) (packet entry part)
-	bsid := r.IPAM.BsidForServicePolicy(serviceIPs)
-	for _, serviceIP := range serviceIPs {
-		steering := &vpp_srv6.Steering{
-			Name: "forK8sService-" + service.ID.Namespace + "-" + service.ID.Name, // avoiding "/" to not hit special cases for key handling in vpp-agent
-			Traffic: &vpp_srv6.Steering_L3Traffic_{
-				L3Traffic: &vpp_srv6.Steering_L3Traffic{
-					PrefixAddress:     serviceIP.String() + ipv6HostPrefix,
-					InstallationVrfId: r.ContivConf.GetRoutingConfig().PodVRFID,
-				},
-			},
-			PolicyRef: &vpp_srv6.Steering_PolicyBsid{
-				PolicyBsid: bsid.String(),
-			},
-		}
-		addDelConfig[models.Key(steering)] = steering
-	}
-
-	// create Srv6 policy with segment list for each backend (loadbalancing and packet switching part)
-	segmentLists := make([]*vpp_srv6.Policy_SegmentList, 0)
-	for _, localBackend := range localBackends {
-		var segments []string
-		if localBackend.useHostNetwork {
-			segments = []string{r.IPAM.SidForServiceHostLocalsid().String()}
-		} else {
-			segments = []string{r.IPAM.SidForServicePodLocalsid(localBackend.ip).String()}
-		}
-		segmentLists = append(segmentLists,
-			&vpp_srv6.Policy_SegmentList{
-				Weight:   1,
-				Segments: segments,
-			})
-	}
-	if service.TrafficPolicy == renderer.ClusterWide { // use remote backends only if traffic policy allows it
-		for _, remoteBackend := range remoteBackends {
-			segments := []string{r.IPAM.SidForServiceNodeLocalsid(remoteBackend.nodeIP).String()}
-			if remoteBackend.useHostNetwork {
-				segments = append(segments, r.IPAM.SidForServiceHostLocalsid().String())
-			} else {
-				segments = append(segments, r.IPAM.SidForServicePodLocalsid(remoteBackend.ip).String())
-			}
-			segmentLists = append(segmentLists,
-				&vpp_srv6.Policy_SegmentList{
-					Weight:   1,
-					Segments: segments,
-				})
-		}
-	}
-	policy := &vpp_srv6.Policy{
-		InstallationVrfId: r.ContivConf.GetRoutingConfig().MainVRFID,
-		Bsid:              bsid.String(),
-		SegmentLists:      segmentLists,
-		SprayBehaviour:    false, // loadbalance packets and not duplicate(spray) it to all segment lists
-		SrhEncapsulation:  true,
-	}
-	addDelConfig[models.Key(policy)] = policy
-
-	// create localSIDs/inter-vrf routes/... for local pod backends (after IPv6 routing of packets emitted from policy, localSIDs will catch them in correct node and send to local backend pods)
-	for _, backend := range localBackends {
-		if backend.useHostNetwork {
-			continue // hostNetwork local backends handled separatelly
-		}
-
-		// adding route from main VRF to pod VRF for cases when service backend should be reachable by service client from other node
-		route := &vpp_l3.Route{
-			Type:        vpp_l3.Route_INTER_VRF,
-			DstNetwork:  r.IPAM.SidForServicePodLocalsid(backend.ip).String() + ipv6PodSidPrefix,
-			VrfId:       r.ContivConf.GetRoutingConfig().MainVRFID,
-			ViaVrfId:    r.ContivConf.GetRoutingConfig().PodVRFID,
-			NextHopAddr: ipv6AddrAny,
-		}
-		key := models.Key(route)
-		addDelConfig[key] = route
-
-		// getting more info about local backend
-		podID, found := r.IPAM.GetPodFromIP(backend.ip)
-		if !found {
-			r.Log.Warnf("Unable to get pod info for backend IP %v", backend.ip)
-			continue
-		}
-		vppIfName, _, loopIfName, exists := r.IPNet.GetPodIfNames(podID.Namespace, podID.Name)
-		if !exists {
-			r.Log.Warnf("Unable to get interfaces for pod %v", podID)
-			continue
-		}
-
-		// adding LocalSID
-		localSID := &vpp_srv6.LocalSID{
-			Sid:               r.IPAM.SidForServicePodLocalsid(backend.ip).String(),
-			InstallationVrfId: r.ContivConf.GetRoutingConfig().PodVRFID,
-			EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-				NextHop:           backend.ip.String(),
-				OutgoingInterface: vppIfName,
-			}},
-		}
-		addDelConfig[models.Key(localSID)] = localSID
-
-		for _, serviceIP := range serviceIPs {
-			// assign serviceIPs on the backend pod loopbacks
-			key := linux_interfaces.InterfaceKey(loopIfName)
-			val := r.ConfigRetriever.GetConfig(key)
-			if val == nil {
-				r.Log.Warnf("Loopback interface for pod %v not found", podID)
-				continue
-			}
-			loop := val.(*linux_interfaces.Interface)
-			ip := serviceIP.String() + ipv6HostPrefix
-			if oper == serviceAdd {
-				if !sliceContains(loop.IpAddresses, ip) {
-					loop.IpAddresses = append(loop.IpAddresses, ip)
-				}
-			} else {
-				loop.IpAddresses = sliceRemove(loop.IpAddresses, ip)
-			}
-			updateConfig[key] = loop
-
-			// port forward service port to application port in pod
-			pod, exists := r.PodManager.GetLocalPods()[podID]
-			if !exists {
-				r.Log.Warnf("pod %v not found in local pods list", podID)
-				continue
-			}
-			for _, pf := range backend.portForwards {
-				// add / del an iptables rule into pod's PREROUTING chain (external traffic)
-				// and OUTPUT chain (local, pod-to-itself traffic)
-				extRuleCh := r.getPodPFRuleChain(pod, linux_iptables.RuleChain_PREROUTING, updateConfig)
-				localRuleCh := r.getPodPFRuleChain(pod, linux_iptables.RuleChain_OUTPUT, updateConfig)
-				rule := r.getServicePortForwardRule(serviceIP, pf)
-				if oper == serviceAdd {
-					extRuleCh.Rules = sliceAddIfNotExists(extRuleCh.Rules, rule)
-					localRuleCh.Rules = sliceAddIfNotExists(localRuleCh.Rules, rule)
-				} else {
-					extRuleCh.Rules = sliceRemove(extRuleCh.Rules, rule)
-					localRuleCh.Rules = sliceRemove(localRuleCh.Rules, rule)
-				}
-				key = linux_iptables.RuleChainKey(extRuleCh.Name)
-				updateConfig[key] = extRuleCh
-				key = linux_iptables.RuleChainKey(localRuleCh.Name)
-				updateConfig[key] = localRuleCh
-			}
-		}
-	}
-
-	// create localsids/inter-vrf routes for local host backends
-	if hasHostNetworkLocalBackend {
-		// Note: in case of clients of service being local pods, traffic is steered from pod vrf table, but pushed out from
-		// policy in main vrf table -> no need to for inter-vrf table route like in ipv6 renderer
-
-		// from main VRF to host (create localsid with decapsulation and crossconnect to the host (DX6 end function))
-		nextHop := r.IPAM.HostInterconnectIPInLinux()
-		if r.ContivConf.InSTNMode() {
-			nextHop, _ = r.IPNet.GetNodeIP()
-		}
-		localSID := &vpp_srv6.LocalSID{
-			Sid:               r.IPAM.SidForServiceHostLocalsid().String(),
-			InstallationVrfId: r.ContivConf.GetRoutingConfig().MainVRFID,
-			EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-				NextHop:           nextHop.String(),
-				OutgoingInterface: r.IPNet.GetHostInterconnectIfName(),
-			}},
-		}
-		addDelConfig[models.Key(localSID)] = localSID
-	}
-
-	return addDelConfig, updateConfig
+	return localBackends, remoteBackends, hasHostNetworkLocalBackend
 }
 
 // getPodPFRuleChain returns the config of the pod-local iptables rule chain of given chain type -
@@ -508,7 +583,7 @@ func (r *Renderer) getServicePortForwardRule(serviceIP net.IP, pf *portForward) 
 		proto = "udp"
 	}
 	return fmt.Sprintf("-d %s -p %s -m %s --dport %d -j REDIRECT --to-ports %d",
-		serviceIP.String()+ipv6HostPrefix, proto, proto, pf.from, pf.to)
+		serviceIP.String()+getHostPrefix(serviceIP), proto, proto, pf.from, pf.to)
 }
 
 // nodeIDFromNodeOrHostIP returns node ID matching with the provided node (VPP) or host (mgmt) IP.

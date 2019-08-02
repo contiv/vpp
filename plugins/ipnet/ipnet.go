@@ -206,6 +206,7 @@ func (n *IPNet) Close() error {
 //   - any Resync event (extra action for NodeIPv4Change)
 //   - AddPod and DeletePod (CNI)
 //   - POD k8s state changes
+//   - POD custom interfaces update
 //   - NodeUpdate for other nodes
 //   - Shutdown event
 func (n *IPNet) HandlesEvent(event controller.Event) bool {
@@ -223,6 +224,9 @@ func (n *IPNet) HandlesEvent(event controller.Event) bool {
 			return true
 		}
 		return false
+	}
+	if _, isPodCustomIfUpdate := event.(*PodCustomIfUpdate); isPodCustomIfUpdate {
+		return true
 	}
 	if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
 		return nodeUpdate.NodeName != n.ServiceLabel.GetAgentLabel()

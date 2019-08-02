@@ -77,7 +77,7 @@ type KeyProtoValBroker interface {
 	// GetValue reads a value from etcd stored under the given key.
 	GetValue(key string, reqObj proto.Message) (found bool, revision int64, err error)
 
-	// List values stored in etcd under the given prefix.
+	// ListValues lists values stored in etcd under the given prefix.
 	ListValues(prefix string) (keyval.ProtoKeyValIterator, error)
 }
 
@@ -182,29 +182,7 @@ func (h *Handler) customNetworkToProto(customNetwork *v1.CustomNetwork) *model.C
 	}
 	customNetworkProto.SubnetCIDR = customNetwork.Spec.SubnetCIDR
 	customNetworkProto.SubnetOneNodePrefix = customNetwork.Spec.SubnetOneNodePrefixLen
-	for _, ei := range customNetwork.Spec.ExternalInterfaces {
-		customNetworkProto.ExternalInterfaces = append(customNetworkProto.ExternalInterfaces,
-			h.externalInterfaceToProto(ei))
-	}
-
 	return customNetworkProto
-}
-
-func (h *Handler) externalInterfaceToProto(externalIf v1.ExternalInterface) *model.CustomNetwork_ExternalInterface {
-	protoVal := &model.CustomNetwork_ExternalInterface{}
-	protoVal.Name = externalIf.Name
-	for _, ni := range externalIf.Nodes {
-		protoVal.Nodes = append(protoVal.Nodes, h.nodeInterfaceToProto(ni))
-	}
-	return protoVal
-}
-
-func (h *Handler) nodeInterfaceToProto(nodeIf v1.NodeInterface) *model.CustomNetwork_NodeInterface {
-	protoVal := &model.CustomNetwork_NodeInterface{}
-	protoVal.Ip = nodeIf.IP
-	protoVal.Node = nodeIf.Node
-	protoVal.VppInterfaceName = nodeIf.VppInterfaceName
-	return protoVal
 }
 
 // listDataStoreItems gets all items of a given type from Etcd

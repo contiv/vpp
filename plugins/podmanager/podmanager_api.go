@@ -31,6 +31,11 @@ type API interface {
 	// The method should be called only from within the main event loop
 	// (not thread safe) and not before the startup resync.
 	GetLocalPods() LocalPods
+
+	// GetPods returns all currently deployed pods (local and non-local) in the cluster.
+	// The method should be called only from within the main event loop
+	// (not thread safe) and not before the startup resync.
+	GetPods() Pods
 }
 
 // LocalPod represents a locally deployed pod (locally = on this node).
@@ -38,26 +43,51 @@ type LocalPod struct {
 	ID               podmodel.ID
 	ContainerID      string
 	NetworkNamespace string
-	Metadata         *PodMetadata
 }
 
-// PodMetadata holds k8s metadata of a pod.
-type PodMetadata struct {
+// Pod represents a pod in the cluster (may or may not be local).
+type Pod struct {
+	ID          podmodel.ID
+	IPAddress   string
 	Labels      map[string]string
 	Annotations map[string]string
 }
 
-// LocalPods is a map of pod-ID -> Pod info.
+// LocalPods is a map of local pod-ID -> Pod info.
 type LocalPods map[podmodel.ID]*LocalPod
 
-// String returns human-readable string representation of pod metadata.
+// Pods is a map of pod-ID -> Pod info.
+type Pods map[podmodel.ID]*Pod
+
+// String returns human-readable string representation of local pod metadata.
 func (p *LocalPod) String() string {
-	return fmt.Sprintf("Pod <ID:%v, Container:%s, Ns:%s, Meta:%v>",
-		p.ID, p.ContainerID, p.NetworkNamespace, p.Metadata)
+	return fmt.Sprintf("Pod <ID:%v, Container:%s, Ns:%s>",
+		p.ID, p.ContainerID, p.NetworkNamespace)
+}
+
+// String returns human-readable string representation of pod metadata.
+func (p *Pod) String() string {
+	return fmt.Sprintf("Pod <ID:%v, IP:%v, Labels:%v, Annotations:%v>",
+		p.ID, p.IPAddress, p.Labels, p.Annotations)
+}
+
+// String returns a string representation of the local pods.
+func (ps LocalPods) String() string {
+	str := "{"
+	first := true
+	for podID, pod := range ps {
+		if !first {
+			str += ", "
+		}
+		first = false
+		str += fmt.Sprintf("%v: %s", podID, pod.String())
+	}
+	str += "}"
+	return str
 }
 
 // String returns a string representation of the pods.
-func (ps LocalPods) String() string {
+func (ps Pods) String() string {
 	str := "{"
 	first := true
 	for podID, pod := range ps {

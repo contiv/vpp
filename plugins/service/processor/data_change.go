@@ -18,34 +18,41 @@ package processor
 
 import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
 // propagateDataChangeEv propagates CHANGE in the K8s configuration into the Processor.
-func (sc *ServiceProcessor) propagateDataChangeEv(event *controller.KubeStateChange) error {
+func (sp *ServiceProcessor) propagateDataChangeEv(event *controller.KubeStateChange) error {
 	switch event.Resource {
 	case epmodel.EndpointsKeyword:
 		if event.NewValue != nil {
 			endpoints := event.NewValue.(*epmodel.Endpoints)
 			if event.PrevValue == nil {
-				return sc.processNewEndpoints(endpoints)
+				return sp.processNewEndpoints(endpoints)
 			}
-			return sc.processUpdatedEndpoints(endpoints)
+			return sp.processUpdatedEndpoints(endpoints)
 		}
 		endpoints := event.PrevValue.(*epmodel.Endpoints)
-		return sc.processDeletedEndpoints(epmodel.GetID(endpoints))
+		return sp.processDeletedEndpoints(epmodel.GetID(endpoints))
 
 	case svcmodel.ServiceKeyword:
 		if event.NewValue != nil {
 			service := event.NewValue.(*svcmodel.Service)
 			if event.PrevValue == nil {
-				return sc.processNewService(service)
+				return sp.processNewService(service)
 			}
-			return sc.processUpdatedService(service)
+			return sp.processUpdatedService(service)
 		}
 		service := event.PrevValue.(*svcmodel.Service)
-		return sc.processDeletedService(svcmodel.GetID(service))
+		return sp.processDeletedService(svcmodel.GetID(service))
+	case ipalloc.Keyword:
+		if event.NewValue != nil {
+			alloc := event.NewValue.(*ipalloc.CustomIPAllocation)
+			return sp.processCustomIPAlloc(alloc)
+		}
+		// no-op for delete, handled in ProcessDeletingPod
 	}
 	return nil
 }

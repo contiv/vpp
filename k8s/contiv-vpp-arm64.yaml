@@ -927,6 +927,7 @@ rules:
       - customresourcedefinitions
       - telemetryreports
       - nodeconfigs
+      - externalinterfaces
       - customnetworks
       - servicefunctionchains
     verbs:

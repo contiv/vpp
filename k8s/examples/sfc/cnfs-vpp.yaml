@@ -49,14 +49,14 @@ spec:
         name: etcd-cfg
 
 ---
-# CNF 2 pod definition. Pod is connected with one additional memif interface
-# in the "stub" network = meaning that it won't have any IP address assigned
+# CNF 2 pod definition. Pod is connected with two additional memif interfaces
+# in the "stub" network = meaning that they won't have any IP address assigned
 apiVersion: v1
 kind: Pod
 metadata:
   name: vpp-cnf2
   annotations:
-    contivpp.io/custom-if: memif1/memif/stub
+    contivpp.io/custom-if: memif1/memif/stub, memif2/memif/stub
     contivpp.io/microservice-label: vpp-cnf2
   labels:
     cnf: vpp-cnf2
@@ -69,6 +69,38 @@ spec:
           value: "/etc/etcd/etcd.conf"
         - name: MICROSERVICE_LABEL
           value: vpp-cnf2
+      resources:
+        limits:
+          contivpp.io/memif: 1
+      volumeMounts:
+        - name: etcd-cfg
+          mountPath: /etc/etcd
+  volumes:
+    - name: etcd-cfg
+      configMap:
+        name: etcd-cfg
+
+---
+# CNF 3 pod definition. Pod is connected with one additional memif interface
+# in the "stub" network = meaning that it won't have any IP address assigned
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vpp-cnf3
+  annotations:
+    contivpp.io/custom-if: memif1/memif/stub
+    contivpp.io/microservice-label: vpp-cnf3
+  labels:
+    cnf: vpp-cnf3
+spec:
+  containers:
+    - name: vpp-agent
+      image: ligato/vpp-agent:v2.1.1
+      env:
+        - name: ETCD_CONFIG
+          value: "/etc/etcd/etcd.conf"
+        - name: MICROSERVICE_LABEL
+          value: vpp-cnf3
       resources:
         limits:
           contivpp.io/memif: 1

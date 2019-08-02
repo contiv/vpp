@@ -1,0 +1,41 @@
+// Copyright (c) 2019 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package model;
+
+// ExternalInterface is used to store definition of an external interface defined via CRD.
+// It is a logical entity that may mean different physical interfaces on different nodes.
+message ExternalInterface {
+
+    // logical name of the external interface
+    string name = 1;
+
+    // type of the external interface
+    enum Type {
+        L2 = 0;
+        L3 = 1;
+    }
+    Type type = 2;
+
+    // list of physical interfaces on individual nodes
+    message NodeInterface {
+        string node = 1;
+        string vpp_interface_name = 2;
+        string ip = 3;
+        uint32 vlan = 4;
+    }
+    repeated NodeInterface nodes = 3;
+}

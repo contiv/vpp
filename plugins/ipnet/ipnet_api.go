@@ -5,6 +5,7 @@ import (
 	"net"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
 /********************************* Plugin API *********************************/
@@ -76,5 +77,53 @@ func (ev *NodeIPv4Change) IsBlocking() bool {
 
 // Done is NOOP.
 func (ev *NodeIPv4Change) Done(error) {
+	return
+}
+
+/*************************** Pod Custom Interface Update Event ***************************/
+
+// PodCustomIfUpdate is triggered when pod custom interfaces configuration needs to be updated.
+type PodCustomIfUpdate struct {
+	PodID       podmodel.ID
+	Labels      map[string]string
+	Annotations map[string]string
+}
+
+// GetName returns name of the PodCustomIfUpdate event.
+func (ev *PodCustomIfUpdate) GetName() string {
+	return "Pod Custom Interfaces Update"
+}
+
+// String describes PodCustomIfUpdate event.
+func (ev *PodCustomIfUpdate) String() string {
+	return fmt.Sprintf("%s\n"+
+		"* Pod ID: %s\n"+
+		"* Pod Labels: %v\n"+
+		"* pod Annotations: %v",
+		ev.GetName(), ev.PodID.String(), ev.Labels, ev.Annotations)
+}
+
+// Method is Update.
+func (ev *PodCustomIfUpdate) Method() controller.EventMethodType {
+	return controller.Update
+}
+
+// TransactionType is RevertOnFailure.
+func (ev *PodCustomIfUpdate) TransactionType() controller.UpdateTransactionType {
+	return controller.RevertOnFailure
+}
+
+// Direction is forward.
+func (ev *PodCustomIfUpdate) Direction() controller.UpdateDirectionType {
+	return controller.Forward
+}
+
+// IsBlocking returns false.
+func (ev *PodCustomIfUpdate) IsBlocking() bool {
+	return false
+}
+
+// Done is NOOP.
+func (ev *PodCustomIfUpdate) Done(error) {
 	return
 }

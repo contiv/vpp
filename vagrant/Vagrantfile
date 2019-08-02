@@ -70,6 +70,8 @@ crd_disabled = ENV['CRD_DISABLED']
 ip_version = ENV['IP_VERSION'] || 'ipv4'
 contiv_dir = "/home/vagrant/gopath/src/github.com/contiv/vpp"
 helm_extra_opts = ENV['HELM_EXTRA_OPTS'] || ''
+vpp_worker_threads = ENV['VPP_WORKER_THREADS'] || ''
+
 
 if (ip_version == 'ipv6transport' || ip_version == 'ipv6' )
     # ipv6 requires vagrant box with a newer OS version
@@ -96,7 +98,7 @@ VARIABLES = ['http_proxy', 'https_proxy', 'k8s_version', 'docker_version',
 'node_os', 'node_os_release', 'node_cpus', 'node_memory', 'num_nodes', 'master_cpus',
 'master_memory', 'dep_env', 'dep_scenario', 'base_ip', 'base_prefix_len', 'provider',
 'image_tag', 'go_version', 'goland_version', 'helm_version', 'crd_disabled',
-'ip_version', 'contiv_dir', 'helm_extra_opts', 'master_nodes']
+'ip_version', 'contiv_dir', 'helm_extra_opts', 'master_nodes', 'vpp_worker_threads']
 
 VARIABLES.each do |x|
   env[x] = eval x

@@ -20,6 +20,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/idxmap"
@@ -183,6 +184,43 @@ func (n *IPNet) partialNodeConnectivityConfig(node *nodesync.Node) (config contr
 	return config, nil
 }
 
+// externalInterfaceConfig returns configuration of an external interface of the vswitch VPP.
+func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface) (config controller.KeyValuePairs, err error) {
+	config = make(controller.KeyValuePairs)
+	myNodeName := n.ServiceLabel.GetAgentLabel()
+
+	// TODO: interface in non-default network
+
+	for _, nodeIf := range extIf.Nodes {
+		if nodeIf.Node == myNodeName {
+			// parse IP address
+			var ip contivconf.IPsWithNetworks
+			if nodeIf.Ip != "" {
+				ipAddr, ipNet, err := net.ParseCIDR(nodeIf.Ip)
+				if err != nil {
+					n.Log.Warnf("Unable to parse interface %s IP: %v", nodeIf.VppInterfaceName, err)
+				} else {
+					ip = contivconf.IPsWithNetworks{&contivconf.IPWithNetwork{Address: ipAddr, Network: ipNet}}
+				}
+			}
+
+			if nodeIf.Vlan == 0 {
+				// standard interface config
+				key, iface := n.physicalInterface(nodeIf.VppInterfaceName, ip)
+				config[key] = iface
+			} else {
+				// VLAN subinterface config (main interface with no IP + subinterface)
+				key, iface := n.physicalInterface(nodeIf.VppInterfaceName, nil)
+				config[key] = iface
+				key, iface = n.subInterface(nodeIf.VppInterfaceName, nodeIf.Vlan, ip)
+				config[key] = iface
+			}
+		}
+	}
+
+	return config, nil
+}
+
 /*********************************** DHCP *************************************/
 
 var (
@@ -310,6 +348,32 @@ func (n *IPNet) physicalInterface(name string, ips contivconf.IPsWithNetworks) (
 	}
 	key = vpp_interfaces.InterfaceKey(name)
 	return key, iface
+}
+
+// subInterface returns configuration for a VLAN subinterface of an interface.
+func (n *IPNet) subInterface(parentIfName string, vlan uint32, ips contivconf.IPsWithNetworks) (key string, config *vpp_interfaces.Interface) {
+	iface := &vpp_interfaces.Interface{
+		Name:    n.getSubInterfaceName(parentIfName, vlan),
+		Type:    vpp_interfaces.Interface_SUB_INTERFACE,
+		Enabled: true,
+		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
+		Link: &vpp_interfaces.Interface_Sub{
+			Sub: &vpp_interfaces.SubInterface{
+				ParentName: parentIfName,
+				SubId:      vlan,
+			},
+		},
+	}
+	for _, ip := range ips {
+		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.Address, ip.Network)))
+	}
+	key = vpp_interfaces.InterfaceKey(iface.Name)
+	return key, iface
+}
+
+// getSubInterfaceName returns logical name for a VLAN subinterface of an interface.
+func (n *IPNet) getSubInterfaceName(parentIfName string, vlan uint32) string {
+	return fmt.Sprintf("%s.%d", parentIfName, vlan)
 }
 
 // loopbackInterface returns configuration for loopback created when no physical interfaces

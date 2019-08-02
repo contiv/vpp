@@ -23,24 +23,31 @@ import (
 
 // MockPodManager is a mock implementation of podmanager plugin.
 type MockPodManager struct {
-	pods podmanager.LocalPods
+	localPods podmanager.LocalPods
+	pods      podmanager.Pods
 }
 
 // NewMockPodManager is a constructor for MockPodManager.
 func NewMockPodManager() *MockPodManager {
 	return &MockPodManager{
-		pods: make(podmanager.LocalPods),
+		localPods: make(podmanager.LocalPods),
+		pods:      make(podmanager.Pods),
 	}
+}
+
+// GetPods returns mock data for all pods.
+func (m *MockPodManager) GetPods() podmanager.Pods {
+	return m.pods
 }
 
 // GetLocalPods returns mock data for all pods added via AddPod() method.
 func (m *MockPodManager) GetLocalPods() podmanager.LocalPods {
-	return m.pods
+	return m.localPods
 }
 
 // AddPod allows to simulate AddPod event.
 func (m *MockPodManager) AddPod(pod *podmanager.LocalPod) *podmanager.AddPod {
-	m.pods[pod.ID] = pod
+	m.localPods[pod.ID] = pod
 	return &podmanager.AddPod{
 		Pod:              pod.ID,
 		ContainerID:      pod.ContainerID,
@@ -50,7 +57,7 @@ func (m *MockPodManager) AddPod(pod *podmanager.LocalPod) *podmanager.AddPod {
 
 // DeletePod allows to simulate DeletePod event.
 func (m *MockPodManager) DeletePod(podID podmodel.ID) *podmanager.DeletePod {
-	delete(m.pods, podID)
+	delete(m.localPods, podID)
 	return &podmanager.DeletePod{
 		Pod: podID,
 	}

@@ -12,11 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:generate protoc -I ./ipalloc --gogo_out=plugins=grpc:./ipalloc ./ipalloc/ipalloc.proto
+
 package ipam
 
 import (
 	"bytes"
 	"fmt"
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
+	"github.com/contiv/vpp/plugins/ksr"
+	"github.com/ligato/cn-infra/db/keyval"
 	"math/big"
 	"net"
 	"sort"
@@ -52,7 +57,8 @@ const (
 type IPAM struct {
 	Deps
 
-	mutex sync.RWMutex
+	mutex    sync.RWMutex
+	dbBroker keyval.ProtoBroker
 
 	excludedIPsfromNodeSubnet []net.IP // IPs from the NodeInterconnect Subnet that should not be assigned
 
@@ -107,6 +113,22 @@ type podIPInfo struct {
 	customIfIPs map[string]net.IP // custom interface name + network to IP address map
 }
 
+// String provides human-readable representation of podIPAllocation
+func (a *podIPAllocation) String() string {
+	if a.mainIP {
+		return fmt.Sprintf("<pod=%s>", a.pod.String())
+	}
+	return fmt.Sprintf("<pod=%s, ifName=%s, ifNetwork=%s>", a.pod.String(), a.customIfName, a.customIfNetwork)
+}
+
+// String provides human-readable representation of podIPInfo
+func (i *podIPInfo) String() string {
+	if len(i.customIfIPs) == 0 {
+		return fmt.Sprintf("<IP=%s>", i.mainIP)
+	}
+	return fmt.Sprintf("<mainIP=%s, customIPs=%+v>", i.mainIP, i.customIfIPs)
+}
+
 // Deps lists dependencies of the IPAM plugin.
 type Deps struct {
 	infra.PluginDeps
@@ -115,6 +137,7 @@ type Deps struct {
 	ServiceLabel servicelabel.ReaderAPI
 	EventLoop    controller.EventLoop
 	HTTPHandlers rest.HTTPHandlers
+	RemoteDB     keyval.KvProtoPlugin
 }
 
 // Init initializes the REST handlers of the plugin.
@@ -199,7 +222,7 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 	i.nodeInterconnectSubnet = subnets.NodeInterconnectCIDR
 	i.vxlanSubnet = subnets.VxlanCIDR
 
-	// resync allocated IP addresses
+	// resync allocated IP addresses (main pod interfaces)
 	networkPrefix := new(big.Int).SetBytes(i.podSubnetThisNode.IP)
 
 	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
@@ -221,12 +244,42 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 			mainIP:      podIPAddress,
 			customIfIPs: map[string]net.IP{},
 		}
-
-		// TODO: resync of customIfIPs
-
 		diff := int(addr.Sub(addr, networkPrefix).Int64())
 		if i.lastPodIPAssigned < diff {
 			i.lastPodIPAssigned = diff
+		}
+	}
+
+	// resync custom interface IP allocations
+	for _, ipAllocProto := range kubeStateData[ipalloc.Keyword] {
+		ipAlloc := ipAllocProto.(*ipalloc.CustomIPAllocation)
+
+		for _, customAlloc := range ipAlloc.CustomInterfaces {
+			podIPAddress := net.ParseIP(customAlloc.IpAddress)
+			// ignore pods deployed on other nodes or without IP address
+			if podIPAddress == nil || !i.podSubnetThisNode.Contains(podIPAddress) {
+				continue
+			}
+
+			// register address as already allocated
+			addr := new(big.Int).SetBytes(podIPAddress)
+			podID := podmodel.ID{Name: ipAlloc.PodName, Namespace: ipAlloc.PodNamespace}
+			i.assignedPodIPs[podIPAddress.String()] = &podIPAllocation{
+				pod:             podID,
+				mainIP:          false,
+				customIfName:    customAlloc.Name,
+				customIfNetwork: customAlloc.Network,
+			}
+			if _, found := i.podToIP[podID]; !found {
+				i.podToIP[podID] = &podIPInfo{
+					customIfIPs: map[string]net.IP{},
+				}
+			}
+			i.podToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = podIPAddress
+			diff := int(addr.Sub(addr, networkPrefix).Int64())
+			if i.lastPodIPAssigned < diff {
+				i.lastPodIPAssigned = diff
+			}
 		}
 	}
 
@@ -549,7 +602,7 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 }
 
 // AllocatePodCustomIfIP tries to allocate custom IP address for the given interface of a given pod.
-func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string) (net.IP, error) {
+func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string, isServiceEndpoint bool) (net.IP, error) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
@@ -557,6 +610,13 @@ func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string) 
 	ip, err := i.allocateIP()
 	if err != nil {
 		i.Log.Errorf("Unable to allocate pod custom interface IP: %v", err)
+		return nil, err
+	}
+
+	// persist the allocation
+	err = i.persistCustomIfIPAllocation(podID, ifName, network, ip, isServiceEndpoint)
+	if err != nil {
+		i.Log.Errorf("Unable to persist custom interface IP allocation: %v", err)
 		return nil, err
 	}
 
@@ -576,6 +636,64 @@ func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string) 
 	i.logAssignedPodIPPool()
 
 	return ip, nil
+}
+
+// persistCustomIfIPAllocation persists custom interface IP allocation into ETCD.
+func (i *IPAM) persistCustomIfIPAllocation(podID podmodel.ID, ifName, network string, ip net.IP, isServiceEndpoint bool) error {
+	key := ipalloc.Key(podID.Name, podID.Namespace)
+	allocation := &ipalloc.CustomIPAllocation{}
+
+	db, err := i.getDBBroker()
+	if err != nil {
+		return err
+	}
+
+	// try to read existing allocation, otherwise create new
+	found, _, err := db.GetValue(key, allocation)
+	if err != nil {
+		i.Log.Errorf("Unable to read pod custom interface IP allocation: %v", err)
+		return err
+	}
+	if !found {
+		allocation = &ipalloc.CustomIPAllocation{
+			PodName:      podID.Name,
+			PodNamespace: podID.Namespace,
+		}
+	}
+
+	// add IP allocation for this custom interface
+	allocation.CustomInterfaces = append(allocation.CustomInterfaces, &ipalloc.CustomPodInterface{
+		Name:            ifName,
+		Network:         network,
+		IpAddress:       ip.String(),
+		ServiceEndpoint: isServiceEndpoint,
+	})
+
+	// save in ETCD
+	err = db.Put(key, allocation)
+	if err != nil {
+		i.Log.Errorf("Unable to persist pod custom interface IP allocation: %v", err)
+		return err
+	}
+	return nil
+}
+
+// getDBBroker returns broker for accessing remote database, error if database is not connected.
+func (i IPAM) getDBBroker() (keyval.ProtoBroker, error) {
+	// return error if ETCD is not connected
+	dbIsConnected := false
+	i.RemoteDB.OnConnect(func() error {
+		dbIsConnected = true
+		return nil
+	})
+	if !dbIsConnected {
+		return nil, fmt.Errorf("remote database is not connected")
+	}
+	// return existing broker if possible
+	if i.dbBroker == nil {
+		i.dbBroker = i.RemoteDB.NewBroker(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel))
+	}
+	return i.dbBroker, nil
 }
 
 // allocateExternalPodIP allocates IP address for the given pod using the external IPAM.
@@ -720,7 +838,22 @@ func (i *IPAM) ReleasePodIPs(podID podmodel.ID) error {
 
 	delete(i.assignedPodIPs, allocation.mainIP.String())
 	for _, ip := range allocation.customIfIPs {
+		i.Log.Infof("Released custom interface IP %v for pod ID %v", ip, podID)
 		delete(i.assignedPodIPs, ip.String())
+	}
+	if len(allocation.customIfIPs) > 0 {
+		// release pod allocation from ETCD
+		db, err := i.getDBBroker()
+		if err != nil {
+			i.Log.Errorf("Unable to erase persisted pod custom interface IP allocation: %v", err)
+			return err
+		}
+		key := ipalloc.Key(podID.Name, podID.Namespace)
+		_, err = db.Delete(key)
+		if err != nil {
+			i.Log.Errorf("Unable to erase persisted pod custom interface IP allocation: %v", err)
+			return err
+		}
 	}
 
 	i.logAssignedPodIPPool()

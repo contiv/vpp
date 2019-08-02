@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache"
+	"github.com/contiv/vpp/plugins/crd/controller/externalinterface"
 	"github.com/contiv/vpp/plugins/crd/controller/nodeconfig"
 	"github.com/contiv/vpp/plugins/crd/controller/telemetry"
 	"github.com/contiv/vpp/plugins/crd/validator"
@@ -74,6 +75,7 @@ type Plugin struct {
 	telemetryController            *telemetry.Controller
 	nodeConfigController           *nodeconfig.Controller
 	customNetworkController        *customnetwork.Controller
+	externalInterfaceController    *externalinterface.Controller
 	serviceFunctionChainController *servicefunctionchain.Controller
 	cache                          *cache.ContivTelemetryCache
 	processor                      api.ContivTelemetryProcessor
@@ -205,6 +207,15 @@ func (p *Plugin) Init() error {
 		APIClient: apiclientset,
 	}
 
+	p.externalInterfaceController = &externalinterface.Controller{
+		Deps: externalinterface.Deps{
+			Log:     p.Log.NewLogger("-externalInterfaceController"),
+			Publish: p.Publish,
+		},
+		CrdClient: crdClient,
+		APIClient: apiclientset,
+	}
+
 	p.serviceFunctionChainController = &servicefunctionchain.Controller{
 		Deps: servicefunctionchain.Deps{
 			Log:     p.Log.NewLogger("-serviceFunctionChainController"),
@@ -218,6 +229,7 @@ func (p *Plugin) Init() error {
 	p.telemetryController.Init()
 	p.nodeConfigController.Init()
 	p.customNetworkController.Init()
+	p.externalInterfaceController.Init()
 	p.serviceFunctionChainController.Init()
 
 	if p.verbose {
@@ -271,8 +283,8 @@ func (p *Plugin) AfterInit() error {
 		go p.telemetryController.Run(p.ctx.Done())
 		go p.nodeConfigController.Run(p.ctx.Done())
 		go p.customNetworkController.Run(p.ctx.Done())
+		go p.externalInterfaceController.Run(p.ctx.Done())
 		go p.serviceFunctionChainController.Run(p.ctx.Done())
-
 	}()
 
 	return nil

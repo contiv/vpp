@@ -18,6 +18,7 @@ package processor
 
 import (
 	"fmt"
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
@@ -28,9 +29,10 @@ import (
 // ResyncEventData wraps an entire state of K8s services that should be reflected
 // into VPP.
 type ResyncEventData struct {
-	Pods      []podmodel.ID
-	Endpoints []*epmodel.Endpoints
-	Services  []*svcmodel.Service
+	Pods          []podmodel.ID
+	Endpoints     []*epmodel.Endpoints
+	Services      []*svcmodel.Service
+	IPAllocations []*ipalloc.CustomIPAllocation
 }
 
 // NewResyncEventData creates an empty instance of ResyncEventData.
@@ -69,11 +71,11 @@ func (red ResyncEventData) String() string {
 		pods, endpoints, services)
 }
 
-func (sc *ServiceProcessor) parseResyncEv(kubeStateData controller.KubeStateData) *ResyncEventData {
+func (sp *ServiceProcessor) parseResyncEv(kubeStateData controller.KubeStateData) *ResyncEventData {
 	event := NewResyncEventData()
 
 	// collect pods
-	for podID := range sc.PodManager.GetLocalPods() {
+	for podID := range sp.PodManager.GetLocalPods() {
 		event.Pods = append(event.Pods, podID)
 	}
 
@@ -88,5 +90,12 @@ func (sc *ServiceProcessor) parseResyncEv(kubeStateData controller.KubeStateData
 		service := svcProto.(*svcmodel.Service)
 		event.Services = append(event.Services, service)
 	}
+
+	// collect custom IP allocations
+	for _, svcProto := range kubeStateData[ipalloc.Keyword] {
+		alloc := svcProto.(*ipalloc.CustomIPAllocation)
+		event.IPAllocations = append(event.IPAllocations, alloc)
+	}
+
 	return event
 }

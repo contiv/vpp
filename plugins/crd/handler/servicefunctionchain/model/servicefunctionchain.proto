@@ -41,15 +41,20 @@ message ServiceFunctionChain {
         // (applicable for pod service function type).
         map<string, string> pod_selector = 3;
 
+        // Interface trough which the traffic enters or leaves the pod / external interface. Applicable for:
+        // - pods that use only a single interface for SFC (first/last pod in the chain
+        //   or pods using the same interface for SFC input and output).
+        // - external interfaces
+        string interface = 6;
+
         // Interface trough which the traffic enters the service function. Applicable for:
-        // - pods with multiple interfaces
-        // - external interface if it is the last element (service function) in the chain
+        // - pods using different interfaces for SFC input and output
         string input_interface = 4;
 
         // Interface trough which the traffic leaves the service function. Applicable for:
-        // - pods with multiple interfaces
-        // - external interface if it is the first element (service function) in the chain
+        // - pods using different interfaces for SFC input and output
         string output_interface = 5;
+
     }
 
     // List of service functions (chain elements) in the chain.

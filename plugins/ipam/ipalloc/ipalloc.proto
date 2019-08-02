@@ -1,0 +1,34 @@
+// Copyright (c) 2019 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package ipalloc;
+
+// CustomPodInterface represents pod IP allocation made for a custom pod interface.
+message CustomPodInterface {
+    string name = 1;            // interface name
+    string network = 2;         // network where the interface resides
+    string ip_address = 3;      // allocated IP address
+    bool service_endpoint = 4;  // true if this interface/IP should be the k8s service endpoint for this pod
+}
+
+// CustomIPAllocation represents pod IP allocation made for custom purposes (other than the main pod IP address).
+// It is used for persisting IP allocation of pods with multiple interfaces and multiple IP addresses.
+message CustomIPAllocation {
+    string pod_name = 1;
+    string pod_namespace = 2;
+
+    repeated CustomPodInterface custom_interfaces = 3;
+}

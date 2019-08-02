@@ -162,8 +162,8 @@ installPCIVFIO() {
 
 #Selects an interface that will be used for node interconnect
 createVPPconfig() {
-mkdir -p /etc/vpp
-touch /etc/vpp/contiv-vswitch.conf
+  mkdir -p /etc/vpp
+  touch /etc/vpp/contiv-vswitch.conf
   cat <<EOF >/etc/vpp/contiv-vswitch.conf
 unix {
    nodaemon
@@ -202,6 +202,15 @@ buffers {
    buffers-per-numa 131072
 }
 EOF
+
+  if [ -n "${vpp_worker_threads}" ];then
+    cat <<EOF >>/etc/vpp/contiv-vswitch.conf
+cpu {
+  main-core 0
+  corelist-workers 1-${vpp_worker_threads}
+}
+EOF
+  fi
 }
 
 # Pull image used in k8s-systest "max_pod" scale
@@ -233,3 +242,6 @@ else
     ip link set enp0s8 down
   fi
 fi
+
+# Allow password login from virtualbox, in case guest network is down
+echo "vagrant:vagrant" | chpasswd

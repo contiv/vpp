@@ -80,11 +80,13 @@ type ServiceRendererAPI interface {
 	AddService(service *ContivService) error
 
 	// UpdateService informs renderer about a change in the configuration
-	// or in the state of a service.
-	UpdateService(oldService, newService *ContivService) error
+	// or in the state of a service. The renderer can also use info about
+	// other existing services to perform update correctly.
+	UpdateService(oldService, newService *ContivService, otherExistingServices []*ContivService) error
 
-	// DeleteService is called for every removed service.
-	DeleteService(service *ContivService) error
+	// DeleteService is called for every removed service. The renderer can
+	// also use info about other existing services to handle service removal correctly.
+	DeleteService(service *ContivService, otherExistingServices []*ContivService) error
 
 	// UpdateNodePortServices is called whenever the set of node IPs in the cluster
 	// changes.

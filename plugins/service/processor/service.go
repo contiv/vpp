@@ -170,6 +170,9 @@ func (s *Service) Refresh() {
 				}).Warn("Failed to parse endpoint IP")
 				continue
 			}
+			if redirIP, isRedirected := s.sp.epRedirects[epAddr.GetIp()]; isRedirected {
+				epIP = net.ParseIP(redirIP)
+			}
 			if s.sp.IPAM.PodSubnetThisNode().Contains(epIP) {
 				local = true
 			}

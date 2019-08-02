@@ -128,6 +128,7 @@ func (pr *PodReflector) podToProto(k8sPod *coreV1.Pod) *pod.Pod {
 	podProto.Namespace = k8sPod.GetNamespace()
 	labels := k8sPod.GetLabels()
 	if labels != nil {
+		podProto.Labels = labels
 		for key, val := range labels {
 			podProto.Label = append(podProto.Label, &pod.Pod_Label{Key: key, Value: val})
 

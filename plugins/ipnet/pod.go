@@ -63,6 +63,9 @@ const (
 
 	// special network name dedicated to "stub" custom interfaces - not connected to any VRF nor bridge domain.
 	stubNetworkName = "stub"
+
+	// network name dedicated to the default pod network
+	defaultNetworkName = "default"
 )
 
 const (
@@ -71,13 +74,27 @@ const (
 )
 
 const (
-	contivMicroserviceLabel  = "contivpp.io/microservice-label" // k8s annotation used to request custom pod interfaces
-	contivCustomIfAnnotation = "contivpp.io/custom-if"          // k8s annotation used to request custom pod interfaces
-	contivCustomIfSeparator  = ","                              // separator used to split multiple interfaces in k8s annotation
+	contivAnnotationPrefix            = "contivpp.io/"
+	contivMicroserviceLabelAnnotation = contivAnnotationPrefix + "microservice-label"  // k8s annotation used to specify microservice label of a pod
+	contivServiceEndpointIfAnnotation = contivAnnotationPrefix + "service-endpoint-if" // k8s annotation used to specify k8s service endpoint interface
+	contivCustomIfAnnotation          = contivAnnotationPrefix + "custom-if"           // k8s annotation used to request custom pod interfaces
+	contivCustomIfSeparator           = ","                                            // separator used to split multiple interfaces in k8s annotation
 
 	memifIfType = "memif"
 	tapIfType   = "tap"
 	vethIfType  = "veth"
+)
+
+// podConfigEventType represents the type of an event being currently processed by the ipnet plugin
+type podConfigEventType int
+
+const (
+	// resync event is being processed
+	resync podConfigEventType = iota
+	// pod add event is being processed
+	podAdd
+	// pod delete event is being processed
+	podDelete
 )
 
 // podCustomIfInfo holds information about a custom pod interface
@@ -161,19 +178,25 @@ func (n *IPNet) podInterfaceName(pod *podmanager.LocalPod, customIfName, customI
 
 // podCustomIfsConfig returns configuration for custom interfaces connectivity.
 // If no custom interfaces are requested, returns empty config.
-func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config controller.KeyValuePairs) {
+func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType podConfigEventType) (config controller.KeyValuePairs) {
 	var (
 		memifID   uint32
 		memifInfo *devicemanager.MemifInfo
 	)
-	if pod == nil || pod.Metadata == nil {
+	if pod == nil {
 		return config
 	}
+	podMeta, hadPodMeta := n.PodManager.GetPods()[pod.ID]
+	if !hadPodMeta {
+		return config
+	}
+
 	config = make(controller.KeyValuePairs)
 	microserviceConfig := make(controller.KeyValuePairs)
 
-	customIfs := getContivCustomIfs(pod.Metadata.Annotations)
-	serviceLabel := getContivMicroserviceLabel(pod.Metadata.Annotations)
+	customIfs := getContivCustomIfs(podMeta.Annotations)
+	serviceLabel := getContivMicroserviceLabel(podMeta.Annotations)
+	serviceEndpointIf := getContivServiceEndpointIf(podMeta.Annotations)
 
 	for _, customIfStr := range customIfs {
 		customIf, err := parseCustomIfInfo(customIfStr)
@@ -181,7 +204,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 			n.Log.Warnf("Error parsing custom interface definition (%v), skipping the interface %s", err, customIf)
 			continue
 		}
-		if isAdd {
+		if eventType != podDelete {
 			n.podCustomIf[pod.ID.String()+customIf.ifName] = customIf
 		} else {
 			delete(n.podCustomIf, pod.ID.String()+customIf.ifName)
@@ -190,10 +213,11 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 			customIf.ifType, customIf.ifName, customIf.ifNet)
 
 		// allocate IP for the pod-side of the interface
-		var podIP, podIPNet *net.IPNet
+		var podIP *net.IPNet
 		if customIf.ifNet != stubNetworkName {
-			if isAdd {
-				_, err = n.IPAM.AllocatePodCustomIfIP(pod.ID, customIf.ifName, customIf.ifNet)
+			if eventType == podAdd {
+				isServiceEndpoint := customIf.ifName == serviceEndpointIf
+				_, err = n.IPAM.AllocatePodCustomIfIP(pod.ID, customIf.ifName, customIf.ifNet, isServiceEndpoint)
 				if err != nil {
 					n.Log.Warnf("%v, skipping the interface %s", err, customIf)
 					continue
@@ -202,8 +226,9 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 			podIP = n.IPAM.GetPodCustomIfIP(pod.ID, customIf.ifName, customIf.ifNet)
 			if podIP == nil {
 				n.Log.Warnf("No IP allocated for the interface %s, will be left in L2 mode", customIf)
-			} else {
-				podIPNet = &net.IPNet{IP: podIP.IP, Mask: n.IPAM.PodSubnetThisNode().Mask}
+			} else if customIf.ifName == "" || customIf.ifName == defaultNetworkName {
+				// use host prefix for default pod network
+				_, podIP, _ = net.ParseCIDR(podIP.IP.String() + hostPrefixForAF(podIP.IP))
 			}
 		}
 
@@ -218,32 +243,35 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 				}
 			}
 			// VPP side of the memif
-			k, v := n.podVPPMemif(pod, podIPNet, customIf.ifName, memifInfo, memifID)
+			k, v := n.podVPPMemif(pod, podIP, customIf.ifName, memifInfo, memifID)
 			config[k] = v
 			// config for pod-side of the memif (if microservice label is defined)
 			if serviceLabel != "" {
-				k, memif := n.podMicroservioceMemif(pod, podIPNet, customIf.ifName, memifInfo, memifID)
+				k, memif := n.podMicroserviceMemif(pod, podIP, customIf.ifName, memifInfo, memifID)
 				microserviceConfig[k] = memif
-
-				k, route := n.podMicroservioceDefaultRoute(pod, customIf.ifName, customIf.ifType)
-				microserviceConfig[k] = route
+				if podIP != nil {
+					k, arp := n.podMicroserviceGatewayARP(pod, customIf.ifName, customIf.ifType)
+					microserviceConfig[k] = arp
+					k, route := n.podMicroserviceDefaultRoute(pod, customIf.ifName, customIf.ifType)
+					microserviceConfig[k] = route
+				}
 			}
 			memifID++
 
 		case tapIfType:
 			// handle custom tap interface
-			key, vppTap := n.podVPPTap(pod, podIPNet, customIf.ifName)
+			key, vppTap := n.podVPPTap(pod, podIP, customIf.ifName)
 			config[key] = vppTap
-			key, linuxTap := n.podLinuxTAP(pod, podIPNet, customIf.ifName)
+			key, linuxTap := n.podLinuxTAP(pod, podIP, customIf.ifName)
 			config[key] = linuxTap
 
 		case vethIfType:
 			// handle custom veth interface
-			key, veth1 := n.podVeth1(pod, podIPNet, customIf.ifName)
+			key, veth1 := n.podVeth1(pod, podIP, customIf.ifName)
 			config[key] = veth1
 			key, veth2 := n.podVeth2(pod, customIf.ifName)
 			config[key] = veth2
-			key, afpacket := n.podAfPacket(pod, podIPNet, customIf.ifName)
+			key, afpacket := n.podAfPacket(pod, podIP, customIf.ifName)
 			config[key] = afpacket
 
 		default:
@@ -263,7 +291,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 		n.Log.Debugf("Adding pod-end interface config for microservice %s into ETCD", serviceLabel)
 		txn := n.RemoteDB.NewBroker(servicelabel.GetDifferentAgentPrefix(serviceLabel)).NewTxn()
 		for k, v := range microserviceConfig {
-			if isAdd {
+			if eventType != podDelete {
 				txn.Put(k, v)
 			} else {
 				txn.Delete(k)
@@ -282,11 +310,32 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, isAdd bool) (config
 // (or an empty string if it is not defined).
 func getContivMicroserviceLabel(annotations map[string]string) string {
 	for k, v := range annotations {
-		if strings.HasPrefix(k, contivMicroserviceLabel) {
+		if strings.HasPrefix(k, contivMicroserviceLabelAnnotation) {
 			return v
 		}
 	}
 	return ""
+}
+
+// getContivServiceEndpointIf returns service endpoint interface defined in pod annotations
+// (or an empty string if it is not defined).
+func getContivServiceEndpointIf(annotations map[string]string) string {
+	for k, v := range annotations {
+		if strings.HasPrefix(k, contivServiceEndpointIfAnnotation) {
+			return v
+		}
+	}
+	return ""
+}
+
+// hasContivCustomIfAnnotation returns true if provided annotations contain contiv custom-if annotation, false otherwise.
+func hasContivCustomIfAnnotation(annotations map[string]string) bool {
+	for k := range annotations {
+		if strings.HasPrefix(k, contivCustomIfAnnotation) {
+			return true
+		}
+	}
+	return false
 }
 
 // getContivCustomIfs returns alphabetically ordered slice of custom interfaces defined in pod annotations.
@@ -571,10 +620,11 @@ func (n *IPNet) podVPPMemif(pod *podmanager.LocalPod, podIP *net.IPNet, ifName s
 
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	memif := &vpp_interfaces.Interface{
-		Name:    n.podVPPSideMemifName(pod, ifName),
-		Type:    vpp_interfaces.Interface_MEMIF,
-		Enabled: true,
-		Vrf:     n.ContivConf.GetRoutingConfig().PodVRFID,
+		Name:        n.podVPPSideMemifName(pod, ifName),
+		Type:        vpp_interfaces.Interface_MEMIF,
+		Enabled:     true,
+		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
+		PhysAddress: n.hwAddrForPod(pod, true),
 		Link: &vpp_interfaces.Interface_Memif{
 			Memif: &vpp_interfaces.MemifLink{
 				Master:         true,
@@ -602,8 +652,8 @@ func (n *IPNet) podVPPMemif(pod *podmanager.LocalPod, podIP *net.IPNet, ifName s
 	return key, memif
 }
 
-// podMicroservioceMemif returns the configuration for memif interface on the Pod (microservice) side.
-func (n *IPNet) podMicroservioceMemif(pod *podmanager.LocalPod, ip *net.IPNet, ifName string,
+// podMicroserviceMemif returns the configuration for memif interface on the Pod (microservice) side.
+func (n *IPNet) podMicroserviceMemif(pod *podmanager.LocalPod, ip *net.IPNet, ifName string,
 	memifInfo *devicemanager.MemifInfo, memifID uint32) (key string, config *vpp_interfaces.Interface) {
 
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
@@ -636,8 +686,21 @@ func (n *IPNet) podMicroservioceMemif(pod *podmanager.LocalPod, ip *net.IPNet, i
 	return key, memif
 }
 
-// podMicroservioceDefaultRoute returns configuration for default route used on the Pod (microservice) side.
-func (n *IPNet) podMicroservioceDefaultRoute(pod *podmanager.LocalPod, customIfName, customIfType string) (key string, config *vpp_l3.Route) {
+// podMicroserviceGatewayARP returns configuration for a static arp entry for the default gateway of the Pod (microservice).
+func (n *IPNet) podMicroserviceGatewayARP(pod *podmanager.LocalPod, customIfName, customIfType string) (key string, config *vpp_l3.ARPEntry) {
+	_, ifName := n.podInterfaceName(pod, customIfName, customIfType)
+	arp := &vpp_l3.ARPEntry{
+		Interface:   ifName,
+		IpAddress:   n.IPAM.PodGatewayIP().String(),
+		PhysAddress: n.hwAddrForPod(pod, true),
+		Static:      true,
+	}
+	key = vpp_l3.ArpEntryKey(arp.Interface, arp.IpAddress)
+	return key, arp
+}
+
+// podMicroserviceDefaultRoute returns configuration for default route used on the Pod (microservice) side.
+func (n *IPNet) podMicroserviceDefaultRoute(pod *podmanager.LocalPod, customIfName, customIfType string) (key string, config *vpp_l3.Route) {
 	_, ifName := n.podInterfaceName(pod, customIfName, customIfType)
 	route := &vpp_l3.Route{
 		OutgoingInterface: ifName,

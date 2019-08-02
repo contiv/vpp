@@ -77,7 +77,7 @@ type KeyProtoValBroker interface {
 	// GetValue reads a value from etcd stored under the given key.
 	GetValue(key string, reqObj proto.Message) (found bool, revision int64, err error)
 
-	// List values stored in etcd under the given prefix.
+	// ListValues lists values stored in etcd under the given prefix.
 	ListValues(prefix string) (keyval.ProtoKeyValIterator, error)
 }
 
@@ -169,7 +169,6 @@ func (h *Handler) ObjectUpdated(oldObj, newObj interface{}) {
 // serviceFunctionChainToProto converts service function chain data from the Contiv's own CRD representation
 // to the corresponding protobuf-modelled data format.
 func (h *Handler) serviceFunctionChainToProto(serviceFunctionChain *v1.ServiceFunctionChain) *model.ServiceFunctionChain {
-	h.Log.Info("!!", serviceFunctionChain)
 	chain := &model.ServiceFunctionChain{}
 	chain.Name = serviceFunctionChain.Name
 
@@ -196,6 +195,7 @@ func (h *Handler) serviceFunctionToProto(sf v1.ServiceFunction) *model.ServiceFu
 	for k, v := range sf.PodSelector {
 		protoVal.PodSelector[k] = v
 	}
+	protoVal.Interface = sf.Interface
 	protoVal.InputInterface = sf.InputInterface
 	protoVal.OutputInterface = sf.OutputInterface
 	return protoVal

@@ -309,9 +309,8 @@ func (n *IPNet) GetPodCustomIfName(podNamespace, podName, customIfName string) (
 func (n *IPNet) GetExternalIfName(extIfName string, vlan uint32) (ifName string) {
 	if vlan == 0 {
 		return extIfName
-	} else {
-		return n.getSubInterfaceName(extIfName, vlan)
 	}
+	return n.getSubInterfaceName(extIfName, vlan)
 }
 
 // GetNodeIP returns the IP address of this node.

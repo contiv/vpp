@@ -88,9 +88,8 @@ func (mn *MockIPNet) GetPodCustomIfName(podNamespace, podName, customIfName stri
 func (mn *MockIPNet) GetExternalIfName(extIfName string, vlan uint32) (ifName string) {
 	if vlan == 0 {
 		return extIfName
-	} else {
-		return fmt.Sprintf("%s.%d", extIfName, vlan)
 	}
+	return fmt.Sprintf("%s.%d", extIfName, vlan)
 }
 
 func (mn *MockIPNet) GetPodLoopIfName(podNamespace string, podName string) string {

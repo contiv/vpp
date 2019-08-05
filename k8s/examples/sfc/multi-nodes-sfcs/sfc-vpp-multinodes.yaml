@@ -1,0 +1,25 @@
+---
+apiVersion: contivpp.io/v1
+kind: ServiceFunctionChain
+metadata:
+  name: vpp-chain
+spec:
+  chain:
+    - name: CNF 1
+      type: Pod
+      podSelector:
+        cnf: vpp-cnf1
+      outputInterface: memif1
+
+    - name: CNF 2
+      type: Pod
+      podSelector:
+        cnf: vpp-cnf2
+      outputInterface: memif2   
+      inputInterface: memif1
+
+    - name: CNF 3
+      type: Pod
+      podSelector:
+        cnf: vpp-cnf3
+      inputInterface: memif1

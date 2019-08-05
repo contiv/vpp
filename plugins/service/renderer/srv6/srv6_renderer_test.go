@@ -446,12 +446,27 @@ func addServiceEndpoints(pod1 podmodel.ID, pod1IP net.IP, pod2 podmodel.ID, pod2
 }
 
 func addServiceEndpointsInMultipleNodes(pods []podEndPoints, port int32, data *data) {
+	address := make([]*epmodel.EndpointSubset_EndpointAddress, 0, len(pods))
+	for _, pod := range pods {
+		addr := &epmodel.EndpointSubset_EndpointAddress{
+			Ip:       pod.podIP.String(),
+			NodeName: pod.podNode,
+			TargetRef: &epmodel.ObjectReference{
+				Kind:      "Pod",
+				Namespace: pod.pod.Namespace,
+				Name:      pod.pod.Name,
+			},
+		}
+
+		address = append(address, addr)
+	}
+
 	eps1 := &epmodel.Endpoints{
 		Name:      "service1",
 		Namespace: renderer_testing.Namespace1,
 		EndpointSubsets: []*epmodel.EndpointSubset{
 			{
-				Addresses: make([]*epmodel.EndpointSubset_EndpointAddress, len(pods)),
+				Addresses: address,
 				Ports: []*epmodel.EndpointSubset_EndpointPort{
 					{
 						Name:     "http",
@@ -462,17 +477,7 @@ func addServiceEndpointsInMultipleNodes(pods []podEndPoints, port int32, data *d
 			},
 		},
 	}
-	for _, pod := range pods {
-		addr := new(epmodel.EndpointSubset_EndpointAddress)
-		addr.Ip = pod.podIP.String()
-		addr.NodeName = pod.podNode
-		addr.TargetRef = &epmodel.ObjectReference{
-			Kind:      "Pod",
-			Namespace: pod.pod.Namespace,
-			Name:      pod.pod.Name,
-		}
-		eps1.EndpointSubsets[0].Addresses = append(eps1.EndpointSubsets[0].Addresses, addr)
-	}
+
 	updateEv := data.Datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
 	Expect(data.SVCProcessor.Update(updateEv)).To(BeNil())
 	Expect(data.Txn.Commit()).To(BeNil())

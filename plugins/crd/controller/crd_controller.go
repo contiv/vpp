@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/contiv/vpp/plugins/crd/handler"
-	"github.com/contiv/vpp/plugins/crd/utils"
 	"github.com/ligato/cn-infra/logging"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -55,6 +54,7 @@ type Deps struct {
 	Informer     k8sCache.SharedIndexInformer
 }
 
+// CrdSpec contains specification of the resource to control.
 type CrdSpec struct {
 	TypeName   string
 	Group      string
@@ -80,6 +80,12 @@ func (c *CrdController) Init() error {
 	)
 
 	c.Log.Infof("%s-Controller: initializing...", c.Spec.TypeName)
+
+	err = c.EventHandler.Init()
+	if err != nil {
+		c.Log.Error(err)
+		return err
+	}
 
 	err = c.createCRD(c.Spec.Plural+"."+c.Spec.Group,
 		c.Spec.Group,
@@ -182,16 +188,23 @@ func (c *CrdController) processNextItem() bool {
 	}
 	defer c.queue.Done(event)
 
-	err := c.processItem(event.(Event))
+	ev := event.(Event)
+	err := c.processItem(ev)
+	if ev.eventType == "create" || ev.eventType == "update" {
+		publishErr := c.EventHandler.PublishStatus(ev.resource, err)
+		if publishErr != nil {
+			c.Log.Errorf("Failed to publish status for %s: %v", ev.key, publishErr)
+		}
+	}
 	if err == nil {
 		// If there is no error reset the rate limit counters
 		c.queue.Forget(event)
 	} else if c.queue.NumRequeues(event) < maxRetries {
-		c.Log.Errorf("Error processing %s (will retry): %v", event.(Event).key, err)
+		c.Log.Errorf("Error processing %s (will retry): %v", ev.key, err)
 		c.queue.AddRateLimited(event)
 	} else {
 		// err != nil and too many retries
-		c.Log.Errorf("Error processing %s (giving up): %v", event.(Event).key, err)
+		c.Log.Errorf("Error processing %s (giving up): %v", ev.key, err)
 		c.queue.Forget(event)
 		utilruntime.HandleError(err)
 	}
@@ -206,19 +219,11 @@ func (c *CrdController) processItem(event Event) error {
 	// process events based on its type
 	switch event.eventType {
 	case "create":
-		// get object's metadata
-		objectMeta := utils.GetObjectMetaData(event.resource)
-		// compare CreationTimestamp and serverStartTime and alert only on latest events
-		if objectMeta.CreationTimestamp.Sub(serverStartTime).Seconds() > 0 {
-			c.EventHandler.ObjectCreated(event.resource)
-			return nil
-		}
+		return c.EventHandler.ObjectCreated(event.resource)
 	case "update":
-		c.EventHandler.ObjectUpdated(event.oldResource, event.resource)
-		return nil
+		return c.EventHandler.ObjectUpdated(event.oldResource, event.resource)
 	case "delete":
-		c.EventHandler.ObjectDeleted(event.resource)
-		return nil
+		return c.EventHandler.ObjectDeleted(event.resource)
 	default:
 		c.Log.Warn("Unknown event type")
 	}
@@ -261,7 +266,9 @@ func defaultValidation() *apiextv1beta1.CustomResourceValidation {
 			Required: []string{"spec"},
 			Type:     "object",
 			Properties: map[string]apiextv1beta1.JSONSchemaProps{
-				"spec": {},
+				"spec": {
+					Type: "object",
+				},
 			},
 		},
 	}

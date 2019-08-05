@@ -17,6 +17,7 @@
 package kvdbreflector
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 	"sync"
@@ -25,9 +26,9 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
-	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/servicelabel"
 
 	k8sCache "k8s.io/client-go/tools/cache"
 )
@@ -46,7 +47,8 @@ type KvdbReflector struct {
 	dsSynced bool
 	dsMutex  sync.Mutex
 
-	broker keyval.ProtoBroker
+	broker     keyval.BytesBroker
+	serializer keyval.Serializer
 
 	syncStopCh chan bool
 }
@@ -70,14 +72,9 @@ type Handler interface {
 	// data that need to be excluded by mark-and-sweep, just return true.
 	IsCrdKeySuffix(keySuffix string) bool
 
-	// CrdObjectToProto should convert the K8s representation of the CRD into the
-	// corresponding proto message representation. The method also has to return
-	// key suffix (i.e. without the prefix returned by CrdKeyPrefix) under which
-	// the given object should be reflected into KVDB.
-	CrdObjectToProto(obj interface{}) (data proto.Message, keySuffix string, err error)
-
-	// CrdProtoFactory should create an empty instance of the CRD proto model.
-	CrdProtoFactory() proto.Message
+	// CrdObjectToKVData should convert the K8s representation of the CRD into the
+	// corresponding data that should be mirrored into KVDB.
+	CrdObjectToKVData(obj interface{}) (data []KVData, err error)
 
 	// IsExclusiveKVDB should return true if KvdbReflector is the only writer
 	// for the given key-space. If not, the mark-and-sweep procedure will not
@@ -85,102 +82,215 @@ type Handler interface {
 	// might have been inserted into the DB from different configuration sources
 	// and should be preserved.
 	IsExclusiveKVDB() bool
+
+	// PublishCrdStatus should update the Status information associated with the resource (if defined).
+	PublishCrdStatus(obj interface{}, opRetval error) error
+}
+
+// KVData is a key->data pair to be written into KVDB to reflect a given CRD instance.
+type KVData struct {
+	// ProtoMsg can be used when the KVDB-mirrored CRD data are modelled using protobuf.
+	// If not, then use MarshalledData instead.
+	ProtoMsg proto.Message
+
+	// MarshalledData are already marshalled data to be written into the KVDB under the given key suffix.
+	// Use as an alternative when proto message is not available.
+	MarshalledData []byte
+
+	// KeySuffix under which the given data should be reflected into KVDB (i.e. without the prefix returned by CrdKeyPrefix).
+	KeySuffix string
 }
 
 // Deps defines dependencies for KvdbReflector.
 type Deps struct {
-	Log      logging.Logger
-	Publish  *kvdbsync.Plugin // KeyProtoValWriter does not define Delete
-	Informer k8sCache.SharedIndexInformer
-	Handler  Handler
+	Log          logging.Logger
+	Publish      keyval.KvBytesPlugin
+	ServiceLabel servicelabel.ReaderAPI
+	Informer     k8sCache.SharedIndexInformer
+	Handler      Handler
 }
 
 // DsItems defines the structure holding items listed from the data store.
-type DsItems map[string]interface{}
+type DsItems map[string][]byte
 
 // Init prepared broker for the KV database access.
-func (h *KvdbReflector) Init() error {
-	prefix, underKsr := h.Handler.CrdKeyPrefix()
+func (r *KvdbReflector) Init() error {
+	prefix, underKsr := r.Handler.CrdKeyPrefix()
 	if underKsr {
-		prefix = h.Publish.ServiceLabel.GetAgentPrefix() + ksrkey.KsrK8sPrefix +
+		prefix = r.ServiceLabel.GetAgentPrefix() + ksrkey.KsrK8sPrefix +
 			"/" + prefix
 	}
-	h.broker = h.Publish.Deps.KvPlugin.NewBroker(prefix)
+	r.broker = r.Publish.NewBroker(prefix)
+	r.serializer = &keyval.SerializerJSON{}
 
-	h.syncStopCh = make(chan bool, 1)
+	r.syncStopCh = make(chan bool, 1)
 	return nil
 }
 
 // ObjectCreated is called when a CRD object is created
-func (h *KvdbReflector) ObjectCreated(obj interface{}) {
-	h.Log.Debugf("%s object created with value: %v", h.Handler.CrdName(), obj)
-	data, key, err := h.Handler.CrdObjectToProto(obj)
+func (r *KvdbReflector) ObjectCreated(obj interface{}) error {
+	r.Log.Debugf("%s object created with value: %v", r.Handler.CrdName(), obj)
+	kvdata, err := r.Handler.CrdObjectToKVData(obj)
 	if err != nil {
-		h.Log.Warnf("Failed to cast newly created %s object into the proto model: %v",
-			h.Handler.CrdName(), err)
-		return
+		err = fmt.Errorf("failed to cast newly created %s object into the proto model: %v",
+			r.Handler.CrdName(), err)
+		r.Log.Error(err)
+		return err
 	}
 
-	err = h.Publish.Put(key, data)
-	if err != nil {
-		h.dsSynced = false
-		h.startDataStoreResync()
+	for _, kv := range kvdata {
+		binData, err := r.marshalData(kv)
+		if err == nil {
+			err = r.broker.Put(kv.KeySuffix, binData)
+		}
+		if err != nil {
+			err = fmt.Errorf("failed to create %s item in data store: %v",
+				r.Handler.CrdName(), err)
+			r.Log.Error(err)
+			r.dsSynced = false
+			r.startDataStoreResync()
+			return err
+		}
 	}
+	return nil
+}
+
+// PublishStatus is just forwarded to the handler.
+func (r *KvdbReflector) PublishStatus(obj interface{}, opRetval error) error {
+	return r.Handler.PublishCrdStatus(obj, opRetval)
+}
+
+func (r *KvdbReflector) marshalData(kvdata KVData) ([]byte, error) {
+	if len(kvdata.MarshalledData) > 0 {
+		// already marshalled by the handler
+		return kvdata.MarshalledData, nil
+	}
+	return r.serializer.Marshal(kvdata.ProtoMsg)
 }
 
 // ObjectDeleted is called when a CRD object is deleted
-func (h *KvdbReflector) ObjectDeleted(obj interface{}) {
-	h.Log.Debugf("%s object deleted with value: %v", h.Handler.CrdName(), obj)
-	_, key, err := h.Handler.CrdObjectToProto(obj)
+func (r *KvdbReflector) ObjectDeleted(obj interface{}) error {
+	r.Log.Debugf("%s object deleted with value: %v", r.Handler.CrdName(), obj)
+	kvdata, err := r.Handler.CrdObjectToKVData(obj)
 	if err != nil {
-		h.Log.Warnf("Failed to cast to-be-deleted %s object into the proto model: %v",
-			h.Handler.CrdName(), err)
-		return
+		err = fmt.Errorf("failed to cast to-be-deleted %s object into the proto model: %v",
+			r.Handler.CrdName(), err)
+		r.Log.Error(err)
+		return err
 	}
 
-	_, err = h.Publish.Delete(key)
-	if err != nil {
-		h.Log.WithField("rwErr", err).
-			Warnf("Failed to delete %s item from data store: %v",
-				h.Handler.CrdName(), err)
+	for _, kv := range kvdata {
+		_, err = r.broker.Delete(kv.KeySuffix)
+		if err != nil {
+			err = fmt.Errorf("failed to delete %s item from data store: %v",
+				r.Handler.CrdName(), err)
+			r.Log.Error(err)
+			r.dsSynced = false
+			r.startDataStoreResync()
+			return err
+		}
 	}
+	return nil
 }
 
 // ObjectUpdated is called when a CRD object is updated
-func (h *KvdbReflector) ObjectUpdated(oldObj, newObj interface{}) {
-	h.Log.Debugf("%s object updated with value: %v", h.Handler.CrdName(), newObj)
+func (r *KvdbReflector) ObjectUpdated(oldObj, newObj interface{}) error {
+	r.Log.Debugf("%s object updated with value: %v", r.Handler.CrdName(), newObj)
 	if !reflect.DeepEqual(oldObj, newObj) {
 
-		h.Log.Debugf("Updating %s item in data store: %v",
-			h.Handler.CrdName(), newObj)
-		newData, key, err := h.Handler.CrdObjectToProto(newObj)
+		r.Log.Debugf("Updating %s item in data store: %v",
+			r.Handler.CrdName(), newObj)
+		var (
+			err            error
+			oldKvs, newKvs []KVData
+		)
+		oldKvs, err = r.Handler.CrdObjectToKVData(oldObj)
 		if err != nil {
-			h.Log.Warnf("Failed to updated %s object into the proto model: %v",
-				h.Handler.CrdName(), err)
-			return
+			// non-nil error means the previous config was invalid and nothing was reflected
+			oldKvs = []KVData{}
+			err = nil
+		}
+		newKvs, err = r.Handler.CrdObjectToKVData(newObj)
+
+		if err != nil {
+			err = fmt.Errorf("failed to convert updated %s object into key-value data: %v",
+				r.Handler.CrdName(), err)
+			r.Log.Error(err)
+			return err
 		}
 
-		err = h.Publish.Put(key, newData)
+		updateKvs, removeKvs, err := r.diffKVData(oldKvs, newKvs)
 		if err != nil {
-			h.Log.WithField("rwErr", err).
-				Warnf("Failed to update %s item in data store: %v",
-					h.Handler.CrdName(), err)
-			h.dsSynced = false
-			h.startDataStoreResync()
-			return
+			err = fmt.Errorf("failed to compare previous with the new key-value data for %s: %v",
+				r.Handler.CrdName(), err)
+			r.Log.Error(err)
+			return err
+		}
+
+		for key, value := range updateKvs {
+			err = r.broker.Put(key, value)
+			if err != nil {
+				err = fmt.Errorf("failed to update %s item in data store: %v",
+					r.Handler.CrdName(), err)
+				r.Log.Error(err)
+				r.dsSynced = false
+				r.startDataStoreResync()
+				return err
+			}
+		}
+		for key := range removeKvs {
+			_, err = r.broker.Delete(key)
+			if err != nil {
+				err = fmt.Errorf("failed to delete %s item from data store: %v",
+					r.Handler.CrdName(), err)
+				r.Log.Error(err)
+				r.dsSynced = false
+				r.startDataStoreResync()
+				return err
+			}
 		}
 	}
+	return nil
+}
+
+func (r *KvdbReflector) diffKVData(oldKvs, newKvs []KVData) (updateKvs, removeKvs DsItems, err error) {
+	updateKvs = make(DsItems)
+	removeKvs = make(DsItems)
+	for _, newKv := range newKvs {
+		newData, err := r.marshalData(newKv)
+		if err != nil {
+			return nil, nil, err
+		}
+		updateKvs[newKv.KeySuffix] = newData
+	}
+	for _, oldKv := range oldKvs {
+		oldData, err := r.marshalData(oldKv)
+		if err != nil {
+			return nil, nil, err
+		}
+		removeKvs[oldKv.KeySuffix] = oldData
+	}
+	for key, newData := range updateKvs {
+		oldData, hasOld := removeKvs[key]
+		if hasOld {
+			if bytes.Equal(newData, oldData) {
+				delete(updateKvs, key)
+			}
+			delete(removeKvs, key)
+		}
+	}
+	return updateKvs, removeKvs, nil
 }
 
 // listDataStoreItems gets all items of a given type from the KVDB
-func (h *KvdbReflector) listDataStoreItems() (DsItems, error) {
-	dsDump := make(map[string]interface{})
+func (r *KvdbReflector) listDataStoreItems() (DsItems, error) {
+	dsDump := make(DsItems)
 
 	// Retrieve all data items for a given data type (i.e. key prefix)
-	kvi, err := h.broker.ListValues("")
+	kvi, err := r.broker.ListValues("")
 	if err != nil {
 		return dsDump, fmt.Errorf("failed to list %s instances stored in KVDB: %s",
-			h.Handler.CrdName(), err)
+			r.Handler.CrdName(), err)
 	}
 
 	// Put the retrieved items to a map where an item can be addressed
@@ -191,18 +301,11 @@ func (h *KvdbReflector) listDataStoreItems() (DsItems, error) {
 			break
 		}
 		key := kv.GetKey()
-		if !h.Handler.IsCrdKeySuffix(key) {
+		if !r.Handler.IsCrdKeySuffix(key) {
 			continue
 		}
-		item := h.Handler.CrdProtoFactory()
-		err := kv.GetValue(item)
-		if err != nil {
-			h.Log.WithField("Key", key).
-				Errorf("Failed to get %s object from data store: %s",
-					h.Handler.CrdName(), err)
-		} else {
-			dsDump[key] = item
-		}
+		item := kv.GetValue()
+		dsDump[key] = item
 	}
 
 	return dsDump, nil
@@ -219,40 +322,46 @@ func (h *KvdbReflector) listDataStoreItems() (DsItems, error) {
 //
 // If data can not be written into the data store, mark-and-sweep is aborted
 // and the function returns an error.
-func (h *KvdbReflector) markAndSweep(dsItems DsItems) error {
-	for _, obj := range h.Informer.GetStore().List() {
-		k8sProtoObj, key, err := h.Handler.CrdObjectToProto(obj)
+func (r *KvdbReflector) markAndSweep(dsItems DsItems) error {
+	for _, obj := range r.Informer.GetStore().List() {
+		kvdata, err := r.Handler.CrdObjectToKVData(obj)
 		if err == nil {
-			dsProtoObj, exists := dsItems[key]
-			if exists {
-				if !reflect.DeepEqual(k8sProtoObj, dsProtoObj) {
-					// Object exists in the data store, but it changed in the
-					// K8s cache; overwrite the data store
-					err := h.broker.Put(key, k8sProtoObj.(proto.Message))
+			for _, kv := range kvdata {
+				kvBytes, err := r.marshalData(kv)
+				if err != nil {
+					return fmt.Errorf("marshall for key '%s' failed", kv.KeySuffix)
+				}
+				dsBytes, exists := dsItems[kv.KeySuffix]
+				if exists {
+					if !bytes.Equal(dsBytes, kvBytes) {
+						// Object exists in the data store, but it changed in the
+						// K8s cache; overwrite the data store
+						err := r.broker.Put(kv.KeySuffix, kvBytes)
+						if err != nil {
+							return fmt.Errorf("update for key '%s' failed", kv.KeySuffix)
+						}
+					}
+				} else {
+					// Object does not exist in the data store, but it exists in
+					// the K8s cache; create object in the data store
+					err = r.broker.Put(kv.KeySuffix, kvBytes)
 					if err != nil {
-						return fmt.Errorf("update for key '%s' failed", key)
+						return fmt.Errorf("add for key '%s' failed", kv.KeySuffix)
 					}
 				}
-			} else {
-				// Object does not exist in the data store, but it exists in
-				// the K8s cache; create object in the data store
-				err := h.broker.Put(key, k8sProtoObj.(proto.Message))
-				if err != nil {
-					return fmt.Errorf("add for key '%s' failed", key)
-				}
+				delete(dsItems, kv.KeySuffix)
 			}
-			delete(dsItems, key)
 		} else {
-			h.Log.Warnf("Failed to cast %s item listed from K8s cache: %v",
-				h.Handler.CrdName(), err)
+			r.Log.Warnf("Failed to cast %s item listed from K8s cache: %v",
+				r.Handler.CrdName(), err)
 		}
 	}
 
 	// Delete from data store all objects that no longer exist in the K8s
 	// cache.
-	if h.Handler.IsExclusiveKVDB() {
+	if r.Handler.IsExclusiveKVDB() {
 		for key := range dsItems {
-			_, err := h.broker.Delete(key)
+			_, err := r.broker.Delete(key)
 			if err != nil {
 				return fmt.Errorf("delete for key '%s' failed", key)
 			}
@@ -266,24 +375,24 @@ func (h *KvdbReflector) markAndSweep(dsItems DsItems) error {
 
 // syncDataStoreWithK8sCache syncs data in etcd with data in k8s cache.
 // Returns ok if reconciliation is successful, error otherwise.
-func (h *KvdbReflector) syncDataStoreWithK8sCache(dsItems DsItems) error {
-	h.dsMutex.Lock()
-	defer h.dsMutex.Unlock()
+func (r *KvdbReflector) syncDataStoreWithK8sCache(dsItems DsItems) error {
+	r.dsMutex.Lock()
+	defer r.dsMutex.Unlock()
 
 	// don't do anything unless the K8s cache itself is synced
-	if !h.Informer.HasSynced() {
+	if !r.Informer.HasSynced() {
 		return fmt.Errorf("%s data sync: k8sController not synced",
-			h.Handler.CrdName())
+			r.Handler.CrdName())
 	}
 
 	// Reconcile data store with k8s cache using mark-and-sweep
-	err := h.markAndSweep(dsItems)
+	err := r.markAndSweep(dsItems)
 	if err != nil {
 		return fmt.Errorf("%s data sync: mark-and-sweep failed, '%s'",
-			h.Handler.CrdName(), err)
+			r.Handler.CrdName(), err)
 	}
 
-	h.dsSynced = true
+	r.dsSynced = true
 	return nil
 }
 
@@ -292,10 +401,10 @@ func (h *KvdbReflector) syncDataStoreWithK8sCache(dsItems DsItems) error {
 // attempt until it reaches the specified maximum wait timeout. The function
 // returns true if a data sync abort signal is received, at which point
 // the data store resync is terminated.
-func (h *KvdbReflector) dataStoreResyncWait(timeout *time.Duration) bool {
+func (r *KvdbReflector) dataStoreResyncWait(timeout *time.Duration) bool {
 	select {
-	case <-h.syncStopCh: // Data Store resync is aborted
-		h.Log.Info("Data sync aborted due to data store down")
+	case <-r.syncStopCh: // Data Store resync is aborted
+		r.Log.Info("Data sync aborted due to data store down")
 		return true
 	case <-time.After(*timeout * time.Millisecond):
 		t := *timeout * 2
@@ -311,7 +420,7 @@ func (h *KvdbReflector) dataStoreResyncWait(timeout *time.Duration) bool {
 // the handler's K8s cache. The resync will only stop if it's successful,
 // or until it's aborted because of a data store failure or a handler process
 // termination notification.
-func (h *KvdbReflector) startDataStoreResync() {
+func (r *KvdbReflector) startDataStoreResync() {
 	go func(h *KvdbReflector) {
 		h.Log.Debug("starting data sync")
 		var timeout time.Duration = minResyncTimeout
@@ -354,5 +463,5 @@ func (h *KvdbReflector) startDataStoreResync() {
 				break Loop
 			}
 		}
-	}(h)
+	}(r)
 }

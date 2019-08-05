@@ -14,5 +14,17 @@
 
 package model
 
+import "github.com/contiv/vpp/plugins/ksr/model/ksrkey"
+
 // Keyword defines the keyword identifying external interface data.
 const Keyword = "external-interface"
+
+// KeyPrefix return prefix where all external interface configs are persisted.
+func KeyPrefix() string {
+	return ksrkey.KsrK8sPrefix + "/" + Keyword + "/"
+}
+
+// Key returns the key for configuration of a given external interface.
+func Key(iface string) string {
+	return KeyPrefix() + iface
+}

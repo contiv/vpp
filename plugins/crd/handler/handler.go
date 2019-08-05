@@ -14,23 +14,12 @@
 
 package handler
 
-import (
-	"github.com/contiv/vpp/plugins/crd/handler/customnetwork"
-	"github.com/contiv/vpp/plugins/crd/handler/externalinterface"
-	"github.com/contiv/vpp/plugins/crd/handler/nodeconfig"
-	"github.com/contiv/vpp/plugins/crd/handler/servicefunctionchain"
-	"github.com/contiv/vpp/plugins/crd/handler/telemetry"
-)
-
 // Handler is implemented by any handler.
 // The Handle method is used to process an event
 type Handler interface {
-	//
 	Init() error
-	//
-	ObjectCreated(obj interface{})
-	//
-	ObjectDeleted(obj interface{})
-	//
-	ObjectUpdated(oldObj, newObj interface{})
+	ObjectCreated(obj interface{}) error
+	ObjectDeleted(obj interface{}) error
+	ObjectUpdated(oldObj, newObj interface{}) error
+	PublishStatus(obj interface{}, opRetval error) error
 }

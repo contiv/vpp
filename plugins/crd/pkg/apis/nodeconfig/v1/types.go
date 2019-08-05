@@ -21,9 +21,16 @@ import (
 
 // CRD Constants
 const (
-	CRDGroup                    string = nodeconfig.GroupName
-	CRDGroupVersion             string = "v1"
-	CRDContivNodeConfigPlural   string = "nodeconfigs"
+	CRDGroup                  string = nodeconfig.GroupName
+	CRDGroupVersion           string = "v1"
+	CRDContivNodeConfigPlural string = "nodeconfigs"
+)
+
+const (
+	// StatusSuccess is returned in Status.State when controller successfully creates/deletes/updates NodeConfig CRD.
+	StatusSuccess = "Success"
+	// StatusFailure is returned in Status.State when controller fails to create/delete/update NodeConfig CRD.
+	StatusFailure = "Failure"
 )
 
 // NodeConfig describes contiv node configuration custom resource

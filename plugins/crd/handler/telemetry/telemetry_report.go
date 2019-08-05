@@ -1,6 +1,5 @@
 package telemetry
 
-
 import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
@@ -22,17 +21,17 @@ import (
 //CRDReport implements generation of reports to CRD
 type CRDReport struct {
 	Deps
-
-	VppCache api.VppCache
-	K8sCache api.K8sCache
-	Report   api.Report
 }
 
+// Deps lists dependencies of CRDReport.
 type Deps struct {
 	Lister             listers.TelemetryReportLister
 	Log                logging.Logger
 	CollectionInterval time.Duration
 	CrdClient          *crdClientSet.Clientset
+	VppCache           api.VppCache
+	K8sCache           api.K8sCache
+	Report             api.Report
 }
 
 // appendIfMissing is utility function to append to list only if it do not contains the data already
@@ -109,4 +108,3 @@ func (cr *CRDReport) GenerateCRDReport() {
 		}
 	}
 }
-

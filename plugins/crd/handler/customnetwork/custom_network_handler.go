@@ -20,15 +20,15 @@ package customnetwork
 
 import (
 	"errors"
-
-	"github.com/gogo/protobuf/proto"
-
 	"github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
+	"github.com/contiv/vpp/plugins/crd/handler/kvdbreflector"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
+	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 )
 
 // Handler implements the Handler interface for CRD<->KVDB Reflector.
 type Handler struct {
+	CrdClient *crdClientSet.Clientset
 }
 
 // CrdName returns name of the CRD.
@@ -39,7 +39,7 @@ func (h *Handler) CrdName() string {
 // CrdKeyPrefix returns the longest-common prefix under which the instances
 // of the given CRD are reflected into KVDB.
 func (h *Handler) CrdKeyPrefix() (prefix string, underKsrPrefix bool) {
-	return model.Keyword, true
+	return model.Keyword + "/", true
 }
 
 // IsCrdKeySuffix always returns true - the key prefix does not overlap with
@@ -48,28 +48,43 @@ func (h *Handler) IsCrdKeySuffix(keySuffix string) bool {
 	return true
 }
 
-// CrdObjectToProto converts the K8s representation of CustomNetwork into the
+// CrdObjectToKVData converts the K8s representation of CustomNetwork into the
 // corresponding proto message representation.
-func (h *Handler) CrdObjectToProto(obj interface{}) (data proto.Message, keySuffix string, err error) {
+func (h *Handler) CrdObjectToKVData(obj interface{}) (data []kvdbreflector.KVData, err error) {
 	customNet, ok := obj.(*v1.CustomNetwork)
 	if !ok {
-		return nil, "", errors.New("failed to cast into CustomNetwork struct")
+		return nil, errors.New("failed to cast into CustomNetwork struct")
 	}
-
-	data = h.customNetworkToProto(customNet)
-	keySuffix = customNet.GetName()
+	data = []kvdbreflector.KVData{
+		{
+			ProtoMsg:  h.customNetworkToProto(customNet),
+			KeySuffix: customNet.GetName(),
+		},
+	}
 	return
-}
-
-// CrdProtoFactory creates an empty instance of the CRD proto model.
-func (h *Handler) CrdProtoFactory() proto.Message {
-	return &model.CustomNetwork{}
 }
 
 // IsExclusiveKVDB returns true - this is the only writer for CustomNetwork KVs
 // in the database.
 func (h *Handler) IsExclusiveKVDB() bool {
 	return true
+}
+
+// PublishCrdStatus updates the resource Status information.
+func (h *Handler) PublishCrdStatus(obj interface{}, opRetval error) error {
+	customNet, ok := obj.(*v1.CustomNetwork)
+	if !ok {
+		return errors.New("failed to cast into CustomNetwork struct")
+	}
+	customNet = customNet.DeepCopy()
+	if opRetval == nil {
+		customNet.Status.Status = v1.StatusSuccess
+	} else {
+		customNet.Status.Status = v1.StatusFailure
+		customNet.Status.Message = opRetval.Error()
+	}
+	_, err := h.CrdClient.ContivppV1().CustomNetworks(customNet.Namespace).Update(customNet)
+	return err
 }
 
 // customNetworkToProto converts custom-network data from the Contiv's own CRD representation

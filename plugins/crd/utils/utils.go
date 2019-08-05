@@ -19,12 +19,8 @@ package utils
 import (
 	"context"
 	"encoding/json"
-	contivppio "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
-	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
-	telemetry "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
 	"github.com/unrolled/render"
 	"io/ioutil"
-	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"os/exec"
 	"time"
@@ -33,27 +29,6 @@ import (
 const (
 	defaultNetctlCommandTimeout = 2 * time.Second
 )
-
-// GetObjectMetaData returns metadata of a given k8s object
-func GetObjectMetaData(obj interface{}) meta.ObjectMeta {
-
-	var objectMeta meta.ObjectMeta
-
-	switch object := obj.(type) {
-	case *telemetry.TelemetryReport:
-		objectMeta = object.ObjectMeta
-	case *nodeconfig.NodeConfig:
-		objectMeta = object.ObjectMeta
-	case *contivppio.CustomNetwork:
-		objectMeta = object.ObjectMeta
-	case *contivppio.ExternalInterface:
-		objectMeta = object.ObjectMeta
-	case *contivppio.ServiceFunctionChain:
-		objectMeta = object.ObjectMeta
-	}
-
-	return objectMeta
-}
 
 // HandleNetctlCommand executes the contiv-netctl tool with give arguments and sends the output in the response.
 func HandleNetctlCommand(formatter *render.Render) http.HandlerFunc {

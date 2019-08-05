@@ -24,6 +24,12 @@ import (
 	"github.com/ligato/cn-infra/health/probe"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/cn-infra/servicelabel"
+
+	// load all VPP-agent models for CustomConfiguration CRD handler to use
+	_ "github.com/ligato/vpp-agent/api/models/linux"
+	_ "github.com/ligato/vpp-agent/api/models/linux/iptables"
+	_ "github.com/ligato/vpp-agent/api/models/vpp"
+	_ "github.com/ligato/vpp-agent/api/models/vpp/srv6"
 )
 
 // ContivCRD is a custom resource to provide Contiv-VPP telemetry information.
@@ -66,7 +72,8 @@ func main() {
 	etcd.DefaultPlugin.StatusCheck = nil
 
 	crd.DefaultPlugin.Watcher = ksrDataSync
-	crd.DefaultPlugin.Publish = ksrDataSync
+	crd.DefaultPlugin.Etcd = &etcd.DefaultPlugin
+	crd.DefaultPlugin.ServiceLabel = ksrServicelabel
 
 	probe.DefaultPlugin.NonFatalPlugins = []string{"etcd"}
 

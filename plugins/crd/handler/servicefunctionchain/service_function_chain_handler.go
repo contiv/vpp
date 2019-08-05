@@ -21,14 +21,15 @@ package servicefunctionchain
 import (
 	"errors"
 
-	"github.com/gogo/protobuf/proto"
-
+	"github.com/contiv/vpp/plugins/crd/handler/kvdbreflector"
 	"github.com/contiv/vpp/plugins/crd/handler/servicefunctionchain/model"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
+	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 )
 
 // Handler implements the Handler interface for CRD<->KVDB Reflector.
 type Handler struct {
+	CrdClient *crdClientSet.Clientset
 }
 
 // CrdName returns name of the CRD.
@@ -39,7 +40,7 @@ func (h *Handler) CrdName() string {
 // CrdKeyPrefix returns the longest-common prefix under which the instances
 // of the given CRD are reflected into KVDB.
 func (h *Handler) CrdKeyPrefix() (prefix string, underKsrPrefix bool) {
-	return model.Keyword, true
+	return model.Keyword + "/", true
 }
 
 // IsCrdKeySuffix always returns true - the key prefix does not overlap with
@@ -48,28 +49,43 @@ func (h *Handler) IsCrdKeySuffix(keySuffix string) bool {
 	return true
 }
 
-// CrdObjectToProto converts the K8s representation of ServiceFunctionChain into the
+// CrdObjectToKVData converts the K8s representation of NodeConfig into the
 // corresponding proto message representation.
-func (h *Handler) CrdObjectToProto(obj interface{}) (data proto.Message, keySuffix string, err error) {
+func (h *Handler) CrdObjectToKVData(obj interface{}) (data []kvdbreflector.KVData, err error) {
 	svc, ok := obj.(*v1.ServiceFunctionChain)
 	if !ok {
-		return nil, "", errors.New("failed to cast into ServiceFunctionChain struct")
+		return nil, errors.New("failed to cast into ServiceFunctionChain struct")
 	}
-
-	data = h.serviceFunctionChainToProto(svc)
-	keySuffix = svc.GetName()
+	data = []kvdbreflector.KVData{
+		{
+			ProtoMsg:  h.serviceFunctionChainToProto(svc),
+			KeySuffix: svc.GetName(),
+		},
+	}
 	return
-}
-
-// CrdProtoFactory creates an empty instance of the CRD proto model.
-func (h *Handler) CrdProtoFactory() proto.Message {
-	return &model.ServiceFunctionChain{}
 }
 
 // IsExclusiveKVDB returns true - this is the only writer for ServiceFunctionChain KVs
 // in the database.
 func (h *Handler) IsExclusiveKVDB() bool {
 	return true
+}
+
+// PublishCrdStatus updates the resource Status information.
+func (h *Handler) PublishCrdStatus(obj interface{}, opRetval error) error {
+	svc, ok := obj.(*v1.ServiceFunctionChain)
+	if !ok {
+		return errors.New("failed to cast into ServiceFunctionChain struct")
+	}
+	svc = svc.DeepCopy()
+	if opRetval == nil {
+		svc.Status.Status = v1.StatusSuccess
+	} else {
+		svc.Status.Status = v1.StatusFailure
+		svc.Status.Message = opRetval.Error()
+	}
+	_, err := h.CrdClient.ContivppV1().ServiceFunctionChains(svc.Namespace).Update(svc)
+	return err
 }
 
 // serviceFunctionChainToProto converts service function chain data from the Contiv's own CRD representation

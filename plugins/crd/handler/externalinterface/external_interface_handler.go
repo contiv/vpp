@@ -21,14 +21,15 @@ package externalinterface
 import (
 	"errors"
 
-	"github.com/gogo/protobuf/proto"
-
 	"github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
+	"github.com/contiv/vpp/plugins/crd/handler/kvdbreflector"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
+	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 )
 
 // Handler implements the Handler interface for CRD<->KVDB Reflector.
 type Handler struct {
+	CrdClient *crdClientSet.Clientset
 }
 
 // CrdName returns name of the CRD.
@@ -39,7 +40,7 @@ func (h *Handler) CrdName() string {
 // CrdKeyPrefix returns the longest-common prefix under which the instances
 // of the given CRD are reflected into KVDB.
 func (h *Handler) CrdKeyPrefix() (prefix string, underKsrPrefix bool) {
-	return model.Keyword, true
+	return model.Keyword + "/", true
 }
 
 // IsCrdKeySuffix always returns true - the key prefix does not overlap with
@@ -48,28 +49,43 @@ func (h *Handler) IsCrdKeySuffix(keySuffix string) bool {
 	return true
 }
 
-// CrdObjectToProto converts the K8s representation of ExternalInterface into the
+// CrdObjectToKVData converts the K8s representation of ExternalInterface into the
 // corresponding proto message representation.
-func (h *Handler) CrdObjectToProto(obj interface{}) (data proto.Message, keySuffix string, err error) {
+func (h *Handler) CrdObjectToKVData(obj interface{}) (data []kvdbreflector.KVData, err error) {
 	extIface, ok := obj.(*v1.ExternalInterface)
 	if !ok {
-		return nil, "", errors.New("failed to cast into ExternalInterface struct")
+		return nil, errors.New("failed to cast into ExternalInterface struct")
 	}
-
-	data = h.externalInterfaceToProto(extIface)
-	keySuffix = extIface.GetName()
+	data = []kvdbreflector.KVData{
+		{
+			ProtoMsg:  h.externalInterfaceToProto(extIface),
+			KeySuffix: extIface.GetName(),
+		},
+	}
 	return
-}
-
-// CrdProtoFactory creates an empty instance of the CRD proto model.
-func (h *Handler) CrdProtoFactory() proto.Message {
-	return &model.ExternalInterface{}
 }
 
 // IsExclusiveKVDB returns true - this is the only writer for ExternalInterface KVs
 // in the database.
 func (h *Handler) IsExclusiveKVDB() bool {
 	return true
+}
+
+// PublishCrdStatus updates the resource Status information.
+func (h *Handler) PublishCrdStatus(obj interface{}, opRetval error) error {
+	extIface, ok := obj.(*v1.ExternalInterface)
+	if !ok {
+		return errors.New("failed to cast into ExternalInterface struct")
+	}
+	extIface = extIface.DeepCopy()
+	if opRetval == nil {
+		extIface.Status.Status = v1.StatusSuccess
+	} else {
+		extIface.Status.Status = v1.StatusFailure
+		extIface.Status.Message = opRetval.Error()
+	}
+	_, err := h.CrdClient.ContivppV1().ExternalInterfaces(extIface.Namespace).Update(extIface)
+	return err
 }
 
 func (h *Handler) externalInterfaceToProto(externalIf *v1.ExternalInterface) *model.ExternalInterface {

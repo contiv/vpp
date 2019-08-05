@@ -20,10 +20,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
-	"reflect"
 
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
@@ -36,17 +36,18 @@ import (
 	"github.com/contiv/vpp/plugins/crd/utils"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/rest"
+	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache"
 	"github.com/contiv/vpp/plugins/crd/controller"
+	"github.com/contiv/vpp/plugins/crd/handler/customconfiguration"
 	"github.com/contiv/vpp/plugins/crd/handler/customnetwork"
 	"github.com/contiv/vpp/plugins/crd/handler/externalinterface"
 	"github.com/contiv/vpp/plugins/crd/handler/kvdbreflector"
@@ -56,8 +57,9 @@ import (
 	"github.com/contiv/vpp/plugins/crd/validator"
 
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio"
-	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
+	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
+	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
 
 	factory "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -91,14 +93,21 @@ type Plugin struct {
 	customNetworkController        *controller.CrdController
 	externalInterfaceController    *controller.CrdController
 	serviceFunctionChainController *controller.CrdController
+	customConfigController         *controller.CrdController
 	cache                          *cache.ContivTelemetryCache
 	processor                      api.ContivTelemetryProcessor
 	verbose                        bool
+
+	crdClient     *crdClientSet.Clientset
+	apiclientset  *apiextcs.Clientset
+	sharedFactory factory.SharedInformerFactory
 }
 
 // Deps defines dependencies of CRD plugin.
 type Deps struct {
 	infra.PluginDeps
+	ServiceLabel servicelabel.ReaderAPI
+
 	// Kubeconfig with k8s cluster address and access credentials to use.
 	KubeConfig config.PluginConfig
 
@@ -108,7 +117,7 @@ type Deps struct {
 
 	/* both Publish and Watcher are prefixed for KSR-published K8s state data */
 	Watcher datasync.KeyValProtoWatcher
-	Publish *kvdbsync.Plugin // KeyProtoValWriter does not define Delete
+	Etcd    *etcd.Plugin // etcd plugin is specifically required for election and raw-data support
 }
 
 const electionPrefix = "/contiv-crd/election"
@@ -136,128 +145,21 @@ func (p *Plugin) Init() error {
 		return fmt.Errorf("failed to build kubernetes client config: %s", err)
 	}
 
-	crdClient, err := crdClientSet.NewForConfig(k8sClientConfig)
+	p.crdClient, err = crdClientSet.NewForConfig(k8sClientConfig)
 	if err != nil {
 		return fmt.Errorf("failed to build crd Client: %s", err)
 	}
 
-	apiclientset, err := apiextcs.NewForConfig(k8sClientConfig)
+	p.apiclientset, err = apiextcs.NewForConfig(k8sClientConfig)
 	if err != nil {
 		return fmt.Errorf("failed to build api Client: %s", err)
 	}
 
-	sharedFactory := factory.NewSharedInformerFactory(crdClient, k8sResyncInterval)
+	p.sharedFactory = factory.NewSharedInformerFactory(p.crdClient, k8sResyncInterval)
 
-	// Initialize CRDs:
-
-	err = p.initializeTelemetry(crdClient, apiclientset, sharedFactory)
+	err = p.initializeTelemetry()
 	if err != nil {
 		return err
-	}
-
-	nodeConfigInformer := sharedFactory.Nodeconfig().V1().NodeConfigs().Informer()
-	p.nodeConfigController = &controller.CrdController{
-		Deps: controller.Deps{
-			Log:       p.Log.NewLogger("-nodeConfigController"),
-			APIClient: apiclientset,
-			Informer:  nodeConfigInformer,
-			EventHandler: &kvdbreflector.KvdbReflector{
-				Deps: kvdbreflector.Deps{
-					Log:      p.Log.NewLogger("-nodeConfigHandler"),
-					Publish:  p.Publish,
-					Informer: nodeConfigInformer,
-					Handler:  &nodeconfig.Handler{},
-				},
-			},
-		},
-		Spec: controller.CrdSpec{
-			TypeName:  reflect.TypeOf(nodeconfigv1.NodeConfig{}).Name(),
-			Group:     nodeconfigv1.CRDGroup,
-			Version:   nodeconfigv1.CRDGroupVersion,
-			Plural:    nodeconfigv1.CRDContivNodeConfigPlural,
-		},
-	}
-
-	customNetworkInformer := sharedFactory.Contivpp().V1().CustomNetworks().Informer()
-	p.customNetworkController = &controller.CrdController{
-		Deps: controller.Deps{
-			Log:       p.Log.NewLogger("-customNetworkController"),
-			APIClient: apiclientset,
-			Informer:  customNetworkInformer,
-			EventHandler: &kvdbreflector.KvdbReflector{
-				Deps: kvdbreflector.Deps{
-					Log:      p.Log.NewLogger("-customNetworkHandler"),
-					Publish:  p.Publish,
-					Informer: customNetworkInformer,
-					Handler:  &customnetwork.Handler{},
-				},
-			},
-		},
-		Spec: controller.CrdSpec{
-			TypeName:  reflect.TypeOf(v1.CustomNetwork{}).Name(),
-			Group:     contivppio.GroupName,
-			Version:   "v1",
-			Plural:    "customnetworks",
-		},
-	}
-
-	externalInterfaceInformer := sharedFactory.Contivpp().V1().ExternalInterfaces().Informer()
-	p.externalInterfaceController = &controller.CrdController{
-		Deps: controller.Deps{
-			Log:       p.Log.NewLogger("-externalInterfaceController"),
-			APIClient: apiclientset,
-			Informer:  externalInterfaceInformer,
-			EventHandler: &kvdbreflector.KvdbReflector{
-				Deps: kvdbreflector.Deps{
-					Log:      p.Log.NewLogger("-externalInterfaceHandler"),
-					Publish:  p.Publish,
-					Informer: externalInterfaceInformer,
-					Handler:  &externalinterface.Handler{},
-				},
-			},
-		},
-		Spec: controller.CrdSpec{
-			TypeName:  reflect.TypeOf(v1.ExternalInterface{}).Name(),
-			Group:     contivppio.GroupName,
-			Version:   "v1",
-			Plural:    "externalinterfaces",
-		},
-	}
-
-	serviceFunctionChainInformer := sharedFactory.Contivpp().V1().ServiceFunctionChains().Informer()
-	p.serviceFunctionChainController = &controller.CrdController{
-		Deps: controller.Deps{
-			Log:       p.Log.NewLogger("-serviceFunctionChainController"),
-			APIClient: apiclientset,
-			Informer:  serviceFunctionChainInformer,
-			EventHandler: &kvdbreflector.KvdbReflector{
-				Deps: kvdbreflector.Deps{
-					Log:      p.Log.NewLogger("-serviceFunctionChainHandler"),
-					Publish:  p.Publish,
-					Informer: serviceFunctionChainInformer,
-					Handler:  &servicefunctionchain.Handler{},
-				},
-			},
-		},
-		Spec: controller.CrdSpec{
-			TypeName:  reflect.TypeOf(v1.ServiceFunctionChain{}).Name(),
-			Group:     contivppio.GroupName,
-			Version:   "v1",
-			Plural:    "servicefunctionchains",
-		},
-	}
-
-	// Init and run the controllers
-	p.nodeConfigController.Init()
-	p.customNetworkController.Init()
-	p.externalInterfaceController.Init()
-	p.serviceFunctionChainController.Init()
-
-	if p.verbose {
-		p.customNetworkController.Log.SetLevel(logging.DebugLevel)
-		p.nodeConfigController.Log.SetLevel(logging.DebugLevel)
-		p.externalInterfaceController.Log.SetLevel(logging.DebugLevel)
-		p.serviceFunctionChainController.Log.SetLevel(logging.DebugLevel)
 	}
 
 	go p.watchEvents()
@@ -266,11 +168,167 @@ func (p *Plugin) Init() error {
 		return err
 	}
 
+	// init and start CRD controllers only after connection with etcd has been established
+	p.Etcd.OnConnect(p.onEtcdConnect)
 	return nil
 }
 
-func (p *Plugin) initializeTelemetry(crdClient *crdClientSet.Clientset, apiclientset *apiextcs.Clientset,
-	sharedFactory factory.SharedInformerFactory) error {
+// initializeCRDs initializes and starts controllers for all CRDs except for Telemetry (which is initialized
+// by initializeTelemetry()).
+// Must be run *after* (first) connection with etcd has been established.
+func (p *Plugin) initializeCRDs() error {
+	nodeConfigInformer := p.sharedFactory.Nodeconfig().V1().NodeConfigs().Informer()
+	p.nodeConfigController = &controller.CrdController{
+		Deps: controller.Deps{
+			Log:       p.Log.NewLogger("nodeConfigController"),
+			APIClient: p.apiclientset,
+			Informer:  nodeConfigInformer,
+			EventHandler: &kvdbreflector.KvdbReflector{
+				Deps: kvdbreflector.Deps{
+					Log:          p.Log.NewLogger("nodeConfigHandler"),
+					ServiceLabel: p.ServiceLabel,
+					Publish:      p.Etcd.RawAccess(),
+					Informer:     nodeConfigInformer,
+					Handler: &nodeconfig.Handler{
+						CrdClient: p.crdClient,
+					},
+				},
+			},
+		},
+		Spec: controller.CrdSpec{
+			TypeName: reflect.TypeOf(nodeconfigv1.NodeConfig{}).Name(),
+			Group:    nodeconfigv1.CRDGroup,
+			Version:  nodeconfigv1.CRDGroupVersion,
+			Plural:   nodeconfigv1.CRDContivNodeConfigPlural,
+		},
+	}
+
+	customNetworkInformer := p.sharedFactory.Contivpp().V1().CustomNetworks().Informer()
+	p.customNetworkController = &controller.CrdController{
+		Deps: controller.Deps{
+			Log:       p.Log.NewLogger("customNetworkController"),
+			APIClient: p.apiclientset,
+			Informer:  customNetworkInformer,
+			EventHandler: &kvdbreflector.KvdbReflector{
+				Deps: kvdbreflector.Deps{
+					Log:          p.Log.NewLogger("customNetworkHandler"),
+					ServiceLabel: p.ServiceLabel,
+					Publish:      p.Etcd.RawAccess(),
+					Informer:     customNetworkInformer,
+					Handler: &customnetwork.Handler{
+						CrdClient: p.crdClient,
+					},
+				},
+			},
+		},
+		Spec: controller.CrdSpec{
+			TypeName: reflect.TypeOf(v1.CustomNetwork{}).Name(),
+			Group:    contivppio.GroupName,
+			Version:  "v1",
+			Plural:   "customnetworks",
+		},
+	}
+
+	externalInterfaceInformer := p.sharedFactory.Contivpp().V1().ExternalInterfaces().Informer()
+	p.externalInterfaceController = &controller.CrdController{
+		Deps: controller.Deps{
+			Log:       p.Log.NewLogger("externalInterfaceController"),
+			APIClient: p.apiclientset,
+			Informer:  externalInterfaceInformer,
+			EventHandler: &kvdbreflector.KvdbReflector{
+				Deps: kvdbreflector.Deps{
+					Log:          p.Log.NewLogger("externalInterfaceHandler"),
+					ServiceLabel: p.ServiceLabel,
+					Publish:      p.Etcd.RawAccess(),
+					Informer:     externalInterfaceInformer,
+					Handler: &externalinterface.Handler{
+						CrdClient: p.crdClient,
+					},
+				},
+			},
+		},
+		Spec: controller.CrdSpec{
+			TypeName: reflect.TypeOf(v1.ExternalInterface{}).Name(),
+			Group:    contivppio.GroupName,
+			Version:  "v1",
+			Plural:   "externalinterfaces",
+		},
+	}
+
+	serviceFunctionChainInformer := p.sharedFactory.Contivpp().V1().ServiceFunctionChains().Informer()
+	p.serviceFunctionChainController = &controller.CrdController{
+		Deps: controller.Deps{
+			Log:       p.Log.NewLogger("serviceFunctionChainController"),
+			APIClient: p.apiclientset,
+			Informer:  serviceFunctionChainInformer,
+			EventHandler: &kvdbreflector.KvdbReflector{
+				Deps: kvdbreflector.Deps{
+					Log:          p.Log.NewLogger("serviceFunctionChainHandler"),
+					ServiceLabel: p.ServiceLabel,
+					Publish:      p.Etcd.RawAccess(),
+					Informer:     serviceFunctionChainInformer,
+					Handler: &servicefunctionchain.Handler{
+						CrdClient: p.crdClient,
+					},
+				},
+			},
+		},
+		Spec: controller.CrdSpec{
+			TypeName: reflect.TypeOf(v1.ServiceFunctionChain{}).Name(),
+			Group:    contivppio.GroupName,
+			Version:  "v1",
+			Plural:   "servicefunctionchains",
+		},
+	}
+
+	customConfigInformer := p.sharedFactory.Contivpp().V1().CustomConfigurations().Informer()
+	customConfigLog := p.Log.NewLogger("customConfigHandler")
+	p.customConfigController = &controller.CrdController{
+		Deps: controller.Deps{
+			Log:       p.Log.NewLogger("customConfigController"),
+			APIClient: p.apiclientset,
+			Informer:  customConfigInformer,
+			EventHandler: &kvdbreflector.KvdbReflector{
+				Deps: kvdbreflector.Deps{
+					Log:          customConfigLog,
+					ServiceLabel: p.ServiceLabel,
+					Publish:      p.Etcd.RawAccess(),
+					Informer:     customConfigInformer,
+					Handler: &customconfiguration.Handler{
+						Log:       customConfigLog,
+						CrdClient: p.crdClient,
+					},
+				},
+			},
+		},
+		Spec: controller.CrdSpec{
+			TypeName:   reflect.TypeOf(v1.CustomConfiguration{}).Name(),
+			Group:      contivppio.GroupName,
+			Version:    "v1",
+			Plural:     "customconfigurations",
+			Validation: customconfiguration.Validation(),
+		},
+	}
+
+	p.nodeConfigController.Init()
+	p.customNetworkController.Init()
+	p.externalInterfaceController.Init()
+	p.serviceFunctionChainController.Init()
+	p.customConfigController.Init()
+
+	if p.verbose {
+		p.customNetworkController.Log.SetLevel(logging.DebugLevel)
+		p.nodeConfigController.Log.SetLevel(logging.DebugLevel)
+		p.externalInterfaceController.Log.SetLevel(logging.DebugLevel)
+		p.serviceFunctionChainController.Log.SetLevel(logging.DebugLevel)
+		p.customConfigController.Log.SetLevel(logging.DebugLevel)
+		customConfigLog.SetLevel(logging.DebugLevel)
+	}
+
+	return nil
+}
+
+func (p *Plugin) initializeTelemetry() error {
 	// Time interval for periodic report collection
 	collectionInterval := 5 * time.Minute
 	configuredInterval, err := strconv.Atoi(os.Getenv("CONTIV_CRD_VALIDATE_INTERVAL"))
@@ -288,23 +346,29 @@ func (p *Plugin) initializeTelemetry(crdClient *crdClientSet.Clientset, apiclien
 		validateState = "SB"
 	}
 
-	telemetryInformer := sharedFactory.Telemetry().V1().TelemetryReports().Informer()
-	telemetryLister := sharedFactory.Telemetry().V1().TelemetryReports().Lister()
+	telemetryInformer := p.sharedFactory.Telemetry().V1().TelemetryReports().Informer()
+	telemetryLister := p.sharedFactory.Telemetry().V1().TelemetryReports().Lister()
 	p.telemetryController = &controller.CrdController{
 		Deps: controller.Deps{
-			Log:          p.Log.NewLogger("-telemetryController"),
-			APIClient:    apiclientset,
+			Log:          p.Log.NewLogger("telemetryController"),
+			APIClient:    p.apiclientset,
 			Informer:     telemetryInformer,
 			EventHandler: &telemetry.Handler{},
+		},
+		Spec: controller.CrdSpec{
+			TypeName: reflect.TypeOf(telemetryv1.TelemetryReport{}).Name(),
+			Group:    telemetryv1.CRDGroup,
+			Version:  telemetryv1.CRDGroupVersion,
+			Plural:   telemetryv1.CRDContivTelemetryReportPlural,
 		},
 	}
 
 	p.cache = cache.NewTelemetryCache(p.Log, collectionInterval, validateState, p.verbose)
 	p.cache.Init()
 
-	validatorLog := p.Log.NewLogger("-telemetryProcessor")
-	l2ValidatorLog := p.Log.NewLogger("-telemetryProcessorL2")
-	l3ValidatorLog := p.Log.NewLogger("-telemetryProcessorL3")
+	validatorLog := p.Log.NewLogger("telemetryProcessor")
+	l2ValidatorLog := p.Log.NewLogger("telemetryProcessorL2")
+	l3ValidatorLog := p.Log.NewLogger("telemetryProcessorL3")
 
 	p.processor = &validator.Validator{
 		Deps: validator.Deps{
@@ -321,10 +385,13 @@ func (p *Plugin) initializeTelemetry(crdClient *crdClientSet.Clientset, apiclien
 
 	controllerReport := &telemetry.CRDReport{
 		Deps: telemetry.Deps{
-			Log:                p.Log.NewLogger("-telemetryReporter"),
+			Log:                p.Log.NewLogger("telemetryReporter"),
 			CollectionInterval: collectionInterval,
-			CrdClient:          crdClient,
+			CrdClient:          p.crdClient,
 			Lister:             telemetryLister,
+			VppCache:           p.cache.VppCache,
+			K8sCache:           p.cache.K8sCache,
+			Report:             p.cache.Report,
 		},
 	}
 	p.cache.ControllerReport = controllerReport
@@ -344,38 +411,41 @@ func (p *Plugin) initializeTelemetry(crdClient *crdClientSet.Clientset, apiclien
 		l2ValidatorLog.SetLevel(logging.ErrorLevel)
 		l3ValidatorLog.SetLevel(logging.ErrorLevel)
 	}
-	return 	p.telemetryController.Init()
+	return p.telemetryController.Init()
 }
 
-// AfterInit registers to the ResyncOrchestrator. The registration is done in this phase
-// in order to ensure that the resync for this plugin is triggered only after
-// resync of the Contiv plugin has finished.
+// AfterInit registers to the ResyncOrchestrator.
 func (p *Plugin) AfterInit() error {
 	if p.Resync != nil {
 		reg := p.Resync.Register(string(p.PluginName))
 		go p.handleResync(reg.StatusChan())
 	}
+	return nil
+}
+
+// onEtcdConnect is called when the connection with etcd is made.
+// CRD controllers are initialized and started.
+func (p *Plugin) onEtcdConnect() error {
+	// Init and run the controllers
+	err := p.initializeCRDs()
+	if err != nil {
+		return err
+	}
 	go func() {
-		if etcdPlugin, ok := p.Publish.KvPlugin.(*etcd.Plugin); ok {
-			p.Log.Info("Start campaign in crd leader election")
-
-			_, err := etcdPlugin.CampaignInElection(p.ctx, electionPrefix)
-			if err != nil {
-				p.Log.Error(err)
-				return
-			}
-			p.Log.Info("The instance was elected as leader.")
-
-		} else {
-			p.Log.Warn("leader election is not supported for a kv-store different from etcd")
+		p.Log.Info("Start campaign in crd leader election")
+		_, err := p.Etcd.CampaignInElection(p.ctx, electionPrefix)
+		if err != nil {
+			p.Log.Error(err)
+			return
 		}
+		p.Log.Info("The instance was elected as leader.")
 		go p.telemetryController.Run(p.ctx.Done())
 		go p.nodeConfigController.Run(p.ctx.Done())
 		go p.customNetworkController.Run(p.ctx.Done())
 		go p.externalInterfaceController.Run(p.ctx.Done())
 		go p.serviceFunctionChainController.Run(p.ctx.Done())
+		go p.customConfigController.Run(p.ctx.Done())
 	}()
-
 	return nil
 }
 

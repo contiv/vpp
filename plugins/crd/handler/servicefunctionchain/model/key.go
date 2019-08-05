@@ -14,5 +14,17 @@
 
 package model
 
+import "github.com/contiv/vpp/plugins/ksr/model/ksrkey"
+
 // Keyword defines the keyword identifying ServiceFunctionChain data.
 const Keyword = "servicefunctionchain"
+
+// KeyPrefix return prefix where all service function chain configs are persisted.
+func KeyPrefix() string {
+	return ksrkey.KsrK8sPrefix + "/" + Keyword + "/"
+}
+
+// Key returns the key for configuration of a given service function chain.
+func Key(chain string) string {
+	return KeyPrefix() + chain
+}

@@ -14,5 +14,17 @@
 
 package model
 
+import "github.com/contiv/vpp/plugins/ksr/model/ksrkey"
+
 // Keyword defines the keyword identifying CustomNetwork data.
 const Keyword = "customnetwork"
+
+// KeyPrefix return prefix where all custom network configs are persisted.
+func KeyPrefix() string {
+	return ksrkey.KsrK8sPrefix + "/" + Keyword + "/"
+}
+
+// Key returns the key for configuration of a given network.
+func Key(network string) string {
+	return KeyPrefix() + network
+}

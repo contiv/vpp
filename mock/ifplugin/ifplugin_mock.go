@@ -17,6 +17,7 @@ package pluginvpp
 import (
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/ligato/vpp-agent/api/models/vpp"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
 )
 
@@ -40,12 +41,15 @@ func (mvp *MockVppIfPlugin) AddInterface(ifName string, swIfIndex uint32, ip str
 	})
 }
 
-// GetSwIfIndexes return map of interfaces added via AddInterface.
-func (m *MockVppIfPlugin) GetInterfaceIndex() ifaceidx.IfaceMetadataIndex {
-	return m.swIfIndexes
+// GetInterfaceIndex return map of interfaces added via AddInterface.
+func (mvp *MockVppIfPlugin) GetInterfaceIndex() ifaceidx.IfaceMetadataIndex {
+	return mvp.swIfIndexes
 }
 
-// GetDHCPIndices does nothing here.
-func (m *MockVppIfPlugin) GetDHCPIndices() idxmap.NamedMapping {
+// GetDHCPIndex does nothing here.
+func (mvp *MockVppIfPlugin) GetDHCPIndex() idxmap.NamedMapping {
 	return nil
 }
+
+// SetNotifyService does nothing here
+func (mvp *MockVppIfPlugin) SetNotifyService(notify func(notification *vpp.Notification)) {}

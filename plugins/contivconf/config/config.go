@@ -75,6 +75,10 @@ type RoutingConfig struct {
 	// part of route the "NodeToNodeTransport" setting. To communicate between nodes only using SRv6, set it to "srv6" (+ UseSRv6ForServices=true).
 	UseSRv6ForServices bool `json:"useSRv6ForServices,omitempty"`
 
+	// Enables usage of DX6 end function instead of DT6 end function for node-to-node communication using SRV6. This is limited to
+	// pod-to-pod communication use case in full IPv6 environment (pods and node fabric is IPv6)
+	UseDX6ForSrv6NodetoNodeTransport bool `json:"useDX6ForSrv6NodetoNodeTransport,omitempty"`
+
 	// when enabled, cluster IP CIDR should be routed towards VPP from Linux
 	RouteServiceCIDRToVPP bool `json:"routeServiceCIDRToVPP,omitempty"`
 }

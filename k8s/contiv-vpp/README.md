@@ -62,6 +62,7 @@ Parameter | Description | Default
 --------- | ----------- | -------
 `contiv.nodeToNodeTransport` | Transportation used for node-to-node communication | `vxlan`
 `contiv.useSRv6ForServices` | Enable usage of SRv6 for k8s service | `false`
+`contiv.useDX6ForSrv6NodetoNodeTransport` | Enable usage of DX6 instead of DT6 for node-to-node communication (only for pod-to-pod case with full IPv6 environment) | `false`
 `contiv.mtuSize` | MTU Size | 1450
 `contiv.useTAPInterfaces` | Enable TAP interfaces | `True`
 `contiv.tapInterfaceVersion`| TAP interface version | 2

@@ -101,6 +101,9 @@ const (
 	// default node to node communication
 	defaultNodeToNodeTransport = VXLANTransport
 
+	// default usage of DX6 instead of DT6 for SRv6 node-to-node transport (only pod-to-pod communication in full IPv6 environment)
+	defaultUseDX6ForSrv6NodetoNodeTransport = false
+
 	// default VRF IDs
 	defaultMainVrfID = 0
 	defaultPodVrfID  = 1
@@ -293,9 +296,10 @@ func (c *ContivConf) Init() (err error) {
 			IPNeighborStaleThreshold: defaultIPNeighborStaleThreshold,
 		},
 		RoutingConfig: config.RoutingConfig{
-			MainVRFID:           defaultMainVrfID,
-			PodVRFID:            defaultPodVrfID,
-			NodeToNodeTransport: defaultNodeToNodeTransport,
+			MainVRFID:                        defaultMainVrfID,
+			PodVRFID:                         defaultPodVrfID,
+			NodeToNodeTransport:              defaultNodeToNodeTransport,
+			UseDX6ForSrv6NodetoNodeTransport: defaultUseDX6ForSrv6NodetoNodeTransport,
 		},
 		IPAMConfig: config.IPAMConfig{
 			ServiceCIDR:                   defaultServiceCIDR,

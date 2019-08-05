@@ -200,3 +200,10 @@ func anyNetAddrForAF(ip net.IP) string {
 	}
 	return ipv4NetAny
 }
+
+// addFullPrefixToIP creates from given IP address IPNet by applying full IP prefix.
+// The full IP prefix used is determined from address family of given IP address.
+func addFullPrefixToIP(ip net.IP) (*net.IPNet, error) {
+	_, ipnet, err := net.ParseCIDR(ip.String() + fullPrefixForAF(ip))
+	return ipnet, err
+}

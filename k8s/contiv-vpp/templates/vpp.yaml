@@ -33,6 +33,7 @@ data:
   contiv.conf: |-
     nodeToNodeTransport: {{ .Values.contiv.nodeToNodeTransport }}
     useSRv6ForServices: {{ .Values.contiv.useSRv6ForServices }}
+    useDX6ForSrv6NodetoNodeTransport: {{ .Values.contiv.useDX6ForSrv6NodetoNodeTransport }}
     useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}

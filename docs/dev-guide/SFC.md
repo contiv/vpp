@@ -6,7 +6,7 @@ service function chaining between the pods for CNF workloads directly on the CNI
 A service function chain defines network interconnections between custom (additional) POD interfaces 
 (see [custom interfaces README](../operation/CUSTOM_POD_INTERFACES.md)), and can be defined
 as CRDs with references to the PODs via the pod labels, similarly as in k8s services
-([example](../../k8s/crd/servicefunctionchain.yaml)).
+([example](../../k8s/crd/service-function-chain.yaml)).
 
 Contiv-VPP will support several ways of rendering the service chains. For example,
 a service function chain defined as an ordered list of pod labels `app=a, app=b, app=c`
@@ -20,7 +20,7 @@ or using SRv6 as follows:
 SFC in Contiv-VPP is implemented similarly to [k8s services](SERVICES.md). It consists of
 the following components:
 
- - **SFC reflector in KSR** - reflects SFC defined as CRDs into Contiv-ETCD
+ - **SFC reflector in CRD** - reflects SFC defined as CRDs into Contiv-ETCD
  - **SFC Processor** - processes service function chain definitions in abstract format
  (using k8s labels) to chains of actual running pod instances
  - **SFC Renderers** - render service chain instances into VPP configuration (wire,
@@ -37,6 +37,6 @@ the following components:
 
 - [X] define service function chain CRD API ([example](../../k8s/crd/servicefunctionchain.yaml))
 - [x] SFC CRD reflector on KSR 
-- [ ] SFC plugin skeleton + SFC Processor **(in progress)**
+- [x] SFC plugin skeleton + SFC Processor
+- [ ] l2xconn renderer **(in progress)**
 - [ ] SRv6 renderer **(assigned)**
-- [ ] l2xconn renderer **(NOT assigned yet)**

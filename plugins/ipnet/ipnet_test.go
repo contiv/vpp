@@ -219,22 +219,30 @@ type Fixture struct {
 	PodManager   *MockPodManager
 	GoVPP        *MockGoVPP
 	VppIfPlugin  *MockVppIfPlugin
+	TxnCount     int
+}
+
+type TunnelTestingFixture struct {
+	*Fixture
+	TxnTracker   *localclient.TxnTracker
+	ContivConf   *contivconf.ContivConf
+	Srv6Handler  *handler.SRv6MockHandler
+	RouteHandler *handler.RouteMockHandler
+	Ipam         *ipam.IPAM
 }
 
 func TestBasicStuff(t *testing.T) {
 	RegisterTestingT(t)
-	var txnCount int
-
 	fixture := newCommonFixture("TestBasicStuff")
 
 	// DHCP
 	dhcpIndexes := idxmap_mem.NewNamedMapping(logrus.DefaultLogger(), "test-dhcp_indexes", nil)
 
-	// transactions
-	txnTracker := localclient.NewTxnTracker(nil)
-
 	// DPDK interfaces
 	dpdkIfaces := []string{Gbe8, Gbe9}
+
+	// txnTracker
+	txnTracker := localclient.NewTxnTracker(nil)
 
 	// STN
 	stnReply := &stn_grpc.STNReply{
@@ -305,16 +313,7 @@ func TestBasicStuff(t *testing.T) {
 	}
 
 	// resync against empty K8s state data
-	emptyK8sResyncAndAssertState(EmptyK8sResyncAssertionStruct{
-		ResyncAssertionData: &ResyncAssertionData{
-			TxnTracker: txnTracker,
-			TxnCount:   &txnCount,
-			Plugin:     &plugin,
-			Datasync:   fixture.Datasync,
-			ContivConf: contivConf,
-			Ipam:       ipam,
-		},
-	})
+	emptyK8SResync(txnTracker, ipam, contivConf, fixture, &plugin)
 
 	fmt.Println("Resync after DHCP event ----------------------------------")
 
@@ -335,29 +334,16 @@ func TestBasicStuff(t *testing.T) {
 	Expect(err).ShouldNot(HaveOccurred())
 	err = commitTransaction(txn, true)
 	Expect(err).ShouldNot(HaveOccurred())
-	txnCount++
+	fixture.TxnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
 	nodeIP = &net.IPNet{IP: plugin.nodeIP, Mask: plugin.nodeIPNet.Mask}
 	Expect(nodeIP.String()).To(Equal(Gbe8IP))
 
 	fmt.Println("Add another node -----------------------------------------")
 
 	// add another node
-	addr, network, mgmt := addOtherNodeAndAssertState(AddOtherNodeStateData{
-		ResyncAssertionData: &ResyncAssertionData{
-			TxnTracker: txnTracker,
-			TxnCount:   &txnCount,
-			Plugin:     &plugin,
-			Datasync:   fixture.Datasync,
-			ContivConf: contivConf,
-			Ipam:       ipam,
-		},
-		OtherNodeID:   node2ID,
-		OtherNodeName: node2Name,
-		ManagementIP:  node2MgmtIP,
-		Nodesync:      fixture.NodeSync,
-	})
+	addr, network, mgmt := addOtherNode(txnTracker, ipam, fixture, &plugin, node2ID, node2Name, node2MgmtIP)
 
 	fmt.Println("Other node Mgmt IP update --------------------------------")
 
@@ -376,9 +362,9 @@ func TestBasicStuff(t *testing.T) {
 	Expect(change).To(Equal("update node ID=2"))
 	err = commitTransaction(txn, false)
 	Expect(err).ShouldNot(HaveOccurred())
-	txnCount++
+	fixture.TxnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
 
 	fmt.Println("Add pod --------------------------------------------------")
 
@@ -395,9 +381,9 @@ func TestBasicStuff(t *testing.T) {
 	Expect(change).To(Equal("configure IP connectivity"))
 	err = commitTransaction(txn, false)
 	Expect(err).ShouldNot(HaveOccurred())
-	txnCount++
+	fixture.TxnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
 
 	fmt.Println("Resync with non-empty K8s state --------------------------")
 
@@ -408,9 +394,9 @@ func TestBasicStuff(t *testing.T) {
 	Expect(err).ShouldNot(HaveOccurred())
 	err = commitTransaction(txn, true)
 	Expect(err).ShouldNot(HaveOccurred())
-	txnCount++
+	fixture.TxnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
 
 	// add pod entry into the mock DB
 	fixture.Datasync.Put(k8sPod.Key(pod1Name, pod1Namespace), &k8sPod.Pod{
@@ -435,9 +421,9 @@ func TestBasicStuff(t *testing.T) {
 	Expect(err).ShouldNot(HaveOccurred())
 	err = commitTransaction(txn, true)
 	Expect(err).ShouldNot(HaveOccurred())
-	txnCount++
+	fixture.TxnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
 	Expect(plugin.nodeIP).To(BeEmpty())
 	Expect(plugin.nodeIPNet).To(BeNil())
 
@@ -450,9 +436,9 @@ func TestBasicStuff(t *testing.T) {
 	Expect(change).To(Equal("un-configure IP connectivity"))
 	err = commitTransaction(txn, false)
 	Expect(err).ShouldNot(HaveOccurred())
-	txnCount++
+	fixture.TxnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
 
 	// remove the pod entry from mock podmanager and DB
 	fixture.PodManager.DeletePod(pod1ID)
@@ -468,9 +454,9 @@ func TestBasicStuff(t *testing.T) {
 	Expect(change).To(Equal("disconnect node ID=2"))
 	err = commitTransaction(txn, false)
 	Expect(err).ShouldNot(HaveOccurred())
-	txnCount++
+	fixture.TxnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
 
 	fmt.Println("Resync just before Close ---------------------------------")
 
@@ -480,9 +466,9 @@ func TestBasicStuff(t *testing.T) {
 	Expect(err).ShouldNot(HaveOccurred())
 	err = commitTransaction(txn, true)
 	Expect(err).ShouldNot(HaveOccurred())
-	txnCount++
+	fixture.TxnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
 
 	fmt.Println("Close ----------------------------------------------------")
 
@@ -495,195 +481,161 @@ func TestBasicStuff(t *testing.T) {
 	Expect(txn.Values).To(BeEmpty())
 	err = commitTransaction(txn, false)
 	Expect(err).ShouldNot(HaveOccurred())
-	txnCount++
+	fixture.TxnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
 }
 
-func TestPodTunnelIPv4PodConfig(t *testing.T) {
+func TestCreatePodTunnelIPv4PodConfig(t *testing.T) {
 	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestCreatePodTunnelIPv4PodConfig", 4)
 
-	fixture, plugin := newTunnelTestingFixture("TestPodTunnelIPv4PodConfig", 4)
+	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	expectedTunnelSetup := getExpectedPodTunnelSetup(nodeIP.IP, fixture, plugin)
+	assertEgress(true, expectedTunnelSetup.egress, fixture.Srv6Handler)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 
-	nodeIP := setupTunnelsAndAssertState(fixture, plugin)
-
-	sid := fixture.ipam.SidForNodeToNodePodLocalsid(nodeIP.IP)
-	podLocalSID := &vpp_srv6.LocalSID{
-		Sid:               sid.String(),
-		InstallationVrfId: fixture.contivConf.GetRoutingConfig().MainVRFID,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_DT4{EndFunction_DT4: &vpp_srv6.LocalSID_EndDT4{
-			VrfId: fixture.contivConf.GetRoutingConfig().PodVRFID,
-		}},
-	}
-	Expect(fixture.srv6Handler.LocalSids).To(ContainElement(podLocalSID))
-
-	assertPodTunnelIngress(fixture.ipam, fixture.contivConf, plugin, fixture.srv6Handler, fixture.routeHandler)
+	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
+	assertIngress(true, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 }
 
-func TestPodTunnelIPv6(t *testing.T) {
+func TestDeletePodTunnelIPv4PodConfig(t *testing.T) {
 	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestDeletePodTunnelIPv4PodConfig", 4)
+	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	expectedTunnelSetup := getExpectedPodTunnelSetup(nodeIP.IP, fixture, plugin)
+	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
 
-	fixture, plugin := newTunnelTestingFixture("TestPodTunnelIPv6", 6)
-
-	nodeIP := setupTunnelsAndAssertState(fixture, plugin)
-
-	sid := fixture.ipam.SidForNodeToNodePodLocalsid(nodeIP.IP)
-	podLocalSID := &vpp_srv6.LocalSID{
-		Sid:               sid.String(),
-		InstallationVrfId: fixture.contivConf.GetRoutingConfig().MainVRFID,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_DT6{EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
-			VrfId: fixture.contivConf.GetRoutingConfig().PodVRFID,
-		}},
-	}
-	Expect(fixture.srv6Handler.LocalSids).To(ContainElement(podLocalSID))
-
-	assertPodTunnelIngress(fixture.ipam, fixture.contivConf, plugin, fixture.srv6Handler, fixture.routeHandler)
+	deleteOtherNode(fixture.TxnTracker, fixture.Fixture, plugin, node2Name)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 }
 
-func TestHostTunnelIPv4PodConfig(t *testing.T) {
+func TestCreatePodTunnelIPv6(t *testing.T) {
 	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestCreatePodTunnelIPv6", 6)
 
-	fixture, plugin := newTunnelTestingFixture("TestHostTunnelIPv4PodConfig", 4)
+	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	expectedTunnelSetup := getExpectedPodTunnelSetup(nodeIP.IP, fixture, plugin)
+	assertEgress(true, expectedTunnelSetup.egress, fixture.Srv6Handler)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 
-	nodeIP := setupTunnelsAndAssertState(fixture, plugin)
-
-	sid := fixture.ipam.SidForNodeToNodeHostLocalsid(nodeIP.IP)
-	hostLocalSID := &vpp_srv6.LocalSID{
-		Sid:               sid.String(),
-		InstallationVrfId: fixture.contivConf.GetRoutingConfig().MainVRFID,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_DT4{EndFunction_DT4: &vpp_srv6.LocalSID_EndDT4{
-			VrfId: fixture.contivConf.GetRoutingConfig().MainVRFID,
-		}},
-	}
-	Expect(fixture.srv6Handler.LocalSids).To(ContainElement(hostLocalSID))
-
-	assertHostTunnelIngress(fixture.ipam, fixture.contivConf, plugin, fixture.srv6Handler, fixture.routeHandler)
+	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
+	assertIngress(true, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 }
 
-func TestHostTunnelIPv6(t *testing.T) {
+func TestDeletePodTunnelIPv6(t *testing.T) {
 	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestDeletePodTunnelIPv6", 6)
+	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	expectedTunnelSetup := getExpectedPodTunnelSetup(nodeIP.IP, fixture, plugin)
+	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
 
-	fixture, plugin := newTunnelTestingFixture("TestHostTunnelIPv6", 6)
-
-	nodeIP := setupTunnelsAndAssertState(fixture, plugin)
-
-	sid := fixture.ipam.SidForNodeToNodeHostLocalsid(nodeIP.IP)
-	hostLocalSID := &vpp_srv6.LocalSID{
-		Sid:               sid.String(),
-		InstallationVrfId: fixture.contivConf.GetRoutingConfig().MainVRFID,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_DT6{EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
-			VrfId: fixture.contivConf.GetRoutingConfig().MainVRFID,
-		}},
-	}
-	Expect(fixture.srv6Handler.LocalSids).To(ContainElement(hostLocalSID))
-
-	assertHostTunnelIngress(fixture.ipam, fixture.contivConf, plugin, fixture.srv6Handler, fixture.routeHandler)
+	deleteOtherNode(fixture.TxnTracker, fixture.Fixture, plugin, node2Name)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 }
 
-func TestIntermServiceTunnelIPv4PodConfig(t *testing.T) {
+func TestCreateHostTunnelIPv4PodConfig(t *testing.T) {
 	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestCreateHostTunnelIPv4PodConfig", 4)
 
-	fixture, plugin := newTunnelTestingFixture("TestIntermServiceTunnelIPv4PodConfig", 4)
+	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	expectedTunnelSetup := getExpectedHostTunnelSetup(nodeIP.IP, fixture, plugin)
+	assertEgress(true, expectedTunnelSetup.egress, fixture.Srv6Handler)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 
-	nodeIP := setupTunnelsAndAssertState(fixture, plugin)
-
-	sid := fixture.ipam.SidForServiceNodeLocalsid(nodeIP.IP)
-	innerLocalSID := &vpp_srv6.LocalSID{
-		Sid:               sid.String(),
-		InstallationVrfId: fixture.contivConf.GetRoutingConfig().MainVRFID,
-		EndFunction:       &vpp_srv6.LocalSID_BaseEndFunction{BaseEndFunction: &vpp_srv6.LocalSID_End{}},
-	}
-	Expect(fixture.srv6Handler.LocalSids).To(ContainElement(innerLocalSID))
-
-	assertNodeToNodeSegmentIngress(fixture.ipam, fixture.contivConf, plugin, fixture.srv6Handler, fixture.routeHandler)
+	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
+	assertIngress(true, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 }
 
-func TestIntermServiceTunnelIPv6(t *testing.T) {
+func TestDeleteHostTunnelIPv4PodConfig(t *testing.T) {
 	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestDeleteHostTunnelIPv4PodConfig", 4)
+	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	expectedTunnelSetup := getExpectedHostTunnelSetup(nodeIP.IP, fixture, plugin)
+	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
 
-	fixture, plugin := newTunnelTestingFixture("TestIntermServiceTunnelIPv6", 6)
-
-	nodeIP := setupTunnelsAndAssertState(fixture, plugin)
-
-	sid := fixture.ipam.SidForServiceNodeLocalsid(nodeIP.IP)
-	innerLocalSID := &vpp_srv6.LocalSID{
-		Sid:               sid.String(),
-		InstallationVrfId: fixture.contivConf.GetRoutingConfig().MainVRFID,
-		EndFunction:       &vpp_srv6.LocalSID_BaseEndFunction{BaseEndFunction: &vpp_srv6.LocalSID_End{}},
-	}
-	Expect(fixture.srv6Handler.LocalSids).To(ContainElement(innerLocalSID))
-
-	assertNodeToNodeSegmentIngress(fixture.ipam, fixture.contivConf, plugin, fixture.srv6Handler, fixture.routeHandler)
+	deleteOtherNode(fixture.TxnTracker, fixture.Fixture, plugin, node2Name)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 }
 
-func setupTunnelsAndAssertState(fixture *TunnelTestingFixture, plugin *IPNet) *net.IPNet {
-	var txnCount int
+func TestCreateHostTunnelIPv6(t *testing.T) {
+	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestCreateHostTunnelIPv6", 6)
 
-	// resync against empty K8s state data
-	nodeIP := emptyK8sResyncAndAssertState(EmptyK8sResyncAssertionStruct{
-		ResyncAssertionData: &ResyncAssertionData{
-			TxnTracker: fixture.txnTracker,
-			TxnCount:   &txnCount,
-			Plugin:     plugin,
-			Datasync:   fixture.Datasync,
-			ContivConf: fixture.contivConf,
-			Ipam:       fixture.ipam,
-		},
-	})
+	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	expectedTunnelSetup := getExpectedHostTunnelSetup(nodeIP.IP, fixture, plugin)
+	assertEgress(true, expectedTunnelSetup.egress, fixture.Srv6Handler)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 
-	// add another node
-	addOtherNodeAndAssertState(AddOtherNodeStateData{
-		ResyncAssertionData: &ResyncAssertionData{
-			TxnTracker: fixture.txnTracker,
-			TxnCount:   &txnCount,
-			Plugin:     plugin,
-			Datasync:   fixture.Datasync,
-			ContivConf: fixture.contivConf,
-			Ipam:       fixture.ipam,
-		},
-		OtherNodeID:   node2ID,
-		OtherNodeName: node2Name,
-		ManagementIP:  node2MgmtIP,
-		Nodesync:      fixture.NodeSync,
-	})
-
-	return nodeIP
+	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
+	assertIngress(true, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 }
 
-type ResyncAssertionData struct {
-	Plugin     *IPNet
-	Datasync   *MockDataSync
-	ContivConf *contivconf.ContivConf
-	Ipam       *ipam.IPAM
-	TxnTracker *localclient.TxnTracker
-	TxnCount   *int
+func TestDeleteHostTunnelIPv6(t *testing.T) {
+	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestDeleteHostTunnelIPv6", 6)
+	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	expectedTunnelSetup := getExpectedHostTunnelSetup(nodeIP.IP, fixture, plugin)
+	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
+
+	deleteOtherNode(fixture.TxnTracker, fixture.Fixture, plugin, node2Name)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 }
 
-type AddOtherNodeStateData struct {
-	*ResyncAssertionData
-	OtherNodeID   uint32
-	OtherNodeName string
-	ManagementIP  string
-	Nodesync      *MockNodeSync
+func TestCreateIntermServiceTunnelIPv4PodConfig(t *testing.T) {
+	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestCreateIntermServiceTunnelIPv4PodConfig", 4)
+
+	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	expectedTunnelSetup := getExpectedNodeToNodeSegmentSetup(nodeIP.IP, fixture, plugin)
+	assertEgress(true, expectedTunnelSetup.egress, fixture.Srv6Handler)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
+
+	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
+	assertIngress(true, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 }
 
-type EmptyK8sResyncAssertionStruct struct {
-	*ResyncAssertionData
-	AssertingIP string
+func TestDeleteIntermServiceTunnelIPv4PodConfig(t *testing.T) {
+	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestDeleteIntermServiceTunnelIPv4PodConfig", 4)
+	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	expectedTunnelSetup := getExpectedNodeToNodeSegmentSetup(nodeIP.IP, fixture, plugin)
+	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
+
+	deleteOtherNode(fixture.TxnTracker, fixture.Fixture, plugin, node2Name)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 }
 
-type TunnelTestingFixture struct {
-	*Fixture
-	txnTracker   *localclient.TxnTracker
-	contivConf   *contivconf.ContivConf
-	srv6Handler  *handler.SRv6MockHandler
-	routeHandler *handler.RouteMockHandler
-	ipam         *ipam.IPAM
+func TestCreateIntermServiceTunnelIPv6(t *testing.T) {
+	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestCreateIntermServiceTunnelIPv6", 6)
+
+	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	expectedTunnelSetup := getExpectedNodeToNodeSegmentSetup(nodeIP.IP, fixture, plugin)
+	assertEgress(true, expectedTunnelSetup.egress, fixture.Srv6Handler)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
+
+	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
+	assertIngress(true, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
+}
+
+func TestDeleteIntermServiceTunnelIPv6(t *testing.T) {
+	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestDeleteIntermServiceTunnelIPv6", 6)
+	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	expectedTunnelSetup := getExpectedNodeToNodeSegmentSetup(nodeIP.IP, fixture, plugin)
+	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
+
+	deleteOtherNode(fixture.TxnTracker, fixture.Fixture, plugin, node2Name)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 }
 
 func (fixture *TunnelTestingFixture) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.PrevRevisions) error {
-	fixture.srv6Handler.ApplyTxn(txn, latestRevs)
-	fixture.routeHandler.ApplyTxn(txn, latestRevs)
+	err := fixture.Srv6Handler.ApplyTxn(txn, latestRevs)
+	Expect(err).ShouldNot(HaveOccurred())
+	err = fixture.RouteHandler.ApplyTxn(txn, latestRevs)
+	Expect(err).ShouldNot(HaveOccurred())
+
 	return nil
 }
 
@@ -732,13 +684,13 @@ func newTunnelTestingFixture(testName string, ipVer uint8) (*TunnelTestingFixtur
 
 	data := &TunnelTestingFixture{
 		Fixture:      fixture,
-		srv6Handler:  handler.NewSRv6Mock(logrus.DefaultLogger()),
-		routeHandler: handler.NewRouteMock(logrus.DefaultLogger()),
+		Srv6Handler:  handler.NewSRv6Mock(logrus.DefaultLogger()),
+		RouteHandler: handler.NewRouteMock(logrus.DefaultLogger()),
 	}
-	data.txnTracker = localclient.NewTxnTracker(data.ApplyTxn)
+	data.TxnTracker = localclient.NewTxnTracker(data.ApplyTxn)
 
 	// contivConf plugin
-	data.contivConf = &contivconf.ContivConf{
+	data.ContivConf = &contivconf.ContivConf{
 		Deps: contivconf.Deps{
 			PluginDeps: infra.PluginDeps{
 				Log: logging.ForPlugin("contivconf"),
@@ -750,30 +702,31 @@ func newTunnelTestingFixture(testName string, ipVer uint8) (*TunnelTestingFixtur
 		},
 	}
 	if ipVer == 4 {
-		data.contivConf.UnitTestDeps = &contivconf.UnitTestDeps{
+		data.ContivConf.UnitTestDeps = &contivconf.UnitTestDeps{
 			Config: ipVer4Srv6NodeToNodeConfig,
 		}
 	} else {
-		data.contivConf.UnitTestDeps = &contivconf.UnitTestDeps{
+		data.ContivConf.UnitTestDeps = &contivconf.UnitTestDeps{
 			Config: ipVer6TunnelTestingContivConf,
 		}
 	}
 
-	Expect(data.contivConf.Init()).To(BeNil())
+	Expect(data.ContivConf.Init()).To(BeNil())
 	resyncEv, _ := data.Datasync.ResyncEvent()
-	Expect(data.contivConf.Resync(resyncEv, resyncEv.KubeState, 1, nil)).To(BeNil())
+	Expect(data.ContivConf.Resync(resyncEv, resyncEv.KubeState, 1, nil)).To(BeNil())
 
 	// IPAM real plugin
-	data.ipam = &ipam.IPAM{
+	data.Ipam = &ipam.IPAM{
 		Deps: ipam.Deps{
 			PluginDeps: infra.PluginDeps{
 				Log: logging.ForPlugin("IPAM"),
 			},
 			NodeSync:   fixture.NodeSync,
-			ContivConf: data.contivConf,
+			ContivConf: data.ContivConf,
 		},
 	}
-	Expect(data.ipam.Init()).ShouldNot(HaveOccurred())
+	Expect(data.Ipam.Init()).ShouldNot(HaveOccurred())
+	Expect(data.Ipam.Resync(resyncEv, resyncEv.KubeState, 1, nil)).To(BeNil())
 
 	// ipNet plugin
 	deps := Deps{
@@ -782,8 +735,8 @@ func newTunnelTestingFixture(testName string, ipVer uint8) (*TunnelTestingFixtur
 		},
 		EventLoop:    fixture.EventLoop,
 		ServiceLabel: fixture.ServiceLabel,
-		ContivConf:   data.contivConf,
-		IPAM:         data.ipam,
+		ContivConf:   data.ContivConf,
+		IPAM:         data.Ipam,
 		NodeSync:     fixture.NodeSync,
 		PodManager:   fixture.PodManager,
 		GoVPP:        fixture.GoVPP,
@@ -808,105 +761,131 @@ func newTunnelTestingFixture(testName string, ipVer uint8) (*TunnelTestingFixtur
 	return data, ipNet
 }
 
-func addOtherNodeAndAssertState(assertData AddOtherNodeStateData) (addr net.IP, network *net.IPNet, mgmt net.IP) {
+func addOtherNode(txnTracker *localclient.TxnTracker, ipam *ipam.IPAM, fixture *Fixture, plugin *IPNet, otherNodeID uint32, otherNodeName string, otherNodeMgmtIP string) (addr net.IP, network *net.IPNet, mgmt net.IP) {
 	fmt.Println("Add another node -----------------------------------------")
 
-	addr, network, _ = assertData.Ipam.NodeIPAddress(assertData.OtherNodeID)
-	mgmt = net.ParseIP(assertData.ManagementIP)
+	addr, network, _ = ipam.NodeIPAddress(otherNodeID)
+	mgmt = net.ParseIP(otherNodeMgmtIP)
 	node2 := &nodesync.Node{
-		Name:            assertData.OtherNodeName,
-		ID:              assertData.OtherNodeID,
+		Name:            otherNodeName,
+		ID:              otherNodeID,
 		VppIPAddresses:  contivconf.IPsWithNetworks{{Address: addr, Network: network}},
 		MgmtIPAddresses: []net.IP{mgmt},
 	}
-	nodeUpdateEvent := assertData.Nodesync.UpdateNode(node2)
-	txn := assertData.TxnTracker.NewControllerTxn(false)
-	change, err := assertData.Plugin.Update(nodeUpdateEvent, txn)
+	nodeUpdateEvent := fixture.NodeSync.UpdateNode(node2)
+	txn := txnTracker.NewControllerTxn(false)
+	change, err := plugin.Update(nodeUpdateEvent, txn)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(change).To(Equal("connect node ID=2"))
 	err = commitTransaction(txn, false)
 	Expect(err).ShouldNot(HaveOccurred())
-	*assertData.TxnCount++
-	Expect(assertData.TxnTracker.PendingTxns).To(HaveLen(0))
-	Expect(assertData.TxnTracker.CommittedTxns).To(HaveLen(*assertData.TxnCount))
+	fixture.TxnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
 
 	return
 }
 
-func emptyK8sResyncAndAssertState(assertData EmptyK8sResyncAssertionStruct) *net.IPNet {
+func emptyK8SResync(txnTracker *localclient.TxnTracker, ipam *ipam.IPAM, contivConf *contivconf.ContivConf, fixture *Fixture, plugin *IPNet) *net.IPNet {
 	fmt.Println("Resync against empty K8s state ---------------------------")
 
-	resyncEv, resyncCount := assertData.Datasync.ResyncEvent(keyPrefixes...)
-	Expect(assertData.ContivConf.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
-	Expect(assertData.Ipam.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
-	txn := assertData.TxnTracker.NewControllerTxn(true)
-	err := assertData.Plugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
+	resyncEv, resyncCount := fixture.Datasync.ResyncEvent(keyPrefixes...)
+	Expect(contivConf.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
+	Expect(ipam.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
+	txn := txnTracker.NewControllerTxn(true)
+	err := plugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
 	Expect(err).ShouldNot(HaveOccurred())
 	err = commitTransaction(txn, true)
 	Expect(err).ShouldNot(HaveOccurred())
-	*assertData.TxnCount++
-	Expect(assertData.TxnTracker.PendingTxns).To(HaveLen(0))
-	Expect(assertData.TxnTracker.CommittedTxns).To(HaveLen(*assertData.TxnCount))
+	fixture.TxnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
 
-	if assertData.Plugin.nodeIP == nil {
-		Expect(assertData.Plugin.nodeIP).To(BeEmpty())
-		Expect(assertData.Plugin.nodeIPNet).To(BeNil())
+	if plugin.nodeIP == nil {
+		Expect(plugin.nodeIP).To(BeEmpty())
+		Expect(plugin.nodeIPNet).To(BeNil())
 		return nil
 	}
 
-	ip, ipNet, _ := assertData.Ipam.NodeIPAddress(node1ID)
+	ip, ipNet, _ := ipam.NodeIPAddress(node1ID)
 	expectedIP := &net.IPNet{IP: ip, Mask: ipNet.Mask}
-	nodeIP := &net.IPNet{IP: assertData.Plugin.nodeIP, Mask: assertData.Plugin.nodeIPNet.Mask}
+	nodeIP := &net.IPNet{IP: plugin.nodeIP, Mask: plugin.nodeIPNet.Mask}
 	Expect(nodeIP.String()).To(Equal(expectedIP.String()))
 
 	return nodeIP
 }
 
-func assertPodTunnelIngress(ipam *ipam.IPAM, contivConf *contivconf.ContivConf, plugin *IPNet, srv6Handler *handler.SRv6MockHandler, routeHandler *handler.RouteMockHandler) {
-	node2IP, _, err := ipam.NodeIPAddress(node2ID)
-	Expect(err).ShouldNot(HaveOccurred())
+func deleteOtherNode(txnTracker *localclient.TxnTracker, fixture *Fixture, plugin *IPNet, nodeName string) {
+	fmt.Println("Delete node ----------------------------------------------")
 
-	sid := ipam.SidForNodeToNodePodLocalsid(node2IP)
-	bsid := ipam.BsidForNodeToNodePodPolicy(node2IP)
-	nodeToNodePodPolicy := &vpp_srv6.Policy{
-		Bsid:              bsid.String(),
-		InstallationVrfId: contivConf.GetRoutingConfig().MainVRFID,
-		SrhEncapsulation:  true,
-		SprayBehaviour:    false,
-		SegmentLists: []*vpp_srv6.Policy_SegmentList{
-			{
-				Weight: 1,
-				Segments: []string{
-					sid.String(),
-				},
-			},
-		},
-	}
-	Expect(hasPolicy(nodeToNodePodPolicy, srv6Handler.Policies)).To(Equal(true))
-
-	podNetwork, err := ipam.PodSubnetOtherNode(node2ID)
+	nodeUpdateEvent := fixture.NodeSync.DeleteNode(nodeName)
+	txn := txnTracker.NewControllerTxn(false)
+	change, err := plugin.Update(nodeUpdateEvent, txn)
 	Expect(err).ShouldNot(HaveOccurred())
-	assertSteering(podNetwork, bsid, "lookupInPodVRF", contivConf.GetRoutingConfig().MainVRFID, srv6Handler.Steerings)
-
-	_, ipNet, err := net.ParseCIDR(sid.To16().String() + "/128")
+	Expect(change).To(Equal("disconnect node ID=2"))
+	err = commitTransaction(txn, false)
 	Expect(err).ShouldNot(HaveOccurred())
-	Expect(routeHandler.Route).To(ContainElement(
-		&vpp_l3.Route{
-			DstNetwork:  ipNet.String(),
-			NextHopAddr: node2IP.String(),
-			VrfId:       contivConf.GetRoutingConfig().MainVRFID,
-		}))
+	fixture.TxnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
 }
 
-func assertHostTunnelIngress(ipam *ipam.IPAM, contivConf *contivconf.ContivConf, plugin *IPNet, srv6Handler *handler.SRv6MockHandler, routeHandler *handler.RouteMockHandler) {
-	node2IP, _, err := ipam.NodeIPAddress(node2ID)
+type Ingress struct {
+	policy    *vpp_srv6.Policy
+	steerings []*vpp_srv6.Steering
+	route     *vpp_l3.Route
+}
+
+type TunnelSetup struct {
+	ingress *Ingress
+	egress  *vpp_srv6.LocalSID
+}
+
+func assertEgress(exists bool, egress *vpp_srv6.LocalSID, srv6Handler *handler.SRv6MockHandler) {
+	if egress != nil {
+		if exists {
+			Expect(srv6Handler.LocalSids).To(ContainElement(egress))
+		} else {
+			Expect(srv6Handler.LocalSids).ToNot(ContainElement(egress))
+		}
+	}
+}
+
+func assertIngress(exists bool, ingress *Ingress, srv6Handler *handler.SRv6MockHandler, routeHandler *handler.RouteMockHandler) {
+	if ingress.policy != nil {
+		Expect(hasPolicy(ingress.policy, srv6Handler.Policies)).To(Equal(exists))
+	}
+
+	if ingress.route != nil {
+		if exists {
+			Expect(routeHandler.Route).To(ContainElement(ingress.route))
+		} else {
+			Expect(routeHandler.Route).ToNot(ContainElement(ingress.route))
+		}
+	}
+	for _, steering := range ingress.steerings {
+		if exists {
+			Expect(srv6Handler.Steerings).To(ContainElement(steering))
+		} else {
+			Expect(srv6Handler.Steerings).ToNot(ContainElement(steering))
+		}
+	}
+}
+
+func getExpectedPodTunnelSetup(nodeIP net.IP, fixture *TunnelTestingFixture, plugin *IPNet) TunnelSetup {
+	expectedSetup := TunnelSetup{
+		ingress: &Ingress{},
+	}
+
+	// policy
+	node2IP, _, err := fixture.Ipam.NodeIPAddress(node2ID)
 	Expect(err).ShouldNot(HaveOccurred())
 
-	sid := ipam.SidForNodeToNodeHostLocalsid(node2IP)
-	bsid := ipam.BsidForNodeToNodeHostPolicy(node2IP)
-	nodeToNodeHostPolicy := &vpp_srv6.Policy{
+	sid := fixture.Ipam.SidForNodeToNodePodLocalsid(node2IP)
+	bsid := fixture.Ipam.BsidForNodeToNodePodPolicy(node2IP)
+	expectedSetup.ingress.policy = &vpp_srv6.Policy{
 		Bsid:              bsid.String(),
-		InstallationVrfId: contivConf.GetRoutingConfig().MainVRFID,
+		InstallationVrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
 		SrhEncapsulation:  true,
 		SprayBehaviour:    false,
 		SegmentLists: []*vpp_srv6.Policy_SegmentList{
@@ -918,37 +897,136 @@ func assertHostTunnelIngress(ipam *ipam.IPAM, contivConf *contivconf.ContivConf,
 			},
 		},
 	}
-	Expect(hasPolicy(nodeToNodeHostPolicy, srv6Handler.Policies)).To(Equal(true))
 
-	hostNetwork, err := ipam.HostInterconnectSubnetOtherNode(node2ID)
-	assertSteering(hostNetwork, bsid, "lookupInMainVRF", contivConf.GetRoutingConfig().MainVRFID, srv6Handler.Steerings)
+	// steering
+	podNetwork, err := fixture.Ipam.PodSubnetOtherNode(node2ID)
+	Expect(err).ShouldNot(HaveOccurred())
+	expectedSetup.ingress.steerings = []*vpp_srv6.Steering{
+		getSteering(podNetwork, bsid, "lookupInPodVRF", fixture.ContivConf.GetRoutingConfig().MainVRFID),
+	}
 
+	//route
+	_, ipNet, err := net.ParseCIDR(sid.To16().String() + "/128")
+	Expect(err).ShouldNot(HaveOccurred())
+	expectedSetup.ingress.route = &vpp_l3.Route{
+		DstNetwork:  ipNet.String(),
+		NextHopAddr: node2IP.String(),
+		VrfId:       fixture.ContivConf.GetRoutingConfig().MainVRFID,
+	}
+
+	// egress
+	expectedSetup.egress = &vpp_srv6.LocalSID{
+		Sid:               fixture.Ipam.SidForNodeToNodePodLocalsid(nodeIP).String(),
+		InstallationVrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
+	}
+	if fixture.ContivConf.GetIPAMConfig().UseIPv6 {
+		expectedSetup.egress.EndFunction = &vpp_srv6.LocalSID_EndFunction_DT6{
+			EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
+				VrfId: fixture.ContivConf.GetRoutingConfig().PodVRFID,
+			},
+		}
+	} else {
+		expectedSetup.egress.EndFunction = &vpp_srv6.LocalSID_EndFunction_DT4{
+			EndFunction_DT4: &vpp_srv6.LocalSID_EndDT4{
+				VrfId: fixture.ContivConf.GetRoutingConfig().PodVRFID,
+			},
+		}
+	}
+
+	return expectedSetup
+}
+
+func getExpectedHostTunnelSetup(nodeIP net.IP, fixture *TunnelTestingFixture, plugin *IPNet) TunnelSetup {
+	expectedSetup := TunnelSetup{
+		ingress: &Ingress{},
+	}
+
+	node2IP, _, err := fixture.Ipam.NodeIPAddress(node2ID)
+	Expect(err).ShouldNot(HaveOccurred())
+
+	// policy
+	sid := fixture.Ipam.SidForNodeToNodeHostLocalsid(node2IP)
+	bsid := fixture.Ipam.BsidForNodeToNodeHostPolicy(node2IP)
+	expectedSetup.ingress.policy = &vpp_srv6.Policy{
+		Bsid:              bsid.String(),
+		InstallationVrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
+		SrhEncapsulation:  true,
+		SprayBehaviour:    false,
+		SegmentLists: []*vpp_srv6.Policy_SegmentList{
+			{
+				Weight: 1,
+				Segments: []string{
+					sid.String(),
+				},
+			},
+		},
+	}
+
+	// steerings
+	hostNetwork, err := fixture.Ipam.HostInterconnectSubnetOtherNode(node2ID)
 	mgmtIP := net.ParseIP(node2MgmtIP)
 	_, mgmtNetwork, err := net.ParseCIDR(mgmtIP.String() + fullPrefixForAF(mgmtIP))
-	assertSteering(mgmtNetwork, bsid, "managementIP-"+node2MgmtIP, contivConf.GetRoutingConfig().MainVRFID, srv6Handler.Steerings)
+	expectedSetup.ingress.steerings = []*vpp_srv6.Steering{
+		getSteering(hostNetwork, bsid, "lookupInMainVRF", fixture.ContivConf.GetRoutingConfig().MainVRFID),
+		getSteering(mgmtNetwork, bsid, "managementIP-"+node2MgmtIP, fixture.ContivConf.GetRoutingConfig().MainVRFID),
+	}
 
+	// route
 	_, ipNet, err := net.ParseCIDR(sid.To16().String() + "/128")
 	Expect(err).ShouldNot(HaveOccurred())
-	Expect(routeHandler.Route).To(ContainElement(
-		&vpp_l3.Route{
-			DstNetwork:  ipNet.String(),
-			NextHopAddr: node2IP.String(),
-			VrfId:       contivConf.GetRoutingConfig().MainVRFID,
-		}))
+	expectedSetup.ingress.route = &vpp_l3.Route{
+		DstNetwork:  ipNet.String(),
+		NextHopAddr: node2IP.String(),
+		VrfId:       fixture.ContivConf.GetRoutingConfig().MainVRFID,
+	}
+
+	// egress
+	expectedSetup.egress = &vpp_srv6.LocalSID{
+		Sid:               fixture.Ipam.SidForNodeToNodeHostLocalsid(nodeIP).String(),
+		InstallationVrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
+	}
+	if fixture.ContivConf.GetIPAMConfig().UseIPv6 {
+		expectedSetup.egress.EndFunction = &vpp_srv6.LocalSID_EndFunction_DT6{
+			EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
+				VrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
+			},
+		}
+	} else {
+		expectedSetup.egress.EndFunction = &vpp_srv6.LocalSID_EndFunction_DT4{
+			EndFunction_DT4: &vpp_srv6.LocalSID_EndDT4{
+				VrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
+			},
+		}
+	}
+
+	return expectedSetup
 }
 
-func assertNodeToNodeSegmentIngress(ipam *ipam.IPAM, contivConf *contivconf.ContivConf, plugin *IPNet, srv6Handler *handler.SRv6MockHandler, routeHandler *handler.RouteMockHandler) {
-	node2IP, _, err := ipam.NodeIPAddress(node2ID)
+func getExpectedNodeToNodeSegmentSetup(nodeIP net.IP, fixture *TunnelTestingFixture, plugin *IPNet) TunnelSetup {
+	expectedSetup := TunnelSetup{
+		ingress: &Ingress{},
+	}
+
+	node2IP, _, err := fixture.Ipam.NodeIPAddress(node2ID)
 	Expect(err).ShouldNot(HaveOccurred())
-	sid := ipam.SidForServiceNodeLocalsid(node2IP)
+	sid := fixture.Ipam.SidForServiceNodeLocalsid(node2IP)
 	_, ipNet, err := net.ParseCIDR(sid.To16().String() + "/128")
 	Expect(err).ShouldNot(HaveOccurred())
-	Expect(routeHandler.Route).To(ContainElement(
-		&vpp_l3.Route{
+
+	expectedSetup.ingress = &Ingress{
+		route: &vpp_l3.Route{
 			DstNetwork:  ipNet.String(),
 			NextHopAddr: node2IP.String(),
-			VrfId:       contivConf.GetRoutingConfig().MainVRFID,
-		}))
+			VrfId:       fixture.ContivConf.GetRoutingConfig().MainVRFID,
+		},
+	}
+	expectedSetup.egress = &vpp_srv6.LocalSID{
+		Sid:               fixture.Ipam.SidForServiceNodeLocalsid(nodeIP).String(),
+		InstallationVrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
+		EndFunction:       &vpp_srv6.LocalSID_BaseEndFunction{BaseEndFunction: &vpp_srv6.LocalSID_End{}},
+	}
+
+	return expectedSetup
 }
 
 func hasPolicy(policy *vpp_srv6.Policy, policies map[string]*vpp_srv6.Policy) bool {
@@ -978,8 +1056,8 @@ func hasPolicy(policy *vpp_srv6.Policy, policies map[string]*vpp_srv6.Policy) bo
 	return false
 }
 
-func assertSteering(networkToSteer *net.IPNet, bsid net.IP, nameSuffix string, mainVrfID uint32, steerings map[string]*vpp_srv6.Steering) {
-	steering := &vpp_srv6.Steering{
+func getSteering(networkToSteer *net.IPNet, bsid net.IP, nameSuffix string, mainVrfID uint32) *vpp_srv6.Steering {
+	return &vpp_srv6.Steering{
 		Name: fmt.Sprintf("forNodeToNodeTunneling-usingPolicyWithBSID-%v-and-%v", bsid.String(), nameSuffix),
 		Traffic: &vpp_srv6.Steering_L3Traffic_{
 			L3Traffic: &vpp_srv6.Steering_L3Traffic{
@@ -991,7 +1069,6 @@ func assertSteering(networkToSteer *net.IPNet, bsid net.IP, nameSuffix string, m
 			PolicyBsid: bsid.String(),
 		},
 	}
-	Expect(steerings).To(ContainElement(steering))
 }
 
 func commitTransaction(txn controller.Transaction, isResync bool) error {

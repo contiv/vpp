@@ -14,14 +14,17 @@ There are 3 demo scenarios available in this folder:
 
 - [Linux CNFs](#deployment-1---linux-cnfs): each CNF pod is connected with one additional 
 tap interface  (see [cnfs-linux.yaml](cnfs-linux.yaml)):
+
 ![SFC - Linux CNFs](img/sfc-linux.png)
 
 - [VPP CNFs](#deployment-2---vpp-cnfs): each CNF pod runs its own VPP instance and is 
 connected with one or two additional memif interfaces (see [cnfs-vpp.yaml](cnfs-vpp.yaml)):
+
 ![SFC - VPP CNFs](img/sfc-vpp.png)
 
 - [External interfaces connected to CNF](#deployment-3---external-interfaces): a CNF
 connected to external DPDK sub-interfaces via two additional memif interfaces:
+
 ![SFC - External Interfaces](img/sfc-external-interfaces.png)
 
 In all cases, a service function chain interconnecting the pods is deployed using a CRD, see:

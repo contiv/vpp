@@ -177,20 +177,23 @@ func (n *IPNet) podInterfaceName(pod *podmanager.LocalPod, customIfName, customI
 
 // podCustomIfsConfig returns configuration for custom interfaces connectivity.
 // If no custom interfaces are requested, returns empty config.
-func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType podConfigEventType) (config controller.KeyValuePairs) {
+// - config contains config to be added/deleted
+// - updateConfig contains config to be updated (by any operation)
+func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType podConfigEventType) (config, updateConfig controller.KeyValuePairs) {
 	var (
 		memifID   uint32
 		memifInfo *devicemanager.MemifInfo
 	)
 	if pod == nil {
-		return config
+		return
 	}
 	podMeta, hadPodMeta := n.PodManager.GetPods()[pod.ID]
 	if !hadPodMeta {
-		return config
+		return
 	}
 
 	config = make(controller.KeyValuePairs)
+	updateConfig = make(controller.KeyValuePairs)
 	microserviceConfig := make(controller.KeyValuePairs)
 
 	customIfs := getContivCustomIfs(podMeta.Annotations)
@@ -211,9 +214,9 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType podConfig
 		n.Log.Debugf("Configuring custom %s interface, name: %s, network: %s",
 			customIf.ifType, customIf.ifName, customIf.ifNet)
 
-		// allocate IP for the pod-side of the interface
 		var podIP *net.IPNet
-		if customIf.ifNet != stubNetworkName {
+		if n.isDefaultPodNetwork(customIf.ifNet) || n.isL3Network(customIf.ifNet) {
+			// for default and L3 networks, allocate IP for the pod-side of the interface
 			if eventType == podAdd {
 				isServiceEndpoint := customIf.ifName == serviceEndpointIf
 				_, err = n.IPAM.AllocatePodCustomIfIP(pod.ID, customIf.ifName, customIf.ifNet, isServiceEndpoint)
@@ -225,7 +228,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType podConfig
 			podIP = n.IPAM.GetPodCustomIfIP(pod.ID, customIf.ifName, customIf.ifNet)
 			if podIP == nil {
 				n.Log.Warnf("No IP allocated for the interface %s, will be left in L2 mode", customIf)
-			} else if customIf.ifName == "" || customIf.ifName == defaultNetworkName {
+			} else if n.isDefaultPodNetwork(customIf.ifNet) {
 				// use host prefix for default pod network
 				_, podIP, _ = net.ParseCIDR(podIP.IP.String() + hostPrefixForAF(podIP.IP))
 			}
@@ -278,10 +281,16 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType podConfig
 			continue
 		}
 
-		// route to pod IP from VPP
 		if podIP != nil {
+			// pod has an IP assigned, add a route to pod IP from VPP
 			key, vppRoute := n.vppToPodRoute(pod, podIP, customIf.ifName, customIf.ifType)
 			config[key] = vppRoute
+		}
+		if !n.isDefaultPodNetwork(customIf.ifNet) && !n.isStubNetwork(customIf.ifNet) {
+			// configure interface in custom network
+			vppIfName, _ := n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
+			nwConfig := n.interfaceCustomNwConfig(vppIfName, customIf.ifNet, eventType != podDelete)
+			mergeConfiguration(updateConfig, nwConfig)
 		}
 	}
 
@@ -302,7 +311,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType podConfig
 		}
 	}
 
-	return config
+	return
 }
 
 // getContivMicroserviceLabel returns microservice label defined in pod annotations

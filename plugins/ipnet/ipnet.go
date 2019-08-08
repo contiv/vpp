@@ -101,6 +101,9 @@ type internalState struct {
 
 	// cache of pods pending for AddPodCustomIfs event (waiting for metadata)
 	pendingAddPodCustomIf map[podmodel.ID]bool
+
+	// custom network information
+	customNetworks map[string]*customNetworkInfo // custom network name to info map
 }
 
 // Deps groups the dependencies of the plugin.
@@ -165,8 +168,10 @@ func (n *IPNet) Init() error {
 	// register REST handlers
 	n.registerRESTHandlers()
 
-	// init pod cache
+	// init internal maps
+	n.podCustomIf = make(map[string]*podCustomIfInfo)
 	n.internalState.pendingAddPodCustomIf = make(map[podmodel.ID]bool)
+	n.customNetworks = make(map[string]*customNetworkInfo)
 
 	return nil
 }

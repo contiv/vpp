@@ -19,6 +19,7 @@ import (
 	"net"
 	"strings"
 
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linux/nsplugin/linuxcalls"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/vpe"
@@ -199,4 +200,42 @@ func anyNetAddrForAF(ip net.IP) string {
 		return ipv6NetAny
 	}
 	return ipv4NetAny
+}
+
+// mergeConfiguration merges configuration from sourceConf to destConf.
+func mergeConfiguration(destConf, sourceConf controller.KeyValuePairs) {
+	if destConf == nil {
+		return
+	}
+	for k, v := range sourceConf {
+		destConf[k] = v
+	}
+}
+
+// sliceContains returns true if provided slice contains provided value, false otherwise.
+func sliceContains(slice []string, value string) bool {
+	for _, i := range slice {
+		if i == value {
+			return true
+		}
+	}
+	return false
+}
+
+// sliceAppendIfNotExists adds an item into the provided slice (if it does not already exists in the slice).
+func sliceAppendIfNotExists(slice []string, value string) []string {
+	if !sliceContains(slice, value) {
+		slice = append(slice, value)
+	}
+	return slice
+}
+
+// sliceRemove removes an item from provided slice (if it exists in the slice).
+func sliceRemove(slice []string, value string) []string {
+	for i, val := range slice {
+		if val == value {
+			return append(slice[:i], slice[i+1:]...)
+		}
+	}
+	return slice
 }

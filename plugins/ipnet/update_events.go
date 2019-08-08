@@ -113,7 +113,15 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 
 		case customnetmodel.Keyword:
 			// custom network data change
-			// TODO: handle custom networks
+			var nw *customnetmodel.CustomNetwork
+			isAdd := false
+			if ksChange.NewValue != nil {
+				nw = ksChange.NewValue.(*customnetmodel.CustomNetwork)
+				isAdd = true
+			} else if ksChange.PrevValue != nil {
+				nw = ksChange.PrevValue.(*customnetmodel.CustomNetwork)
+			}
+			return n.updateCustomNetwork(nw, txn, isAdd)
 		}
 	}
 
@@ -252,7 +260,7 @@ func (n *IPNet) deletePod(event *podmanager.DeletePod, txn controller.UpdateOper
 func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOperations, eventType podConfigEventType) (change string, err error) {
 
 	pod := n.PodManager.GetLocalPods()[podID]
-	config := n.podCustomIfsConfig(pod, eventType)
+	config, updateConfig := n.podCustomIfsConfig(pod, eventType)
 
 	// no custom ifs for this pod
 	if len(config) == 0 {
@@ -261,9 +269,11 @@ func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOpera
 
 	if eventType != podDelete {
 		controller.PutAll(txn, config)
+		controller.PutAll(txn, updateConfig)
 		return "configure custom pod interfaces", nil
 	}
 	controller.DeleteAll(txn, config)
+	controller.PutAll(txn, updateConfig)
 	return "un-configure custom pod interfaces", nil
 }
 
@@ -286,6 +296,27 @@ func (n *IPNet) updateExternalIf(extIf *extifmodel.ExternalInterface, txn contro
 	}
 	controller.DeleteAll(txn, config)
 	return "un-configure external interfaces", nil
+}
+
+// updateCustomNetwork adds or deletes custom network configuration.
+func (n *IPNet) updateCustomNetwork(nw *customnetmodel.CustomNetwork, txn controller.UpdateOperations, isAdd bool) (change string, err error) {
+
+	config, err := n.customNetworkConfig(nw, isAdd)
+	if err != nil {
+		return "", err
+	}
+
+	// no external interface config for this node
+	if len(config) == 0 {
+		return "", nil
+	}
+
+	if isAdd {
+		controller.PutAll(txn, config)
+		return "configure custom network", nil
+	}
+	controller.DeleteAll(txn, config)
+	return "un-configure custom network", nil
 }
 
 // processNodeUpdateEvent reacts to an update of *another* node.

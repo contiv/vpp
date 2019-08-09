@@ -30,6 +30,7 @@
 
 ## Operation
 * [CUSTOM POD INTERFACES](operation/CUSTOM_POD_INTERFACES.md) - deploying pods with custom interfaces
+* [CUSTOM CONFIGURATION](operation/CUSTOM_CONFIGURATION.md) - extending and customizing network configuration through CRD
 * [TOOLS](operation/TOOLS.md) - configuration and Troubleshooting Tools
 * [PROMETHEUS](operation/PROMETHEUS.md) - Prometheus statistics
 * [CONTIV UI](../ui/README.md) - web-based Contiv VPP user interface

@@ -16,4 +16,5 @@ Kubernetes services and policies implementation:
 * [Kubernetes services in Contiv/VPP](SERVICES.md)
 
 Other:
+* [Custom CRD how-to](CRD.md)
 * [Contribution guidelines](CONTRIBUTING.md)

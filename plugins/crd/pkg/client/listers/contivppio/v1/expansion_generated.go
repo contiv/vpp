@@ -16,6 +16,14 @@
 
 package v1
 
+// CustomConfigurationListerExpansion allows custom methods to be added to
+// CustomConfigurationLister.
+type CustomConfigurationListerExpansion interface{}
+
+// CustomConfigurationNamespaceListerExpansion allows custom methods to be added to
+// CustomConfigurationNamespaceLister.
+type CustomConfigurationNamespaceListerExpansion interface{}
+
 // CustomNetworkListerExpansion allows custom methods to be added to
 // CustomNetworkLister.
 type CustomNetworkListerExpansion interface{}

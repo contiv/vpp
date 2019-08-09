@@ -1,0 +1,79 @@
+---
+apiVersion: contivpp.io/v1
+kind: CustomConfiguration
+metadata:
+  name: my-bridge-domain
+spec:
+  microservice: master-node   # use hostname for vswitch, microservice label for CNF
+  configItems:
+    # note: name and version do not have to be defined for (core) modules shipped with the vpp-agent
+    - module: vpp.l2
+      type: bridge-domain
+      data: |-
+        name: my-custom-bd
+        flood: true
+        learn: true
+        interfaces:
+         - name: my-custom-loopback
+           bridgedVirtualInterface: true
+         - name: my-custom-tap
+    - module: vpp
+      type: interfaces
+      data: |-
+        type: SOFTWARE_LOOPBACK
+        name: my-custom-loopback
+        enabled: true
+        ipAddresses:
+          - 192.168.77.1/24
+    - module: vpp
+      type: interfaces
+      data: |-
+        type: TAP
+        name: my-custom-tap
+        enabled: true
+        tap:
+          hostIfName: my-custom-tap
+          version: 2
+---
+apiVersion: contivpp.io/v1
+kind: CustomConfiguration
+metadata:
+  name: acl-cnf   # hypothetical CNF providing Access Control
+spec:
+  microservice: acl-cnf
+  configItems:
+    - module: vpp.acls
+      type: acl
+      data: |-
+        name: egress-acl
+        rules:
+          - action: PERMIT
+            ipRule:
+              ip:
+                sourceNetwork: 192.168.12.0/24
+          - action: PERMIT
+            ipRule:
+              ip:
+                sourceNetwork: 192.168.13.0/24
+          # DENY is the default action
+        interfaces:
+          egress:
+            - memif2
+    - module: vpp.acls
+      type: acl
+      data: |-
+        name: ingress-acl
+        rules:
+          - action: PERMIT
+            ipRule:
+              tcp:
+                destinationPortRange:
+                  lowerPort: 80
+                  upperPort: 80
+                sourcePortRange:
+                  lowerPort: 0
+                  upperPort: 65535
+          # DENY is the default action
+        interfaces:
+          ingress:
+            - memif1

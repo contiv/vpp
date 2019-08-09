@@ -90,7 +90,8 @@ func (h *Handler) PublishCrdStatus(obj interface{}, opRetval error) error {
 
 func (h *Handler) externalInterfaceToProto(externalIf *v1.ExternalInterface) *model.ExternalInterface {
 	protoVal := &model.ExternalInterface{
-		Name: externalIf.Name,
+		Name:    externalIf.Name,
+		Network: externalIf.Spec.Network,
 	}
 	switch externalIf.Spec.Type {
 	case "L2":

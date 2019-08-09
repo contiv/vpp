@@ -194,11 +194,12 @@ func (n *IPNet) partialNodeConnectivityConfig(node *nodesync.Node) (config contr
 }
 
 // externalInterfaceConfig returns configuration of an external interface of the vswitch VPP.
-func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface) (config controller.KeyValuePairs, err error) {
-	config = make(controller.KeyValuePairs)
-	myNodeName := n.ServiceLabel.GetAgentLabel()
+func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface, eventType configEventType) (
+	config controller.KeyValuePairs, updateConfig controller.KeyValuePairs, err error) {
 
-	// TODO: interface in non-default network
+	config = make(controller.KeyValuePairs)
+	updateConfig = make(controller.KeyValuePairs)
+	myNodeName := n.ServiceLabel.GetAgentLabel()
 
 	for _, nodeIf := range extIf.Nodes {
 		if nodeIf.Node == myNodeName {
@@ -212,7 +213,7 @@ func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface) (co
 					ip = contivconf.IPsWithNetworks{&contivconf.IPWithNetwork{Address: ipAddr, Network: ipNet}}
 				}
 			}
-
+			vppIfName := nodeIf.VppInterfaceName
 			if nodeIf.Vlan == 0 {
 				// standard interface config
 				key, iface := n.physicalInterface(nodeIf.VppInterfaceName, ip)
@@ -223,11 +224,16 @@ func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface) (co
 				config[key] = iface
 				key, iface = n.subInterface(nodeIf.VppInterfaceName, nodeIf.Vlan, ip)
 				config[key] = iface
+				vppIfName = iface.Name
+			}
+			if !n.isDefaultPodNetwork(extIf.Network) && !n.isStubNetwork(extIf.Network) {
+				// configure interface in custom network
+				nwConfig := n.interfaceCustomNwConfig(vppIfName, extIf.Network, eventType != configDelete)
+				mergeConfiguration(updateConfig, nwConfig)
 			}
 		}
 	}
-
-	return config, nil
+	return
 }
 
 /*********************************** DHCP *************************************/

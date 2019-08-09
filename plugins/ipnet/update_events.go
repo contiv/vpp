@@ -343,7 +343,7 @@ func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOpera
 func (n *IPNet) updateExternalIf(extIf *extifmodel.ExternalInterface, txn controller.UpdateOperations,
 	eventType configEventType) (change string, err error) {
 
-	config, err := n.externalInterfaceConfig(extIf)
+	config, updateConfig, err := n.externalInterfaceConfig(extIf, eventType)
 	if err != nil {
 		return "", err
 	}
@@ -355,9 +355,11 @@ func (n *IPNet) updateExternalIf(extIf *extifmodel.ExternalInterface, txn contro
 
 	if eventType != configDelete {
 		controller.PutAll(txn, config)
+		controller.PutAll(txn, updateConfig)
 		return "configure external interfaces", nil
 	}
 	controller.DeleteAll(txn, config)
+	controller.PutAll(txn, updateConfig)
 	return "un-configure external interfaces", nil
 }
 

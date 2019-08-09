@@ -27,16 +27,24 @@ func (h *Handler) Init() error {
 }
 
 // ObjectCreated is called when a CRD object is created
-func (h *Handler) ObjectCreated(obj interface{}) {
+func (h *Handler) ObjectCreated(obj interface{}) error {
 	//fmt.Printf("Object created with value: %v", obj)
+	return nil
 }
 
 // ObjectDeleted is called when a CRD object is deleted
-func (h *Handler) ObjectDeleted(obj interface{}) {
+func (h *Handler) ObjectDeleted(obj interface{}) error {
 	//fmt.Printf("Object deleted with value: %v", obj)
+	return nil
 }
 
 // ObjectUpdated is called when a CRD object is updated
-func (h *Handler) ObjectUpdated(oldObj, newObj interface{}) {
-	//fmt.Printf("Object updated with value: %v", obj)
+func (h *Handler) ObjectUpdated(oldObj, newObj interface{}) error {
+	//fmt.Printf("Object updated with value: %v", newObj)
+	return nil
+}
+
+// PublishStatus does nothing for telemetry handler - status is regularly updated by CRDReport.
+func (h *Handler) PublishStatus(obj interface{}, opRetval error) error {
+	return nil
 }

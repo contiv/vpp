@@ -114,15 +114,13 @@ func (p *Plugin) Init() error {
 		},
 	}
 	// init & register the renderer
-	p.l2xconnRenderer.Init(false)
+	p.l2xconnRenderer.Init()
 	p.processor.RegisterRenderer(p.l2xconnRenderer)
 
 	return nil
 }
 
-// AfterInit registers to the ResyncOrchestrator. The registration is done in this phase
-// in order to ensure that the resync for this plugin is triggered only after
-// resync of the Contiv plugin has finished.
+// AfterInit can be used by renderers to perform a second stage of initialization.
 func (p *Plugin) AfterInit() error {
 	p.processor.AfterInit()
 

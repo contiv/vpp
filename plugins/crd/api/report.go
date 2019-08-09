@@ -37,3 +37,8 @@ type Report interface {
 	Print()
 	RetrieveReport() telemetrymodel.Reports
 }
+
+// ContivTelemetryControllerReport defines the methods for the telemetry processor.
+type ContivTelemetryControllerReport interface {
+	GenerateCRDReport()
+}

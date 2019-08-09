@@ -55,7 +55,7 @@ type Deps struct {
 }
 
 // Init initializes the renderer.
-func (rndr *Renderer) Init(snatOnly bool) error {
+func (rndr *Renderer) Init() error {
 	if rndr.Config == nil {
 		rndr.Config = config.DefaultConfig()
 	}

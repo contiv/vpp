@@ -931,6 +931,7 @@ rules:
       - externalinterfaces
       - customnetworks
       - servicefunctionchains
+      - customconfigurations
     verbs:
       - "*"
 

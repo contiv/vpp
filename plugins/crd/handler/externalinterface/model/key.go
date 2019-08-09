@@ -25,6 +25,6 @@ func KeyPrefix() string {
 }
 
 // Key returns the key for configuration of a given external interface.
-func Key(network string) string {
-	return KeyPrefix() + network
+func Key(iface string) string {
+	return KeyPrefix() + iface
 }

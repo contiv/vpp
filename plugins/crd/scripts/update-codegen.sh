@@ -26,17 +26,4 @@ ${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
   github.com/contiv/vpp/plugins/crd/pkg/client \
   github.com/contiv/vpp/plugins/crd/pkg/apis \
   "telemetry:v1 nodeconfig:v1 contivppio:v1" \
-  --go-header-file ${SCRIPT_ROOT}/plugins/crd/controller/custom-boilerplate.go.txt
-
-# generate controller plugin model deepcopy
-$GOPATH/bin/deepcopy-gen \
-  --input-dirs github.com/contiv/vpp/plugins/crd/cache/telemetrymodel \
-  --bounding-dirs github.com/contiv/vpp/plugins/crd/cache/telemetrymodel \
-  --go-header-file ${SCRIPT_ROOT}/plugins/crd/controller/custom-boilerplate.go.txt \
-  -O zz_generated.deepcopy-fix-me
-
-# Fix the package name in the model deepcopy
-sed 's/package telemetrymodel/package telemetrymodel/' \
-   < plugins/crd/cache/telemetrymodel/zz_generated.deepcopy-fix-me.go \
-   > plugins/crd/cache/telemetrymodel/zz_generated.deepcopy.go
-rm plugins/crd/cache/telemetrymodel/zz_generated.deepcopy-fix-me.go
+  --go-header-file ${SCRIPT_ROOT}/plugins/crd/scripts/custom-boilerplate.go.txt

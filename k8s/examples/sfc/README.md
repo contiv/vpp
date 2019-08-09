@@ -240,6 +240,10 @@ $ kubectl exec -it vpp-cnf2 -- vppctl -s :5002
 vpp# set interface l2 xconnect memif0/0 memif0/1
 vpp# set interface l2 xconnect memif0/1 memif0/0       
 ```
+Alternatively, the cross-connect can be created using the [CustomConfiguration CRD](../../../docs/operation/CUSTOM_CONFIGURATION.md):
+```bash
+kubectl apply -f xconnect-vpp.yaml
+```
 
 CNF 1:
 ```

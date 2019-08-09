@@ -609,7 +609,9 @@ func (n *IPNet) podGwLoopback() (key string, config *vpp_interfaces.Interface) {
 /************************** Custom Networks **************************/
 
 // customNetworkConfig returns configuration of a custom netwok on the vswitch VPP.
-func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, isAdd bool) (config controller.KeyValuePairs, err error) {
+func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, eventType configEventType) (
+	config controller.KeyValuePairs, err error) {
+
 	config = make(controller.KeyValuePairs)
 
 	nw := n.customNetworks[nwConfig.Name]
@@ -628,7 +630,7 @@ func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, isAd
 	}
 	// TODO: handle other types of custom networks
 
-	if !isAdd {
+	if eventType == configDelete {
 		n.customNetworks[nwConfig.Name].config = nil
 	}
 

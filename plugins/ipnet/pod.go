@@ -84,18 +84,6 @@ const (
 	vethIfType  = "veth"
 )
 
-// podConfigEventType represents the type of an event being currently processed by the ipnet plugin
-type podConfigEventType int
-
-const (
-	// resync event is being processed
-	resync podConfigEventType = iota
-	// pod add event is being processed
-	podAdd
-	// pod delete event is being processed
-	podDelete
-)
-
 // podCustomIfInfo holds information about a custom pod interface
 type podCustomIfInfo struct {
 	ifName string
@@ -194,7 +182,7 @@ func (n *IPNet) podInterfaceName(pod *podmanager.LocalPod, customIfName, customI
 // If no custom interfaces are requested, returns empty config.
 // - config contains config to be added/deleted
 // - updateConfig contains config to be updated (by any operation)
-func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType podConfigEventType) (config, updateConfig controller.KeyValuePairs) {
+func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEventType) (config, updateConfig controller.KeyValuePairs) {
 	var (
 		memifID   uint32
 		memifInfo *devicemanager.MemifInfo
@@ -221,7 +209,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType podConfig
 			n.Log.Warnf("Error parsing custom interface definition (%v), skipping the interface %s", err, customIf)
 			continue
 		}
-		if eventType != podDelete {
+		if eventType != configDelete {
 			n.podCustomIf[pod.ID.String()+customIf.ifName] = customIf
 		} else {
 			delete(n.podCustomIf, pod.ID.String()+customIf.ifName)
@@ -232,7 +220,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType podConfig
 		var podIP *net.IPNet
 		if n.isDefaultPodNetwork(customIf.ifNet) || n.isL3Network(customIf.ifNet) {
 			// for default and L3 networks, allocate IP for the pod-side of the interface
-			if eventType == podAdd {
+			if eventType == configAdd {
 				isServiceEndpoint := customIf.ifName == serviceEndpointIf
 				_, err = n.IPAM.AllocatePodCustomIfIP(pod.ID, customIf.ifName, customIf.ifNet, isServiceEndpoint)
 				if err != nil {
@@ -304,7 +292,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType podConfig
 		if !n.isDefaultPodNetwork(customIf.ifNet) && !n.isStubNetwork(customIf.ifNet) {
 			// configure interface in custom network
 			vppIfName, _ := n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
-			nwConfig := n.interfaceCustomNwConfig(vppIfName, customIf.ifNet, eventType != podDelete)
+			nwConfig := n.interfaceCustomNwConfig(vppIfName, customIf.ifNet, eventType != configDelete)
 			mergeConfiguration(updateConfig, nwConfig)
 		}
 	}
@@ -314,7 +302,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType podConfig
 		n.Log.Debugf("Adding pod-end interface config for microservice %s into ETCD", serviceLabel)
 		txn := n.RemoteDB.NewBroker(servicelabel.GetDifferentAgentPrefix(serviceLabel)).NewTxn()
 		for k, v := range microserviceConfig {
-			if eventType != podDelete {
+			if eventType != configDelete {
 				txn.Put(k, v)
 			} else {
 				txn.Delete(k)

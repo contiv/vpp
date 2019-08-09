@@ -106,6 +106,18 @@ type internalState struct {
 	customNetworks map[string]*customNetworkInfo // custom network name to info map
 }
 
+// configEventType represents the type of an configuration event processed by the ipnet plugin
+type configEventType int
+
+const (
+	// synchronization of the existing config vs demanded config
+	configResync configEventType = iota
+	// addition of new config
+	configAdd
+	// deletion of existing config
+	configDelete
+)
+
 // Deps groups the dependencies of the plugin.
 type Deps struct {
 	infra.PluginDeps

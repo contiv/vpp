@@ -51,7 +51,7 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 	// custom networks
 	for _, extIfProto := range kubeStateData[customnetmodel.Keyword] {
 		nw := extIfProto.(*customnetmodel.CustomNetwork)
-		config, err := n.customNetworkConfig(nw, true)
+		config, err := n.customNetworkConfig(nw, configResync)
 		if err == nil {
 			controller.PutAll(txn, config)
 		} else {
@@ -95,7 +95,7 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 		controller.PutAll(txn, config)
 
 		// custom interfaces config
-		config, updateConfig := n.podCustomIfsConfig(pod, resync)
+		config, updateConfig := n.podCustomIfsConfig(pod, configResync)
 		controller.PutAll(txn, config)
 		controller.PutAll(txn, updateConfig)
 	}

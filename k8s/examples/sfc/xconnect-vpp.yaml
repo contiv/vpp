@@ -9,10 +9,10 @@ spec:
     - module: vpp.l2
       type: xconnect
       data: |-
-        receiveInterface: memif-memif1
-        transmitInterface: memif-memif2
+        receiveInterface: memif1
+        transmitInterface: memif2
     - module: vpp.l2
       type: xconnect
       data: |-
-        receiveInterface: memif-memif2
-        transmitInterface: memif-memif1
+        receiveInterface: memif2
+        transmitInterface: memif1

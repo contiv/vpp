@@ -85,7 +85,7 @@ type API interface {
 	GetPodIP(podID podmodel.ID) *net.IPNet
 
 	// AllocatePodCustomIfIP tries to allocate custom IP address for the given interface of a given pod.
-	AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string) (net.IP, error)
+	AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string, isServiceEndpoint bool) (net.IP, error)
 
 	// GetPodCustomIfIP returns the allocated custom interface pod IP, together with the mask.
 	// Returns nil if the pod does not have allocated custom interface IP address.

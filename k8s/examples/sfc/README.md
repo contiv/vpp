@@ -1,35 +1,54 @@
 # Service Function Chaining (SFC) in Contiv-VPP
 
-This example showcases Contiv-VPP integrated service function chaining (SFC)
-between custom (additional) pod interfaces.
+This example showcases Contiv-VPP integrated Service Function Chaining (SFC)
+functionality between custom (additional) pod interfaces.
 
-For more info read:
+For more information on multi-interface pods and SFC in Contiv-VPP read:
  - [Custom pod interfaces information](../../../docs/operation/CUSTOM_POD_INTERFACES.md)
  - [SFC dev guide](../../../docs/dev-guide/SFC.md)
- 
-## Demo
 
-There are 2 demo scenarios available in this folder:
+
+## Demo Topologies
+
+There are 3 demo scenarios available in this folder:
+
 - [Linux CNFs](#deployment-1---linux-cnfs): each CNF pod is connected with one additional 
-tap interface  (see [cnfs-linux.yaml](cnfs-linux.yaml))
+tap interface  (see [cnfs-linux.yaml](cnfs-linux.yaml)):
+
+![SFC - Linux CNFs](img/sfc-linux.png)
+
 - [VPP CNFs](#deployment-2---vpp-cnfs): each CNF pod runs its own VPP instance and is 
-connected with one or two additional memif interfaces (see [cnfs-vpp.yaml](cnfs-vpp.yaml))
- 
-In both cases, a service function chain interconnecting the pods is deployed.
-The extra tap/memif interfaces between the pods are inter-connected on L2 layer,
-using a l2 cross-connect on the vswitch VPP 
-(see [sfc-linux.yaml](sfc-linux.yaml) / [sfc-vpp.yaml](sfc-vpp.yaml)).
+connected with one or two additional memif interfaces (see [cnfs-vpp.yaml](cnfs-vpp.yaml)):
+
+![SFC - VPP CNFs](img/sfc-vpp.png)
+
+- [External interfaces connected to CNF](#deployment-3---external-interfaces): a CNF
+connected to external DPDK sub-interfaces via two additional memif interfaces:
+
+![SFC - External Interfaces](img/sfc-external-interfaces.png)
+
+In all cases, a service function chain interconnecting the pods is deployed using a CRD, see:
+- [sfc-linux.yaml](sfc-linux.yaml) 
+- [sfc-vpp.yaml](sfc-vpp.yaml)
+- [sfc-external-interfaces.yaml](sfc-external-interfaces.yaml)
+
+The additional tap/memif interfaces between the pods / external interfaces are inter-connected 
+on L2 layer, using a l2 cross-connect on the vswitch VPP.
+
+Of course, these 3 demo scenarios can be combined to form more complex SFC chains with mixed
+types of service functions, but the aim of these examples is to keep the deployments simple.
+
 
 ### Limitations
  
 Since SFC implementation in Contiv is still a work in progress, there are still several limitations
 that will be addressed in the next releases:
-- This demonstration currently works only if the 2 CNF pods are deployed both on the same k8s node. 
-- The only custom interface networks supported as of now are "stub" and the default pod network.
-- Chains starting / ending on an external DPDK interfaces are not yet supported.
-- The only possible SFC chain rendering as of now is l2 cross connect. SRv6 rendering
-is planned to be implemented as an alternative.
- 
+- This demonstration currently works only if all the CNF pods are deployed both on the same k8s node. 
+- The only custom interface networks supported as of now are "stub" and the "default" pod network.
+- The only supported SFC chain rendering (interconnection between CNF pods) as of now is l2 cross-connect. 
+SRv6 rendering is planned to be implemented as another alternative.
+
+
 ### Prerequisites
 
 In k8s versions below 1.15, the Kubelet feature gate `KubeletPodResources`
@@ -47,6 +66,8 @@ and tested.
 Additionally, a service function chain interconnecting these 2 pods is deployed.
 The secondary tap interfaces between the 2 podes are inter-connected on L2 layer,
 using a l2 cross-connect on the vswitch VPP.
+
+![SFC - Linux CNFs](img/sfc-linux.png)
 
 To start, deploy the following yaml files located in this directory:
  ```bash
@@ -147,6 +168,7 @@ Additionally, a service function chain interconnecting these 3 pods is deployed.
 The memif interfaces between the 3 pods are inter-connected on L2 layer,
 using a l2 cross-connect on the vswitch VPP.
 
+![SFC - VPP CNFs](img/sfc-vpp.png)
 
 To start, deploy the following yaml files located in this directory:
  ```bash
@@ -218,6 +240,10 @@ $ kubectl exec -it vpp-cnf2 -- vppctl -s :5002
 vpp# set interface l2 xconnect memif0/0 memif0/1
 vpp# set interface l2 xconnect memif0/1 memif0/0       
 ```
+Alternatively, the cross-connect can be created using the [CustomConfiguration CRD](../../../docs/operation/CUSTOM_CONFIGURATION.md):
+```bash
+kubectl apply -f xconnect-vpp.yaml
+```
 
 CNF 1:
 ```
@@ -247,4 +273,66 @@ local0                            0     down          0/0/0/0
 memif0/0                          1      up          9000/0/0/0     rx packets                     5
                                                                     rx bytes                     210
                                                                     drops                          5
+```
+
+## Deployment 3 - External Interfaces
+This demo deploys 2 external interfaces (VLAN subinterfaces of the same DPDK interface)
+and a CNF pod which runs VPP inside of the pod. The pod is connected with 2 additional
+memif interfaces, each connected to one of the external interfaces:
+
+![SFC - External Interfaces](img/sfc-external-interfaces.png)
+
+### Setup
+ 
+ Before deploying, [external interface deployment yaml](external-interfaces.yaml) needs to be modified 
+ to match your setup:
+ 
+ - change `node` identifiers to match your hostname:
+ - change `vppInterfaceName` identifiers to match a DPDK interface on the particular node:
+ 
+```yaml
+  nodes:
+    - node: k8s-master
+      vppInterfaceName: GigabitEthernet0/a/0
+```
+
+Don't forget to [modify your VPP startup config file](../../../docs/setup/VPP_CONFIG.md) 
+with the PCI address of the external interface.
+
+### Deployment
+
+To start, deploy the following yaml files located in this directory:
+ ```bash
+kubectl apply -f external-interfaces.yaml
+kubectl apply -f cnf-external-interfaces.yaml
+kubectl apply -f sfc-external-interfaces.yaml
+```
+
+The CNF pod should start:
+```
+$ kubectl get pods -o wide
+NAME      READY   STATUS    RESTARTS   AGE   IP          NODE         NOMINATED NODE   READINESS GATES
+vpp-cnf   1/1     Running   0          69s   10.1.1.10   k8s-master   <none>           <none>
+```
+
+In VPP vswitch CLI console, you should see 2 external subinterfaces and a memif interface interconnected:
+```
+$ sudo vppctl
+    _______    _        _   _____  ___ 
+ __/ __/ _ \  (_)__    | | / / _ \/ _ \
+ _/ _// // / / / _ \   | |/ / ___/ ___/
+ /_/ /____(_)_/\___/   |___/_/  /_/    
+
+vpp# sh inter addr
+...
+GigabitEthernet0/a/0 (up):
+GigabitEthernet0/a/0.200 (up):
+  L2 xconnect memif1/0
+GigabitEthernet0/a/0.300 (up):
+  L2 xconnect memif1/1
+memif1/0 (up):
+  L2 xconnect GigabitEthernet0/a/0.200
+memif1/1 (up):
+  L2 xconnect GigabitEthernet0/a/0.300
+...
 ```

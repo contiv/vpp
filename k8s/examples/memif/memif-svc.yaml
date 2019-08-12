@@ -1,0 +1,12 @@
+---
+# K8s service for web traffic destined to the memif pods
+apiVersion: v1
+kind: Service
+metadata:
+  name: memif-service
+spec:
+  selector:
+    app: memif-pod
+  ports:
+    - protocol: TCP
+      port: 80

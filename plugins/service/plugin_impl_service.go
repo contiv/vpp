@@ -17,6 +17,9 @@ package service
 import (
 	"strings"
 
+	"git.fd.io/govpp.git/api"
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
+
 	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/servicelabel"
@@ -71,6 +74,82 @@ type Deps struct {
 	ConfigRetriever controller.ConfigRetriever
 }
 
+func (p *Plugin) useNat44Renderer(goVppCh api.Channel) {
+	p.nat44Renderer = &nat44.Renderer{
+		Deps: nat44.Deps{
+			Log:        p.Log.NewLogger("-nat44Renderer"),
+			Config:     p.config,
+			ContivConf: p.ContivConf,
+			IPAM:       p.IPAM,
+			IPNet:      p.IPNet,
+			GoVPPChan:  goVppCh,
+			UpdateTxnFactory: func(change string) controller.UpdateOperations {
+				p.changes = append(p.changes, change)
+				return p.updateTxn
+			},
+			ResyncTxnFactory: func() controller.ResyncOperations {
+				return p.resyncTxn
+			},
+			Stats: p.Stats,
+		},
+	}
+
+	p.nat44Renderer.Init(false)
+	// Register renderer.
+	p.processor.RegisterRenderer(p.nat44Renderer)
+}
+
+func (p *Plugin) useSRv6Renderer() {
+	p.srv6Renderer = &srv6.Renderer{
+		Deps: srv6.Deps{
+			Log:             p.Log.NewLogger("-SRv6Renderer"),
+			ContivConf:      p.ContivConf,
+			NodeSync:        p.NodeSync,
+			PodManager:      p.PodManager,
+			IPAM:            p.IPAM,
+			IPNet:           p.IPNet,
+			ConfigRetriever: p.ConfigRetriever,
+			UpdateTxnFactory: func(change string) controller.UpdateOperations {
+				p.changes = append(p.changes, change)
+				return p.updateTxn
+			},
+			ResyncTxnFactory: func() controller.ResyncOperations {
+				return p.resyncTxn
+			},
+		},
+	}
+
+	p.srv6Renderer.Init(false)
+	// Register renderer.
+	p.processor.RegisterRenderer(p.srv6Renderer)
+}
+
+func (p *Plugin) useIPv6RouteRenderer() {
+	p.ipv6RouteRenderer = &ipv6route.Renderer{
+		Deps: ipv6route.Deps{
+			Log:             p.Log.NewLogger("-IPv6RouteRenderer"),
+			Config:          p.config,
+			ContivConf:      p.ContivConf,
+			NodeSync:        p.NodeSync,
+			PodManager:      p.PodManager,
+			IPAM:            p.IPAM,
+			IPNet:           p.IPNet,
+			ConfigRetriever: p.ConfigRetriever,
+			UpdateTxnFactory: func(change string) controller.UpdateOperations {
+				p.changes = append(p.changes, change)
+				return p.updateTxn
+			},
+			ResyncTxnFactory: func() controller.ResyncOperations {
+				return p.resyncTxn
+			},
+		},
+	}
+
+	p.ipv6RouteRenderer.Init(false)
+	// Register renderer.
+	p.processor.RegisterRenderer(p.ipv6RouteRenderer)
+}
+
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
 func (p *Plugin) Init() error {
 	var err error
@@ -103,86 +182,25 @@ func (p *Plugin) Init() error {
 	p.processor.Init()
 
 	if !p.ContivConf.GetIPAMConfig().UseIPv6 {
-		// use NAT44 renderer
-		p.nat44Renderer = &nat44.Renderer{
-			Deps: nat44.Deps{
-				Log:        p.Log.NewLogger("-nat44Renderer"),
-				Config:     p.config,
-				ContivConf: p.ContivConf,
-				IPAM:       p.IPAM,
-				IPNet:      p.IPNet,
-				GoVPPChan:  goVppCh,
-				UpdateTxnFactory: func(change string) controller.UpdateOperations {
-					p.changes = append(p.changes, change)
-					return p.updateTxn
-				},
-				ResyncTxnFactory: func() controller.ResyncOperations {
-					return p.resyncTxn
-				},
-				Stats: p.Stats,
-			},
+		if p.ContivConf.GetRoutingConfig().UseSRv6ForServices {
+			// use SRv6 renderer
+			p.useSRv6Renderer()
+		} else {
+			// use NAT44 renderer
+			p.useNat44Renderer(goVppCh)
 		}
-
-		p.nat44Renderer.Init(false)
-		// Register renderer.
-		p.processor.RegisterRenderer(p.nat44Renderer)
 	} else {
 		if p.ContivConf.GetRoutingConfig().UseSRv6ForServices { // use SRv6 renderer
-			p.srv6Renderer = &srv6.Renderer{
-				Deps: srv6.Deps{
-					Log:             p.Log.NewLogger("-SRv6Renderer"),
-					ContivConf:      p.ContivConf,
-					NodeSync:        p.NodeSync,
-					PodManager:      p.PodManager,
-					IPAM:            p.IPAM,
-					IPNet:           p.IPNet,
-					ConfigRetriever: p.ConfigRetriever,
-					UpdateTxnFactory: func(change string) controller.UpdateOperations {
-						p.changes = append(p.changes, change)
-						return p.updateTxn
-					},
-					ResyncTxnFactory: func() controller.ResyncOperations {
-						return p.resyncTxn
-					},
-				},
-			}
-
-			p.srv6Renderer.Init(false)
-			// Register renderer.
-			p.processor.RegisterRenderer(p.srv6Renderer)
+			p.useSRv6Renderer()
 		} else { // use IPv6 route renderer
-			p.ipv6RouteRenderer = &ipv6route.Renderer{
-				Deps: ipv6route.Deps{
-					Log:             p.Log.NewLogger("-IPv6RouteRenderer"),
-					Config:          p.config,
-					ContivConf:      p.ContivConf,
-					NodeSync:        p.NodeSync,
-					PodManager:      p.PodManager,
-					IPAM:            p.IPAM,
-					IPNet:           p.IPNet,
-					ConfigRetriever: p.ConfigRetriever,
-					UpdateTxnFactory: func(change string) controller.UpdateOperations {
-						p.changes = append(p.changes, change)
-						return p.updateTxn
-					},
-					ResyncTxnFactory: func() controller.ResyncOperations {
-						return p.resyncTxn
-					},
-				},
-			}
-
-			p.ipv6RouteRenderer.Init(false)
-			// Register renderer.
-			p.processor.RegisterRenderer(p.ipv6RouteRenderer)
+			p.useIPv6RouteRenderer()
 		}
 	}
 
 	return nil
 }
 
-// AfterInit registers to the ResyncOrchestrator. The registration is done in this phase
-// in order to ensure that the resync for this plugin is triggered only after
-// resync of the Contiv plugin has finished.
+// AfterInit can be used by renderers to perform a second stage of initialization.
 func (p *Plugin) AfterInit() error {
 	p.processor.AfterInit()
 
@@ -206,6 +224,8 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 		case epmodel.EndpointsKeyword:
 			return true
 		case svcmodel.ServiceKeyword:
+			return true
+		case ipalloc.Keyword:
 			return true
 		default:
 			// unhandled Kubernetes state change

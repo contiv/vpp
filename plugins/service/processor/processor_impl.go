@@ -17,6 +17,7 @@
 package processor
 
 import (
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
 	"strings"
 
 	"github.com/ligato/cn-infra/logging"
@@ -34,6 +35,10 @@ import (
 	"github.com/contiv/vpp/plugins/service/renderer"
 )
 
+const (
+	defaultPodNetwork = "default" // name of the default pod network
+)
+
 // ServiceProcessor implements ServiceProcessorAPI.
 type ServiceProcessor struct {
 	Deps
@@ -41,8 +46,9 @@ type ServiceProcessor struct {
 	renderers []renderer.ServiceRendererAPI
 
 	/* internal maps */
-	services map[svcmodel.ID]*Service
-	localEps map[podmodel.ID]*LocalEndpoint
+	services    map[svcmodel.ID]*Service
+	localEps    map[podmodel.ID]*LocalEndpoint
+	epRedirects map[string]string
 
 	/* local frontend and backend interfaces */
 	frontendIfs renderer.Interfaces
@@ -62,8 +68,9 @@ type Deps struct {
 
 // LocalEndpoint represents a node-local endpoint.
 type LocalEndpoint struct {
-	ifName   string
-	svcCount int /* number of services running on this endpoint. */
+	ifName     string   /* main interface name used as the pod service front-end and (optionally) back-end */
+	secIfNames []string /* secondary interfaces used as service front-ends (may be empty, used for multi-interface pods) */
+	svcCount   int      /* number of services running on this endpoint. */
 }
 
 // Init initializes service processor.
@@ -81,6 +88,7 @@ func (sp *ServiceProcessor) AfterInit() error {
 func (sp *ServiceProcessor) reset() error {
 	sp.services = make(map[svcmodel.ID]*Service)
 	sp.localEps = make(map[podmodel.ID]*LocalEndpoint)
+	sp.epRedirects = make(map[string]string)
 	sp.frontendIfs = renderer.NewInterfaces()
 	sp.backendIfs = renderer.NewInterfaces()
 	return nil
@@ -193,12 +201,16 @@ func (sp *ServiceProcessor) ProcessDeletingPod(podNamespace string, podName stri
 	}
 	newFrontendIfs := sp.frontendIfs.Copy()
 	newFrontendIfs.Del(ifName)
+	for _, iface := range sp.localEps[podID].secIfNames {
+		newFrontendIfs.Del(iface)
+	}
 	for _, renderer := range sp.renderers {
 		/* ignore errors */
 		renderer.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
 	}
 	sp.frontendIfs = newFrontendIfs
 	delete(sp.localEps, podID)
+
 	return nil
 }
 
@@ -237,6 +249,127 @@ func (sp *ServiceProcessor) processDeletedEndpoints(epsID epmodel.ID) error {
 	oldBackends := svc.GetLocalBackends()
 	svc.SetEndpoints(nil)
 	return sp.renderService(svc, oldContivSvc, oldBackends)
+}
+
+func (sp *ServiceProcessor) processCustomIPAlloc(alloc *ipalloc.CustomIPAllocation) error {
+
+	sp.Log.WithFields(logging.Fields{
+		"alloc": alloc,
+	}).Debug("ServiceProcessor - processCustomIPAlloc()")
+
+	updateFrontendIfs, updateBackendIfs, err := sp.applyCustomIPAlloc(alloc)
+	if err != nil {
+		sp.Log.Errorf("Error by applying custom IP allocation %v", err)
+		return nil
+	}
+
+	oldFrontendIfs := sp.frontendIfs.Copy()
+	oldBackendIfs := sp.backendIfs.Copy()
+
+	// update frontend interfaces
+	if updateFrontendIfs {
+		for _, renderer := range sp.renderers {
+			err := renderer.UpdateLocalFrontendIfs(oldFrontendIfs, sp.frontendIfs)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// update backend interfaces
+	if updateBackendIfs {
+		for _, renderer := range sp.renderers {
+			err := renderer.UpdateLocalBackendIfs(oldBackendIfs, sp.backendIfs)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// lookup for affected services & re-render them
+	podID := podmodel.ID{Name: alloc.PodName, Namespace: alloc.PodNamespace}
+	pod := sp.PodManager.GetPods()[podID]
+	if pod == nil {
+		return nil
+	}
+	affectedServices := sp.getServicesForBackend(pod)
+	for _, svc := range affectedServices {
+		oldContivSvc := svc.GetContivService()
+		oldBackends := svc.GetLocalBackends()
+		svc.refreshed = false
+		err := sp.renderService(svc, oldContivSvc, oldBackends)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (sp *ServiceProcessor) applyCustomIPAlloc(alloc *ipalloc.CustomIPAllocation) (
+	updateFrontendIfs, updateBackendIfs bool, err error) {
+
+	podID := podmodel.ID{Name: alloc.PodName, Namespace: alloc.PodNamespace}
+	pod := sp.PodManager.GetPods()[podID]
+	if pod == nil || pod.IPAddress == "" {
+		return
+	}
+	_, isLocal := sp.PodManager.GetLocalPods()[podID]
+
+	redirected := false
+	var serviceEndpointIf *ipalloc.CustomPodInterface
+	for _, ci := range alloc.CustomInterfaces {
+		if ci.ServiceEndpoint {
+			// mark service endpoint redirect for this pod
+			sp.Log.Debugf("Service endpoint for pod %s (%s) will be redirected to interface %s (%s)",
+				podID.String(), pod.IPAddress, ci.Name, ci.IpAddress)
+
+			sp.epRedirects[pod.IPAddress] = ci.IpAddress
+			serviceEndpointIf = ci
+			redirected = true
+		}
+		if isLocal && ci.Network == defaultPodNetwork || ci.Network == "" {
+			// for local pod interfaces in the default pod network, update frontend interfaces
+			ifName, ifExists := sp.IPNet.GetPodCustomIfName(podID.Namespace, podID.Name, ci.Name)
+			if !ifExists {
+				sp.Log.Warnf("Unable to obtain interface name for interface %v, skipping frontend if update", ci)
+				continue
+			}
+			sp.Log.Debugf("Adding pod %s interface %s into service front-end ifs", podID.String(), ifName)
+			localEp := sp.getLocalEndpoint(podID)
+			localEp.secIfNames = append(localEp.secIfNames, ifName)
+			// add the interface to frontend interfaces
+			sp.frontendIfs.Add(ifName)
+			updateFrontendIfs = true
+		}
+	}
+
+	if redirected {
+		if isLocal && serviceEndpointIf != nil {
+			// for local pods with service redirect, update backend interfaces
+			ifName, ifExists := sp.IPNet.GetPodCustomIfName(podID.Namespace, podID.Name, serviceEndpointIf.Name)
+			if !ifExists {
+				sp.Log.Warnf("Unable to obtain interface name for interface %s, skipping backend if update",
+					serviceEndpointIf.Name)
+				return
+			}
+			localEp := sp.getLocalEndpoint(podID)
+			if localEp.ifName != ifName {
+				// switch the main endpoint interface name with the custom interface name
+				oldIfName := localEp.ifName
+				localEp.secIfNames = append(localEp.secIfNames, oldIfName)
+				localEp.ifName = ifName
+				if localEp.svcCount > 0 {
+					sp.Log.Debugf("Adding pod %s interface %s into service backend-end ifs", podID.String(), ifName)
+					sp.backendIfs.Del(oldIfName)
+					sp.backendIfs.Add(ifName)
+					updateBackendIfs = true
+				}
+			}
+		}
+	}
+
+	return
 }
 
 func (sp *ServiceProcessor) processNewService(service *svcmodel.Service) error {
@@ -483,6 +616,11 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		svc.SetMetadata(service)
 	}
 
+	// -> custom IP allocations
+	for _, alloc := range resyncEv.IPAllocations {
+		sp.applyCustomIPAlloc(alloc)
+	}
+
 	// Iterate over services with complete data to get backend interfaces.
 	for _, svc := range sp.services {
 		contivSvc := svc.GetContivService()
@@ -532,4 +670,20 @@ func (sp *ServiceProcessor) getLocalEndpoint(podID podmodel.ID) *LocalEndpoint {
 		sp.localEps[podID] = &LocalEndpoint{}
 	}
 	return sp.localEps[podID]
+}
+
+func (sp *ServiceProcessor) getServicesForBackend(pod *podmanager.Pod) []*Service {
+	services := make([]*Service, 0)
+
+	for _, service := range sp.services {
+		for _, ep := range service.endpoints.EndpointSubsets {
+			for _, addr := range ep.Addresses {
+				if addr.Ip == pod.IPAddress {
+					services = append(services, service)
+				}
+			}
+		}
+	}
+
+	return services
 }

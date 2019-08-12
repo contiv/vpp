@@ -453,7 +453,7 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 			if change.GetChangeType() != datasync.Delete {
 				err := change.GetValue(newVal)
 				if err != nil {
-					w.log.Warnf("Failed to de-serialize new value for key: %s", key)
+					w.log.Warnf("Failed to de-serialize new value for key=%s: %v", key, err)
 					newVal = nil
 				}
 			}
@@ -464,7 +464,7 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 				err = prevRev.GetValue(prevVal)
 			}
 			if err != nil {
-				w.log.Warnf("Failed to de-serialize previous value for key: %s", key)
+				w.log.Warnf("Failed to de-serialize previous value for key=%s: %v", key, err)
 			}
 			if !hasPrevRev || err != nil {
 				prevVal = nil

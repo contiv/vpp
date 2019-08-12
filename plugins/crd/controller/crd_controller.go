@@ -12,15 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package servicefunctionchain
+package controller
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/contiv/vpp/plugins/crd/handler"
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio"
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
-	"github.com/contiv/vpp/plugins/crd/utils"
-	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/logging"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -30,41 +28,39 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	k8sCache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"time"
-
-	sf "github.com/contiv/vpp/plugins/crd/handler/servicefunctionchain"
-	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	factory "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions"
-	informers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivppio/v1"
-	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/contivppio/v1"
-	"reflect"
 )
 
-const maxRetries = 5
+const (
+	maxRetries = 5
+)
 
 var serverStartTime time.Time
 
-// Controller struct defines how a controller should encapsulate
+// CrdController struct defines how a controller should encapsulate
 // logging, client connectivity, informing (list and watching) queueing, and
 // handling of resource changes
-type Controller struct {
+type CrdController struct {
 	Deps
-
-	CrdClient *crdClientSet.Clientset
-	APIClient *apiextcs.Clientset
+	Spec CrdSpec
 
 	queue workqueue.RateLimitingInterface
-	// ServiceFunctionChain CRD specifics
-	serviceFunctionChainInformer informers.ServiceFunctionChainInformer
-	serviceFunctionChainLister   listers.ServiceFunctionChainLister
-	// event handlers for CustomNetwork CRDs
-	eventHandler handler.Handler
 }
 
 // Deps defines dependencies for the CRD plugin
 type Deps struct {
-	Log     logging.Logger
-	Publish *kvdbsync.Plugin // KeyProtoValWriter does not define Delete
+	Log          logging.Logger
+	APIClient    *apiextcs.Clientset
+	EventHandler handler.Handler
+	Informer     k8sCache.SharedIndexInformer
+}
+
+// CrdSpec contains specification of the resource to control.
+type CrdSpec struct {
+	TypeName   string
+	Group      string
+	Version    string
+	Plural     string
+	Validation *apiextv1beta1.CustomResourceValidation
 }
 
 // Event indicate the informerEvent
@@ -75,43 +71,44 @@ type Event struct {
 	oldResource interface{}
 }
 
-// Init performs the initialization of NodeConfig Controller
-func (c *Controller) Init() error {
+// Init performs the initialization of the Controller
+func (c *CrdController) Init() error {
 
 	var (
 		event Event
 		err   error
 	)
 
-	c.Log.Info("ServiceFunctionChain-Controller: initializing...")
+	c.Log.Infof("%s-Controller: initializing...", c.Spec.TypeName)
 
-	crdName := reflect.TypeOf(v1.ServiceFunctionChain{}).Name()
-	err = c.createCRD("servicefunctionchains"+"."+contivppio.GroupName,
-		contivppio.GroupName,
-		"v1",
-		"servicefunctionchains",
-		crdName)
+	err = c.EventHandler.Init()
+	if err != nil {
+		c.Log.Error(err)
+		return err
+	}
+
+	err = c.createCRD(c.Spec.Plural+"."+c.Spec.Group,
+		c.Spec.Group,
+		c.Spec.Version,
+		c.Spec.Plural,
+		c.Spec.TypeName)
 
 	if err != nil {
 		c.Log.Errorf("Error initializing CRD: %v", err)
 		return err
 	}
 
-	sharedFactory := factory.NewSharedInformerFactory(c.CrdClient, time.Second*30)
-	c.serviceFunctionChainInformer = sharedFactory.Contivpp().V1().ServiceFunctionChains()
-	c.serviceFunctionChainLister = c.serviceFunctionChainInformer.Lister()
-
 	// Create a new queue in that when the informer gets a resource from listing or watching,
 	// adding the identifying key to the queue for the handler
 	c.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	// Add event handlers to handle the three types of events for resources (add, update, delete)
-	c.serviceFunctionChainInformer.Informer().AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
+	c.Informer.AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			event.key, err = k8sCache.MetaNamespaceKeyFunc(obj)
 			event.eventType = "create"
 			event.resource = obj
-			c.Log.Infof("Add ServiceFunctionChain resource with key: %s", event.key)
+			c.Log.Infof("Add %s resource with key: %s", c.Spec.TypeName, event.key)
 			if err == nil {
 				c.queue.Add(event)
 			}
@@ -121,7 +118,7 @@ func (c *Controller) Init() error {
 			event.resource = newObj
 			event.oldResource = oldObj
 			event.eventType = "update"
-			c.Log.Infof("Update ServiceFunctionChain resource with key: %s", event.key)
+			c.Log.Infof("Update %s resource with key: %s", c.Spec.TypeName, event.key)
 			if err == nil {
 				c.queue.Add(event)
 			}
@@ -130,34 +127,27 @@ func (c *Controller) Init() error {
 			event.key, err = k8sCache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 			event.eventType = "delete"
 			event.resource = obj
-			c.Log.Infof("Delete ServiceFunctionChain resource with key: %s", event.key)
+			c.Log.Infof("Delete %s resource with key: %s", c.Spec.TypeName, event.key)
 			if err == nil {
 				c.queue.Add(event)
 			}
 		},
 	})
-	c.eventHandler = &sf.Handler{
-		Deps: sf.Deps{
-			Log:                c.Log,
-			Publish:            c.Publish,
-			ControllerInformer: c.serviceFunctionChainInformer,
-		},
-	}
 
 	return nil
 }
 
 // Run this in the plugin_crd_impl, it's the controller loop
-func (c *Controller) Run(ctx <-chan struct{}) {
+func (c *CrdController) Run(ctx <-chan struct{}) {
 	// handle a panic with logging and exiting
 	defer utilruntime.HandleCrash()
 	// ignore new items and shutdown when done
 	defer c.queue.ShutDown()
 
-	c.Log.Info("ServiceFunctionChain-Controller: Starting...")
+	c.Log.Infof("%s-Controller: Starting...", c.Spec.TypeName)
 
 	// runs the informer to list and watch on a goroutine
-	go c.serviceFunctionChainInformer.Informer().Run(ctx)
+	go c.Informer.Run(ctx)
 
 	// populate resources one after synchronization
 	if !k8sCache.WaitForCacheSync(ctx, c.HasSynced) {
@@ -171,25 +161,25 @@ func (c *Controller) Run(ctx <-chan struct{}) {
 }
 
 // HasSynced indicates when the controller is synced up with the K8s.
-func (c *Controller) HasSynced() bool {
-	return c.serviceFunctionChainInformer.Informer().HasSynced()
+func (c *CrdController) HasSynced() bool {
+	return c.Informer.HasSynced()
 }
 
 // runWorker processes new items in the queue
-func (c *Controller) runWorker() {
-	c.Log.Info("ServiceFunctionChain-Controller: Running..")
+func (c *CrdController) runWorker() {
+	c.Log.Infof("%s-Controller: Running..", c.Spec.TypeName)
 
 	// invoke processNextItem to fetch and consume the next change
 	// to a watched or listed resource
 	for c.processNextItem() {
-		c.Log.Info("ServiceFunctionChain-Controller-runWorker: processing next item...")
+		c.Log.Infof("%s-Controller-runWorker: processing next item...", c.Spec.TypeName)
 	}
 
-	c.Log.Info("ServiceFunctionChain-Controller-runWorker: Completed")
+	c.Log.Infof("%s-Controller-runWorker: Completed", c.Spec.TypeName)
 }
 
 // processNextItem retrieves next queued item, acts accordingly for object CRUD
-func (c *Controller) processNextItem() bool {
+func (c *CrdController) processNextItem() bool {
 	// get the next item (blocking) from the queue and process or
 	// quit if shutdown requested
 	event, quit := c.queue.Get()
@@ -198,16 +188,23 @@ func (c *Controller) processNextItem() bool {
 	}
 	defer c.queue.Done(event)
 
-	err := c.processItem(event.(Event))
+	ev := event.(Event)
+	err := c.processItem(ev)
+	if ev.eventType == "create" || ev.eventType == "update" {
+		publishErr := c.EventHandler.PublishStatus(ev.resource, err)
+		if publishErr != nil {
+			c.Log.Errorf("Failed to publish status for %s: %v", ev.key, publishErr)
+		}
+	}
 	if err == nil {
 		// If there is no error reset the rate limit counters
 		c.queue.Forget(event)
 	} else if c.queue.NumRequeues(event) < maxRetries {
-		c.Log.Errorf("Error processing %s (will retry): %v", event.(Event).key, err)
+		c.Log.Errorf("Error processing %s (will retry): %v", ev.key, err)
 		c.queue.AddRateLimited(event)
 	} else {
 		// err != nil and too many retries
-		c.Log.Errorf("Error processing %s (giving up): %v", event.(Event).key, err)
+		c.Log.Errorf("Error processing %s (giving up): %v", ev.key, err)
 		c.queue.Forget(event)
 		utilruntime.HandleError(err)
 	}
@@ -218,23 +215,15 @@ func (c *Controller) processNextItem() bool {
 
 // processItem processes the next item from the queue and send the event update
 // to the serviceFunctionChain event handler
-func (c *Controller) processItem(event Event) error {
+func (c *CrdController) processItem(event Event) error {
 	// process events based on its type
 	switch event.eventType {
 	case "create":
-		// get object's metadata
-		objectMeta := utils.GetObjectMetaData(event.resource)
-		// compare CreationTimestamp and serverStartTime and alert only on latest events
-		if objectMeta.CreationTimestamp.Sub(serverStartTime).Seconds() > 0 {
-			c.eventHandler.ObjectCreated(event.resource)
-			return nil
-		}
+		return c.EventHandler.ObjectCreated(event.resource)
 	case "update":
-		c.eventHandler.ObjectUpdated(event.oldResource, event.resource)
-		return nil
+		return c.EventHandler.ObjectUpdated(event.oldResource, event.resource)
 	case "delete":
-		c.eventHandler.ObjectDeleted(event.resource)
-		return nil
+		return c.EventHandler.ObjectDeleted(event.resource)
 	default:
 		c.Log.Warn("Unknown event type")
 	}
@@ -242,15 +231,12 @@ func (c *Controller) processItem(event Event) error {
 }
 
 // Create the CRD resource, ignore error if it already exists
-func (c *Controller) createCRD(FullName, Group, Version, Plural, Name string) error {
-	c.Log.Info("Creating ServiceFunctionChain CRD")
+func (c *CrdController) createCRD(FullName, Group, Version, Plural, Name string) error {
+	c.Log.Infof("Creating %s CRD", Name)
 
-	var validation *apiextv1beta1.CustomResourceValidation
-	switch Name {
-	case "ServiceFunctionChain":
-		validation = serviceFunctionChainValidation()
-	default:
-		validation = &apiextv1beta1.CustomResourceValidation{}
+	validation := c.Spec.Validation
+	if validation == nil {
+		validation = defaultValidation()
 	}
 	crd := &apiextv1beta1.CustomResourceDefinition{
 		ObjectMeta: meta.ObjectMeta{Name: FullName},
@@ -273,14 +259,16 @@ func (c *Controller) createCRD(FullName, Group, Version, Plural, Name string) er
 	return err
 }
 
-// serviceFunctionChainValidation generates OpenAPIV3 validator for ServiceFunctionChain CRD
-func serviceFunctionChainValidation() *apiextv1beta1.CustomResourceValidation {
+// defaultValidation generates default OpenAPIV3 validator for any CRD
+func defaultValidation() *apiextv1beta1.CustomResourceValidation {
 	validation := &apiextv1beta1.CustomResourceValidation{
 		OpenAPIV3Schema: &apiextv1beta1.JSONSchemaProps{
 			Required: []string{"spec"},
 			Type:     "object",
 			Properties: map[string]apiextv1beta1.JSONSchemaProps{
-				"spec": {},
+				"spec": {
+					Type: "object",
+				},
 			},
 		},
 	}

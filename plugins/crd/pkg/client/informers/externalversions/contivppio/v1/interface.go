@@ -22,8 +22,12 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// CustomConfigurations returns a CustomConfigurationInformer.
+	CustomConfigurations() CustomConfigurationInformer
 	// CustomNetworks returns a CustomNetworkInformer.
 	CustomNetworks() CustomNetworkInformer
+	// ExternalInterfaces returns a ExternalInterfaceInformer.
+	ExternalInterfaces() ExternalInterfaceInformer
 	// ServiceFunctionChains returns a ServiceFunctionChainInformer.
 	ServiceFunctionChains() ServiceFunctionChainInformer
 }
@@ -39,9 +43,19 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
+// CustomConfigurations returns a CustomConfigurationInformer.
+func (v *version) CustomConfigurations() CustomConfigurationInformer {
+	return &customConfigurationInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
 // CustomNetworks returns a CustomNetworkInformer.
 func (v *version) CustomNetworks() CustomNetworkInformer {
 	return &customNetworkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// ExternalInterfaces returns a ExternalInterfaceInformer.
+func (v *version) ExternalInterfaces() ExternalInterfaceInformer {
+	return &externalInterfaceInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // ServiceFunctionChains returns a ServiceFunctionChainInformer.

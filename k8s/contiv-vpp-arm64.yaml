@@ -24,6 +24,7 @@ data:
   contiv.conf: |-
     nodeToNodeTransport: vxlan
     useSRv6ForServices: false
+    useDX6ForSrv6NodetoNodeTransport: false
     useTAPInterfaces: true
     tapInterfaceVersion: 2
     tapv2RxRingSize: 256
@@ -929,8 +930,10 @@ rules:
       - customresourcedefinitions
       - telemetryreports
       - nodeconfigs
+      - externalinterfaces
       - customnetworks
       - servicefunctionchains
+      - customconfigurations
     verbs:
       - "*"
 

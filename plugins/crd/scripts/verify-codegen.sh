@@ -34,7 +34,7 @@ cleanup
 mkdir -p "${TMP_DIFFROOT}"
 cp -a "${DIFFROOT}"/* "${TMP_DIFFROOT}"
 
-"${SCRIPT_ROOT}/plugins/crd/controller/update-codegen.sh"
+"${SCRIPT_ROOT}/plugins/crd/scripts/update-codegen.sh"
 echo "diffing ${DIFFROOT} against freshly generated codegen"
 ret=0
 diff -Naupr "${DIFFROOT}" "${TMP_DIFFROOT}" || ret=$?
@@ -43,6 +43,6 @@ if [[ $ret -eq 0 ]]
 then
   echo "${DIFFROOT} up to date."
 else
-  echo "${DIFFROOT} is out of date. Please run plugins/crd/controller/update-codegen.sh"
+  echo "${DIFFROOT} is out of date. Please run plugins/crd/scripts/update-codegen.sh"
   exit 1
 fi

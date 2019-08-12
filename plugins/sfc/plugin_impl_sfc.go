@@ -24,6 +24,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	sfcmodel "github.com/contiv/vpp/plugins/crd/handler/servicefunctionchain/model"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipnet"
@@ -113,15 +114,13 @@ func (p *Plugin) Init() error {
 		},
 	}
 	// init & register the renderer
-	p.l2xconnRenderer.Init(false)
+	p.l2xconnRenderer.Init()
 	p.processor.RegisterRenderer(p.l2xconnRenderer)
 
 	return nil
 }
 
-// AfterInit registers to the ResyncOrchestrator. The registration is done in this phase
-// in order to ensure that the resync for this plugin is triggered only after
-// resync of the Contiv plugin has finished.
+// AfterInit can be used by renderers to perform a second stage of initialization.
 func (p *Plugin) AfterInit() error {
 	p.processor.AfterInit()
 
@@ -135,6 +134,7 @@ func (p *Plugin) AfterInit() error {
 //  - any resync event
 //  - KubeStateChange for SFCs and pods
 //  - pod custom interfaces update
+//  - external interfaces update
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
 	if event.Method() != controller.Update {
 		return true
@@ -144,6 +144,8 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 		case sfcmodel.Keyword:
 			return true
 		case podmodel.PodKeyword:
+			return true
+		case extifmodel.Keyword:
 			return true
 		default:
 			// unhandled Kubernetes state change

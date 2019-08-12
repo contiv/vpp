@@ -23,6 +23,9 @@ type API interface {
 	// with specified name and type associated with the given local pod name + namespace.
 	GetPodCustomIfName(podNamespace, podName, customIfName string) (ifName string, exists bool)
 
+	// GetExternalIfName returns logical name that corresponds to the specified external interface name and VLAN ID.
+	GetExternalIfName(extIfName string, vlan uint32) (ifName string)
+
 	// GetPodByIf looks up name and namespace that is associated with logical interface name.
 	// The method can be called from outside of the main event loop.
 	GetPodByIf(ifname string) (podNamespace string, podName string, exists bool)
@@ -110,7 +113,7 @@ func (ev *PodCustomIfUpdate) Method() controller.EventMethodType {
 
 // TransactionType is RevertOnFailure.
 func (ev *PodCustomIfUpdate) TransactionType() controller.UpdateTransactionType {
-	return controller.RevertOnFailure
+	return controller.BestEffort
 }
 
 // Direction is forward.

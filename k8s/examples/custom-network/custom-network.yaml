@@ -1,0 +1,7 @@
+---
+apiVersion: contivpp.io/v1
+kind: CustomNetwork
+metadata:
+  name: l2net
+spec:
+  type: L2

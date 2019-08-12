@@ -9,7 +9,7 @@ spec:
       type: Pod
       podSelector:
         cnf: vpp-cnf1
-      outputInterface: memif1
+      interface: memif1
 
     - name: CNF 2
       type: Pod
@@ -22,4 +22,4 @@ spec:
       type: Pod
       podSelector:
         cnf: vpp-cnf3
-      inputInterface: memif1
+      interface: memif1

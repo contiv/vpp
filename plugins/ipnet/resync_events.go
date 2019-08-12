@@ -15,8 +15,12 @@
 package ipnet
 
 import (
+	"net"
+
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
+	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
@@ -38,10 +42,35 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 	}
 
 	// node <-> node
-	err = n.otherNodesResync(txn)
+	err = n.otherNodesResync(txn, kubeStateData)
 	if err != nil {
 		wasErr = err
 		n.Log.Error(err)
+	}
+
+	// custom networks
+	for _, extIfProto := range kubeStateData[customnetmodel.Keyword] {
+		nw := extIfProto.(*customnetmodel.CustomNetwork)
+		config, err := n.customNetworkConfig(nw, configResync)
+		if err == nil {
+			controller.PutAll(txn, config)
+		} else {
+			wasErr = err
+			n.Log.Error(err)
+		}
+	}
+
+	// external interfaces
+	for _, extIfProto := range kubeStateData[extifmodel.Keyword] {
+		extIf := extIfProto.(*extifmodel.ExternalInterface)
+		config, updateConfig, err := n.externalInterfaceConfig(extIf, configResync)
+		if err == nil {
+			controller.PutAll(txn, config)
+			controller.PutAll(txn, updateConfig)
+		} else {
+			wasErr = err
+			n.Log.Error(err)
+		}
 	}
 
 	// pods <-> vswitch
@@ -57,8 +86,6 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 			n.vppIfaceToPod[vppIfName] = pod.ID
 		}
 		n.vppIfaceToPodMutex.Unlock()
-		// init pod custom if map
-		n.podCustomIf = make(map[string]*podCustomIfInfo)
 	}
 	for _, pod := range n.PodManager.GetLocalPods() {
 		if n.IPAM.GetPodIP(pod.ID) == nil {
@@ -69,8 +96,9 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 		controller.PutAll(txn, config)
 
 		// custom interfaces config
-		config = n.podCustomIfsConfig(pod, resync)
+		config, updateConfig := n.podCustomIfsConfig(pod, configResync)
 		controller.PutAll(txn, config)
+		controller.PutAll(txn, updateConfig)
 	}
 
 	n.Log.Infof("IPNet plugin internal state after RESYNC: %s",
@@ -127,12 +155,14 @@ func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn control
 
 	// create localsid as receiving end for SRv6 encapsulated communication between 2 nodes
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport {
-		// create localsid with DT6/DT4 end function (decapsulate and lookup in POD VRF ipv6/ipv4 table)
-		// -SRv6 route ends in destination node's VPP
-		// -used for pod-to-pod communication (further routing in destination node is done using ipv6)
-		podSid := n.IPAM.SidForNodeToNodePodLocalsid(n.nodeIP)
-		key, podLocalsid := n.srv6PodTunnelEgress(podSid)
-		txn.Put(key, podLocalsid)
+		if !n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport { // using DT6 -> can be created once (for resync)
+			// create localsid with DT6/DT4 end function (decapsulate and lookup in POD VRF ipv6/ipv4 table)
+			// -SRv6 route ends in destination node's VPP
+			// -used for pod-to-pod communication (further routing in destination node is done using ipv6)
+			podSid := n.IPAM.SidForNodeToNodePodLocalsid(n.nodeIP)
+			key, podLocalsid := n.srv6PodTunnelEgress(podSid)
+			txn.Put(key, podLocalsid)
+		}
 
 		// create localsid with DT6/DT4 end function (decapsulate and lookup in Main VRF ipv6/ipv4 table)
 		// -SRv6 route ends in destination node's VPP
@@ -418,7 +448,7 @@ func (n *IPNet) configureVswitchVrfRoutes(txn controller.ResyncOperations) {
 }
 
 // otherNodesResync re-synchronizes connectivity to other nodes.
-func (n *IPNet) otherNodesResync(txn controller.ResyncOperations) error {
+func (n *IPNet) otherNodesResync(txn controller.ResyncOperations, kubeStateData controller.KubeStateData) error {
 	// collect other node IDs and configuration for connectivity with each of them
 	for _, node := range n.NodeSync.GetAllNodes() {
 		// ignore for this node
@@ -436,9 +466,7 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations) error {
 					node.ID, err)
 				continue
 			}
-			for key, value := range nodeConnectConfig {
-				txn.Put(key, value)
-			}
+			addToTxn(nodeConnectConfig, txn)
 		}
 	}
 
@@ -458,9 +486,34 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations) error {
 		txn.Put(key, vxlanBVI)
 	}
 
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport && n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport {
+		for _, podProto := range kubeStateData[podmodel.PodKeyword] {
+			pod := podProto.(*podmodel.Pod)
+			if _, isLocal := n.PodManager.GetLocalPods()[podmodel.GetID(pod)]; !isLocal {
+				if net.ParseIP(pod.IpAddress) == nil {
+					n.Log.Warnf("ignoring srv6 dx6 pod-to-pod tunnel creation due to not assigned IP(or unable to parse it from string %v) "+
+						"to destination pod (pod id %+v)", pod.IpAddress, podmodel.GetID(pod))
+					continue
+				}
+				config, err := n.srv6NodeToNodeDX6PodTunnelIngress(pod)
+				if err != nil {
+					n.Log.Errorf("can't add SRv6 node-to-node tunnel crossconnecting to pod %+v due to %v", podmodel.GetID(pod), err)
+					continue
+				}
+				addToTxn(config, txn)
+			}
+		}
+	}
+
 	// loopback with the gateway IP address for PODs. Also used as the unnumbered IP for the POD facing interfaces.
 	key, lo := n.podGwLoopback()
 	txn.Put(key, lo)
 
 	return nil
+}
+
+func addToTxn(config controller.KeyValuePairs, txn controller.ResyncOperations) {
+	for key, value := range config {
+		txn.Put(key, value)
+	}
 }

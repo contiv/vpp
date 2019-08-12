@@ -602,7 +602,7 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 }
 
 // AllocatePodCustomIfIP tries to allocate custom IP address for the given interface of a given pod.
-func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string) (net.IP, error) {
+func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string, isServiceEndpoint bool) (net.IP, error) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
@@ -614,7 +614,7 @@ func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string) 
 	}
 
 	// persist the allocation
-	err = i.persistCustomIfIPAllocation(podID, ifName, network, ip)
+	err = i.persistCustomIfIPAllocation(podID, ifName, network, ip, isServiceEndpoint)
 	if err != nil {
 		i.Log.Errorf("Unable to persist custom interface IP allocation: %v", err)
 		return nil, err
@@ -639,7 +639,7 @@ func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string) 
 }
 
 // persistCustomIfIPAllocation persists custom interface IP allocation into ETCD.
-func (i *IPAM) persistCustomIfIPAllocation(podID podmodel.ID, ifName, network string, ip net.IP) error {
+func (i *IPAM) persistCustomIfIPAllocation(podID podmodel.ID, ifName, network string, ip net.IP, isServiceEndpoint bool) error {
 	key := ipalloc.Key(podID.Name, podID.Namespace)
 	allocation := &ipalloc.CustomIPAllocation{}
 
@@ -663,9 +663,10 @@ func (i *IPAM) persistCustomIfIPAllocation(podID podmodel.ID, ifName, network st
 
 	// add IP allocation for this custom interface
 	allocation.CustomInterfaces = append(allocation.CustomInterfaces, &ipalloc.CustomPodInterface{
-		Name:      ifName,
-		Network:   network,
-		IpAddress: ip.String(),
+		Name:            ifName,
+		Network:         network,
+		IpAddress:       ip.String(),
+		ServiceEndpoint: isServiceEndpoint,
 	})
 
 	// save in ETCD
@@ -837,7 +838,22 @@ func (i *IPAM) ReleasePodIPs(podID podmodel.ID) error {
 
 	delete(i.assignedPodIPs, allocation.mainIP.String())
 	for _, ip := range allocation.customIfIPs {
+		i.Log.Infof("Released custom interface IP %v for pod ID %v", ip, podID)
 		delete(i.assignedPodIPs, ip.String())
+	}
+	if len(allocation.customIfIPs) > 0 {
+		// release pod allocation from ETCD
+		db, err := i.getDBBroker()
+		if err != nil {
+			i.Log.Errorf("Unable to erase persisted pod custom interface IP allocation: %v", err)
+			return err
+		}
+		key := ipalloc.Key(podID.Name, podID.Namespace)
+		_, err = db.Delete(key)
+		if err != nil {
+			i.Log.Errorf("Unable to erase persisted pod custom interface IP allocation: %v", err)
+			return err
+		}
 	}
 
 	i.logAssignedPodIPPool()

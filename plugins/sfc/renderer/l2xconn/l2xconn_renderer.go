@@ -55,7 +55,7 @@ type Deps struct {
 }
 
 // Init initializes the renderer.
-func (rndr *Renderer) Init(snatOnly bool) error {
+func (rndr *Renderer) Init() error {
 	if rndr.Config == nil {
 		rndr.Config = config.DefaultConfig()
 	}
@@ -161,25 +161,29 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 	return config
 }
 
+// getSFInterface returns a service function input/output interface which should be used for chaining.
 func (rndr *Renderer) getSFInterface(sf *renderer.ServiceFunction, input bool) string {
-	if sf.Type != renderer.Pod {
-		return "" // TODO: implement external interfaces as well
-	}
-	if len(sf.Pods) == 0 {
+
+	switch sf.Type {
+	case renderer.Pod:
+		if len(sf.Pods) == 0 {
+			return ""
+		}
+		pod := sf.Pods[0] // TODO: handle chains with multiple pod instances per service function?
+		if input {
+			return pod.InputInterface
+		}
+		return pod.OutputInterface
+
+	case renderer.ExternalInterface:
+		// find first local interface
+		for _, extIf := range sf.ExternalInterfaces {
+			if extIf.Local {
+				return extIf.InterfaceName
+			}
+		}
+		// TODO: chain to a remote external interface?
 		return ""
 	}
-	pod := sf.Pods[0] // TODO: handle chains with multiple pod instances per service function?
-
-	podInterface := ""
-	if input {
-		podInterface = pod.InputInterface
-	} else {
-		podInterface = pod.OutputInterface
-	}
-
-	vppIfName, exists := rndr.IPNet.GetPodCustomIfName(pod.ID.Namespace, pod.ID.Name, podInterface)
-	if !exists {
-		return ""
-	}
-	return vppIfName
+	return ""
 }

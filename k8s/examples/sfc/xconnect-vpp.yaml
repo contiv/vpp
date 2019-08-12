@@ -1,0 +1,18 @@
+---
+apiVersion: contivpp.io/v1
+kind: CustomConfiguration
+metadata:
+  name: example-interconnect
+spec:
+  microservice: vpp-cnf2
+  configItems:
+    - module: vpp.l2
+      type: xconnect
+      data: |-
+        receiveInterface: memif1
+        transmitInterface: memif2
+    - module: vpp.l2
+      type: xconnect
+      data: |-
+        receiveInterface: memif2
+        transmitInterface: memif1

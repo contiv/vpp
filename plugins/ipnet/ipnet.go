@@ -32,6 +32,8 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
+	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	"github.com/contiv/vpp/plugins/devicemanager"
 	"github.com/contiv/vpp/plugins/ipam"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -99,7 +101,22 @@ type internalState struct {
 
 	// cache of pods pending for AddPodCustomIfs event (waiting for metadata)
 	pendingAddPodCustomIf map[podmodel.ID]bool
+
+	// custom network information
+	customNetworks map[string]*customNetworkInfo // custom network name to info map
 }
+
+// configEventType represents the type of an configuration event processed by the ipnet plugin
+type configEventType int
+
+const (
+	// synchronization of the existing config vs demanded config
+	configResync configEventType = iota
+	// addition of new config
+	configAdd
+	// deletion of existing config
+	configDelete
+)
 
 // Deps groups the dependencies of the plugin.
 type Deps struct {
@@ -163,8 +180,10 @@ func (n *IPNet) Init() error {
 	// register REST handlers
 	n.registerRESTHandlers()
 
-	// init pod cache
+	// init internal maps
+	n.podCustomIf = make(map[string]*podCustomIfInfo)
 	n.internalState.pendingAddPodCustomIf = make(map[podmodel.ID]bool)
+	n.customNetworks = make(map[string]*customNetworkInfo)
 
 	return nil
 }
@@ -220,10 +239,17 @@ func (n *IPNet) HandlesEvent(event controller.Event) bool {
 		return true
 	}
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
-		if ksChange.Resource == podmodel.PodKeyword {
+		switch ksChange.Resource {
+		case podmodel.PodKeyword:
 			return true
+		case customnetmodel.Keyword:
+			return true
+		case extifmodel.Keyword:
+			return true
+		default:
+			// unhandled Kubernetes state change
+			return false
 		}
-		return false
 	}
 	if _, isPodCustomIfUpdate := event.(*PodCustomIfUpdate); isPodCustomIfUpdate {
 		return true
@@ -294,6 +320,14 @@ func (n *IPNet) GetPodCustomIfName(podNamespace, podName, customIfName string) (
 
 	ifName, _ = n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
 	return ifName, true
+}
+
+// GetExternalIfName returns logical name that corresponds to the specified external interface name and VLAN ID.
+func (n *IPNet) GetExternalIfName(extIfName string, vlan uint32) (ifName string) {
+	if vlan == 0 {
+		return extIfName
+	}
+	return n.getSubInterfaceName(extIfName, vlan)
 }
 
 // GetNodeIP returns the IP address of this node.

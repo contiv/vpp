@@ -9,10 +9,10 @@ spec:
       type: Pod
       podSelector:
         cnf: linux-cnf1
-      outputInterface: tap1
+      interface: tap1
 
     - name: CNF 2
       type: Pod
       podSelector:
         cnf: linux-cnf2
-      inputInterface: tap1
+      interface: tap1

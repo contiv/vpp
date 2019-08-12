@@ -63,7 +63,7 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 	// del pod from CNI
 	if delPod, isDeletePod := event.(*podmanager.DeletePod); isDeletePod {
 		// delete custom interfaces
-		change, err := n.updatePodCustomIfs(delPod.Pod, txn, podDelete)
+		change, err := n.updatePodCustomIfs(delPod.Pod, txn, configDelete)
 		if err != nil {
 			return "", err
 		}
@@ -97,25 +97,37 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 
 		case extifmodel.Keyword:
 			// external interface data change
-			var extIf *extifmodel.ExternalInterface
-			isAdd := false
 			if ksChange.NewValue != nil {
-				extIf = ksChange.NewValue.(*extifmodel.ExternalInterface)
-				isAdd = true
-			} else if ksChange.PrevValue != nil {
-				extIf = ksChange.PrevValue.(*extifmodel.ExternalInterface)
+				extIf := ksChange.NewValue.(*extifmodel.ExternalInterface)
+				if ksChange.PrevValue == nil {
+					return n.updateExternalIf(extIf, txn, configAdd)
+				}
+				prevIf := ksChange.PrevValue.(*extifmodel.ExternalInterface)
+				n.updateExternalIf(prevIf, txn, configDelete)
+				return n.updateExternalIf(extIf, txn, configAdd)
 			}
-			return n.updateExternalIf(extIf, txn, isAdd)
+			extIf := ksChange.PrevValue.(*extifmodel.ExternalInterface)
+			return n.updateExternalIf(extIf, txn, configDelete)
 
 		case customnetmodel.Keyword:
 			// custom network data change
-			// TODO: handle custom networks
+			if ksChange.NewValue != nil {
+				nw := ksChange.NewValue.(*customnetmodel.CustomNetwork)
+				if ksChange.PrevValue == nil {
+					return n.updateCustomNetwork(nw, txn, configAdd)
+				}
+				prevNw := ksChange.PrevValue.(*customnetmodel.CustomNetwork)
+				n.updateCustomNetwork(prevNw, txn, configDelete)
+				return n.updateCustomNetwork(nw, txn, configAdd)
+			}
+			nw := ksChange.PrevValue.(*customnetmodel.CustomNetwork)
+			return n.updateCustomNetwork(nw, txn, configDelete)
 		}
 	}
 
 	// pod custom interfaces update
 	if podCustomIfUpdate, isPodCustomIfUpdate := event.(*PodCustomIfUpdate); isPodCustomIfUpdate {
-		return n.updatePodCustomIfs(podCustomIfUpdate.PodID, txn, podAdd)
+		return n.updatePodCustomIfs(podCustomIfUpdate.PodID, txn, configAdd)
 	}
 
 	// node info update
@@ -306,28 +318,32 @@ func (n *IPNet) deletePod(event *podmanager.DeletePod, txn controller.UpdateOper
 }
 
 // updatePodCustomIfs adds or deletes pod custom interfaces configuration (if requested by pod annotations).
-func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOperations, eventType podConfigEventType) (change string, err error) {
+func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOperations,
+	eventType configEventType) (change string, err error) {
 
 	pod := n.PodManager.GetLocalPods()[podID]
-	config := n.podCustomIfsConfig(pod, eventType)
+	config, updateConfig := n.podCustomIfsConfig(pod, eventType)
 
 	// no custom ifs for this pod
 	if len(config) == 0 {
 		return "", nil
 	}
 
-	if eventType != podDelete {
+	if eventType != configDelete {
 		controller.PutAll(txn, config)
+		controller.PutAll(txn, updateConfig)
 		return "configure custom pod interfaces", nil
 	}
 	controller.DeleteAll(txn, config)
+	controller.PutAll(txn, updateConfig)
 	return "un-configure custom pod interfaces", nil
 }
 
 // updateExternalIf adds or deletes external interface configuration.
-func (n *IPNet) updateExternalIf(extIf *extifmodel.ExternalInterface, txn controller.UpdateOperations, isAdd bool) (change string, err error) {
+func (n *IPNet) updateExternalIf(extIf *extifmodel.ExternalInterface, txn controller.UpdateOperations,
+	eventType configEventType) (change string, err error) {
 
-	config, err := n.externalInterfaceConfig(extIf)
+	config, updateConfig, err := n.externalInterfaceConfig(extIf, eventType)
 	if err != nil {
 		return "", err
 	}
@@ -337,12 +353,36 @@ func (n *IPNet) updateExternalIf(extIf *extifmodel.ExternalInterface, txn contro
 		return "", nil
 	}
 
-	if isAdd {
+	if eventType != configDelete {
 		controller.PutAll(txn, config)
+		controller.PutAll(txn, updateConfig)
 		return "configure external interfaces", nil
 	}
 	controller.DeleteAll(txn, config)
+	controller.PutAll(txn, updateConfig)
 	return "un-configure external interfaces", nil
+}
+
+// updateCustomNetwork adds or deletes custom network configuration.
+func (n *IPNet) updateCustomNetwork(nw *customnetmodel.CustomNetwork, txn controller.UpdateOperations,
+	eventType configEventType) (change string, err error) {
+
+	config, err := n.customNetworkConfig(nw, eventType)
+	if err != nil {
+		return "", err
+	}
+
+	// no external interface config for this node
+	if len(config) == 0 {
+		return "", nil
+	}
+
+	if eventType != configDelete {
+		controller.PutAll(txn, config)
+		return "configure custom network", nil
+	}
+	controller.DeleteAll(txn, config)
+	return "un-configure custom network", nil
 }
 
 // processNodeUpdateEvent reacts to an update of *another* node.

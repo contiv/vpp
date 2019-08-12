@@ -20,6 +20,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
 	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
@@ -59,6 +60,12 @@ const (
 	vxlanBDName = "vxlanBD"
 )
 
+// customNetworkInfo holds information about a custom network
+type customNetworkInfo struct {
+	config          *customnetmodel.CustomNetwork
+	localInterfaces []string
+}
+
 // prefix for the hardware address of VXLAN interfaces
 var vxlanBVIHwAddrPrefix = []byte{0x12, 0x2b}
 
@@ -75,7 +82,7 @@ func (n *IPNet) fullNodeConnectivityConfig(node *nodesync.Node) (config controll
 	if err != nil {
 		return config, err
 	}
-	n.mergeConfiguration(config, additionalConfig)
+	mergeConfiguration(config, additionalConfig)
 
 	return config, nil
 }
@@ -164,7 +171,7 @@ func (n *IPNet) partialNodeConnectivityConfig(node *nodesync.Node) (config contr
 			n.Log.Error(err)
 			return config, err
 		}
-		n.mergeConfiguration(config, podsCfg)
+		mergeConfiguration(config, podsCfg)
 	}
 
 	// route to the host stack of the other node
@@ -173,7 +180,7 @@ func (n *IPNet) partialNodeConnectivityConfig(node *nodesync.Node) (config contr
 		n.Log.Error(err)
 		return config, err
 	}
-	n.mergeConfiguration(config, hostStackCfg)
+	mergeConfiguration(config, hostStackCfg)
 
 	// route to management IPs of the other node
 	mgmIPConf, err := n.connectivityToOtherNodeManagementIPAddresses(node, nextHop)
@@ -181,17 +188,18 @@ func (n *IPNet) partialNodeConnectivityConfig(node *nodesync.Node) (config contr
 		n.Log.Error(err)
 		return config, err
 	}
-	n.mergeConfiguration(config, mgmIPConf)
+	mergeConfiguration(config, mgmIPConf)
 
 	return config, nil
 }
 
 // externalInterfaceConfig returns configuration of an external interface of the vswitch VPP.
-func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface) (config controller.KeyValuePairs, err error) {
-	config = make(controller.KeyValuePairs)
-	myNodeName := n.ServiceLabel.GetAgentLabel()
+func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface, eventType configEventType) (
+	config controller.KeyValuePairs, updateConfig controller.KeyValuePairs, err error) {
 
-	// TODO: interface in non-default network
+	config = make(controller.KeyValuePairs)
+	updateConfig = make(controller.KeyValuePairs)
+	myNodeName := n.ServiceLabel.GetAgentLabel()
 
 	for _, nodeIf := range extIf.Nodes {
 		if nodeIf.Node == myNodeName {
@@ -205,7 +213,7 @@ func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface) (co
 					ip = contivconf.IPsWithNetworks{&contivconf.IPWithNetwork{Address: ipAddr, Network: ipNet}}
 				}
 			}
-
+			vppIfName := nodeIf.VppInterfaceName
 			if nodeIf.Vlan == 0 {
 				// standard interface config
 				key, iface := n.physicalInterface(nodeIf.VppInterfaceName, ip)
@@ -216,11 +224,16 @@ func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface) (co
 				config[key] = iface
 				key, iface = n.subInterface(nodeIf.VppInterfaceName, nodeIf.Vlan, ip)
 				config[key] = iface
+				vppIfName = iface.Name
+			}
+			if !n.isDefaultPodNetwork(extIf.Network) && !n.isStubNetwork(extIf.Network) {
+				// configure interface in custom network
+				nwConfig := n.interfaceCustomNwConfig(vppIfName, extIf.Network, eventType != configDelete)
+				mergeConfiguration(updateConfig, nwConfig)
 			}
 		}
 	}
-
-	return config, nil
+	return
 }
 
 /*********************************** DHCP *************************************/
@@ -599,6 +612,119 @@ func (n *IPNet) podGwLoopback() (key string, config *vpp_interfaces.Interface) {
 	return key, lo
 }
 
+/************************** Custom Networks **************************/
+
+// customNetworkConfig returns configuration of a custom netwok on the vswitch VPP.
+func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, eventType configEventType) (
+	config controller.KeyValuePairs, err error) {
+
+	config = make(controller.KeyValuePairs)
+
+	nw := n.customNetworks[nwConfig.Name]
+	if nw == nil {
+		nw = &customNetworkInfo{
+			config: nwConfig,
+		}
+		n.customNetworks[nwConfig.Name] = nw
+	} else {
+		nw.config = nwConfig
+	}
+
+	if nwConfig.Type == customnetmodel.CustomNetwork_L2 {
+		bdKey, bd := n.customNwBridgeDomain(nw)
+		config[bdKey] = bd
+	}
+	// TODO: handle other types of custom networks
+
+	if eventType == configDelete {
+		n.customNetworks[nwConfig.Name].config = nil
+	}
+
+	return config, nil
+}
+
+// customInterfaceNwConfig returns custom network -specific configuration of an interface .
+func (n *IPNet) interfaceCustomNwConfig(ifName, customNwName string, isAdd bool) (config controller.KeyValuePairs) {
+	config = make(controller.KeyValuePairs)
+
+	// custom network is not known yet create one
+	nw := n.customNetworks[customNwName]
+	if nw == nil {
+		nw = &customNetworkInfo{}
+		n.customNetworks[customNwName] = nw
+	}
+
+	if isAdd {
+		nw.localInterfaces = sliceAppendIfNotExists(nw.localInterfaces, ifName)
+	} else {
+		nw.localInterfaces = sliceRemove(nw.localInterfaces, ifName)
+	}
+
+	if nw.config == nil {
+		// details about the network not yet known
+		return nil
+	}
+
+	if nw.config.Type == customnetmodel.CustomNetwork_L2 {
+		// re-render the bridge domain config
+		bdKey, bd := n.customNwBridgeDomain(nw)
+		config[bdKey] = bd
+	}
+	// TODO: handle other types of custom networks
+
+	return config
+}
+
+// customNwBridgeDomain returns configuration for the bridge domain of a custom network.
+func (n *IPNet) customNwBridgeDomain(nw *customNetworkInfo) (key string, config *vpp_l2.BridgeDomain) {
+	bd := &vpp_l2.BridgeDomain{
+		Name:                nw.config.Name,
+		Learn:               true,
+		Forward:             true,
+		Flood:               true,
+		UnknownUnicastFlood: true,
+	}
+	// local interfaces
+	for _, iface := range nw.localInterfaces {
+		bd.Interfaces = append(bd.Interfaces, &vpp_l2.BridgeDomain_Interface{
+			Name:              iface,
+			SplitHorizonGroup: vxlanSplitHorizonGroup,
+		})
+	}
+	// TODO: VXLANs to the other nodes
+
+	key = vpp_l2.BridgeDomainKey(bd.Name)
+	return key, bd
+}
+
+// isDefaultPodNetwork returns true if provided network name is the default pod network.
+func (n *IPNet) isDefaultPodNetwork(nwName string) bool {
+	return nwName == defaultNetworkName || nwName == ""
+}
+
+// isStubNetwork returns true if provided network name is the "stub" network (not connected anywhere).
+func (n *IPNet) isStubNetwork(nwName string) bool {
+	return nwName == stubNetworkName
+}
+
+// isL2Network returns true if provided network name is a layer 2 (switched) network.
+func (n *IPNet) isL2Network(nwName string) bool {
+	nw := n.customNetworks[nwName]
+	if nw == nil || nw.config == nil {
+		return false
+	}
+	return nw.config.Type == customnetmodel.CustomNetwork_L2
+}
+
+// isL3Network returns true if provided network name is a layer 3 (routed) network.
+func (n *IPNet) isL3Network(nwName string) bool {
+	nw := n.customNetworks[nwName]
+	if nw == nil || nw.config == nil {
+		return false
+	}
+	return nw.config.Type == customnetmodel.CustomNetwork_L3
+}
+
 /************************** Bridge Domain with VXLANs **************************/
 
 // vxlanBVILoopback returns configuration of the loopback interfaces acting as BVI
@@ -719,12 +845,6 @@ func (n *IPNet) otherNodeIP(otherNodeID uint32) (net.IP, error) {
 		return nodeIP, err
 	}
 	return nodeIP, nil
-}
-
-func (n *IPNet) mergeConfiguration(destConf, sourceConf controller.KeyValuePairs) {
-	for k, v := range sourceConf {
-		destConf[k] = v
-	}
 }
 
 // srv6NodeToNodeSegmentIngress creates configuration that routes SRv6 packet based on IPv6 routing to correct node.
@@ -948,7 +1068,7 @@ func (n *IPNet) connectivityToOtherNodePods(otherNodeID uint32, nextHopIP net.IP
 			if err != nil {
 				return config, fmt.Errorf("can't create configuration for node-to-node SRv6 tunnel for Pod traffic due to: %v", err)
 			}
-			n.mergeConfiguration(config, podTunnelConfig)
+			mergeConfiguration(config, podTunnelConfig)
 		}
 
 		// get config of tunnel ending with intermediate(not the last one in segment list) segment
@@ -956,7 +1076,7 @@ func (n *IPNet) connectivityToOtherNodePods(otherNodeID uint32, nextHopIP net.IP
 		if err != nil {
 			return config, fmt.Errorf("can't create configuration for node passing SRv6 path due to: %v", err)
 		}
-		n.mergeConfiguration(config, segmentConfig)
+		mergeConfiguration(config, segmentConfig)
 	case contivconf.NoOverlayTransport:
 		fallthrough // the same as for VXLANTransport
 	case contivconf.VXLANTransport:
@@ -984,7 +1104,7 @@ func (n *IPNet) connectivityToOtherNodeHostStack(otherNodeID uint32, nextHopIP n
 		if err != nil {
 			return config, fmt.Errorf("can't create configuration for node-to-node SRv6 tunnel for Host traffic due to: %v", err)
 		}
-		n.mergeConfiguration(config, hostTunnelConfig)
+		mergeConfiguration(config, hostTunnelConfig)
 	case contivconf.NoOverlayTransport:
 		fallthrough // the same as for VXLANTransport
 	case contivconf.VXLANTransport:

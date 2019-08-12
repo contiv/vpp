@@ -30,6 +30,10 @@ message ExternalInterface {
     }
     Type type = 2;
 
+    // Custom network to which this interface belongs.
+    // "" or "default" means no specific custom network.
+    string network = 3;
+
     // list of physical interfaces on individual nodes
     message NodeInterface {
         string node = 1;
@@ -37,5 +41,5 @@ message ExternalInterface {
         string ip = 3;
         uint32 vlan = 4;
     }
-    repeated NodeInterface nodes = 3;
+    repeated NodeInterface nodes = 4;
 }

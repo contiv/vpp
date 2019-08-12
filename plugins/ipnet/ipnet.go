@@ -101,7 +101,22 @@ type internalState struct {
 
 	// cache of pods pending for AddPodCustomIfs event (waiting for metadata)
 	pendingAddPodCustomIf map[podmodel.ID]bool
+
+	// custom network information
+	customNetworks map[string]*customNetworkInfo // custom network name to info map
 }
+
+// configEventType represents the type of an configuration event processed by the ipnet plugin
+type configEventType int
+
+const (
+	// synchronization of the existing config vs demanded config
+	configResync configEventType = iota
+	// addition of new config
+	configAdd
+	// deletion of existing config
+	configDelete
+)
 
 // Deps groups the dependencies of the plugin.
 type Deps struct {
@@ -165,8 +180,10 @@ func (n *IPNet) Init() error {
 	// register REST handlers
 	n.registerRESTHandlers()
 
-	// init pod cache
+	// init internal maps
+	n.podCustomIf = make(map[string]*podCustomIfInfo)
 	n.internalState.pendingAddPodCustomIf = make(map[podmodel.ID]bool)
+	n.customNetworks = make(map[string]*customNetworkInfo)
 
 	return nil
 }

@@ -74,9 +74,10 @@ type ExternalInterface struct {
 
 // ExternalInterfaceSpec is the spec for external interface configuration resource
 type ExternalInterfaceSpec struct {
-	Name  string          `json:"name"`
-	Type  string          `json:"type"`
-	Nodes []NodeInterface `json:"nodes"`
+	Name    string          `json:"name"`
+	Type    string          `json:"type"`
+	Network string          `json:"network"`
+	Nodes   []NodeInterface `json:"nodes"`
 }
 
 // NodeInterface describe config for an interface referenced by logical name on a node

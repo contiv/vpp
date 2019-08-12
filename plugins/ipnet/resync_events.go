@@ -19,6 +19,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
 	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
@@ -47,12 +48,25 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 		n.Log.Error(err)
 	}
 
+	// custom networks
+	for _, extIfProto := range kubeStateData[customnetmodel.Keyword] {
+		nw := extIfProto.(*customnetmodel.CustomNetwork)
+		config, err := n.customNetworkConfig(nw, configResync)
+		if err == nil {
+			controller.PutAll(txn, config)
+		} else {
+			wasErr = err
+			n.Log.Error(err)
+		}
+	}
+
 	// external interfaces
 	for _, extIfProto := range kubeStateData[extifmodel.Keyword] {
 		extIf := extIfProto.(*extifmodel.ExternalInterface)
-		config, err := n.externalInterfaceConfig(extIf)
+		config, updateConfig, err := n.externalInterfaceConfig(extIf, configResync)
 		if err == nil {
 			controller.PutAll(txn, config)
+			controller.PutAll(txn, updateConfig)
 		} else {
 			wasErr = err
 			n.Log.Error(err)
@@ -72,8 +86,6 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 			n.vppIfaceToPod[vppIfName] = pod.ID
 		}
 		n.vppIfaceToPodMutex.Unlock()
-		// init pod custom if map
-		n.podCustomIf = make(map[string]*podCustomIfInfo)
 	}
 	for _, pod := range n.PodManager.GetLocalPods() {
 		if n.IPAM.GetPodIP(pod.ID) == nil {
@@ -84,8 +96,9 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 		controller.PutAll(txn, config)
 
 		// custom interfaces config
-		config = n.podCustomIfsConfig(pod, resync)
+		config, updateConfig := n.podCustomIfsConfig(pod, configResync)
 		controller.PutAll(txn, config)
+		controller.PutAll(txn, updateConfig)
 	}
 
 	n.Log.Infof("IPNet plugin internal state after RESYNC: %s",

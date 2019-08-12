@@ -39,7 +39,6 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
-	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
 )
 
@@ -104,6 +103,9 @@ type internalState struct {
 
 	// custom network information
 	customNetworks map[string]*customNetworkInfo // custom network name to info map
+
+	// configuration written to etcd for other ligato-based microservices to apply
+	microserviceConfig map[string][]byte
 }
 
 // configEventType represents the type of an configuration event processed by the ipnet plugin
@@ -132,7 +134,7 @@ type Deps struct {
 	LinuxNsPlugin linux_nsplugin.API
 	GoVPP         GoVPP
 	HTTPHandlers  rest.HTTPHandlers
-	RemoteDB      keyval.KvProtoPlugin
+	RemoteDB      nodesync.KVDBWithAtomic
 }
 
 // GoVPP is the interface of govppmux plugin replicated here to avoid direct
@@ -182,8 +184,9 @@ func (n *IPNet) Init() error {
 
 	// init internal maps
 	n.podCustomIf = make(map[string]*podCustomIfInfo)
-	n.internalState.pendingAddPodCustomIf = make(map[podmodel.ID]bool)
+	n.pendingAddPodCustomIf = make(map[podmodel.ID]bool)
 	n.customNetworks = make(map[string]*customNetworkInfo)
+	n.microserviceConfig = make(map[string][]byte)
 
 	return nil
 }
@@ -204,6 +207,7 @@ func (s *internalState) StateToString() string {
 		vppIfaceToPod += fmt.Sprintf("%s: %s", vppIfName, podID.String())
 	}
 	vppIfaceToPod += "}"
+	// TODO: print also add internal variables
 
 	return fmt.Sprintf("<useDHCP: %t, watchingDHCP: %t, "+
 		"nodeIP: %s, nodeIPNet: %s, hostIPs: %v, vppIfaceToPod: %s",

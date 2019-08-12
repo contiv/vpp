@@ -34,18 +34,23 @@ metadata:
 spec:
   containers:
     - name: vpp-agent
-      image: ligato/vpp-agent:latest
+      image: ligato/vpp-agent:dev
+      imagePullPolicy: IfNotPresent
       env:
         - name: ETCD_CONFIG
           value: "/etc/etcd/etcd.conf"
         - name: MICROSERVICE_LABEL
           value: memif-pod
+        - name: ETCD_EXPAND_ENV_VARS
+          value: "true"
       resources:
         limits:
           contivpp.io/memif: 1
       volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd
+      command:
+        - /bin/vpp-agent-init
   volumes:
     - name: etcd-cfg
       configMap:

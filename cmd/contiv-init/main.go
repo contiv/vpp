@@ -149,25 +149,35 @@ func stnGrpcConnect() (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-// etcdWithAtomicPut augments ProtoWrapper with atomic Put operation.
-type etcdWithAtomicPut struct {
+// etcdPlugin is a very simplified version of the etcd plugin.
+type etcdPlugin struct {
 	*kvproto.ProtoWrapper
 	conn *etcd.BytesConnectionEtcd
 }
 
-// PutIfNotExists implements the atomic Put operation.
-func (etcd *etcdWithAtomicPut) PutIfNotExists(key string, value []byte) (succeeded bool, err error) {
-	return etcd.conn.PutIfNotExists(key, value)
-}
-
 // OnConnect immediately calls the callback - etcdConnect() returns etcd client
 // in the connected state (or as nil).
-func (etcd *etcdWithAtomicPut) OnConnect(callback func() error) {
+func (etcd *etcdPlugin) OnConnect(callback func() error) {
 	callback()
 }
 
+// Disabled returns false.
+func (etcd *etcdPlugin) Disabled() bool {
+	return false
+}
+
+// String returns the plugin name.
+func (etcd *etcdPlugin) String() string {
+	return "etcd-plugin-simple"
+}
+
+// NewBrokerWithAtomic creates new instance of prefixed (byte-oriented) broker with atomic operations.
+func (etcd *etcdPlugin) NewBrokerWithAtomic(keyPrefix string) keyval.BytesBrokerWithAtomic {
+	return etcd.conn.NewBroker(keyPrefix).(keyval.BytesBrokerWithAtomic)
+}
+
 // etcdConnect connects to ETCD db.
-func etcdConnect() (etcdConn nodesync.ClusterWideDB, err error) {
+func etcdConnect() (etcdConn nodesync.KVDBWithAtomic, err error) {
 	etcdConfig := &etcd.Config{}
 
 	// parse ETCD config file
@@ -201,7 +211,7 @@ func etcdConnect() (etcdConn nodesync.ClusterWideDB, err error) {
 	}
 
 	protoDb := kvproto.NewProtoWrapper(conn, &keyval.SerializerJSON{})
-	etcdConn = &etcdWithAtomicPut{
+	etcdConn = &etcdPlugin{
 		ProtoWrapper: protoDb,
 		conn:         conn,
 	}
@@ -243,7 +253,7 @@ func boltOpen(delete bool) (protoDb *kvproto.ProtoWrapper, err error) {
 //   1. if etcd is available, allocate/retrieve node ID from there
 //   2. if etcd is available, resync bolt against etcd
 //   3. check that node ID is in bolt
-func prepareForLocalResync(nodeName string, boltDB contivconf.KVBrokerFactory, etcdDB nodesync.ClusterWideDB) error {
+func prepareForLocalResync(nodeName string, boltDB contivconf.KVBrokerFactory, etcdDB nodesync.KVDBWithAtomic) error {
 	var err error
 
 	// if etcd is available, allocate/retrieve ID from there

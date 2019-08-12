@@ -15,8 +15,10 @@
 package ipnet
 
 import (
-	"context"
+	"bytes"
 	"fmt"
+	"github.com/gogo/protobuf/proto"
+	"github.com/ligato/cn-infra/db/keyval"
 	"hash/fnv"
 	"net"
 	"os/exec"
@@ -300,21 +302,68 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 	// in case of non-empty microservice config, put the config into ETCD
 	if len(microserviceConfig) > 0 {
 		n.Log.Debugf("Adding pod-end interface config for microservice %s into ETCD", serviceLabel)
-		txn := n.RemoteDB.NewBroker(servicelabel.GetDifferentAgentPrefix(serviceLabel)).NewTxn()
+		broker := n.RemoteDB.NewBrokerWithAtomic(servicelabel.GetDifferentAgentPrefix(serviceLabel))
 		for k, v := range microserviceConfig {
-			if eventType != configDelete {
-				txn.Put(k, v)
-			} else {
-				txn.Delete(k)
+			err := n.updateMsConfigItem(broker, k, v, eventType)
+			if err != nil {
+				n.Log.Errorf("Error by executing remote DB operation for key %s: %v", k, err)
 			}
-		}
-		err := txn.Commit(context.Background())
-		if err != nil {
-			n.Log.Errorf("Error by executing remote DB transaction: %v", err)
 		}
 	}
 
 	return
+}
+
+// updateMsConfigItem updates configuration written to etcd for a (ligato-based) microservice to apply.
+// If the configuration item is managed from outside of Contiv (e.g. CustomConfiguration CRD), the value will not be
+// changed.
+func (n *IPNet) updateMsConfigItem(broker keyval.BytesBrokerWithAtomic, key string, value proto.Message, eventType configEventType) error {
+	var succeeded bool
+	serializer := keyval.SerializerJSON{}
+
+	binData, err := serializer.Marshal(value)
+	if err != nil {
+		return err
+	}
+	prevData, hasPrevData := n.microserviceConfig[key]
+
+	if eventType != configDelete {
+		if !hasPrevData {
+			succeeded, err = broker.PutIfNotExists(key, binData)
+			if err != nil {
+				return err
+			}
+			if !succeeded {
+				// n.microserviceConfig might be out of sync (e.g. after vswitch restart)
+				// - check if it is the same as expected
+				data, found, _, err := broker.GetValue(key)
+				if err != nil {
+					return err
+				}
+				if found && bytes.Equal(data, binData) {
+					succeeded = true
+				}
+			}
+		} else {
+			succeeded, err = broker.CompareAndSwap(key, prevData, binData)
+			if err != nil {
+				return err
+			}
+		}
+		if succeeded {
+			n.microserviceConfig[key] = binData
+		} else {
+			// giving up on this config, it is probably managed via CustomConfiguration CRD
+			delete(n.microserviceConfig, key)
+		}
+	} else {
+		// try to delete
+		if hasPrevData {
+			_, err = broker.CompareAndDelete(key, prevData)
+			delete(n.microserviceConfig, key)
+		}
+	}
+	return err
 }
 
 // getContivMicroserviceLabel returns microservice label defined in pod annotations

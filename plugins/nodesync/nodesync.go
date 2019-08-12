@@ -64,24 +64,19 @@ type Deps struct {
 
 	ServiceLabel servicelabel.ReaderAPI
 	EventLoop    controller.EventLoop
-	DB           ClusterWideDB
+	DB           KVDBWithAtomic
 }
 
-// ClusterWideDB defines API that a DB client must provide for NodeSync to be able
+// KVDBWithAtomic defines API that a DB client must provide for NodeSync to be able
 // to allocate node IP and to publish node IPs to other nodes.
-type ClusterWideDB interface {
-	// OnConnect registers callback to be triggered once the (first) connection
-	// to DB is established. If the connection is already established, the callback
-	// should be called immediately (synchronously).
-	OnConnect(callback func() error)
-	// NewBroker creates a new instance of DB broker prefixing all keys with the
-	// given prefix.
-	NewBroker(prefix string) keyval.ProtoBroker
-	// PutIfNotExists atomically puts given key-value pair into DB if there
-	// is no value set for the key.
-	PutIfNotExists(key string, value []byte) (succeeded bool, err error)
+type KVDBWithAtomic interface {
+	keyval.KvProtoPlugin
+
+	// NewBrokerWithAtomic creates new instance of prefixed (byte-oriented) broker with atomic operations.
+	NewBrokerWithAtomic(keyPrefix string) keyval.BytesBrokerWithAtomic
+
 	// Close closes connection to DB and releases all allocated resources.
-	Close() error
+    Close() error
 }
 
 const allocationErrPrefix = "unable to allocate node ID: %v"
@@ -395,7 +390,8 @@ func (ns *NodeSync) putIfNotExists(node *vppnode.VppNode) (succeeded bool, err e
 		return false, err
 	}
 	ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
-	return ns.DB.PutIfNotExists(ksrPrefix+vppnode.Key(node.Id), encoded)
+	broker := ns.DB.NewBrokerWithAtomic(ksrPrefix)
+	return broker.PutIfNotExists(vppnode.Key(node.Id), encoded)
 }
 
 // newBroker creates a new broker for DB access.

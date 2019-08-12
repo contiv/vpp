@@ -625,7 +625,7 @@ func (n *IPNet) podVPPSideMemifName(pod *podmanager.LocalPod, ifName string) str
 
 // podMicroserviceSideMemifName returns logical name of the memif interface in microservice running in a given pod.
 func (n *IPNet) podMicroserviceSideMemifName(pod *podmanager.LocalPod, ifName string) string {
-	return trimInterfaceName(podMemifLogicalNamePrefix+ifName, logicalIfNameMaxLen)
+	return trimInterfaceName(ifName, logicalIfNameMaxLen)
 }
 
 // podVPPMemif returns the configuration for memif interface on the VPP side connecting a given Pod.

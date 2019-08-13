@@ -949,19 +949,16 @@ func (i *IPAM) GetIPAMConfigForJSON() *config.IPAMConfig {
 // If the given VXLAN already has a VNI allocated, returns the existing allocation.
 func (i *IPAM) AllocateVxlanVNI(vxlanName string) (vni uint32, err error) {
 
-	// return error if ETCD is not connected
-	dbIsConnected := false
-	i.RemoteDB.OnConnect(func() error {
-		dbIsConnected = true
-		return nil
-	})
-	if !dbIsConnected {
-		return 0, fmt.Errorf("remote database is not connected")
-	}
-
 	// check if the given VXLAN has a VNI already allocated
 	if vni, exists := i.vxlanVNIs[vxlanName]; exists {
+		i.Log.Infof("Using already allocated VNI %d for VXLAN: %s", vni, vxlanName)
 		return vni, nil
+	}
+
+	// get db broker - would return error if not connected
+	db, err := i.getDBBroker()
+	if err != nil {
+		return 0, err
 	}
 
 	// step 1, allocate a free VNI number
@@ -982,13 +979,16 @@ func (i *IPAM) AllocateVxlanVNI(vxlanName string) (vni uint32, err error) {
 	if !ok {
 		// this VXLAN may already have another VNI allocated
 		// delete just allocated VNI number and try to use existing one
-		i.dbBroker.Delete(vnialloc.VNIAllocationKey(vni))
-		found, _, err := i.dbBroker.GetValue(key, alloc)
+		db.Delete(vnialloc.VNIAllocationKey(vni))
+		found, _, err := db.GetValue(key, alloc)
 		if !found || err != nil {
 			return 0, fmt.Errorf("error by getting existing allocation for vxlan %s: %v", vxlanName, err)
 		}
+		i.Log.Debugf("Using already allocated VNI %d for VXLAN: %s", vni, vxlanName)
 		vni = alloc.Vni
 	}
+
+	i.Log.Infof("Allocated VNI %d for VXLAN: %s", vni, vxlanName)
 
 	// save the allocation in internal maps
 	i.allocatedVNIs[vni] = vxlanName
@@ -1011,12 +1011,19 @@ func (i *IPAM) ReleaseVxlanVNI(vxlanName string) error {
 		return nil
 	}
 
-	// delete the allocation from ETCD
-	_, err := i.dbBroker.Delete(vnialloc.VxlanVNIKey(vxlanName))
+	// get db broker - would return error if not connected
+	db, err := i.getDBBroker()
 	if err != nil {
-		i.Log.Errorf("Unable to delete VNI allocation: %v", err)
+		i.Log.Errorf("Unable to release VXLAN VNI allocation: %v", err)
 		return err
 	}
+
+	// delete the allocations from ETCD
+	// - do not check for errors, may fail if already deleted by other node
+	db.Delete(vnialloc.VNIAllocationKey(vni))
+	db.Delete(vnialloc.VxlanVNIKey(vxlanName))
+
+	i.Log.Infof("Released VNI %d allocated for VXLAN: %s", vni, vxlanName)
 
 	delete(i.vxlanVNIs, vxlanName)
 	delete(i.allocatedVNIs, vni)

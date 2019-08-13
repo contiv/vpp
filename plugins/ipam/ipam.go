@@ -13,15 +13,15 @@
 // limitations under the License.
 
 //go:generate protoc -I ./ipalloc --gogo_out=plugins=grpc:./ipalloc ./ipalloc/ipalloc.proto
+//go:generate protoc -I ./vnialloc --gogo_out=plugins=grpc:./vnialloc ./vnialloc/vnialloc.proto
 
 package ipam
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"github.com/contiv/vpp/plugins/ipam/ipalloc"
-	"github.com/contiv/vpp/plugins/ksr"
-	"github.com/ligato/cn-infra/db/keyval"
+	"github.com/gogo/protobuf/proto"
 	"math/big"
 	"net"
 	"sort"
@@ -30,16 +30,21 @@ import (
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
-	"github.com/contiv/vpp/plugins/contivconf"
-	"github.com/contiv/vpp/plugins/contivconf/config"
-	controller "github.com/contiv/vpp/plugins/controller/api"
-	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
-	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/go-errors/errors"
+	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
+
+	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/contivconf/config"
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
+	"github.com/contiv/vpp/plugins/ipam/vnialloc"
+	"github.com/contiv/vpp/plugins/ksr"
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/nodesync"
 )
 
 const (
@@ -51,6 +56,10 @@ const (
 
 	// sequence ID reserved for host(Linux)-end of the VPP to host interconnect
 	hostInterconnectInLinuxIPSeqID = 2
+
+	// VXLAN VNI allocation pool range
+	vxlanVNIPoolStart = 5000    // to leave enough space for custom config of the vswitch
+	vxlanVNIPoolEnd   = 1 << 24 // given by VXLAN header
 )
 
 // IPAM plugin implements IP address allocation for Contiv.
@@ -96,6 +105,10 @@ type IPAM struct {
 	vxlanSubnet *net.IPNet
 	// IP subnet used to allocate ClusterIPs for a service
 	serviceCIDR *net.IPNet
+
+	/********** VXLAN VNI allocation maps **********/
+	allocatedVNIs map[uint32]string // allocated VNI number to VXLAN name
+	vxlanVNIs     map[string]uint32 // VXLAN name to allocated VNI
 }
 
 // podIPAllocation represents allocation of an IP address from the IPAM pool.
@@ -137,7 +150,24 @@ type Deps struct {
 	ServiceLabel servicelabel.ReaderAPI
 	EventLoop    controller.EventLoop
 	HTTPHandlers rest.HTTPHandlers
-	RemoteDB     keyval.KvProtoPlugin
+	RemoteDB     ClusterWideDB
+}
+
+// ClusterWideDB defines API that a DB client must provide for IPAM to be able
+// to do cluster-wide allocations and persist them.
+type ClusterWideDB interface {
+	// OnConnect registers callback to be triggered once the (first) connection
+	// to DB is established. If the connection is already established, the callback
+	// should be called immediately (synchronously).
+	OnConnect(callback func() error)
+	// NewBroker creates a new instance of DB broker prefixing all keys with the
+	// given prefix.
+	NewBroker(prefix string) keyval.ProtoBroker
+	// PutIfNotExists atomically puts given key-value pair into DB if there
+	// is no value set for the key.
+	PutIfNotExists(key string, value []byte) (succeeded bool, err error)
+	// Close closes connection to DB and releases all allocated resources.
+	Close() error
 }
 
 // Init initializes the REST handlers of the plugin.
@@ -152,6 +182,7 @@ func (i *IPAM) Init() (err error) {
 // HandlesEvent selects any Resync event.
 //   - any Resync event
 //   - NodeUpdate for the current node if external IPAM is in use (may trigger PodCIDRChange)
+//   - k8s change with VNI allocations
 func (i *IPAM) HandlesEvent(event controller.Event) bool {
 	if event.Method() != controller.Update {
 		return true
@@ -161,6 +192,11 @@ func (i *IPAM) HandlesEvent(event controller.Event) bool {
 		if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
 			return nodeUpdate.NodeName == i.ServiceLabel.GetAgentLabel()
 		}
+	}
+
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange &&
+		ksChange.Resource == vnialloc.VxlanVNIKeyword {
+		return true
 	}
 
 	// unhandled event
@@ -283,17 +319,26 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 		}
 	}
 
+	// resync VNI allocations
+	i.allocatedVNIs = make(map[uint32]string)
+	i.vxlanVNIs = make(map[string]uint32)
+	for _, vniAllocProto := range kubeStateData[vnialloc.VxlanVNIKeyword] {
+		alloc := vniAllocProto.(*vnialloc.VxlanVniAllocation)
+		i.allocatedVNIs[alloc.Vni] = alloc.VxlanName
+		i.vxlanVNIs[alloc.VxlanName] = alloc.Vni
+	}
+
 	i.Log.Infof("IPAM state after startup RESYNC: "+
 		"excludedIPsfromNodeSubnet=%v, podSubnetAllNodes=%v, podSubnetThisNode=%v, "+
 		"podSubnetGatewayIP=%v, hostInterconnectSubnetAllNodes=%v, "+
 		"hostInterconnectSubnetThisNode=%v, hostInterconnectIPInVpp=%v, hostInterconnectIPInLinux=%v, "+
 		"nodeInterconnectSubnet=%v, vxlanSubnet=%v, serviceCIDR=%v, "+
-		"assignedPodIPs=%+v, podToIP=%v, lastPodIPAssigned=%v",
+		"assignedPodIPs=%+v, podToIP=%v, lastPodIPAssigned=%v, vxlanVNIs=%v",
 		i.excludedIPsfromNodeSubnet, i.podSubnetAllNodes, i.podSubnetThisNode,
 		i.podSubnetGatewayIP, i.hostInterconnectSubnetAllNodes,
 		i.hostInterconnectSubnetThisNode, i.hostInterconnectIPInVpp, i.hostInterconnectIPInLinux,
 		i.nodeInterconnectSubnet, i.vxlanSubnet, i.serviceCIDR,
-		i.assignedPodIPs, i.podToIP, i.lastPodIPAssigned)
+		i.assignedPodIPs, i.podToIP, i.lastPodIPAssigned, i.vxlanVNIs)
 	return
 }
 
@@ -384,6 +429,20 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 				})
 				i.Log.Infof("Sent PodCIDRChange event to the event loop for PodCIDRChange")
 			}
+		}
+	}
+
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange &&
+		ksChange.Resource == vnialloc.VxlanVNIKeyword {
+		// update VNI allocations
+		if ksChange.NewValue != nil {
+			alloc := ksChange.NewValue.(*vnialloc.VxlanVniAllocation)
+			i.allocatedVNIs[alloc.Vni] = alloc.VxlanName
+			i.vxlanVNIs[alloc.VxlanName] = alloc.Vni
+		} else if ksChange.PrevValue != nil {
+			alloc := ksChange.PrevValue.(*vnialloc.VxlanVniAllocation)
+			delete(i.allocatedVNIs, alloc.Vni)
+			delete(i.vxlanVNIs, alloc.VxlanName)
 		}
 	}
 
@@ -886,6 +945,85 @@ func (i *IPAM) GetIPAMConfigForJSON() *config.IPAMConfig {
 	return res
 }
 
+// AllocateVxlanVNI tries to allocate a free VNI for the VXLAN with given name.
+// If the given VXLAN already has a VNI allocated, returns the existing allocation.
+func (i *IPAM) AllocateVxlanVNI(vxlanName string) (vni uint32, err error) {
+
+	// return error if ETCD is not connected
+	dbIsConnected := false
+	i.RemoteDB.OnConnect(func() error {
+		dbIsConnected = true
+		return nil
+	})
+	if !dbIsConnected {
+		return 0, fmt.Errorf("remote database is not connected")
+	}
+
+	// check if the given VXLAN has a VNI already allocated
+	if vni, exists := i.vxlanVNIs[vxlanName]; exists {
+		return vni, nil
+	}
+
+	// step 1, allocate a free VNI number
+	for vni = uint32(vxlanVNIPoolStart); vni <= vxlanVNIPoolEnd; vni++ {
+		if _, used := i.allocatedVNIs[vni]; !used {
+			// try to allocate this VNI
+			ok, _ := i.dbPutIfNotExists(vnialloc.VNIAllocationKey(vni), nil)
+			if ok {
+				break // found a free VNI
+			}
+		}
+	}
+
+	// step 2, assign the VNI to the VXLAN
+	alloc := &vnialloc.VxlanVniAllocation{VxlanName: vxlanName, Vni: vni}
+	key := vnialloc.VxlanVNIKey(vxlanName)
+	ok, _ := i.dbPutIfNotExists(key, alloc)
+	if !ok {
+		// this VXLAN may already have another VNI allocated
+		// delete just allocated VNI number and try to use existing one
+		i.dbBroker.Delete(vnialloc.VNIAllocationKey(vni))
+		found, _, err := i.dbBroker.GetValue(key, alloc)
+		if !found || err != nil {
+			return 0, fmt.Errorf("error by getting existing allocation for vxlan %s: %v", vxlanName, err)
+		}
+		vni = alloc.Vni
+	}
+
+	// save the allocation in internal maps
+	i.allocatedVNIs[vni] = vxlanName
+	i.vxlanVNIs[vxlanName] = vni
+
+	return vni, nil
+}
+
+// GetVxlanVNI returns an existing VNI allocation for the VXLAN with given name.
+// found is false if no allocation for the given VXLAN name exists.
+func (i *IPAM) GetVxlanVNI(vxlanName string) (vni uint32, found bool) {
+	vni, found = i.vxlanVNIs[vxlanName]
+	return
+}
+
+// ReleaseVxlanVNI releases VNI allocated for the VXLAN with given name.
+func (i *IPAM) ReleaseVxlanVNI(vxlanName string) error {
+	vni, found := i.vxlanVNIs[vxlanName]
+	if !found {
+		return nil
+	}
+
+	// delete the allocation from ETCD
+	_, err := i.dbBroker.Delete(vnialloc.VxlanVNIKey(vxlanName))
+	if err != nil {
+		i.Log.Errorf("Unable to delete VNI allocation: %v", err)
+		return err
+	}
+
+	delete(i.vxlanVNIs, vxlanName)
+	delete(i.allocatedVNIs, vni)
+
+	return nil
+}
+
 // BsidForServicePolicy creates a valid SRv6 binding SID for given k8s service IP addresses <serviceIPs>. This sid
 // should be used only for k8s service policy
 func (i *IPAM) BsidForServicePolicy(serviceIPs []net.IP) net.IP {
@@ -1040,6 +1178,16 @@ func (i *IPAM) computeVxlanIPAddress(nodeID uint32) (net.IP, error) {
 	}
 
 	return computedIP, nil
+}
+
+// dbPutIfNotExists tries to put given proto value under given key.
+func (i *IPAM) dbPutIfNotExists(key string, val proto.Message) (succeeded bool, err error) {
+	encoded, err := json.Marshal(val)
+	if err != nil {
+		return false, err
+	}
+	ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
+	return i.RemoteDB.PutIfNotExists(ksrPrefix+key, encoded)
 }
 
 func isIPv6Net(network *net.IPNet) bool {

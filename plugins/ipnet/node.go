@@ -121,7 +121,7 @@ func (n *IPNet) initialPartOfNodeConnectivityConfig(node *nodesync.Node) (config
 		config[key] = vxlanFib
 	}
 
-	// VXLANs for custom networks
+	// VXLANs for L2 custom networks
 	for _, nw := range n.customNetworks {
 		if nw.config != nil && nw.config.Type == customnetmodel.CustomNetwork_L2 {
 			// get the VNI of the VXLAN

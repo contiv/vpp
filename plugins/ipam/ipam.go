@@ -1006,10 +1006,6 @@ func (i *IPAM) GetVxlanVNI(vxlanName string) (vni uint32, found bool) {
 
 // ReleaseVxlanVNI releases VNI allocated for the VXLAN with given name.
 func (i *IPAM) ReleaseVxlanVNI(vxlanName string) error {
-	vni, found := i.vxlanVNIs[vxlanName]
-	if !found {
-		return nil
-	}
 
 	// get db broker - would return error if not connected
 	db, err := i.getDBBroker()
@@ -1018,15 +1014,27 @@ func (i *IPAM) ReleaseVxlanVNI(vxlanName string) error {
 		return err
 	}
 
+	// retrieve the allocation from ETCD (may be already deleted from internal maps at this time)
+	alloc := &vnialloc.VxlanVniAllocation{}
+	key := vnialloc.VxlanVNIKey(vxlanName)
+	found, _, err := db.GetValue(key, alloc)
+	if !found {
+		return nil // no need to release anything
+	}
+	if err != nil {
+		i.Log.Errorf("Unable to retrieve VXLAN VNI allocation: %v", err)
+		return err
+	}
+
 	// delete the allocations from ETCD
 	// - do not check for errors, may fail if already deleted by other node
-	db.Delete(vnialloc.VNIAllocationKey(vni))
+	db.Delete(vnialloc.VNIAllocationKey(alloc.Vni))
 	db.Delete(vnialloc.VxlanVNIKey(vxlanName))
 
-	i.Log.Infof("Released VNI %d allocated for VXLAN: %s", vni, vxlanName)
+	i.Log.Infof("Released VNI %d allocated for VXLAN: %s", alloc.Vni, vxlanName)
 
 	delete(i.vxlanVNIs, vxlanName)
-	delete(i.allocatedVNIs, vni)
+	delete(i.allocatedVNIs, alloc.Vni)
 
 	return nil
 }

@@ -207,13 +207,57 @@ func (s *internalState) StateToString() string {
 		vppIfaceToPod += fmt.Sprintf("%s: %s", vppIfName, podID.String())
 	}
 	vppIfaceToPod += "}"
-	// TODO: print also add internal variables
+
+	// custom interface information
+	podCustomIf := "{"
+	first = true
+	for podID, ifInfo := range s.podCustomIf {
+		if !first {
+			podCustomIf += ", "
+		}
+		first = false
+		podCustomIf += fmt.Sprintf("%s: %s/%s/%s", podID,
+			ifInfo.ifName, ifInfo.ifType, ifInfo.ifNet)
+	}
+	podCustomIf += "}"
+
+	// pods pending for AddPodCustomIfs
+	pendingCustomIf := "["
+	first = true
+	for podID := range s.pendingAddPodCustomIf {
+		if !first {
+			pendingCustomIf += ", "
+		}
+		first = false
+		pendingCustomIf += podID.String()
+	}
+	pendingCustomIf += "]"
+
+	// custom network information
+	customNetworks := "{"
+	first = true
+	for nwName, nwInfo := range s.customNetworks {
+		if !first {
+			customNetworks += ", "
+		}
+		first = false
+		customNetworks += fmt.Sprintf("%s: <config: %s, interfaces: %v>", nwName,
+			nwInfo.config.String(), nwInfo.localInterfaces)
+	}
+	customNetworks += "}"
+
+	// microserviceConfig not printed (too big and not so important)
 
 	return fmt.Sprintf("<useDHCP: %t, watchingDHCP: %t, "+
-		"nodeIP: %s, nodeIPNet: %s, hostIPs: %v, vppIfaceToPod: %s",
+		"nodeIP: %s, nodeIPNet: %s, hostIPs: %v, vppIfaceToPod: %s, "+
+		"podCustomIf: %s, pendingAddPodCustomIf: %s, customNetworks: %s",
 		s.useDHCP, s.watchingDHCP,
 		s.nodeIP.String(), ipNetToString(s.nodeIPNet), s.hostIPs,
-		vppIfaceToPod)
+		vppIfaceToPod, podCustomIf, pendingCustomIf, customNetworks)
+}
+
+func (n *IPNet) DescribeInternalData() string {
+	return n.internalState.StateToString()
 }
 
 // Close is called by the plugin infra upon agent cleanup.

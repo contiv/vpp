@@ -87,7 +87,17 @@ const (
 	// by default, events from the first hour of runtime are permanently recorded
 	// in memory
 	defaultPermanentlyRecordedInitPeriod = 60 // in minutes
+
+	// by default, verification of the state consistency of Contiv plugins is disabled
+	defaultEnableVerification = true
 )
+
+// WithInternalData *can* be implemented by event handlers that have internal data.
+// The controller will use the method during verification to check that the internal data remains in-sync.
+type WithInternalData interface {
+	// DescribeInternalData should describe the internal state of the event handler.
+	DescribeInternalData() string
+}
 
 // Controller implements single event loop for Contiv.
 //
@@ -211,6 +221,9 @@ type Config struct {
 	RecordEventHistory            bool   `json:"recordEventHistory"`
 	EventHistoryAgeLimit          uint32 `json:"eventHistoryAgeLimit"`
 	PermanentlyRecordedInitPeriod uint32 `json:"permanentlyRecordedInitPeriod"`
+
+	// verification mode
+	EnableVerification bool `json:"enableVerification"`
 }
 
 // EventRecord is a record of a processed event, added into the history of events,
@@ -297,6 +310,7 @@ func (c *Controller) Init() error {
 		RecordEventHistory:            defaultRecordEventHistory,
 		EventHistoryAgeLimit:          defaultEventHistoryAgeLimit,
 		PermanentlyRecordedInitPeriod: defaultPermanentlyRecordedInitPeriod,
+		EnableVerification:            defaultEnableVerification,
 	}
 
 	// load configuration
@@ -572,6 +586,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		wasErr          error
 		isUpdate        bool
 		isHealing       bool
+		isVerification  bool
 		needsHealing    bool
 		healingAfterErr error
 		withRevert      bool
@@ -608,6 +623,9 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 			if healingResync.Type != api.Periodic {
 				c.healingScheduled = false
 			}
+		}
+		if _, isVerificationResync := event.(*api.VerificationResync); isVerificationResync {
+			isVerification = true
 		}
 	}
 
@@ -698,7 +716,19 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 				changes[handler.String()] = change
 			}
 		} else {
+			var beforeDataDesc, afterDataDesc string
+			handlerData, withInternalData := handler.(WithInternalData)
+			if isVerification && withInternalData {
+				beforeDataDesc = handlerData.DescribeInternalData()
+			}
 			err = handler.Resync(event, c.kubeStateData, c.resyncCount, c.txn)
+			if err == nil && isVerification && withInternalData {
+				afterDataDesc = handlerData.DescribeInternalData()
+				if beforeDataDesc != afterDataDesc {
+					c.Log.Errorf("Internal data of the event handler %s were not in sync: before=\"%s\", after=\"%s\"",
+						handler.String(), beforeDataDesc, afterDataDesc)
+				}
+			}
 		}
 		if err != nil {
 			errStr = err.Error()
@@ -828,6 +858,9 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		// append transaction to the event record
 		if txnSeqNum != ^uint64(0) {
 			evRecord.Txn = c.Scheduler.GetRecordedTransaction(txnSeqNum)
+			if isVerification && len(evRecord.Txn.Executed) > 0 {
+				c.Log.Error("The dataplane configuration was not in-sync (see the resync transaction above)")
+			}
 		}
 
 		// update Controller's view of internal configuration
@@ -900,6 +933,11 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 		c.wg.Add(1)
 		go c.scheduleHealing(wasErr)
 		c.healingScheduled = true
+	}
+
+	// 14. if enabled, verify the state consistency of Contiv plugins after the event
+	if !needsHealing && !isVerification && c.config.EnableVerification {
+		c.PushEvent(&api.VerificationResync{})
 	}
 
 	return wasErr

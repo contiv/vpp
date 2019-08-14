@@ -133,9 +133,6 @@ type API interface {
 	// JSON flag for every option). If contivCIDR is used it returns actual
 	// dissected subnets.
 	GetIPAMConfigForJSON() *config.IPAMConfig
-
-	// AllocateVNI tries to allocate a VNI for the SFC instance if not always allocated then persiste it
-	AllocateVNI(sfcName string, sfcInsNbr uint32) (vni uint32, err error)
 }
 
 // PodCIDRChange is triggered when CIDR for PODs on the current node changes.

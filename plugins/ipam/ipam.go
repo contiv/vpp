@@ -14,23 +14,19 @@
 
 //go:generate protoc -I ./ipalloc --gogo_out=plugins=grpc:./ipalloc ./ipalloc/ipalloc.proto
 
-//go:generate protoc -I ./vnialloc --go_out=plugins=grpc:./vnialloc ./vnialloc/vnialloc.proto
-
 package ipam
 
 import (
 	"bytes"
 	"fmt"
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
+	"github.com/contiv/vpp/plugins/ksr"
+	"github.com/ligato/cn-infra/db/keyval"
 	"math/big"
 	"net"
 	"sort"
 	"strings"
 	"sync"
-
-	"github.com/contiv/vpp/plugins/ipam/ipalloc"
-	"github.com/contiv/vpp/plugins/ipam/vnialloc"
-	"github.com/contiv/vpp/plugins/ksr"
-	"github.com/ligato/cn-infra/db/keyval"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
@@ -55,9 +51,6 @@ const (
 
 	// sequence ID reserved for host(Linux)-end of the VPP to host interconnect
 	hostInterconnectInLinuxIPSeqID = 2
-
-	// maximum attempts ipam will make to allocate SFC instance vxlan VNI.
-	maxVNIAllocationAttempts = 10
 )
 
 // IPAM plugin implements IP address allocation for Contiv.
@@ -686,7 +679,7 @@ func (i *IPAM) persistCustomIfIPAllocation(podID podmodel.ID, ifName, network st
 }
 
 // getDBBroker returns broker for accessing remote database, error if database is not connected.
-func (i *IPAM) getDBBroker() (keyval.ProtoBroker, error) {
+func (i IPAM) getDBBroker() (keyval.ProtoBroker, error) {
 	// return error if ETCD is not connected
 	dbIsConnected := false
 	i.RemoteDB.OnConnect(func() error {
@@ -1067,99 +1060,4 @@ func customIfID(ifName, network string) string {
 		return ifName
 	}
 	return ifName + "/" + network
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//    Added By Adel For vni allocation of the SFC vxlan management            //
-////////////////////////////////////////////////////////////////////////////////
-
-// findFirstAvailableID returns the smallest integer that is not present in the
-// given slice of already allocated node IDs.
-func findFirstAvailableVNI(vnis []int) int {
-	res := 5000 // SFC vxlan vni begin from 5000, (low vni <5000 are for other vxlan purpose (like vni=10 for the full-mesched contiv-vpp vxlans)
-	for _, v := range vnis {
-		if res == v {
-			res++
-		} else {
-			break
-		}
-	}
-	return res
-}
-
-// listAllocatedVNIs returns a slice of already allocated SFC VXLAN VNIs (vni>5000).
-func (i *IPAM) listAllocatedVNIs(broker keyval.ProtoBroker) (vnis []int, err error) {
-	vniallocation := &vnialloc.CustomVniVxlanSFC{}
-	it, err := broker.ListKeys(vnialloc.KeyPrefix())
-	if err != nil {
-		return vnis, err
-	}
-
-	for {
-		key, _, stop := it.GetNext()
-		if stop {
-			break
-		}
-
-		// try to read existing vni allocation for the key  (SFC instance)
-
-		found, _, err := broker.GetValue(key, vniallocation)
-		if err != nil {
-			i.Log.Errorf("Unable to read vni allocation: %v", err)
-			//return vnis, err
-		}
-		if !found {
-			i.Log.Errorf("Unable to found vni allocation for key: %v", key)
-		} else {
-			vnis = append(vnis, int(vniallocation.GetVniSfc()))
-		}
-	}
-	return vnis, err
-}
-
-// AllocateVNI tries to allocate a VNI for the SFC instance if not always allocated then persiste it
-func (i *IPAM) AllocateVNI(sfcName string, sfcInsNbr uint32) (vni uint32, err error) {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	key := vnialloc.Key(sfcName, sfcInsNbr)
-	allocation := &vnialloc.CustomVniVxlanSFC{}
-
-	db, err := i.getDBBroker()
-	if err != nil {
-		return 0, err
-	}
-
-	// try to read existing allocation, otherwise create new
-	found, _, err := db.GetValue(key, allocation)
-	if err != nil {
-		i.Log.Errorf("Unable to read SFC instance custom VNI allocation: %v", err)
-		return 0, err
-	}
-	if !found {
-		allocation = &vnialloc.CustomVniVxlanSFC{
-			SfcName:        sfcName,
-			SfcInstanceNbr: sfcInsNbr,
-		}
-		// try to allocate a free VNI for the SFC instance
-
-		vnis, err := i.listAllocatedVNIs(db) //ns.listAllocatedIDs(broker)
-		if err != nil {
-			i.Log.Errorf("Unable to get list allocated VNIs: %v", err)
-			return 0, err
-		}
-		sort.Ints(vnis)
-
-		vni = uint32(findFirstAvailableVNI(vnis))
-		allocation = &vnialloc.CustomVniVxlanSFC{
-			VniSfc: vni,
-		}
-		// save in ETCD
-		err = db.Put(key, allocation)
-		if err != nil {
-			i.Log.Errorf("Unable to persist VNI custom allocation: %v", err)
-			return 0, err
-		}
-	}
-	return allocation.GetVniSfc(), nil
 }

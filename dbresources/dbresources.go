@@ -16,7 +16,6 @@ package dbresources
 
 import (
 	"github.com/contiv/vpp/plugins/ipam/ipalloc"
-	"github.com/contiv/vpp/plugins/ipam/vnialloc"
 	"github.com/gogo/protobuf/proto"
 
 	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
@@ -108,11 +107,6 @@ func GetDBResources() []*DBResource {
 			Keyword:          ipalloc.Keyword,
 			ProtoMessageName: proto.MessageName((*ipalloc.CustomIPAllocation)(nil)),
 			KeyPrefix:        ipalloc.KeyPrefix(),
-		},
-		{
-			Keyword:          vnialloc.Keyword,
-			ProtoMessageName: proto.MessageName((*vnialloc.CustomVniVxlanSFC)(nil)),
-			KeyPrefix:        vnialloc.KeyPrefix(),
 		},
 	}
 }

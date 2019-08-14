@@ -452,12 +452,20 @@ func (n *IPNet) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn cont
 		}
 	}
 
-	// update BD if node was newly connected or disconnected
+	// update default pod network bridge domain if node was newly connected or disconnected
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport &&
 		nodeHasIPAddress(nodeUpdate.PrevState) != nodeHasIPAddress(nodeUpdate.NewState) {
 
 		key, bd := n.vxlanBridgeDomain()
 		txn.Put(key, bd)
+	}
+
+	// update bridge domains of L2 custom networks
+	for _, nw := range n.customNetworks {
+		if nw.config != nil && nw.config.Type == customnetmodel.CustomNetwork_L2 {
+			bdKey, bd := n.customNwBridgeDomain(nw)
+			txn.Put(bdKey, bd)
+		}
 	}
 
 	change = fmt.Sprintf("%s node ID=%d", operationName, otherNodeID)

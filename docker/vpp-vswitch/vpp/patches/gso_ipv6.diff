@@ -1,0 +1,36 @@
+From 617015334e0b8eaf7073056d78c7d8c1607f661c Mon Sep 17 00:00:00 2001
+From: Mohsin Kazmi <sykazmi@cisco.com>
+Date: Wed, 14 Aug 2019 16:23:17 +0200
+Subject: [PATCH] gso: remove the ip checksum flag in case of ipv6
+
+Type: fix
+Ticket: VPP-1727
+
+Change-Id: Icfee35c5ab5e1c65079d1ca7bb514162319113e5
+Signed-off-by: Mohsin Kazmi <sykazmi@cisco.com>
+---
+
+diff --git a/src/vnet/devices/virtio/node.c b/src/vnet/devices/virtio/node.c
+index 4602d56..9cb6cca 100644
+--- a/src/vnet/devices/virtio/node.c
++++ b/src/vnet/devices/virtio/node.c
+@@ -176,7 +176,6 @@
+ 	    (VNET_BUFFER_F_IS_IP6 | VNET_BUFFER_F_L2_HDR_OFFSET_VALID
+ 	     | VNET_BUFFER_F_L3_HDR_OFFSET_VALID |
+ 	     VNET_BUFFER_F_L4_HDR_OFFSET_VALID);
+-	  b0->flags |= VNET_BUFFER_F_OFFLOAD_IP_CKSUM;
+ 	}
+       if (l4_proto == IP_PROTOCOL_TCP)
+ 	{
+diff --git a/src/vnet/pg/input.c b/src/vnet/pg/input.c
+index 151624f..757a291 100644
+--- a/src/vnet/pg/input.c
++++ b/src/vnet/pg/input.c
+@@ -1564,7 +1564,6 @@
+ 	    (VNET_BUFFER_F_IS_IP6 | VNET_BUFFER_F_L2_HDR_OFFSET_VALID
+ 	     | VNET_BUFFER_F_L3_HDR_OFFSET_VALID |
+ 	     VNET_BUFFER_F_L4_HDR_OFFSET_VALID);
+-	  b0->flags |= VNET_BUFFER_F_OFFLOAD_IP_CKSUM;
+ 	}
+       if (l4_proto == IP_PROTOCOL_TCP)
+ 	{

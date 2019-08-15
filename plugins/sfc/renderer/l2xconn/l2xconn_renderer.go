@@ -18,9 +18,10 @@ package l2xconn
 
 import (
 	"fmt"
-	"net"
 
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	vpp_l2 "github.com/ligato/vpp-agent/api/models/vpp/l2"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -29,18 +30,11 @@ import (
 	"github.com/contiv/vpp/plugins/sfc/config"
 	"github.com/contiv/vpp/plugins/sfc/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
-
-	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	vpp_l2 "github.com/ligato/vpp-agent/api/models/vpp/l2"
 )
 
 // Renderer implements L2 cross-connect -based rendering of SFC in Contiv-VPP.
 type Renderer struct {
 	Deps
-
-	/* dynamic SNAT */
-	defaultIfName string
-	defaultIfIP   net.IP
 }
 
 // Deps lists dependencies of the Renderer.
@@ -70,9 +64,9 @@ func (rndr *Renderer) AfterInit() error {
 
 // AddChain is called for a newly added service function chain.
 func (rndr *Renderer) AddChain(sfc *renderer.ContivSFC) error {
-	rndr.Log.Infof("By Adel 1 - Add SFC: %v AfterSFC", sfc)
+	rndr.Log.Infof("Add SFC: %v", sfc)
 
-	txn := rndr.UpdateTxnFactory(fmt.Sprintf("By Adel 2 - add SFC '%s'", sfc.Name))
+	txn := rndr.UpdateTxnFactory(fmt.Sprintf("add SFC '%s'", sfc.Name))
 
 	config := rndr.renderChain(sfc)
 	controller.PutAll(txn, config)
@@ -130,8 +124,8 @@ func (rndr *Renderer) Close() error {
 func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.KeyValuePairs) {
 	config = make(controller.KeyValuePairs)
 	var prevSF *renderer.ServiceFunction
-	for _, sf := range sfc.Chain {
-		// get interface names of this and previous service function (work only for local SFs else return "")
+	for sfIdx, sf := range sfc.Chain {
+		// get interface names of this and previous service function (works only for local SFs, else returns "")
 		iface := rndr.getSFInterface(sf, true)
 		prevIface := ""
 		if prevSF != nil {
@@ -139,158 +133,141 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 		}
 
 		if iface != "" && prevIface != "" {
-			if rndr.checkSFNodeLocal(sf) && rndr.checkSFNodeLocal(prevSF) {
-				// The two SFs are local
-				//for local pods do: only cross-connect the interfaces in both directions
+			if rndr.isNodeLocalSF(sf) && rndr.isNodeLocalSF(prevSF) {
+				// the two SFs (prevSF and SF) are local - cross-connect the interfaces in both directions
+				xconnect := rndr.crossConnectIfaces(iface, prevIface)
+				rndr.mergeConfiguration(config, xconnect)
 
-				configCrossCt := rndr.crossConnectIfaces(iface, prevIface)
-				rndr.mergeConfiguration(config, configCrossCt)
-			} else {
-				if rndr.checkSFNodeLocal(sf) || rndr.checkSFNodeLocal(prevSF) { // If  one of the SFs (prevSF or SF) is local
-					// If sf local create vxlan in the two direction the nodes
-					// and cross-connect each SF and prev SF to these vxlans else do the same with prefSF
-
-					// allocate custom vxlan vni for the actual SFC instance(reconized by SFC name, SFC instance number), if not always alocated else get it
-					// those vxlan vnis are >=5000
-					vni, err := rndr.IPAM.AllocateVNI(sfc.Name, 1) // TODO: handle chains with multiple pod instances per service function? untill now only one SFC instance is considered
-					if err != nil {
-						rndr.Log.Infof("Unable to allocate SFC VNI: %v", err)
-						break
-					}
-					if rndr.checkSFNodeLocal(sf) { // sf is local
-						// create vxlan and connect sf to vxlan in both directions
-						// direction 1
-						vxlanName, vxlanConfig := rndr.vxlanSFC(sf, prevSF, vni)
-						rndr.mergeConfiguration(config, vxlanConfig)
-
-						xconnect := rndr.connectIfaces(iface, vxlanName)
-						rndr.mergeConfiguration(config, xconnect)
-
-						// direction 2
-						xconnect = rndr.connectIfaces(vxlanName, iface)
-						rndr.mergeConfiguration(config, xconnect)
-					} else { // prevSF is local
-						// create vxlan and connect prevSF to vxlan in both directions
-						vxlanName, vxlanConfig := rndr.vxlanSFC(prevSF, sf, vni)
-						rndr.mergeConfiguration(config, vxlanConfig)
-
-						//direction 1
-						xconnect := rndr.connectIfaces(vxlanName, prevIface)
-						rndr.mergeConfiguration(config, xconnect)
-						//rndr.Log.Infof("By Adel Config3: %v", config)
-
-						//direction 2
-						xconnect = rndr.connectIfaces(prevIface, vxlanName)
-						rndr.mergeConfiguration(config, xconnect)
-					}
+			} else if rndr.isNodeLocalSF(sf) || rndr.isNodeLocalSF(prevSF) {
+				// one of the SFs (prevSF or SF) is local and the other not - use VXLAN to interconnect between them
+				// allocate a VNI for this SF interconnection - each SF may need an exclusive VNI
+				vxlanName := fmt.Sprintf("sfc-%s-%d", sfc.Name, sfIdx)
+				vni, err := rndr.getOrAllocateVxlanVNI(vxlanName)
+				if err != nil {
+					rndr.Log.Infof("Unable to allocate VXLAN VNI: %v", err)
+					break
 				}
-			} 
+				if rndr.isNodeLocalSF(sf) { // sf is local
+					// create vxlan and connect sf to vxlan in both directions
+					vxlanConfig := rndr.vxlanToRemoteSF(prevSF, vxlanName, vni)
+					rndr.mergeConfiguration(config, vxlanConfig)
+
+					// cross-connect between the SF interface and vxlan interface
+					xconnect := rndr.crossConnectIfaces(iface, vxlanName)
+					rndr.mergeConfiguration(config, xconnect)
+				} else { // prevSF is local
+					// create vxlan and connect prevSF to vxlan in both directions
+					vxlanConfig := rndr.vxlanToRemoteSF(sf, vxlanName, vni)
+					rndr.mergeConfiguration(config, vxlanConfig)
+
+					// cross-connect between the prevSF interface and vxlan interface
+					xconnect := rndr.crossConnectIfaces(prevIface, vxlanName)
+					rndr.mergeConfiguration(config, xconnect)
+				}
+			}
 		}
 		prevSF = sf
 	}
 	return config
 }
 
+// getPreferredSFPod returns a pod of a SF that is preferred to chain with.
+func (rndr *Renderer) getPreferredSFPod(sf *renderer.ServiceFunction) *renderer.PodSF {
+	if len(sf.Pods) == 0 {
+		return nil
+	}
+	// try to use a local pod if possible
+	for _, pod := range sf.Pods {
+		if pod.Local {
+			return pod
+		}
+	}
+	// otherwise use the first pod
+	return sf.Pods[0]
+}
+
+// getPreferredSFPod returns an external interface of a SF that is preferred to chain with.
+func (rndr *Renderer) getPreferredSFInterface(sf *renderer.ServiceFunction) *renderer.InterfaceSF {
+	if len(sf.ExternalInterfaces) == 0 {
+		return nil
+	}
+	// try to use a local interface if possible
+	for _, iface := range sf.ExternalInterfaces {
+		if iface.Local {
+			return iface
+		}
+	}
+	// otherwise use the first interface
+	return sf.ExternalInterfaces[0]
+}
+
 // getSFInterface returns a service function input/output interface which should be used for chaining.
 func (rndr *Renderer) getSFInterface(sf *renderer.ServiceFunction, input bool) string {
-
 	switch sf.Type {
 	case renderer.Pod:
-		if len(sf.Pods) == 0 {
+		pod := rndr.getPreferredSFPod(sf)
+		if pod == nil {
 			return ""
 		}
-		pod := sf.Pods[0] // TODO: handle chains with multiple pod instances per service function?
 		if input {
 			return pod.InputInterface
 		}
 		return pod.OutputInterface
 
 	case renderer.ExternalInterface:
-		// find first local interface
-		for _, extIf := range sf.ExternalInterfaces {
-			if extIf.Local {
-				return extIf.InterfaceName
-			}
+		iface := rndr.getPreferredSFInterface(sf)
+		if iface == nil {
+			return ""
 		}
-		// TODO: chain to a remote external interface?
-		return ""
+		return iface.InterfaceName
 	}
 	return ""
 }
 
-//*******************************************
-// Functions added to manage multi-node SFCs
-//*******************************************
-
-// Return the node ID for the given SF
+// getSFNodeID returns the node ID for the given SF.
 func (rndr *Renderer) getSFNodeID(sf *renderer.ServiceFunction) uint32 {
 	switch sf.Type {
 	case renderer.Pod:
-		if len(sf.Pods) == 0 {
+		pod := rndr.getPreferredSFPod(sf)
+		if pod == nil {
 			return 0
 		}
-		pod := sf.Pods[0] // TODO: handle chains with multiple pod instances per service function?
 		return pod.NodeID
 
-	case renderer.ExternalInterface: // TODO : check if the returned  nodeID  is correct (the required one) for ExternalInterface
-		// return nodeID of the first local interface
-		for _, extIf := range sf.ExternalInterfaces {
-			if extIf.Local {
-				return extIf.NodeID
-			}
+	case renderer.ExternalInterface:
+		iface := rndr.getPreferredSFInterface(sf)
+		if iface == nil {
+			return 0
 		}
-		// TODO: chain to a remote external interface?
-		return 0
+		return iface.NodeID
 	}
 	return 0
-
 }
 
-// Check weather the given sf is in the local node or not
-func (rndr *Renderer) checkSFNodeLocal(sf *renderer.ServiceFunction) bool {
-	if sf.Type != renderer.Pod {
-		return false // TODO: to be checked if is it possible:  no render for the SFC
+// isNodeLocalSF checks weather the given SF is node-local or not.
+func (rndr *Renderer) isNodeLocalSF(sf *renderer.ServiceFunction) bool {
+	switch sf.Type {
+	case renderer.Pod:
+		pod := rndr.getPreferredSFPod(sf)
+		if pod == nil {
+			return false
+		}
+		return pod.Local
+
+	case renderer.ExternalInterface:
+		iface := rndr.getPreferredSFInterface(sf)
+		if iface == nil {
+			return false
+		}
+		return iface.Local
 	}
-	if len(sf.Pods) == 0 {
-		return false // TODO: to be checked if is it possible:  no node for the SF????
-	}
-	pod := sf.Pods[0] // TODO: handle chains with multiple pod instances per service function?
-	return pod.Local
+	return false
 }
 
-// nameForSFCVxlanToOtherNode returns logical name to use for the SFC VXLAN interface
-// connecting this node with the given other node.
-func (rndr *Renderer) nameForSFCVxlanToOtherNode(otherNodeID uint32, vniSFC uint32) string {
-	return fmt.Sprintf("vxlan%dSFC%d", otherNodeID, vniSFC)
-}
-
-// getNodeIP calculates the (statically selected) IP address of the given node
-func (rndr *Renderer) getNodeIP(nodeID uint32) (net.IP, error) {
-	nodeIP, _, err := rndr.IPAM.NodeIPAddress(nodeID)
-	if err != nil {
-		err := fmt.Errorf("Failed to get Node IP address for node ID %v, error: %v ", nodeID, err)
-		rndr.Log.Error(err)
-		return nodeIP, err
-	}
-	return nodeIP, nil
-}
-
-// connectIfaces return the configuration that Connect the given interfaces in one direction iface1-iface2
-func (rndr *Renderer) connectIfaces(iface1 string, iface2 string) (config controller.KeyValuePairs) {
-	config = make(controller.KeyValuePairs)
-	xconn := &vpp_l2.XConnectPair{
-		ReceiveInterface:  iface1,
-		TransmitInterface: iface2,
-	}
-	key := vpp_l2.XConnectKey(iface1)
-	config[key] = xconn
-	return config
-}
-
-//crossConnectIfaces return the config for  cross-connecting the given interfaces in both directions
+// crossConnectIfaces returns the config for cross-connecting the given interfaces in both directions.
 func (rndr *Renderer) crossConnectIfaces(iface1 string, iface2 string) (config controller.KeyValuePairs) {
 	config = make(controller.KeyValuePairs)
-	//err = nil // TODOD: check weather there cases for errors
+
 	xconn := &vpp_l2.XConnectPair{
 		ReceiveInterface:  iface1,
 		TransmitInterface: iface2,
@@ -307,36 +284,54 @@ func (rndr *Renderer) crossConnectIfaces(iface1 string, iface2 string) (config c
 	return config
 }
 
-// vxlanSFC return SFC vxlan from sf1 to sf2
-func (rndr *Renderer) vxlanSFC(sf1 *renderer.ServiceFunction, sf2 *renderer.ServiceFunction, vni uint32) (nameVxLan string, config controller.KeyValuePairs) {
-	// first vxlan from node sf1 to node sf2
+// vxlanToRemoteSF returns VXLAN configuration to a remote service function.
+func (rndr *Renderer) vxlanToRemoteSF(sf *renderer.ServiceFunction, vxlanName string, vni uint32) (
+	config controller.KeyValuePairs) {
 	config = make(controller.KeyValuePairs)
-	srcAdr, errSrcAdr := rndr.getNodeIP(rndr.getSFNodeID(sf1))
-	dstAdr, errDestAdr := rndr.getNodeIP(rndr.getSFNodeID(sf2))
-	if errSrcAdr == nil && errDestAdr == nil {
-		vxlan := &vpp_interfaces.Interface{
-			Name: rndr.nameForSFCVxlanToOtherNode(rndr.getSFNodeID(sf2), vni),
-			Type: vpp_interfaces.Interface_VXLAN_TUNNEL,
-			Link: &vpp_interfaces.Interface_Vxlan{
-				Vxlan: &vpp_interfaces.VxlanLink{
-					SrcAddress: srcAdr.String(),
-					DstAddress: dstAdr.String(),
-					Vni:        vni,
-				},
-			},
-			Enabled: true,
-			Vrf:     rndr.ContivConf.GetRoutingConfig().MainVRFID,
-		}
-		key := vpp_interfaces.InterfaceKey(vxlan.Name)
-		config[key] = vxlan
-		nameVxLan = vxlan.Name
+
+	srcAddr, _ := rndr.IPNet.GetNodeIP()
+	dstAdr, _, err := rndr.IPAM.NodeIPAddress(rndr.getSFNodeID(sf))
+	if err != nil {
+		return
 	}
-	return nameVxLan, config
+	vxlan := &vpp_interfaces.Interface{
+		Name: vxlanName,
+		Type: vpp_interfaces.Interface_VXLAN_TUNNEL,
+		Link: &vpp_interfaces.Interface_Vxlan{
+			Vxlan: &vpp_interfaces.VxlanLink{
+				SrcAddress: srcAddr.String(),
+				DstAddress: dstAdr.String(),
+				Vni:        vni,
+			},
+		},
+		Enabled: true,
+		Vrf:     rndr.ContivConf.GetRoutingConfig().MainVRFID,
+	}
+	key := vpp_interfaces.InterfaceKey(vxlan.Name)
+	config[key] = vxlan
+	return
 }
 
-// merge the configurations
+// mergeConfiguration merges sourceConf into destConf.
 func (rndr *Renderer) mergeConfiguration(destConf, sourceConf controller.KeyValuePairs) {
 	for k, v := range sourceConf {
 		destConf[k] = v
 	}
+}
+
+// getOrAllocateVxlanVNI returns the allocated VNI number for the given VXLAN.
+// Allocates a new VNI if not already allocated.
+func (rndr *Renderer) getOrAllocateVxlanVNI(vxlanName string) (vni uint32, err error) {
+	// return existing VNI if already allocated
+	vni, found := rndr.IPAM.GetVxlanVNI(vxlanName)
+	if found {
+		return vni, nil
+	}
+
+	// allocate new VNI
+	vni, err = rndr.IPAM.AllocateVxlanVNI(vxlanName)
+	if err != nil {
+		rndr.Log.Errorf("VNI allocation error: %v", err)
+	}
+	return vni, err
 }

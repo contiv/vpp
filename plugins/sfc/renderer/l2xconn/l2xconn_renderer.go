@@ -174,7 +174,6 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 }
 
 // shouldChainToRemoteSF returns true if a local and a remote SFs should be chained together.
-// Chaining between
 func (rndr *Renderer) shouldChainToRemoteSF(sf1, sf2 *renderer.ServiceFunction) bool {
 
 	// do not chain if none of the SFs is local

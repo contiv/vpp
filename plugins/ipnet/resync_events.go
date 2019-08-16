@@ -473,9 +473,8 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations, kubeStateData 
 		}
 	}
 
+	// bridge domain for VXLAN interfaces of default pod network
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
-		// bridge domain with VXLAN interfaces
-
 		// bridge domain
 		key, bd := n.vxlanBridgeDomain()
 		txn.Put(key, bd)
@@ -487,6 +486,14 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations, kubeStateData 
 			return err
 		}
 		txn.Put(key, vxlanBVI)
+	}
+
+	// bridge domains of L2 custom networks
+	for _, nw := range n.customNetworks {
+		if nw.config != nil && nw.config.Type == customnetmodel.CustomNetwork_L2 {
+			bdKey, bd := n.customNwBridgeDomain(nw)
+			txn.Put(bdKey, bd)
+		}
 	}
 
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport && n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport {

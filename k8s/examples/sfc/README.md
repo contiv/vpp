@@ -35,18 +35,27 @@ In all cases, a service function chain interconnecting the pods is deployed usin
 The additional tap/memif interfaces between the pods / external interfaces are inter-connected 
 on L2 layer, using a l2 cross-connect on the vswitch VPP.
 
-Of course, these 3 demo scenarios can be combined to form more complex SFC chains with mixed
+The demo scenarios showcase the deployments in a one-node k8s cluster for simplicity, but the
+deployments work on multi-node clusters as well. In case that a chain exists between pods
+deployed on different nodes, VXLAN tunnels are used to interconnect between the nodes.
+For example, the chain in the second example may be rendered as follows in case of 2 nodes:
+
+![SFC - VPP CNFs](img/sfc-vpp2.png)
+
+Of course, all demo scenarios can be combined to form more complex SFC chains with mixed
 types of service functions, but the aim of these examples is to keep the deployments simple.
 
 
 ### Limitations
  
-Since SFC implementation in Contiv is still a work in progress, there are still several limitations
-that will be addressed in the next releases:
-- This demonstration currently works only if all the CNF pods are deployed both on the same k8s node. 
-- The only custom interface networks supported as of now are "stub" and the "default" pod network.
+Since SFC implementation in Contiv is still a work in progress, there are still some limitations:
 - The only supported SFC chain rendering (interconnection between CNF pods) as of now is l2 cross-connect. 
 SRv6 rendering is planned to be implemented as another alternative.
+- The l2 cross-connect SFC renderer always renders a chain into a single data path, even if more
+replicas of some pods matching selectors in the chain are present. In that case, the renderer tries
+to avoid unnecessary VXLAN tunnels by preferring local interconnections between pods/external interfaces.
+If a local interconnection is not possible, and there are multiple pods/external interfaces matching
+a service function selector, renderer prefers pods/external interfaces that are deployed on a node with lower node ID.
 
 
 ### Prerequisites

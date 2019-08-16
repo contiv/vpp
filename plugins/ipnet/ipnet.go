@@ -256,6 +256,8 @@ func (s *internalState) StateToString() string {
 		vppIfaceToPod, podCustomIf, pendingCustomIf, customNetworks)
 }
 
+// DescribeInternalData describes the internal state of IPNet plugin.
+// Used for Verification Resync.
 func (n *IPNet) DescribeInternalData() string {
 	return n.internalState.StateToString()
 }

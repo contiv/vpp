@@ -19,11 +19,13 @@ import (
 	"golang.org/x/sys/unix"
 	"net"
 
-	"github.com/contiv/vpp/plugins/contivconf"
-	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"github.com/ligato/vpp-agent/pkg/models"
 	"github.com/vishvananda/netlink"
+
+	"github.com/contiv/vpp/plugins/contivconf"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
 const (
@@ -192,8 +194,7 @@ func (br *BGPReflector) vppRoute(dst *net.IPNet, gw net.IP) (key string, config 
 		OutgoingInterface: br.ContivConf.GetMainInterfaceName(),
 		VrfId:             br.ContivConf.GetRoutingConfig().MainVRFID,
 	}
-	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
-	return key, route
+	return models.Key(route), route
 }
 
 // isValidRoute returns true if the route is valid and should be reflected, false otherwise.

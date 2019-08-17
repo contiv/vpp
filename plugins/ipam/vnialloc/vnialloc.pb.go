@@ -20,78 +20,68 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-// CustomVniVxlanSFC represents vni allocation made for a custom vxlan made for an SFC
-type CustomVniVxlanSFC struct {
-	SfcName              string   `protobuf:"bytes,1,opt,name=sfc_name,json=sfcName,proto3" json:"sfc_name,omitempty"`
-	SfcInstanceNbr       uint32   `protobuf:"varint,2,opt,name=sfc_instance_nbr,json=sfcInstanceNbr,proto3" json:"sfc_instance_nbr,omitempty"`
-	VniSfc               uint32   `protobuf:"varint,3,opt,name=vni_sfc,json=vniSfc,proto3" json:"vni_sfc,omitempty"`
+// CustomVxlanVniAllocation represents vni allocation made for a custom vxlan purpose (like SFC vxlan)
+type CustomVxlanVniAllocation struct {
+	VxlanName            string   `protobuf:"bytes,1,opt,name=vxlan_name,json=vxlanName,proto3" json:"vxlan_name,omitempty"`
+	Vni                  uint32   `protobuf:"varint,2,opt,name=vni,proto3" json:"vni,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *CustomVniVxlanSFC) Reset()         { *m = CustomVniVxlanSFC{} }
-func (m *CustomVniVxlanSFC) String() string { return proto.CompactTextString(m) }
-func (*CustomVniVxlanSFC) ProtoMessage()    {}
-func (*CustomVniVxlanSFC) Descriptor() ([]byte, []int) {
+func (m *CustomVxlanVniAllocation) Reset()         { *m = CustomVxlanVniAllocation{} }
+func (m *CustomVxlanVniAllocation) String() string { return proto.CompactTextString(m) }
+func (*CustomVxlanVniAllocation) ProtoMessage()    {}
+func (*CustomVxlanVniAllocation) Descriptor() ([]byte, []int) {
 	return fileDescriptor_71dc0d993d483727, []int{0}
 }
 
-func (m *CustomVniVxlanSFC) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_CustomVniVxlanSFC.Unmarshal(m, b)
+func (m *CustomVxlanVniAllocation) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CustomVxlanVniAllocation.Unmarshal(m, b)
 }
-func (m *CustomVniVxlanSFC) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_CustomVniVxlanSFC.Marshal(b, m, deterministic)
+func (m *CustomVxlanVniAllocation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CustomVxlanVniAllocation.Marshal(b, m, deterministic)
 }
-func (m *CustomVniVxlanSFC) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CustomVniVxlanSFC.Merge(m, src)
+func (m *CustomVxlanVniAllocation) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CustomVxlanVniAllocation.Merge(m, src)
 }
-func (m *CustomVniVxlanSFC) XXX_Size() int {
-	return xxx_messageInfo_CustomVniVxlanSFC.Size(m)
+func (m *CustomVxlanVniAllocation) XXX_Size() int {
+	return xxx_messageInfo_CustomVxlanVniAllocation.Size(m)
 }
-func (m *CustomVniVxlanSFC) XXX_DiscardUnknown() {
-	xxx_messageInfo_CustomVniVxlanSFC.DiscardUnknown(m)
+func (m *CustomVxlanVniAllocation) XXX_DiscardUnknown() {
+	xxx_messageInfo_CustomVxlanVniAllocation.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_CustomVniVxlanSFC proto.InternalMessageInfo
+var xxx_messageInfo_CustomVxlanVniAllocation proto.InternalMessageInfo
 
-func (m *CustomVniVxlanSFC) GetSfcName() string {
+func (m *CustomVxlanVniAllocation) GetVxlanName() string {
 	if m != nil {
-		return m.SfcName
+		return m.VxlanName
 	}
 	return ""
 }
 
-func (m *CustomVniVxlanSFC) GetSfcInstanceNbr() uint32 {
+func (m *CustomVxlanVniAllocation) GetVni() uint32 {
 	if m != nil {
-		return m.SfcInstanceNbr
-	}
-	return 0
-}
-
-func (m *CustomVniVxlanSFC) GetVniSfc() uint32 {
-	if m != nil {
-		return m.VniSfc
+		return m.Vni
 	}
 	return 0
 }
 
 func init() {
-	proto.RegisterType((*CustomVniVxlanSFC)(nil), "vnialloc.CustomVniVxlanSFC")
+	proto.RegisterType((*CustomVxlanVniAllocation)(nil), "vnialloc.CustomVxlanVniAllocation")
 }
 
 func init() { proto.RegisterFile("vnialloc.proto", fileDescriptor_71dc0d993d483727) }
 
 var fileDescriptor_71dc0d993d483727 = []byte{
-	// 154 bytes of a gzipped FileDescriptorProto
+	// 116 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x2b, 0xcb, 0xcb, 0x4c,
-	0xcc, 0xc9, 0xc9, 0x4f, 0xd6, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0xe2, 0x80, 0xf1, 0x95, 0x0a,
-	0xb9, 0x04, 0x9d, 0x4b, 0x8b, 0x4b, 0xf2, 0x73, 0xc3, 0xf2, 0x32, 0xc3, 0x2a, 0x72, 0x12, 0xf3,
-	0x82, 0xdd, 0x9c, 0x85, 0x24, 0xb9, 0x38, 0x8a, 0xd3, 0x92, 0xe3, 0xf3, 0x12, 0x73, 0x53, 0x25,
-	0x18, 0x15, 0x18, 0x35, 0x38, 0x83, 0xd8, 0x8b, 0xd3, 0x92, 0xfd, 0x12, 0x73, 0x53, 0x85, 0x34,
-	0xb8, 0x04, 0x40, 0x52, 0x99, 0x79, 0xc5, 0x25, 0x89, 0x79, 0xc9, 0xa9, 0xf1, 0x79, 0x49, 0x45,
-	0x12, 0x4c, 0x0a, 0x8c, 0x1a, 0xbc, 0x41, 0x7c, 0xc5, 0x69, 0xc9, 0x9e, 0x50, 0x61, 0xbf, 0xa4,
-	0x22, 0x21, 0x71, 0x2e, 0xf6, 0xb2, 0xbc, 0xcc, 0xf8, 0xe2, 0xb4, 0x64, 0x09, 0x66, 0xb0, 0x02,
-	0xb6, 0xb2, 0xbc, 0xcc, 0xe0, 0xb4, 0xe4, 0x24, 0x36, 0xb0, 0x1b, 0x8c, 0x01, 0x01, 0x00, 0x00,
-	0xff, 0xff, 0x40, 0xc3, 0x31, 0x47, 0x95, 0x00, 0x00, 0x00,
+	0xcc, 0xc9, 0xc9, 0x4f, 0xd6, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0xe2, 0x80, 0xf1, 0x95, 0xbc,
+	0xb9, 0x24, 0x9c, 0x4b, 0x8b, 0x4b, 0xf2, 0x73, 0xc3, 0x2a, 0x72, 0x12, 0xf3, 0xc2, 0xf2, 0x32,
+	0x1d, 0x41, 0xc2, 0x89, 0x25, 0x99, 0xf9, 0x79, 0x42, 0xb2, 0x5c, 0x5c, 0x65, 0x20, 0xd1, 0xf8,
+	0xbc, 0xc4, 0xdc, 0x54, 0x09, 0x46, 0x05, 0x46, 0x0d, 0xce, 0x20, 0x4e, 0xb0, 0x88, 0x5f, 0x62,
+	0x6e, 0xaa, 0x90, 0x00, 0x17, 0x73, 0x59, 0x5e, 0xa6, 0x04, 0x93, 0x02, 0xa3, 0x06, 0x6f, 0x10,
+	0x88, 0x99, 0xc4, 0x06, 0x36, 0xdd, 0x18, 0x10, 0x00, 0x00, 0xff, 0xff, 0xea, 0x37, 0xb4, 0xca,
+	0x6f, 0x00, 0x00, 0x00,
 }

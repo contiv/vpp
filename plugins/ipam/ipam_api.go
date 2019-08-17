@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Cisco and/or its affiliates.
+// Copyright (c) 2018 Cisco and/or its affiliates and other contributors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// Contributors:
+// Adel Bouridah  adel.bouridah@esiee.fr
+//  TODO: Add Contributors
 
 package ipam
 
@@ -134,8 +137,13 @@ type API interface {
 	// dissected subnets.
 	GetIPAMConfigForJSON() *config.IPAMConfig
 
-	// AllocateVNI tries to allocate a VNI for the SFC instance if not always allocated then persiste it
-	AllocateVNI(sfcName string, sfcInsNbr uint32) (vni uint32, err error)
+	// AllocateVxlanVNI tries to allocate a free VNI for the VXLAN with given name.
+	// If the given VXLAN already has a VNI allocated, returns the existing allocation.
+	AllocateVxlanVNI(vxlanName string) (vni uint32, err error)
+
+	// GetVxlanVNI returns an existing VNI allocation for the VXLAN with given name.
+	// found is false if no allocation for the given VXLAN name exists.
+	GetVxlanVNI(vxlanName string) (vni uint32, found bool)
 }
 
 // PodCIDRChange is triggered when CIDR for PODs on the current node changes.

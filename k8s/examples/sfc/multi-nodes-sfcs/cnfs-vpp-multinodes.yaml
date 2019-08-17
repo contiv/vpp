@@ -48,7 +48,7 @@ spec:
       configMap:
         name: etcd-cfg
   nodeSelector:
-      nodetype: master
+    nodetype: master
 ---
 # CNF 2 pod definition. Pod is connected with one additional memif interface
 # in the "stub" network = meaning that it won't have any IP address assigned

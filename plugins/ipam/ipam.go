@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Cisco and/or its affiliates.
+// Copyright (c) 2018 Cisco and/or its affiliates and other Contributors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// Contributors:
+// Adel Bouridah  adel.bouridah@esiee.fr
+//  TODO: Add Contributors
 
 //go:generate protoc -I ./ipalloc --gogo_out=plugins=grpc:./ipalloc ./ipalloc/ipalloc.proto
 
@@ -58,6 +61,10 @@ const (
 
 	// maximum attempts ipam will make to allocate SFC instance vxlan VNI.
 	maxVNIAllocationAttempts = 10
+
+	// rangeVniSFCBeginFrom define the begining range of VNIs dedicted to SFC vxlan
+	//Let SFC vxlan VNIs begin from 5000, (low vni <5000 are for other vxlan purpose (like vni=10 for the full-mesched contiv-vpp vxlans)
+	rangeVniSFCBeginFrom = 5000
 )
 
 // IPAM plugin implements IP address allocation for Contiv.
@@ -103,6 +110,9 @@ type IPAM struct {
 	vxlanSubnet *net.IPNet
 	// IP subnet used to allocate ClusterIPs for a service
 	serviceCIDR *net.IPNet
+	/********** maps to STOCK IN MEMORY ALLOCATED vXLAN VNIs  **********/
+	// pool of assigned vxLAN VNIs, indexed with vxlanName
+	assignedVxlanVNIs map[string]vxlanVniAllocation
 }
 
 // podIPAllocation represents allocation of an IP address from the IPAM pool.
@@ -118,6 +128,12 @@ type podIPAllocation struct {
 type podIPInfo struct {
 	mainIP      net.IP            // IP address of the main interface
 	customIfIPs map[string]net.IP // custom interface name + network to IP address map
+}
+
+// vxlanVniAllocation represents allocation of  VNI for a dedicated vxlanaddress from the IPAM pool.
+type vxlanVniAllocation struct {
+	VxlanName string // Name of the custom Vxlan
+	Vni       uint32 // allocate VNI
 }
 
 // String provides human-readable representation of podIPAllocation
@@ -289,18 +305,26 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 			}
 		}
 	}
+	// Resync custom vxlan  vni allocations
+	for _, vniAllocProto := range kubeStateData[vnialloc.Keyword] {
+		vniAlloc := vniAllocProto.(*vnialloc.CustomVxlanVniAllocation)
+		i.assignedVxlanVNIs[vniAlloc.GetVxlanName()] = vxlanVniAllocation{
+			VxlanName: vniAlloc.GetVxlanName(),
+			Vni:       vniAlloc.GetVni(),
+		}
+	}
 
 	i.Log.Infof("IPAM state after startup RESYNC: "+
 		"excludedIPsfromNodeSubnet=%v, podSubnetAllNodes=%v, podSubnetThisNode=%v, "+
 		"podSubnetGatewayIP=%v, hostInterconnectSubnetAllNodes=%v, "+
 		"hostInterconnectSubnetThisNode=%v, hostInterconnectIPInVpp=%v, hostInterconnectIPInLinux=%v, "+
 		"nodeInterconnectSubnet=%v, vxlanSubnet=%v, serviceCIDR=%v, "+
-		"assignedPodIPs=%+v, podToIP=%v, lastPodIPAssigned=%v",
+		"assignedPodIPs=%+v, podToIP=%v, lastPodIPAssigned=%v, assignedVxlanVNIs=%v",
 		i.excludedIPsfromNodeSubnet, i.podSubnetAllNodes, i.podSubnetThisNode,
 		i.podSubnetGatewayIP, i.hostInterconnectSubnetAllNodes,
 		i.hostInterconnectSubnetThisNode, i.hostInterconnectIPInVpp, i.hostInterconnectIPInLinux,
 		i.nodeInterconnectSubnet, i.vxlanSubnet, i.serviceCIDR,
-		i.assignedPodIPs, i.podToIP, i.lastPodIPAssigned)
+		i.assignedPodIPs, i.podToIP, i.lastPodIPAssigned, i.assignedVxlanVNIs)
 	return
 }
 
@@ -319,6 +343,7 @@ func (i *IPAM) initializePods(kubeStateData controller.KubeStateData, config *co
 	i.lastPodIPAssigned = 1
 	i.assignedPodIPs = make(map[string]*podIPAllocation)
 	i.podToIP = make(map[podmodel.ID]*podIPInfo)
+	i.assignedVxlanVNIs = make(map[string]vxlanVniAllocation)
 
 	return nil
 }
@@ -1070,13 +1095,13 @@ func customIfID(ifName, network string) string {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//    Added By Adel For vni allocation of the SFC vxlan management            //
+//    Codes For vni allocation of the SFC vxlan management                    //
 ////////////////////////////////////////////////////////////////////////////////
 
 // findFirstAvailableID returns the smallest integer that is not present in the
 // given slice of already allocated node IDs.
 func findFirstAvailableVNI(vnis []int) int {
-	res := 5000 // SFC vxlan vni begin from 5000, (low vni <5000 are for other vxlan purpose (like vni=10 for the full-mesched contiv-vpp vxlans)
+	res := rangeVniSFCBeginFrom
 	for _, v := range vnis {
 		if res == v {
 			res++
@@ -1088,78 +1113,71 @@ func findFirstAvailableVNI(vnis []int) int {
 }
 
 // listAllocatedVNIs returns a slice of already allocated SFC VXLAN VNIs (vni>5000).
-func (i *IPAM) listAllocatedVNIs(broker keyval.ProtoBroker) (vnis []int, err error) {
-	vniallocation := &vnialloc.CustomVniVxlanSFC{}
-	it, err := broker.ListKeys(vnialloc.KeyPrefix())
-	if err != nil {
-		return vnis, err
+func (i *IPAM) listAllocatedVNIs() (vnis []int) {
+
+	//var vniallocated vxlanVniAllocation
+	for _, vniallocated := range i.assignedVxlanVNIs {
+		vnis = append(vnis, int(vniallocated.Vni))
 	}
-
-	for {
-		key, _, stop := it.GetNext()
-		if stop {
-			break
-		}
-
-		// try to read existing vni allocation for the key  (SFC instance)
-
-		found, _, err := broker.GetValue(key, vniallocation)
-		if err != nil {
-			i.Log.Errorf("Unable to read vni allocation: %v", err)
-			//return vnis, err
-		}
-		if !found {
-			i.Log.Errorf("Unable to found vni allocation for key: %v", key)
-		} else {
-			vnis = append(vnis, int(vniallocation.GetVniSfc()))
-		}
-	}
-	return vnis, err
+	return vnis
 }
 
-// AllocateVNI tries to allocate a VNI for the SFC instance if not always allocated then persiste it
-func (i *IPAM) AllocateVNI(sfcName string, sfcInsNbr uint32) (vni uint32, err error) {
+// AllocateVxlanVNI tries to allocate a free VNI for the VXLAN with given name.
+// If the given VXLAN already has a VNI allocated, returns the existing allocation.
+func (i *IPAM) AllocateVxlanVNI(vxlanName string) (vni uint32, err error) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
-	key := vnialloc.Key(sfcName, sfcInsNbr)
-	allocation := &vnialloc.CustomVniVxlanSFC{}
+	vni, found := i.GetVxlanVNI(vxlanName)
 
-	db, err := i.getDBBroker()
-	if err != nil {
-		return 0, err
-	}
-
-	// try to read existing allocation, otherwise create new
-	found, _, err := db.GetValue(key, allocation)
-	if err != nil {
-		i.Log.Errorf("Unable to read SFC instance custom VNI allocation: %v", err)
-		return 0, err
-	}
+	// try to allocate a free VNI for the SFC instance
 	if !found {
-		allocation = &vnialloc.CustomVniVxlanSFC{
-			SfcName:        sfcName,
-			SfcInstanceNbr: sfcInsNbr,
-		}
-		// try to allocate a free VNI for the SFC instance
-
-		vnis, err := i.listAllocatedVNIs(db) //ns.listAllocatedIDs(broker)
-		if err != nil {
-			i.Log.Errorf("Unable to get list allocated VNIs: %v", err)
-			return 0, err
-		}
+		vnis := i.listAllocatedVNIs()
 		sort.Ints(vnis)
 
 		vni = uint32(findFirstAvailableVNI(vnis))
-		allocation = &vnialloc.CustomVniVxlanSFC{
-			VniSfc: vni,
-		}
-		// save in ETCD
-		err = db.Put(key, allocation)
-		if err != nil {
-			i.Log.Errorf("Unable to persist VNI custom allocation: %v", err)
-			return 0, err
-		}
+		var allocatedVni vxlanVniAllocation
+
+		allocatedVni.VxlanName = vxlanName
+		allocatedVni.Vni = vni
+
+		// save the vxlan vni allocation in the memoy pool
+		i.assignedVxlanVNIs[vxlanName] = allocatedVni
+		// persist also the allocated vni for this vxlan
+		err := i.persisCustomVniAllocation(vxlanName, vni)
+		return vni, err
 	}
-	return allocation.GetVniSfc(), nil
+	return vni, nil
+}
+
+// GetVxlanVNI returns an existing VNI allocation (from the pool) for the VXLAN with given vxlan name.
+// found is false if no allocation for the given VXLAN name exists.
+func (i *IPAM) GetVxlanVNI(vxlanName string) (vni uint32, found bool) {
+	if _, found := i.assignedVxlanVNIs[vxlanName]; found {
+		return i.assignedVxlanVNIs[vxlanName].Vni, found // return the  already assigned vxLan VNI
+	}
+	return 0, false
+}
+
+// 	persisCustomVniAllocation persist the allocated vnic i.e. save it in ETCD
+func (i *IPAM) persisCustomVniAllocation(vxlanName string, vni uint32) error {
+
+	key := vnialloc.Key(vxlanName)
+	//allocation := &vnialloc.CustomVxlanVniAllocation{}
+
+	db, err := i.getDBBroker()
+	if err != nil {
+		return err
+	}
+	allocation := &vnialloc.CustomVxlanVniAllocation{
+		VxlanName: vxlanName,
+		Vni:       vni,
+	}
+
+	err = db.Put(key, allocation)
+	if err != nil {
+		i.Log.Errorf("Unable to persist VNI custom allocation: %v", err)
+		return err
+	}
+	return nil
 }

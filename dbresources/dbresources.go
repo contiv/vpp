@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Cisco and/or its affiliates.
+// Copyright (c) 2018 Cisco and/or its affiliates and other contributors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// Contributors:
+// Adel Bouridah  adel.bouridah@esiee.fr
+//  TODO: Add Contributors
 
 package dbresources
 
@@ -111,7 +114,7 @@ func GetDBResources() []*DBResource {
 		},
 		{
 			Keyword:          vnialloc.Keyword,
-			ProtoMessageName: proto.MessageName((*vnialloc.CustomVniVxlanSFC)(nil)),
+			ProtoMessageName: proto.MessageName((*vnialloc.CustomVxlanVniAllocation)(nil)),
 			KeyPrefix:        vnialloc.KeyPrefix(),
 		},
 	}

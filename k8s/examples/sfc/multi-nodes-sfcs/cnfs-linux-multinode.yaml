@@ -1,7 +1,5 @@
---- 
-#Modifieed By Adel 03/07/2019 
-# Create three linux CNFs - the second CNFs with 2 tap intefaces
- 
+---
+# Create three linux CNFs - the second CNFs with 2 tap intefaces - for multi-node SFC
 # Linux CNF 1 pod definition. Pod is connected with one additional tap interface
 # in the "stub" network = meaning that it won't have any IP address assigned.
 apiVersion: v1
@@ -23,7 +21,7 @@ spec:
         - sleep
         - "3600"
   nodeSelector:
-      nodetype: master
+    nodetype: master
 ---
 # Linux CNF 2 pod definition. Pod is connected with Two (** old one) additional tap interface
 # in the "stub" network = meaning that it won't have any IP address assigned.
@@ -46,7 +44,7 @@ spec:
         - sleep
         - "3600"
   nodeSelector:
-      nodetype: master
+    nodetype: master
 ---
 # Linux CNF 3 pod definition. Pod is connected with one additional tap interface
 # in the "stub" network = meaning that it won't have any IP address assigned.
@@ -69,10 +67,7 @@ spec:
         - sleep
         - "3600"
   nodeSelector:
-      nodetype: master
-
-
-# The three pods with no selector 
+    nodetype: master
 ---
 # Linux CNF 1 pod definition. Pod is connected with one additional tap interface
 # in the "stub" network = meaning that it won't have any IP address assigned.
@@ -136,5 +131,3 @@ spec:
       command:
         - sleep
         - "3600"
-
-

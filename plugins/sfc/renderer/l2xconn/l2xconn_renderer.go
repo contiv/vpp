@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) 2019 Cisco and/or its affiliates.
+ * // Copyright (c) 2019 Cisco and/or its affiliates and other Contributors.
  * //
  * // Licensed under the Apache License, Version 2.0 (the "License");
  * // you may not use this file except in compliance with the License.
@@ -12,6 +12,9 @@
  * // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * // See the License for the specific language governing permissions and
  * // limitations under the License.
+ * // Contributors:
+ * // Adel Bouridah  adel.bouridah@esiee.fr
+ * //  TODO: Add Contributors
  */
 
 package l2xconn
@@ -70,9 +73,9 @@ func (rndr *Renderer) AfterInit() error {
 
 // AddChain is called for a newly added service function chain.
 func (rndr *Renderer) AddChain(sfc *renderer.ContivSFC) error {
-	rndr.Log.Infof("By Adel 1 - Add SFC: %v AfterSFC", sfc)
+	rndr.Log.Infof("Add SFC: %v AfterSFC", sfc)
 
-	txn := rndr.UpdateTxnFactory(fmt.Sprintf("By Adel 2 - add SFC '%s'", sfc.Name))
+	txn := rndr.UpdateTxnFactory(fmt.Sprintf("add SFC '%s'", sfc.Name))
 
 	config := rndr.renderChain(sfc)
 	controller.PutAll(txn, config)
@@ -152,7 +155,7 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 
 					// allocate custom vxlan vni for the actual SFC instance(reconized by SFC name, SFC instance number), if not always alocated else get it
 					// those vxlan vnis are >=5000
-					vni, err := rndr.IPAM.AllocateVNI(sfc.Name, 1) // TODO: handle chains with multiple pod instances per service function? untill now only one SFC instance is considered
+					vni, err := rndr.IPAM.AllocateVxlanVNI(sfc.Name) // TODO: handle chains with multiple pod instances per service function? untill now only one SFC instance is considered
 					if err != nil {
 						rndr.Log.Infof("Unable to allocate SFC VNI: %v", err)
 						break
@@ -177,14 +180,13 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 						//direction 1
 						xconnect := rndr.connectIfaces(vxlanName, prevIface)
 						rndr.mergeConfiguration(config, xconnect)
-						//rndr.Log.Infof("By Adel Config3: %v", config)
 
 						//direction 2
 						xconnect = rndr.connectIfaces(prevIface, vxlanName)
 						rndr.mergeConfiguration(config, xconnect)
 					}
 				}
-			} 
+			}
 		}
 		prevSF = sf
 	}
@@ -248,14 +250,25 @@ func (rndr *Renderer) getSFNodeID(sf *renderer.ServiceFunction) uint32 {
 
 // Check weather the given sf is in the local node or not
 func (rndr *Renderer) checkSFNodeLocal(sf *renderer.ServiceFunction) bool {
-	if sf.Type != renderer.Pod {
-		return false // TODO: to be checked if is it possible:  no render for the SFC
+	switch sf.Type {
+	case renderer.Pod:
+		if len(sf.Pods) == 0 {
+			return false
+		}
+		pod := sf.Pods[0] // TODO: handle chains with multiple pod instances per service function?
+		return pod.Local
+
+	case renderer.ExternalInterface: // TODO : check if the returned  nodeID  is correct (the required one) for ExternalInterface
+		// Chek weather there is a local external interface (the first)
+		for _, extIf := range sf.ExternalInterfaces {
+			if extIf.Local {
+				return true
+			}
+		}
+		// TODO: chain to a remote external interface?
+		return false
 	}
-	if len(sf.Pods) == 0 {
-		return false // TODO: to be checked if is it possible:  no node for the SF????
-	}
-	pod := sf.Pods[0] // TODO: handle chains with multiple pod instances per service function?
-	return pod.Local
+	return false
 }
 
 // nameForSFCVxlanToOtherNode returns logical name to use for the SFC VXLAN interface

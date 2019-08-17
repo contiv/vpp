@@ -1,12 +1,28 @@
+// Copyright (c) 2019 Cisco and/or its affiliates and others contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// Contributors:
+// Adel Bouridah  adel.bouridah@esiee.fr
+//  TODO: Add Contributors
+
 package vnialloc
 
 import (
-	"strconv"
 	"strings"
 )
 
-// Keyword defines the keyword identifying custom vni allocation data for SFC vxlan.
-const Keyword = "custom-vni-sfc"
+// Keyword defines the keyword identifying custom vni allocation data.
+const Keyword = "custom-vni"
 
 // KeyPrefix return prefix where all vni service function chain configs are persisted.
 func KeyPrefix() string {
@@ -14,20 +30,17 @@ func KeyPrefix() string {
 }
 
 // Key returns the key under which custom vni of an SFC instance should be stored in the data-store.
-func Key(sfcName string, sfcInstance uint32) string {
-	return KeyPrefix() + sfcName + "/" + strconv.FormatUint(uint64(sfcInstance), 10)
+func Key(vxlanName string) string {
+	return KeyPrefix() + vxlanName
 }
 
-// ParseKey parses SFC name and SFC instance number from key identifying custom VNI allocation data for SFC_vxlan.
+// ParseKey parsesvxlanName from key identifying custom VNI allocation data for the vxlan.
 // Returns empty strings if parsing fails (invalid key).
-func ParseKey(key string) (sfcName string, sfcInstance uint32) {
+func ParseKey(key string) (vxlanName string) {
 	if strings.HasPrefix(key, KeyPrefix()) {
-		parts := strings.Split(strings.TrimPrefix(key, KeyPrefix()), "/")
-		if len(parts) == 2 {
-			sfcInst, err := strconv.Atoi(parts[1])
-			if err == nil {
-				return parts[0], uint32(sfcInst)
-			}
+		parts := strings.TrimPrefix(key, KeyPrefix())
+		if len(parts) != 0 {
+			return parts
 		}
 	}
 	return

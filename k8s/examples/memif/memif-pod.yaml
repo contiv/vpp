@@ -34,7 +34,7 @@ metadata:
 spec:
   containers:
     - name: vpp-agent
-      image: ligato/vpp-agent:latest
+      image: ligato/vpp-agent:v2.1.1
       env:
         - name: ETCD_CONFIG
           value: "/etc/etcd/etcd.conf"

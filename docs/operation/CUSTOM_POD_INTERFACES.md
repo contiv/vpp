@@ -84,7 +84,7 @@ metadata:
 spec:
   containers:
     - name: vnf-memif
-      image: ligato/vpp-agent:latest
+      image: ligato/vpp-agent:v2.1.1
       resources:
         limits:
           contivpp.io/memif: 1

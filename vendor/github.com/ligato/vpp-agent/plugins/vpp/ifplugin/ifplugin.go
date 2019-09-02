@@ -17,6 +17,7 @@
 //go:generate descriptor-adapter --descriptor-name RxMode  --value-type *vpp_interfaces.Interface --import "github.com/ligato/vpp-agent/api/models/vpp/interfaces" --output-dir "descriptor"
 //go:generate descriptor-adapter --descriptor-name RxPlacement  --value-type *vpp_interfaces.Interface_RxPlacement --import "github.com/ligato/vpp-agent/api/models/vpp/interfaces" --output-dir "descriptor"
 //go:generate descriptor-adapter --descriptor-name BondedInterface  --value-type *vpp_interfaces.BondLink_BondedInterface --import "github.com/ligato/vpp-agent/api/models/vpp/interfaces" --output-dir "descriptor"
+//go:generate descriptor-adapter --descriptor-name Span  --value-type *vpp_interfaces.Span --import "github.com/ligato/vpp-agent/api/models/vpp/interfaces" --output-dir "descriptor"
 
 package ifplugin
 
@@ -39,6 +40,7 @@ import (
 	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	linux_ifcalls "github.com/ligato/vpp-agent/plugins/linux/ifplugin/linuxcalls"
 	"github.com/ligato/vpp-agent/plugins/linux/nsplugin"
+	"github.com/ligato/vpp-agent/plugins/netalloc"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
@@ -66,6 +68,7 @@ type IfPlugin struct {
 	// descriptors
 	linkStateDescriptor *descriptor.LinkStateDescriptor
 	dhcpDescriptor      *descriptor.DHCPDescriptor
+	spanDescriptor      *descriptor.SpanDescriptor
 
 	// from config file
 	defaultMtu uint32
@@ -90,6 +93,7 @@ type Deps struct {
 	infra.PluginDeps
 	KVScheduler kvs.KVScheduler
 	GoVppmux    govppmux.StatsAPI
+	AddrAlloc   netalloc.AddressAllocator
 
 	/*	LinuxIfPlugin and NsPlugin deps are optional,
 		but they are required if AFPacket or TAP+TAP_TO_VPP interfaces are used. */
@@ -135,7 +139,7 @@ func (p *IfPlugin) Init() (err error) {
 
 	//   -> base interface descriptor
 	ifaceDescriptor, ifaceDescrCtx := descriptor.NewInterfaceDescriptor(p.ifHandler,
-		p.defaultMtu, p.linuxIfHandler, p.LinuxIfPlugin, p.NsPlugin, p.Log)
+		p.AddrAlloc, p.defaultMtu, p.linuxIfHandler, p.LinuxIfPlugin, p.NsPlugin, p.Log)
 	err = p.KVScheduler.RegisterKVDescriptor(ifaceDescriptor)
 	if err != nil {
 		return err
@@ -160,11 +164,13 @@ func (p *IfPlugin) Init() (err error) {
 
 	rxModeDescriptor := descriptor.NewRxModeDescriptor(p.ifHandler, p.intfIndex, p.Log)
 	rxPlacementDescriptor := descriptor.NewRxPlacementDescriptor(p.ifHandler, p.intfIndex, p.Log)
-	addrDescriptor := descriptor.NewInterfaceAddressDescriptor(p.ifHandler, p.intfIndex, p.Log)
+	addrDescriptor := descriptor.NewInterfaceAddressDescriptor(p.ifHandler, p.AddrAlloc, p.intfIndex, p.Log)
 	unIfDescriptor := descriptor.NewUnnumberedIfDescriptor(p.ifHandler, p.intfIndex, p.Log)
 	bondIfDescriptor, _ := descriptor.NewBondedInterfaceDescriptor(p.ifHandler, p.intfIndex, p.Log)
 	vrfDescriptor := descriptor.NewInterfaceVrfDescriptor(p.ifHandler, p.intfIndex, p.Log)
 	withAddrDescriptor := descriptor.NewInterfaceWithAddrDescriptor(p.Log)
+	spanDescriptor, spanDescriptorCtx := descriptor.NewSpanDescriptor(p.ifHandler, p.Log)
+	spanDescriptorCtx.SetInterfaceIndex(p.intfIndex)
 
 	err = p.KVScheduler.RegisterKVDescriptor(
 		dhcpDescriptor,
@@ -176,6 +182,7 @@ func (p *IfPlugin) Init() (err error) {
 		bondIfDescriptor,
 		vrfDescriptor,
 		withAddrDescriptor,
+		spanDescriptor,
 	)
 	if err != nil {
 		return err

@@ -24,6 +24,7 @@ BRANCH_NAME="master"
 SKIP_UPLOAD="false"
 DEV_UPLOAD="false"
 CLEANUP="false"
+PUSH_MULTI_ARCH="false"
 
 # list of images we are tagging & pushing
 IMAGES=()
@@ -44,6 +45,14 @@ if [ ${BUILDARCH} = "x86_64" ] ; then
   IMAGEARCH="-amd64"
   BUILDARCH="amd64"
 fi
+
+#Supported platforms of multi-arch images are: amd64 arm64
+LINUX_ARCH=(amd64 arm64)
+PLATFORMS=linux/${LINUX_ARCH[0]}
+for i in $(seq 1  $[${#LINUX_ARCH[@]}-1])
+do
+PLATFORMS=$PLATFORMS,linux/${LINUX_ARCH[$i]}
+done
 
 # override defaults from arguments
 while [ "$1" != "" ]; do
@@ -66,6 +75,10 @@ while [ "$1" != "" ]; do
         -c | --cleanup )
             CLEANUP="true"
             echo "Using cleanup: ${CLEANUP}"
+            ;;
+        -m | --multi_arch )
+            PUSH_MULTI_ARCH="true"
+            echo "Push multi-arch support for images: ${PUSH_MULTI_ARCH}"
             ;;
         * )
             echo "Invalid parameter: "$1
@@ -136,4 +149,33 @@ if [ "${CLEANUP}" == "true" ]
 then
     docker images | fgrep "${TAG}" | awk '{print $3}' | sort -u | xargs docker rmi -f || true
     docker images | fgrep "${VPP}" | awk '{print $3}' | sort -u | xargs docker rmi -f || true
+fi
+#Before push, 'docker login' is needed
+push_multi_arch(){
+
+       if [ ! -f "./manifest-tool" ]
+       then
+                sudo apt-get install -y jq
+                wget https://github.com/estesp/manifest-tool/releases/download/v0.9.0/manifest-tool-linux-${BUILDARCH} \
+                -O manifest-tool && \
+                chmod +x ./manifest-tool
+       fi
+
+       for IMAGE in "${IMAGES_VPP[@]}"
+       do
+         if [ "${DEV_UPLOAD}" != "true" ] && [ "$IMAGE" == contivvpp/dev* ]; then
+            continue
+         fi
+	 set -x
+         ./manifest-tool push from-args --platforms ${PLATFORMS} --template contivvpp/${IMAGE}-ARCH:${BRANCH_TAG} \
+                --target contivvpp/${IMAGE}:${BRANCH_TAG}
+         ./manifest-tool push from-args --platforms $(PLATFORMS) --template contivvpp/${IMAGE}-ARCH:${BRANCH_ADV_TAG}${TAG}-${VPP} \
+               --target contivvpp/${IMAGE}:${BRANCH_ADV_TAG}${TAG}-${VPP}
+       done
+}
+
+if [ "${PUSH_MULTI_ARCH}" == "true" ]
+then
+       echo "Push fat manifest for multi-arch images:"
+       push_multi_arch
 fi

@@ -51,7 +51,7 @@ LINUX_ARCH=(amd64 arm64)
 PLATFORMS=linux/${LINUX_ARCH[0]}
 for i in $(seq 1  $[${#LINUX_ARCH[@]}-1])
 do
-PLATFORMS=$PLATFORMS,linux/${LINUX_ARCH[$i]}
+    PLATFORMS=$PLATFORMS,linux/${LINUX_ARCH[$i]}
 done
 
 # override defaults from arguments
@@ -167,11 +167,10 @@ push_multi_arch(){
          if [ "${DEV_UPLOAD}" != "true" ] && [ "$IMAGE" == contivvpp/dev* ]; then
             continue
          fi
-	 set -x
          ./manifest-tool push from-args --platforms ${PLATFORMS} --template contivvpp/${IMAGE}-ARCH:${BRANCH_TAG} \
                 --target contivvpp/${IMAGE}:${BRANCH_TAG}
-         ./manifest-tool push from-args --platforms $(PLATFORMS) --template contivvpp/${IMAGE}-ARCH:${BRANCH_ADV_TAG}${TAG}-${VPP} \
-               --target contivvpp/${IMAGE}:${BRANCH_ADV_TAG}${TAG}-${VPP}
+         ./manifest-tool push from-args --platforms ${PLATFORMS} --template contivvpp/${IMAGE}-ARCH:${BRANCH_ADV_TAG}${TAG}-${VPP} \
+                --target contivvpp/${IMAGE}:${BRANCH_ADV_TAG}${TAG}-${VPP}
        done
 }
 

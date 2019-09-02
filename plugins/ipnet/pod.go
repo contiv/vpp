@@ -816,6 +816,9 @@ func (n *IPNet) podMicroserviceDefaultRoute(pod *podmanager.LocalPod, customIfNa
 }
 
 func (n *IPNet) podMicroserviceIPAlloc(podIP *net.IPNet, ifName string, network string) (key string, config *netalloc.IPAllocation) {
+	if network == "" {
+		network = "default"
+	}
 	netLabel := ipAllocNetPrefix + network
 	alloc := &netalloc.IPAllocation{
 		NetworkName:   netLabel,

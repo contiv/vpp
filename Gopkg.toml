@@ -48,6 +48,11 @@ required = [
   source = "github.com/milanlenco/vpp-agent"
 
 [[constraint]]
+  name = "github.com/ligato/cn-infra"
+  branch = "dev"
+  source = "github.com/milanlenco/cn-infra"
+
+[[constraint]]
   revision = "b5bfa59ec0adc420475f97f89b58045c721d761c"
   name = "github.com/wadey/gocovmerge"
 

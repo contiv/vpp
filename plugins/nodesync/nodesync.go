@@ -76,7 +76,7 @@ type KVDBWithAtomic interface {
 	NewBrokerWithAtomic(keyPrefix string) keyval.BytesBrokerWithAtomic
 
 	// Close closes connection to DB and releases all allocated resources.
-    Close() error
+	Close() error
 }
 
 const allocationErrPrefix = "unable to allocate node ID: %v"

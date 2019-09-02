@@ -753,7 +753,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:133f65c1b59df3dc749deb5fc9361e4aead1913840105e65bf291127f57fcf2e"
+  digest = "1:33c5b0dd948efedea3ad9cc5b7af1332ec9a5b2a6140f671ba351d42415ab352"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -793,7 +793,8 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "0af3fde9febd1315467b2f2367ef5beb814dc21a"
+  revision = "d21e9619ebe2152154ea597b9c35977139aed4b6"
+  source = "github.com/milanlenco/cn-infra"
 
 [[projects]]
   branch = "netalloc"

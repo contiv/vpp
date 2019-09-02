@@ -284,7 +284,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 				// if microservice is defined, it is assumed that a ligato-based CNF is running
 				// inside the pod and the non-link side of the interface will be managed
 				// by the agent of that CNF
-				k, iface := n.podMicroserviceLinuxIface(pod, podIP, customIf.ifName)
+				k, iface := n.podMicroserviceLinuxIface(podIP, customIf.ifName)
 				microserviceConfig[k] = iface
 			}
 
@@ -298,7 +298,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 			config[key] = afpacket
 			if serviceLabel != "" {
 				// for explanation see the TAP case above
-				k, iface := n.podMicroserviceLinuxIface(pod, podIP, customIf.ifName)
+				k, iface := n.podMicroserviceLinuxIface(podIP, customIf.ifName)
 				microserviceConfig[k] = iface
 			}
 

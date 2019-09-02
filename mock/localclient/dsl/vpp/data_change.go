@@ -96,6 +96,13 @@ func (d *MockPutDSL) StaticRoute(val *vpp_l3.Route) vppclient.PutDSL {
 	return d
 }
 
+// Span adds a mock VPP span to the Put request.
+func (d *MockPutDSL) Span(val *vpp_interfaces.Span) vppclient.PutDSL {
+	key := vpp_interfaces.SpanKey(val.InterfaceFrom, val.InterfaceTo)
+	d.parent.Values[key] = val
+	return d
+}
+
 // ACL adds a mock request to create or update VPP Access Control List.
 func (d *MockPutDSL) ACL(val *vpp_acl.ACL) vppclient.PutDSL {
 	key := vpp_acl.Key(val.Name)
@@ -236,6 +243,13 @@ func (d *MockDeleteDSL) XConnect(rxIfName string) vppclient.DeleteDSL {
 // StaticRoute adds a mock request to delete an existing VPP L3 Static Route..
 func (d *MockDeleteDSL) StaticRoute(iface string, vrf uint32, dstAddr string, nextHopAddr string) vppclient.DeleteDSL {
 	key := vpp_l3.RouteKey(iface, vrf, dstAddr, nextHopAddr)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// Span adds a mock VPP span to the Delete request.
+func (d *MockDeleteDSL) Span(span *vpp_interfaces.Span) vppclient.DeleteDSL {
+	key := vpp_interfaces.SpanKey(span.InterfaceFrom, span.InterfaceTo)
 	d.parent.Values[key] = nil
 	return d
 }

@@ -84,7 +84,7 @@ func (d *MockDataResyncDSL) XConnect(val *vpp_l2.XConnectPair) linuxclient.DataR
 
 // StaticRoute adds VPP L3 Static Route to the mock RESYNC request.
 func (d *MockDataResyncDSL) StaticRoute(val *vpp_l3.Route) linuxclient.DataResyncDSL {
-	key := vpp_l3.RouteKey(val.VrfId, val.DstNetwork, val.NextHopAddr)
+	key := vpp_l3.RouteKey(val.OutgoingInterface, val.VrfId, val.DstNetwork, val.NextHopAddr)
 	d.Values[key] = val
 	return d
 }

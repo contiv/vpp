@@ -79,6 +79,9 @@ const (
 	pod1Name      = "pod1"
 	pod1Namespace = "default"
 
+	pod2Name      = "pod2"
+	pod2Namespace = "default"
+
 	// node 2
 	node2Name          = "node2"
 	node2ID            = 2
@@ -329,25 +332,14 @@ func TestBasicStuff(t *testing.T) {
 	Expect(nodeIPv4Change.DefaultGw.String()).To(Equal(gwIP))
 
 	resyncEv, resyncCount := fixture.Datasync.ResyncEvent(keyPrefixes...)
-	txn := txnTracker.NewControllerTxn(true)
-	err := plugin.Resync(nodeIPv4Change, resyncEv.KubeState, resyncCount, txn)
-	Expect(err).ShouldNot(HaveOccurred())
-	err = commitTransaction(txn, true)
-	Expect(err).ShouldNot(HaveOccurred())
-	fixture.TxnCount++
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
+	execPluginResync(txnTracker, fixture, &plugin, nodeIPv4Change, resyncEv.KubeState, resyncCount)
 	nodeIP = &net.IPNet{IP: plugin.nodeIP, Mask: plugin.nodeIPNet.Mask}
 	Expect(nodeIP.String()).To(Equal(Gbe8IP))
-
-	fmt.Println("Add another node -----------------------------------------")
 
 	// add another node
 	addr, network, mgmt := addOtherNode(txnTracker, ipam, fixture, &plugin, node2ID, node2Name, node2MgmtIP)
 
 	fmt.Println("Other node Mgmt IP update --------------------------------")
-
-	// update another node
 	mgmt = net.ParseIP(node2MgmtIPUpdated)
 	node2Update := &nodesync.Node{
 		Name:            node2Name,
@@ -356,47 +348,14 @@ func TestBasicStuff(t *testing.T) {
 		MgmtIPAddresses: []net.IP{mgmt},
 	}
 	nodeUpdateEvent := fixture.NodeSync.UpdateNode(node2Update)
-	txn = txnTracker.NewControllerTxn(false)
-	change, err := plugin.Update(nodeUpdateEvent, txn)
-	Expect(err).ShouldNot(HaveOccurred())
-	Expect(change).To(Equal("update node ID=2"))
-	err = commitTransaction(txn, false)
-	Expect(err).ShouldNot(HaveOccurred())
-	fixture.TxnCount++
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
-
-	fmt.Println("Add pod --------------------------------------------------")
+	execPluginUpdate(txnTracker, fixture, &plugin, nodeUpdateEvent)
 
 	// add pod
-	pod1ID := k8sPod.ID{Name: pod1Name, Namespace: pod1Namespace}
-	addPodEvent := fixture.PodManager.AddPod(&podmanager.LocalPod{
-		ID:               pod1ID,
-		ContainerID:      pod1Container,
-		NetworkNamespace: pod1Ns,
-	})
-	txn = txnTracker.NewControllerTxn(false)
-	change, err = plugin.Update(addPodEvent, txn)
-	Expect(err).ShouldNot(HaveOccurred())
-	Expect(change).To(Equal("configure IP connectivity"))
-	err = commitTransaction(txn, false)
-	Expect(err).ShouldNot(HaveOccurred())
-	fixture.TxnCount++
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
-
-	fmt.Println("Resync with non-empty K8s state --------------------------")
+	pod1ID := addLocalPod(txnTracker, fixture, &plugin, pod1Name, pod1Namespace, pod1Container, pod1Ns).ID
 
 	// resync now with the IP from DHCP, new pod and the other node
 	resyncEv, resyncCount = fixture.Datasync.ResyncEvent(keyPrefixes...)
-	txn = txnTracker.NewControllerTxn(true)
-	err = plugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
-	Expect(err).ShouldNot(HaveOccurred())
-	err = commitTransaction(txn, true)
-	Expect(err).ShouldNot(HaveOccurred())
-	fixture.TxnCount++
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
+	execPluginResync(txnTracker, fixture, &plugin, resyncEv, resyncEv.KubeState, resyncCount)
 
 	// add pod entry into the mock DB
 	fixture.Datasync.Put(k8sPod.Key(pod1Name, pod1Namespace), &k8sPod.Pod{
@@ -416,79 +375,32 @@ func TestBasicStuff(t *testing.T) {
 	fixture.Datasync.RestartResyncCount()
 	// resync
 	resyncEv, resyncCount = fixture.Datasync.ResyncEvent(keyPrefixes...)
-	txn = txnTracker.NewControllerTxn(true)
-	err = plugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
-	Expect(err).ShouldNot(HaveOccurred())
-	err = commitTransaction(txn, true)
-	Expect(err).ShouldNot(HaveOccurred())
-	fixture.TxnCount++
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
+	execPluginResync(txnTracker, fixture, &plugin, resyncEv, resyncEv.KubeState, resyncCount)
 	Expect(plugin.nodeIP).To(BeEmpty())
 	Expect(plugin.nodeIPNet).To(BeNil())
 
-	fmt.Println("Delete pod -----------------------------------------------")
-
 	// delete pod
-	txn = txnTracker.NewControllerTxn(false)
-	change, err = plugin.Update(&podmanager.DeletePod{Pod: pod1ID}, txn)
-	Expect(err).ShouldNot(HaveOccurred())
-	Expect(change).To(Equal("un-configure IP connectivity"))
-	err = commitTransaction(txn, false)
-	Expect(err).ShouldNot(HaveOccurred())
-	fixture.TxnCount++
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
+	deleteLocalPod(txnTracker, fixture, &plugin, pod1ID)
 
 	// remove the pod entry from mock podmanager and DB
 	fixture.PodManager.DeletePod(pod1ID)
 	fixture.Datasync.Delete(k8sPod.Key(pod1Name, pod1Namespace))
 
-	fmt.Println("Delete node ----------------------------------------------")
-
 	// delete the other node
-	nodeUpdateEvent = fixture.NodeSync.DeleteNode(node2Name)
-	txn = txnTracker.NewControllerTxn(false)
-	change, err = plugin.Update(nodeUpdateEvent, txn)
-	Expect(err).ShouldNot(HaveOccurred())
-	Expect(change).To(Equal("disconnect node ID=2"))
-	err = commitTransaction(txn, false)
-	Expect(err).ShouldNot(HaveOccurred())
-	fixture.TxnCount++
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
+	deleteOtherNode(txnTracker, fixture, &plugin, node2Name)
 
 	fmt.Println("Resync just before Close ---------------------------------")
-
 	resyncEv, resyncCount = fixture.Datasync.ResyncEvent(keyPrefixes...)
-	txn = txnTracker.NewControllerTxn(true)
-	err = plugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
-	Expect(err).ShouldNot(HaveOccurred())
-	err = commitTransaction(txn, true)
-	Expect(err).ShouldNot(HaveOccurred())
-	fixture.TxnCount++
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
+	execPluginResync(txnTracker, fixture, &plugin, resyncEv, resyncEv.KubeState, resyncCount)
 
 	fmt.Println("Close ----------------------------------------------------")
-
 	shutdownEvent := &controller.Shutdown{}
-	txn = txnTracker.NewControllerTxn(false)
-	change, err = plugin.Update(shutdownEvent, txn)
-	Expect(err).ShouldNot(HaveOccurred())
-	// nothing needs to be cleaned up for TAPs
-	Expect(change).To(Equal(""))
-	Expect(txn.Values).To(BeEmpty())
-	err = commitTransaction(txn, false)
-	Expect(err).ShouldNot(HaveOccurred())
-	fixture.TxnCount++
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
+	execPluginUpdate(txnTracker, fixture, &plugin, shutdownEvent) // nothing needs to be cleaned up for TAPs
 }
 
 func TestCreatePodTunnelIPv4PodConfig(t *testing.T) {
 	RegisterTestingT(t)
-	fixture, plugin := newTunnelTestingFixture("TestCreatePodTunnelIPv4PodConfig", 4)
+	fixture, plugin := newTunnelTestingFixture("TestCreatePodTunnelIPv4PodConfig", 4, DT6)
 
 	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
 	expectedTunnelSetup := getExpectedPodTunnelSetup(nodeIP.IP, fixture, plugin)
@@ -501,7 +413,7 @@ func TestCreatePodTunnelIPv4PodConfig(t *testing.T) {
 
 func TestDeletePodTunnelIPv4PodConfig(t *testing.T) {
 	RegisterTestingT(t)
-	fixture, plugin := newTunnelTestingFixture("TestDeletePodTunnelIPv4PodConfig", 4)
+	fixture, plugin := newTunnelTestingFixture("TestDeletePodTunnelIPv4PodConfig", 4, DT6)
 	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
 	expectedTunnelSetup := getExpectedPodTunnelSetup(nodeIP.IP, fixture, plugin)
 	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
@@ -512,7 +424,7 @@ func TestDeletePodTunnelIPv4PodConfig(t *testing.T) {
 
 func TestCreatePodTunnelIPv6(t *testing.T) {
 	RegisterTestingT(t)
-	fixture, plugin := newTunnelTestingFixture("TestCreatePodTunnelIPv6", 6)
+	fixture, plugin := newTunnelTestingFixture("TestCreatePodTunnelIPv6", 6, DT6)
 
 	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
 	expectedTunnelSetup := getExpectedPodTunnelSetup(nodeIP.IP, fixture, plugin)
@@ -525,7 +437,7 @@ func TestCreatePodTunnelIPv6(t *testing.T) {
 
 func TestDeletePodTunnelIPv6(t *testing.T) {
 	RegisterTestingT(t)
-	fixture, plugin := newTunnelTestingFixture("TestDeletePodTunnelIPv6", 6)
+	fixture, plugin := newTunnelTestingFixture("TestDeletePodTunnelIPv6", 6, DT6)
 	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
 	expectedTunnelSetup := getExpectedPodTunnelSetup(nodeIP.IP, fixture, plugin)
 	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
@@ -536,7 +448,7 @@ func TestDeletePodTunnelIPv6(t *testing.T) {
 
 func TestCreateHostTunnelIPv4PodConfig(t *testing.T) {
 	RegisterTestingT(t)
-	fixture, plugin := newTunnelTestingFixture("TestCreateHostTunnelIPv4PodConfig", 4)
+	fixture, plugin := newTunnelTestingFixture("TestCreateHostTunnelIPv4PodConfig", 4, DT6)
 
 	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
 	expectedTunnelSetup := getExpectedHostTunnelSetup(nodeIP.IP, fixture, plugin)
@@ -549,7 +461,7 @@ func TestCreateHostTunnelIPv4PodConfig(t *testing.T) {
 
 func TestDeleteHostTunnelIPv4PodConfig(t *testing.T) {
 	RegisterTestingT(t)
-	fixture, plugin := newTunnelTestingFixture("TestDeleteHostTunnelIPv4PodConfig", 4)
+	fixture, plugin := newTunnelTestingFixture("TestDeleteHostTunnelIPv4PodConfig", 4, DT6)
 	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
 	expectedTunnelSetup := getExpectedHostTunnelSetup(nodeIP.IP, fixture, plugin)
 	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
@@ -560,7 +472,7 @@ func TestDeleteHostTunnelIPv4PodConfig(t *testing.T) {
 
 func TestCreateHostTunnelIPv6(t *testing.T) {
 	RegisterTestingT(t)
-	fixture, plugin := newTunnelTestingFixture("TestCreateHostTunnelIPv6", 6)
+	fixture, plugin := newTunnelTestingFixture("TestCreateHostTunnelIPv6", 6, DT6)
 
 	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
 	expectedTunnelSetup := getExpectedHostTunnelSetup(nodeIP.IP, fixture, plugin)
@@ -573,7 +485,7 @@ func TestCreateHostTunnelIPv6(t *testing.T) {
 
 func TestDeleteHostTunnelIPv6(t *testing.T) {
 	RegisterTestingT(t)
-	fixture, plugin := newTunnelTestingFixture("TestDeleteHostTunnelIPv6", 6)
+	fixture, plugin := newTunnelTestingFixture("TestDeleteHostTunnelIPv6", 6, DT6)
 	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
 	expectedTunnelSetup := getExpectedHostTunnelSetup(nodeIP.IP, fixture, plugin)
 	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
@@ -584,7 +496,7 @@ func TestDeleteHostTunnelIPv6(t *testing.T) {
 
 func TestCreateIntermServiceTunnelIPv4PodConfig(t *testing.T) {
 	RegisterTestingT(t)
-	fixture, plugin := newTunnelTestingFixture("TestCreateIntermServiceTunnelIPv4PodConfig", 4)
+	fixture, plugin := newTunnelTestingFixture("TestCreateIntermServiceTunnelIPv4PodConfig", 4, DT6)
 
 	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
 	expectedTunnelSetup := getExpectedNodeToNodeSegmentSetup(nodeIP.IP, fixture, plugin)
@@ -597,7 +509,7 @@ func TestCreateIntermServiceTunnelIPv4PodConfig(t *testing.T) {
 
 func TestDeleteIntermServiceTunnelIPv4PodConfig(t *testing.T) {
 	RegisterTestingT(t)
-	fixture, plugin := newTunnelTestingFixture("TestDeleteIntermServiceTunnelIPv4PodConfig", 4)
+	fixture, plugin := newTunnelTestingFixture("TestDeleteIntermServiceTunnelIPv4PodConfig", 4, DT6)
 	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
 	expectedTunnelSetup := getExpectedNodeToNodeSegmentSetup(nodeIP.IP, fixture, plugin)
 	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
@@ -608,7 +520,7 @@ func TestDeleteIntermServiceTunnelIPv4PodConfig(t *testing.T) {
 
 func TestCreateIntermServiceTunnelIPv6(t *testing.T) {
 	RegisterTestingT(t)
-	fixture, plugin := newTunnelTestingFixture("TestCreateIntermServiceTunnelIPv6", 6)
+	fixture, plugin := newTunnelTestingFixture("TestCreateIntermServiceTunnelIPv6", 6, DT6)
 
 	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
 	expectedTunnelSetup := getExpectedNodeToNodeSegmentSetup(nodeIP.IP, fixture, plugin)
@@ -621,12 +533,41 @@ func TestCreateIntermServiceTunnelIPv6(t *testing.T) {
 
 func TestDeleteIntermServiceTunnelIPv6(t *testing.T) {
 	RegisterTestingT(t)
-	fixture, plugin := newTunnelTestingFixture("TestDeleteIntermServiceTunnelIPv6", 6)
+	fixture, plugin := newTunnelTestingFixture("TestDeleteIntermServiceTunnelIPv6", 6, DT6)
 	nodeIP := emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
 	expectedTunnelSetup := getExpectedNodeToNodeSegmentSetup(nodeIP.IP, fixture, plugin)
 	addOtherNode(fixture.TxnTracker, fixture.Ipam, fixture.Fixture, plugin, node2ID, node2Name, node2MgmtIP)
 
 	deleteOtherNode(fixture.TxnTracker, fixture.Fixture, plugin, node2Name)
+	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
+}
+
+func TestCreatePodToPodDX6Tunnel(t *testing.T) {
+	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestCreatePodToPodDX6Tunnel", 6, DX6)
+	emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	localPod := addLocalPod(fixture.TxnTracker, fixture.Fixture, plugin, pod1Name, pod1Namespace, pod1Container, pod1Ns)
+	remotePod := addRemotePod(fixture, plugin, pod2Name, pod2Namespace)
+	expectedTunnelSetup := getExpectedPodToPodDX6TunnelSetup(localPod, remotePod, fixture, plugin)
+
+	assertEgress(true, expectedTunnelSetup.egress, fixture.Srv6Handler)
+	assertIngress(true, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
+}
+
+func TestDeletePodToPodDX6Tunnel(t *testing.T) {
+	RegisterTestingT(t)
+	fixture, plugin := newTunnelTestingFixture("TestDeletePodToPodDX6Tunnel", 6, DX6)
+	emptyK8SResync(fixture.TxnTracker, fixture.Ipam, fixture.ContivConf, fixture.Fixture, plugin)
+	localPod := addLocalPod(fixture.TxnTracker, fixture.Fixture, plugin, pod1Name, pod1Namespace, pod1Container, pod1Ns)
+	remotePod := addRemotePod(fixture, plugin, pod2Name, pod2Namespace)
+	expectedTunnelSetup := getExpectedPodToPodDX6TunnelSetup(localPod, remotePod, fixture, plugin)
+
+	deleteLocalPod(fixture.TxnTracker, fixture.Fixture, plugin, localPod.ID)
+	assertEgress(false, expectedTunnelSetup.egress, fixture.Srv6Handler)
+	assertIngress(true, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
+
+	deleteRemotePod(fixture, plugin, pod2Name, pod2Namespace)
+	assertEgress(false, expectedTunnelSetup.egress, fixture.Srv6Handler)
 	assertIngress(false, expectedTunnelSetup.ingress, fixture.Srv6Handler, fixture.RouteHandler)
 }
 
@@ -678,7 +619,12 @@ func newCommonFixture(testName string) *Fixture {
 	return fixture
 }
 
-func newTunnelTestingFixture(testName string, ipVer uint8) (*TunnelTestingFixture, *IPNet) {
+const (
+	DT6 int = iota
+	DX6
+)
+
+func newTunnelTestingFixture(testName string, ipVer uint8, endFunction int) (*TunnelTestingFixture, *IPNet) {
 
 	fixture := newCommonFixture(testName)
 
@@ -708,6 +654,9 @@ func newTunnelTestingFixture(testName string, ipVer uint8) (*TunnelTestingFixtur
 	} else {
 		data.ContivConf.UnitTestDeps = &contivconf.UnitTestDeps{
 			Config: ipVer6TunnelTestingContivConf,
+		}
+		if endFunction == DX6 {
+			data.ContivConf.UnitTestDeps.Config.UseDX6ForSrv6NodetoNodeTransport = true
 		}
 	}
 
@@ -760,6 +709,71 @@ func newTunnelTestingFixture(testName string, ipVer uint8) (*TunnelTestingFixtur
 	data.Datasync.RestartResyncCount()
 	return data, ipNet
 }
+func addLocalPod(txnTracker *localclient.TxnTracker, fixture *Fixture, plugin *IPNet, podName string, podNamespace string, podContainer string, podNs string) *podmanager.LocalPod {
+	fmt.Println("Add pod --------------------------------------------------")
+
+	podID := k8sPod.ID{Name: podName, Namespace: podNamespace}
+	pod := &podmanager.LocalPod{
+		ID:               podID,
+		ContainerID:      podContainer,
+		NetworkNamespace: podNs,
+	}
+	addPodEvent := fixture.PodManager.AddPod(pod)
+	execPluginUpdate(txnTracker, fixture, plugin, addPodEvent)
+
+	return pod
+}
+func deleteLocalPod(txnTracker *localclient.TxnTracker, fixture *Fixture, plugin *IPNet, podID k8sPod.ID) {
+	fmt.Println("Delete pod --------------------------------------------------")
+
+	execPluginUpdate(txnTracker, fixture, plugin, &podmanager.DeletePod{Pod: podID})
+}
+func addRemotePod(fixture *TunnelTestingFixture, plugin *IPNet, podName string, podNamespace string) *podmanager.Pod {
+	fmt.Println("Add remote pod --------------------------------------------------")
+
+	podID := k8sPod.ID{Name: podName, Namespace: podNamespace}
+	podIP, _ := fixture.Ipam.AllocatePodIP(podID, "", "")
+	pod := &podmanager.Pod{
+		ID:        podID,
+		IPAddress: podIP.String(),
+	}
+	fixture.PodManager.AddRemotePod(pod)
+
+	podModel := &podmodel.Pod{
+		IpAddress: podIP.String(),
+	}
+	addPodEvent := fixture.Datasync.PutEvent(podmodel.Key(podName, podNamespace), podModel)
+	execPluginUpdate(fixture.TxnTracker, fixture.Fixture, plugin, addPodEvent)
+
+	return pod
+}
+func deleteRemotePod(fixture *TunnelTestingFixture, plugin *IPNet, podName string, podNamespace string) {
+	fmt.Println("Delete remote pod --------------------------------------------------")
+
+	deletePodEvent := fixture.Datasync.DeleteEvent(podmodel.Key(podName, podNamespace))
+	execPluginUpdate(fixture.TxnTracker, fixture.Fixture, plugin, deletePodEvent)
+}
+
+func execPluginUpdate(txnTracker *localclient.TxnTracker, fixture *Fixture, plugin *IPNet, event controller.Event) {
+	txn := txnTracker.NewControllerTxn(false)
+	_, err := plugin.Update(event, txn)
+	Expect(err).ShouldNot(HaveOccurred())
+	err = commitTransaction(txn, false)
+	Expect(err).ShouldNot(HaveOccurred())
+	fixture.TxnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
+}
+func execPluginResync(txnTracker *localclient.TxnTracker, fixture *Fixture, plugin *IPNet, event controller.Event, kubeState controller.KubeStateData, resyncCount int) {
+	txn := txnTracker.NewControllerTxn(true)
+	err := plugin.Resync(event, kubeState, resyncCount, txn)
+	Expect(err).ShouldNot(HaveOccurred())
+	err = commitTransaction(txn, true)
+	Expect(err).ShouldNot(HaveOccurred())
+	fixture.TxnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
+}
 
 func addOtherNode(txnTracker *localclient.TxnTracker, ipam *ipam.IPAM, fixture *Fixture, plugin *IPNet, otherNodeID uint32, otherNodeName string, otherNodeMgmtIP string) (addr net.IP, network *net.IPNet, mgmt net.IP) {
 	fmt.Println("Add another node -----------------------------------------")
@@ -773,16 +787,7 @@ func addOtherNode(txnTracker *localclient.TxnTracker, ipam *ipam.IPAM, fixture *
 		MgmtIPAddresses: []net.IP{mgmt},
 	}
 	nodeUpdateEvent := fixture.NodeSync.UpdateNode(node2)
-	txn := txnTracker.NewControllerTxn(false)
-	change, err := plugin.Update(nodeUpdateEvent, txn)
-	Expect(err).ShouldNot(HaveOccurred())
-	Expect(change).To(Equal("connect node ID=2"))
-	err = commitTransaction(txn, false)
-	Expect(err).ShouldNot(HaveOccurred())
-	fixture.TxnCount++
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
-
+	execPluginUpdate(txnTracker, fixture, plugin, nodeUpdateEvent)
 	return
 }
 
@@ -792,14 +797,7 @@ func emptyK8SResync(txnTracker *localclient.TxnTracker, ipam *ipam.IPAM, contivC
 	resyncEv, resyncCount := fixture.Datasync.ResyncEvent(keyPrefixes...)
 	Expect(contivConf.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
 	Expect(ipam.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
-	txn := txnTracker.NewControllerTxn(true)
-	err := plugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
-	Expect(err).ShouldNot(HaveOccurred())
-	err = commitTransaction(txn, true)
-	Expect(err).ShouldNot(HaveOccurred())
-	fixture.TxnCount++
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
+	execPluginResync(txnTracker, fixture, plugin, resyncEv, resyncEv.KubeState, resyncCount)
 
 	if plugin.nodeIP == nil {
 		Expect(plugin.nodeIP).To(BeEmpty())
@@ -819,15 +817,7 @@ func deleteOtherNode(txnTracker *localclient.TxnTracker, fixture *Fixture, plugi
 	fmt.Println("Delete node ----------------------------------------------")
 
 	nodeUpdateEvent := fixture.NodeSync.DeleteNode(nodeName)
-	txn := txnTracker.NewControllerTxn(false)
-	change, err := plugin.Update(nodeUpdateEvent, txn)
-	Expect(err).ShouldNot(HaveOccurred())
-	Expect(change).To(Equal("disconnect node ID=2"))
-	err = commitTransaction(txn, false)
-	Expect(err).ShouldNot(HaveOccurred())
-	fixture.TxnCount++
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(fixture.TxnCount))
+	execPluginUpdate(txnTracker, fixture, plugin, nodeUpdateEvent)
 }
 
 type Ingress struct {
@@ -1024,6 +1014,63 @@ func getExpectedNodeToNodeSegmentSetup(nodeIP net.IP, fixture *TunnelTestingFixt
 		Sid:               fixture.Ipam.SidForServiceNodeLocalsid(nodeIP).String(),
 		InstallationVrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
 		EndFunction:       &vpp_srv6.LocalSID_BaseEndFunction{BaseEndFunction: &vpp_srv6.LocalSID_End{}},
+	}
+
+	return expectedSetup
+}
+
+func getExpectedPodToPodDX6TunnelSetup(localPod *podmanager.LocalPod, remotePod *podmanager.Pod, fixture *TunnelTestingFixture, plugin *IPNet) TunnelSetup {
+	expectedSetup := TunnelSetup{
+		ingress: &Ingress{},
+	}
+	remotePodIP := net.ParseIP(remotePod.IPAddress)
+	podSteeringNetwork, err := addFullPrefixToIP(remotePodIP)
+	Expect(err).ShouldNot(HaveOccurred())
+	bsid := plugin.IPAM.BsidForNodeToNodePodPolicy(remotePodIP)
+	sid := plugin.IPAM.SidForNodeToNodePodLocalsid(remotePodIP)
+
+	nodeID, err := plugin.IPAM.NodeIDFromPodIP(remotePodIP)
+	Expect(err).ShouldNot(HaveOccurred())
+	nodeIP, _, err := plugin.IPAM.NodeIPAddress(nodeID)
+	Expect(err).ShouldNot(HaveOccurred())
+
+	// policy
+	expectedSetup.ingress.policy = &vpp_srv6.Policy{
+		Bsid:             bsid.String(),
+		SprayBehaviour:   false,
+		SrhEncapsulation: true,
+		SegmentLists: []*vpp_srv6.Policy_SegmentList{
+			{
+				Weight:   1,
+				Segments: []string{sid.String()},
+			},
+		},
+	}
+
+	// steerings
+	expectedSetup.ingress.steerings = []*vpp_srv6.Steering{
+		getSteering(podSteeringNetwork, bsid, "podCrossconnection", fixture.ContivConf.GetRoutingConfig().MainVRFID),
+	}
+
+	_, ipNet, err := net.ParseCIDR(sid.To16().String() + "/128")
+	Expect(err).ShouldNot(HaveOccurred())
+	expectedSetup.ingress.route = &vpp_l3.Route{
+		DstNetwork:  ipNet.String(),
+		NextHopAddr: nodeIP.String(),
+		VrfId:       fixture.ContivConf.GetRoutingConfig().MainVRFID,
+	}
+
+	// egress
+	podIP := plugin.IPAM.GetPodIP(localPod.ID)
+	podSid := plugin.IPAM.SidForNodeToNodePodLocalsid(podIP.IP)
+	_, vppTap := plugin.podVPPTap(localPod, podIP, "")
+	expectedSetup.egress = &vpp_srv6.LocalSID{
+		Sid:               podSid.String(),
+		InstallationVrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
+		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+			OutgoingInterface: vppTap.Name,
+			NextHop:           podIP.IP.String(),
+		}},
 	}
 
 	return expectedSetup

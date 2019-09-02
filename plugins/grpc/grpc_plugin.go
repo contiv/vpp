@@ -25,15 +25,6 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
 
-	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
-	"github.com/ligato/vpp-agent/api/models/linux/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/acl"
-	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
-	"github.com/ligato/vpp-agent/api/models/vpp/l2"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	"github.com/ligato/vpp-agent/api/models/vpp/punt"
 	"github.com/ligato/vpp-agent/pkg/models"
 )
 
@@ -232,75 +223,75 @@ func (svc *ResyncSvc) resyncDB(resyncCfg controller.KeyValuePairs) error {
 func buildConfig(data *rpc.DataRequest, delete bool) controller.KeyValuePairs {
 	extConfig := make(controller.KeyValuePairs)
 	for _, item := range data.AccessLists {
-		key := vpp_acl.Key(item.Name)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	for _, item := range data.Interfaces {
-		key := vpp_interfaces.InterfaceKey(item.Name)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	for _, item := range data.BridgeDomains {
-		key := vpp_l2.BridgeDomainKey(item.Name)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	for _, item := range data.FIBs {
-		key := vpp_l2.FIBKey(item.BridgeDomain, item.PhysAddress)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	for _, item := range data.XCons {
-		key := vpp_l2.XConnectKey(item.ReceiveInterface)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	for _, item := range data.StaticRoutes {
-		key := vpp_l3.RouteKey(item.VrfId, item.DstNetwork, item.NextHopAddr)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	for _, item := range data.ArpEntries {
-		key := vpp_l3.ArpEntryKey(item.Interface, item.IpAddress)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	if data.ProxyArp != nil {
-		key := vpp_l3.ProxyARPKey()
+		key := models.Key(data.ProxyArp)
 		extConfig[key] = data.ProxyArp
 	}
 	if data.IPScanNeighbor != nil {
-		key := vpp_l3.IPScanNeighborKey()
+		key := models.Key(data.IPScanNeighbor)
 		extConfig[key] = data.IPScanNeighbor
 	}
 	for _, item := range data.SAs {
-		key := vpp_ipsec.SAKey(item.Index)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	for _, item := range data.SPDs {
-		key := vpp_ipsec.SPDKey(item.Index)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	for _, item := range data.IPRedirectPunts {
-		key := vpp_punt.IPRedirectKey(item.L3Protocol, item.TxInterface)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	for _, item := range data.ToHostPunts {
-		key := vpp_punt.ToHostKey(item.L3Protocol, item.L4Protocol, item.Port)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	if data.NatGlobal != nil {
-		key := vpp_nat.GlobalNAT44Key()
+		key := models.Key(data.NatGlobal)
 		extConfig[key] = data.NatGlobal
 	}
 	for _, item := range data.DNATs {
-		key := vpp_nat.DNAT44Key(item.Label)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	for _, item := range data.LinuxInterfaces {
-		key := linux_interfaces.InterfaceKey(item.Name)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	for _, item := range data.LinuxArpEntries {
-		key := linux_l3.ArpKey(item.Interface, item.IpAddress)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 	for _, item := range data.LinuxRoutes {
-		key := linux_l3.RouteKey(item.DstNetwork, item.OutgoingInterface)
+		key := models.Key(item)
 		extConfig[key] = item
 	}
 

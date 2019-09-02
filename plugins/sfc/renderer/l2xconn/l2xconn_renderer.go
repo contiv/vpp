@@ -27,6 +27,7 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipnet"
+	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/sfc/config"
 	"github.com/contiv/vpp/plugins/sfc/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
@@ -44,6 +45,7 @@ type Deps struct {
 	ContivConf       contivconf.API
 	IPAM             ipam.API
 	IPNet            ipnet.API
+	NodeSync         nodesync.API
 	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
 	Stats            statscollector.API /* used for exporting the statistics */
@@ -138,7 +140,7 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 				xconnect := rndr.crossConnectIfaces(iface, prevIface)
 				rndr.mergeConfiguration(config, xconnect)
 
-			} else if rndr.isNodeLocalSF(sf) || rndr.isNodeLocalSF(prevSF) {
+			} else if rndr.shouldChainToRemoteSF(prevSF, sf) {
 				// one of the SFs (prevSF or SF) is local and the other not - use VXLAN to interconnect between them
 				// allocate a VNI for this SF interconnection - each SF may need an exclusive VNI
 				vxlanName := fmt.Sprintf("sfc-%s-%d", sfc.Name, sfIdx)
@@ -171,6 +173,37 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 	return config
 }
 
+// shouldChainToRemoteSF returns true if a local and a remote SFs should be chained together.
+func (rndr *Renderer) shouldChainToRemoteSF(sf1, sf2 *renderer.ServiceFunction) bool {
+
+	// do not chain if none of the SFs is local
+	if !rndr.isNodeLocalSF(sf1) && !rndr.isNodeLocalSF(sf2) {
+		return false
+	}
+
+	// if there is another node where both SFs are present, do not chain
+	sf1NodeIDs := rndr.getSFNodeIDs(sf1)
+	sf2NodeIDs := rndr.getSFNodeIDs(sf2)
+	for _, nodeID := range sf1NodeIDs {
+		if sliceContains(sf2NodeIDs, nodeID) {
+			return false
+		}
+	}
+
+	// if there is a node with the SF and lower node ID than ours, do not chain
+	nodeIDs := sf1NodeIDs
+	if !rndr.isNodeLocalSF(sf1) {
+		nodeIDs = sf2NodeIDs
+	}
+	for _, nodeID := range nodeIDs {
+		if nodeID < rndr.NodeSync.GetNodeID() {
+			return false
+		}
+	}
+
+	return true // otherwise chain
+}
+
 // getPreferredSFPod returns a pod of a SF that is preferred to chain with.
 func (rndr *Renderer) getPreferredSFPod(sf *renderer.ServiceFunction) *renderer.PodSF {
 	if len(sf.Pods) == 0 {
@@ -182,8 +215,16 @@ func (rndr *Renderer) getPreferredSFPod(sf *renderer.ServiceFunction) *renderer.
 			return pod
 		}
 	}
-	// otherwise use the first pod
-	return sf.Pods[0]
+	// otherwise use the pod with lowest node ID
+	var preferedPod *renderer.PodSF
+	lowestID := ^uint32(0)
+	for _, pod := range sf.Pods {
+		if pod.NodeID < lowestID {
+			preferedPod = pod
+			lowestID = pod.NodeID
+		}
+	}
+	return preferedPod
 }
 
 // getPreferredSFPod returns an external interface of a SF that is preferred to chain with.
@@ -197,8 +238,16 @@ func (rndr *Renderer) getPreferredSFInterface(sf *renderer.ServiceFunction) *ren
 			return iface
 		}
 	}
-	// otherwise use the first interface
-	return sf.ExternalInterfaces[0]
+	// otherwise use the interface with lowest node ID
+	var preferedIf *renderer.InterfaceSF
+	lowestID := ^uint32(0)
+	for _, iface := range sf.ExternalInterfaces {
+		if iface.NodeID < lowestID {
+			preferedIf = iface
+			lowestID = iface.NodeID
+		}
+	}
+	return preferedIf
 }
 
 // getSFInterface returns a service function input/output interface which should be used for chaining.
@@ -262,6 +311,22 @@ func (rndr *Renderer) isNodeLocalSF(sf *renderer.ServiceFunction) bool {
 		return iface.Local
 	}
 	return false
+}
+
+// getSFNodeIDs returns list of node IDs with the instances of the provided service function.
+func (rndr *Renderer) getSFNodeIDs(sf *renderer.ServiceFunction) (nodeIDs []uint32) {
+	switch sf.Type {
+	case renderer.Pod:
+		for _, pod := range sf.Pods {
+			nodeIDs = sliceAppendIfNotExists(nodeIDs, pod.NodeID)
+		}
+
+	case renderer.ExternalInterface:
+		for _, extIf := range sf.ExternalInterfaces {
+			nodeIDs = sliceAppendIfNotExists(nodeIDs, extIf.NodeID)
+		}
+	}
+	return
 }
 
 // crossConnectIfaces returns the config for cross-connecting the given interfaces in both directions.
@@ -334,4 +399,22 @@ func (rndr *Renderer) getOrAllocateVxlanVNI(vxlanName string) (vni uint32, err e
 		rndr.Log.Errorf("VNI allocation error: %v", err)
 	}
 	return vni, err
+}
+
+// sliceContains returns true if provided slice contains provided value, false otherwise.
+func sliceContains(slice []uint32, value uint32) bool {
+	for _, i := range slice {
+		if i == value {
+			return true
+		}
+	}
+	return false
+}
+
+// sliceAppendIfNotExists adds an item into the provided slice (if it does not already exists in the slice).
+func sliceAppendIfNotExists(slice []uint32, value uint32) []uint32 {
+	if !sliceContains(slice, value) {
+		slice = append(slice, value)
+	}
+	return slice
 }

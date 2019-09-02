@@ -103,6 +103,7 @@ func (p *Plugin) Init() error {
 			ContivConf: p.ContivConf,
 			IPAM:       p.IPAM,
 			IPNet:      p.IPNet,
+			NodeSync:   p.NodeSync,
 			UpdateTxnFactory: func(change string) controller.UpdateOperations {
 				p.changes = append(p.changes, change)
 				return p.updateTxn

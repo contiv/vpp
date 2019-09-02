@@ -89,7 +89,7 @@ const (
 	defaultPermanentlyRecordedInitPeriod = 60 // in minutes
 
 	// by default, verification of the state consistency of Contiv plugins is disabled
-	defaultEnableVerification = true
+	defaultEnableVerification = false
 )
 
 // WithInternalData *can* be implemented by event handlers that have internal data.

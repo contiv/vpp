@@ -33,6 +33,7 @@ import (
 	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
 	"github.com/ligato/vpp-agent/api/models/linux/namespace"
+	"github.com/ligato/vpp-agent/api/models/netalloc"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
 	"github.com/ligato/vpp-agent/pkg/models"
@@ -68,6 +69,9 @@ const (
 
 	// network name dedicated to the default pod network
 	defaultNetworkName = "default"
+
+	// prefix attached to custom network names inside IP allocations exposed by Contiv for CNFs
+	ipAllocNetPrefix = "contiv-"
 )
 
 const (
@@ -112,7 +116,7 @@ func (n *IPNet) podConnectivityConfig(pod *podmanager.LocalPod) (config controll
 		// TAP
 		key, vppTap := n.podVPPTap(pod, podIP, "")
 		config[key] = vppTap
-		key, linuxTap := n.podLinuxTAP(pod, podIP, "")
+		key, linuxTap := n.podLinuxTAP(pod, podIP, "", false)
 		config[key] = linuxTap
 		vppInterfaceToPod = vppTap.Name
 	} else {
@@ -258,6 +262,10 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 				k, memif := n.podMicroserviceMemif(pod, podIP, customIf.ifName, memifInfo, memifID)
 				microserviceConfig[k] = memif
 				if podIP != nil {
+					// TODO: get rid of this once netalloc is fully integrated with VPP plugins
+					// (VPP routes, ARPs and Mac address allocations TBD).
+					// - with multiple memif interfaces we cannot have multiple default GWs - let the
+					//   CNF to build the configuration using IP address obtained via netalloc
 					k, arp := n.podMicroserviceGatewayARP(pod, customIf.ifName, customIf.ifType)
 					microserviceConfig[k] = arp
 					k, route := n.podMicroserviceDefaultRoute(pod, customIf.ifName, customIf.ifType)
@@ -270,8 +278,15 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 			// handle custom tap interface
 			key, vppTap := n.podVPPTap(pod, podIP, customIf.ifName)
 			config[key] = vppTap
-			key, linuxTap := n.podLinuxTAP(pod, podIP, customIf.ifName)
+			key, linuxTap := n.podLinuxTAP(pod, podIP, customIf.ifName, serviceLabel != "")
 			config[key] = linuxTap
+			if serviceLabel != "" {
+				// if microservice is defined, it is assumed that a ligato-based CNF is running
+				// inside the pod and the non-link side of the interface will be managed
+				// by the agent of that CNF
+				k, iface := n.podMicroserviceLinuxIface(pod, podIP, customIf.ifName)
+				microserviceConfig[k] = iface
+			}
 
 		case vethIfType:
 			// handle custom veth interface
@@ -281,10 +296,23 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 			config[key] = veth2
 			key, afpacket := n.podAfPacket(pod, podIP, customIf.ifName)
 			config[key] = afpacket
+			if serviceLabel != "" {
+				// for explanation see the TAP case above
+				k, iface := n.podMicroserviceLinuxIface(pod, podIP, customIf.ifName)
+				microserviceConfig[k] = iface
+			}
 
 		default:
 			n.Log.Warnf("Unsupported custom interface type %s, skipping", customIf.ifType)
 			continue
+		}
+
+		if podIP != nil {
+			// expose IP address to the pod via netalloc plugin
+			//  - ligato-based CNF can reference the allocated IP from inside of VPP/Linux models
+			//  - non-ligato CNF can read the allocated IP from etcd
+			k, alloc := n.podMicroserviceIPAlloc(podIP, customIf.ifName, customIf.ifNet)
+			microserviceConfig[k] = alloc
 		}
 
 		if podIP != nil {
@@ -520,7 +548,7 @@ func (n *IPNet) podVPPTap(pod *podmanager.LocalPod, podIP *net.IPNet, customIfNa
 
 // podLinuxTAP returns the configuration for TAP interface on the Linux side
 // connecting a given Pod to VPP.
-func (n *IPNet) podLinuxTAP(pod *podmanager.LocalPod, ip *net.IPNet, customIfName string) (key string, config *linux_interfaces.Interface) {
+func (n *IPNet) podLinuxTAP(pod *podmanager.LocalPod, ip *net.IPNet, customIfName string, linkOnly bool) (key string, config *linux_interfaces.Interface) {
 	tap := &linux_interfaces.Interface{
 		Name:        n.podLinuxSideTAPName(pod, customIfName),
 		Type:        linux_interfaces.Interface_TAP_TO_VPP,
@@ -747,6 +775,21 @@ func (n *IPNet) podMicroserviceMemif(pod *podmanager.LocalPod, ip *net.IPNet, if
 	return key, memif
 }
 
+// podMicroserviceTapOrVeth returns the configuration for Linux interface (TAP or VETH) on the Pod (microservice) side.
+func (n *IPNet) podMicroserviceLinuxIface(ip *net.IPNet, ifName string) (key string, config *linux_interfaces.Interface) {
+	tap := &linux_interfaces.Interface{
+		Name:       ifName,
+		Type:       linux_interfaces.Interface_EXISTING,
+		Enabled:    true,
+		HostIfName: ifName,
+	}
+	if ip != nil {
+		tap.IpAddresses = []string{ip.String()}
+	}
+	key = linux_interfaces.InterfaceKey(tap.Name)
+	return key, tap
+}
+
 // podMicroserviceGatewayARP returns configuration for a static arp entry for the default gateway of the Pod (microservice).
 func (n *IPNet) podMicroserviceGatewayARP(pod *podmanager.LocalPod, customIfName, customIfType string) (key string, config *vpp_l3.ARPEntry) {
 	_, ifName := n.podInterfaceName(pod, customIfName, customIfType)
@@ -770,6 +813,18 @@ func (n *IPNet) podMicroserviceDefaultRoute(pod *podmanager.LocalPod, customIfNa
 	}
 	key = models.Key(route)
 	return key, route
+}
+
+func (n *IPNet) podMicroserviceIPAlloc(podIP *net.IPNet, ifName string, network string) (key string, config *netalloc.IPAllocation) {
+	netLabel := ipAllocNetPrefix + network
+	alloc := &netalloc.IPAllocation{
+		NetworkName:   netLabel,
+		InterfaceName: ifName,
+		Address:       podIP.String(),
+		Gw:            n.IPAM.PodGatewayIP().String() + hostPrefixForAF(n.IPAM.PodGatewayIP()),
+	}
+	key = models.Key(alloc)
+	return key, alloc
 }
 
 /***************************** Pod ARPs and routes *****************************/

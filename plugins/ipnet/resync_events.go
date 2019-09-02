@@ -82,7 +82,7 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 			if n.IPAM.GetPodIP(pod.ID) == nil {
 				continue
 			}
-			vppIfName, _ := n.podInterfaceName(pod, "", "")
+			vppIfName, _, _ := n.podInterfaceName(pod, "", "")
 			n.vppIfaceToPod[vppIfName] = pod.ID
 		}
 		n.vppIfaceToPodMutex.Unlock()

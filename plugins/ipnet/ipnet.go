@@ -343,7 +343,7 @@ func (n *IPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, l
 	// check that the pod is attached to VPP network stack
 	n.vppIfaceToPodMutex.RLock()
 	defer n.vppIfaceToPodMutex.RUnlock()
-	vppIfName, linuxIfName = n.podInterfaceName(pod, "", "")
+	vppIfName, linuxIfName, _ = n.podInterfaceName(pod, "", "")
 	loopIfName = n.podLinuxLoopName(pod)
 	_, configured := n.vppIfaceToPod[vppIfName]
 	if !configured {
@@ -368,7 +368,7 @@ func (n *IPNet) GetPodCustomIfName(podNamespace, podName, customIfName string) (
 		return "", false
 	}
 
-	ifName, _ = n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
+	ifName, _, _ = n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
 	return ifName, true
 }
 

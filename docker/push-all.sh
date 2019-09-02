@@ -150,6 +150,7 @@ then
     docker images | fgrep "${TAG}" | awk '{print $3}' | sort -u | xargs docker rmi -f || true
     docker images | fgrep "${VPP}" | awk '{print $3}' | sort -u | xargs docker rmi -f || true
 fi
+
 #Before push, 'docker login' is needed
 push_multi_arch(){
 

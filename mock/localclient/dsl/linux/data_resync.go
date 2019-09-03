@@ -89,6 +89,13 @@ func (d *MockDataResyncDSL) StaticRoute(val *vpp_l3.Route) linuxclient.DataResyn
 	return d
 }
 
+// Span adds VPP span to the RESYNC request.
+func (d *MockDataResyncDSL) Span(val *vpp_interfaces.Span) linuxclient.DataResyncDSL {
+	key := vpp_interfaces.SpanKey(val.InterfaceFrom, val.InterfaceTo)
+	d.Values[key] = val
+	return d
+}
+
 // ACL adds VPP Access Control List to the mock RESYNC request.
 func (d *MockDataResyncDSL) ACL(val *vpp_acl.ACL) linuxclient.DataResyncDSL {
 	key := vpp_acl.Key(val.Name)

@@ -752,8 +752,8 @@
   version = "v1.14.1"
 
 [[projects]]
-  branch = "dev"
-  digest = "1:133f65c1b59df3dc749deb5fc9361e4aead1913840105e65bf291127f57fcf2e"
+  branch = "master"
+  digest = "1:aa00e0d1437bf3fcd7a14a2045ae96a39a80b30242fe42d413ec2896debb5bb9"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -793,11 +793,10 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "0af3fde9febd1315467b2f2367ef5beb814dc21a"
+  revision = "61443bee9914521191283f41c8715c41aaaa47f4"
 
 [[projects]]
-  branch = "dev"
-  digest = "1:3fa1435ea1c03aec68b337454375b16c9ccb91ef3c0bab3aeadac4d003e65e17"
+  digest = "1:4a42689cfdad63602428befc56103c35b257ac58c3f70b75d92e4065f22ae6fe"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -880,6 +879,7 @@
     "plugins/vpp/binapi/vpp1901/memif",
     "plugins/vpp/binapi/vpp1901/nat",
     "plugins/vpp/binapi/vpp1901/punt",
+    "plugins/vpp/binapi/vpp1901/span",
     "plugins/vpp/binapi/vpp1901/sr",
     "plugins/vpp/binapi/vpp1901/stn",
     "plugins/vpp/binapi/vpp1901/tap",
@@ -899,6 +899,7 @@
     "plugins/vpp/binapi/vpp1904/memif",
     "plugins/vpp/binapi/vpp1904/nat",
     "plugins/vpp/binapi/vpp1904/punt",
+    "plugins/vpp/binapi/vpp1904/span",
     "plugins/vpp/binapi/vpp1904/sr",
     "plugins/vpp/binapi/vpp1904/stn",
     "plugins/vpp/binapi/vpp1904/tapv2",
@@ -917,6 +918,7 @@
     "plugins/vpp/binapi/vpp1908/memif",
     "plugins/vpp/binapi/vpp1908/nat",
     "plugins/vpp/binapi/vpp1908/punt",
+    "plugins/vpp/binapi/vpp1908/span",
     "plugins/vpp/binapi/vpp1908/sr",
     "plugins/vpp/binapi/vpp1908/stn",
     "plugins/vpp/binapi/vpp1908/tapv2",
@@ -977,7 +979,8 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1908",
   ]
   pruneopts = "UT"
-  revision = "5374c7930abfb1d7506da0896df57326354d86ad"
+  revision = "8cdc8da9b3b5aab68d6897487a665eacf54248a4"
+  version = "v2.2.0"
 
 [[projects]]
   branch = "master"
@@ -1901,10 +1904,13 @@
     "github.com/ligato/cn-infra/rpc/rest",
     "github.com/ligato/cn-infra/servicelabel",
     "github.com/ligato/cn-infra/utils/safeclose",
+    "github.com/ligato/vpp-agent/api/genericmanager",
+    "github.com/ligato/vpp-agent/api/models/linux",
     "github.com/ligato/vpp-agent/api/models/linux/interfaces",
     "github.com/ligato/vpp-agent/api/models/linux/iptables",
     "github.com/ligato/vpp-agent/api/models/linux/l3",
     "github.com/ligato/vpp-agent/api/models/linux/namespace",
+    "github.com/ligato/vpp-agent/api/models/vpp",
     "github.com/ligato/vpp-agent/api/models/vpp/abf",
     "github.com/ligato/vpp-agent/api/models/vpp/acl",
     "github.com/ligato/vpp-agent/api/models/vpp/interfaces",

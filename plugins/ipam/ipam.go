@@ -150,24 +150,7 @@ type Deps struct {
 	ServiceLabel servicelabel.ReaderAPI
 	EventLoop    controller.EventLoop
 	HTTPHandlers rest.HTTPHandlers
-	RemoteDB     ClusterWideDB
-}
-
-// ClusterWideDB defines API that a DB client must provide for IPAM to be able
-// to do cluster-wide allocations and persist them.
-type ClusterWideDB interface {
-	// OnConnect registers callback to be triggered once the (first) connection
-	// to DB is established. If the connection is already established, the callback
-	// should be called immediately (synchronously).
-	OnConnect(callback func() error)
-	// NewBroker creates a new instance of DB broker prefixing all keys with the
-	// given prefix.
-	NewBroker(prefix string) keyval.ProtoBroker
-	// PutIfNotExists atomically puts given key-value pair into DB if there
-	// is no value set for the key.
-	PutIfNotExists(key string, value []byte) (succeeded bool, err error)
-	// Close closes connection to DB and releases all allocated resources.
-	Close() error
+	RemoteDB     nodesync.KVDBWithAtomic
 }
 
 // Init initializes the REST handlers of the plugin.
@@ -1202,7 +1185,8 @@ func (i *IPAM) dbPutIfNotExists(key string, val proto.Message) (succeeded bool, 
 		return false, err
 	}
 	ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
-	return i.RemoteDB.PutIfNotExists(ksrPrefix+key, encoded)
+	broker := i.RemoteDB.NewBrokerWithAtomic(ksrPrefix)
+	return broker.PutIfNotExists(key, encoded)
 }
 
 func isIPv6Net(network *net.IPNet) bool {

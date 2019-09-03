@@ -11,13 +11,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:dcc5ddb4f84cd78e013cbcf480d8e0f255b57d3c75467bab562f24352555ee38"
+  digest = "1:4ea66dee9c95fea3f3935c99e159c0b5ab20d774ee8e0f678f41dbf09f702094"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
     "adapter/mock",
     "adapter/mock/binapi",
     "adapter/socketclient",
+    "adapter/statsclient",
     "adapter/vppapiclient",
     "api",
     "codec",
@@ -25,7 +26,7 @@
     "examples/binapi/memclnt",
   ]
   pruneopts = "UT"
-  revision = "c4522fe10317b1729a0820dc880afc78c663f64d"
+  revision = "ca6003af1a7e1adb7d45879c2d5038bc05c2bb1a"
 
 [[projects]]
   branch = "master"
@@ -436,6 +437,14 @@
   version = "v1.2.2"
 
 [[projects]]
+  branch = "master"
+  digest = "1:ea797b536b154f62d2e1c49b61d5a1088782111563eb59837ff2b83fd2a65184"
+  name = "github.com/ftrvxmtrx/fd"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c6d800382fff6dc1412f34269f71b7f83bd059ad"
+
+[[projects]]
   digest = "1:0594af97b2f4cec6554086eeace6597e20a4b69466eb4ada25adf9f4300dddd2"
   name = "github.com/garyburd/redigo"
   packages = [
@@ -743,8 +752,8 @@
   version = "v1.14.1"
 
 [[projects]]
-  branch = "dev"
-  digest = "1:133f65c1b59df3dc749deb5fc9361e4aead1913840105e65bf291127f57fcf2e"
+  branch = "master"
+  digest = "1:aa00e0d1437bf3fcd7a14a2045ae96a39a80b30242fe42d413ec2896debb5bb9"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -784,11 +793,10 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "0af3fde9febd1315467b2f2367ef5beb814dc21a"
+  revision = "61443bee9914521191283f41c8715c41aaaa47f4"
 
 [[projects]]
-  branch = "dev"
-  digest = "1:39e757ca2b0996309c8cd8b7c90df87226092cf639d3c2b97fe5031158a30a20"
+  digest = "1:4a42689cfdad63602428befc56103c35b257ac58c3f70b75d92e4065f22ae6fe"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -871,6 +879,7 @@
     "plugins/vpp/binapi/vpp1901/memif",
     "plugins/vpp/binapi/vpp1901/nat",
     "plugins/vpp/binapi/vpp1901/punt",
+    "plugins/vpp/binapi/vpp1901/span",
     "plugins/vpp/binapi/vpp1901/sr",
     "plugins/vpp/binapi/vpp1901/stn",
     "plugins/vpp/binapi/vpp1901/tap",
@@ -890,7 +899,7 @@
     "plugins/vpp/binapi/vpp1904/memif",
     "plugins/vpp/binapi/vpp1904/nat",
     "plugins/vpp/binapi/vpp1904/punt",
-    "plugins/vpp/binapi/vpp1904/session",
+    "plugins/vpp/binapi/vpp1904/span",
     "plugins/vpp/binapi/vpp1904/sr",
     "plugins/vpp/binapi/vpp1904/stn",
     "plugins/vpp/binapi/vpp1904/tapv2",
@@ -909,6 +918,7 @@
     "plugins/vpp/binapi/vpp1908/memif",
     "plugins/vpp/binapi/vpp1908/nat",
     "plugins/vpp/binapi/vpp1908/punt",
+    "plugins/vpp/binapi/vpp1908/span",
     "plugins/vpp/binapi/vpp1908/sr",
     "plugins/vpp/binapi/vpp1908/stn",
     "plugins/vpp/binapi/vpp1908/tapv2",
@@ -938,6 +948,7 @@
     "plugins/vpp/l3plugin/vppcalls/vpp1901",
     "plugins/vpp/l3plugin/vppcalls/vpp1904",
     "plugins/vpp/l3plugin/vppcalls/vpp1908",
+    "plugins/vpp/l3plugin/vrfidx",
     "plugins/vpp/natplugin",
     "plugins/vpp/natplugin/descriptor",
     "plugins/vpp/natplugin/descriptor/adapter",
@@ -968,7 +979,8 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1908",
   ]
   pruneopts = "UT"
-  revision = "b98498f53aa55984725de3f7b60f5cbd886de30a"
+  revision = "8cdc8da9b3b5aab68d6897487a665eacf54248a4"
+  version = "v2.2.0"
 
 [[projects]]
   branch = "master"
@@ -1847,10 +1859,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "git.fd.io/govpp.git/adapter/mock",
     "git.fd.io/govpp.git/api",
-    "git.fd.io/govpp.git/codec",
-    "git.fd.io/govpp.git/core",
     "github.com/apparentlymart/go-cidr/cidr",
     "github.com/containernetworking/cni/pkg/skel",
     "github.com/containernetworking/cni/pkg/types",
@@ -1895,10 +1904,13 @@
     "github.com/ligato/cn-infra/rpc/rest",
     "github.com/ligato/cn-infra/servicelabel",
     "github.com/ligato/cn-infra/utils/safeclose",
+    "github.com/ligato/vpp-agent/api/genericmanager",
+    "github.com/ligato/vpp-agent/api/models/linux",
     "github.com/ligato/vpp-agent/api/models/linux/interfaces",
     "github.com/ligato/vpp-agent/api/models/linux/iptables",
     "github.com/ligato/vpp-agent/api/models/linux/l3",
     "github.com/ligato/vpp-agent/api/models/linux/namespace",
+    "github.com/ligato/vpp-agent/api/models/vpp",
     "github.com/ligato/vpp-agent/api/models/vpp/abf",
     "github.com/ligato/vpp-agent/api/models/vpp/acl",
     "github.com/ligato/vpp-agent/api/models/vpp/interfaces",
@@ -1927,9 +1939,8 @@
     "github.com/ligato/vpp-agent/plugins/restapi/resturl",
     "github.com/ligato/vpp-agent/plugins/telemetry",
     "github.com/ligato/vpp-agent/plugins/vpp/aclplugin",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/nat",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/session",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/vpe",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/nat",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx",

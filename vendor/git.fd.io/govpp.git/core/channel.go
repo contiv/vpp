@@ -21,8 +21,9 @@ import (
 	"strings"
 	"time"
 
-	"git.fd.io/govpp.git/api"
 	"github.com/sirupsen/logrus"
+
+	"git.fd.io/govpp.git/api"
 )
 
 var (
@@ -144,6 +145,7 @@ func (ch *Channel) SendMultiRequest(msg api.Message) api.MultiRequestCtx {
 
 func (ch *Channel) CheckCompatiblity(msgs ...api.Message) error {
 	for _, msg := range msgs {
+		// TODO: collect all incompatible messages and return summarized error
 		_, err := ch.msgIdentifier.GetMessageID(msg)
 		if err != nil {
 			return err
@@ -255,17 +257,23 @@ func (ch *Channel) receiveReplyInternal(msg api.Message, expSeqNum uint16) (last
 		case vppReply := <-ch.replyChan:
 			ignore, lastReplyReceived, err = ch.processReply(vppReply, expSeqNum, msg)
 			if ignore {
-				logrus.Warnf("ignoring reply: %+v", vppReply)
+				log.WithFields(logrus.Fields{
+					"expSeqNum": expSeqNum,
+					"channel":   ch.id,
+				}).Warnf("ignoring received reply: %+v (expecting: %s)", vppReply, msg.GetMessageName())
 				continue
 			}
 			return lastReplyReceived, err
 
 		case <-timer.C:
+			log.WithFields(logrus.Fields{
+				"expSeqNum": expSeqNum,
+				"channel":   ch.id,
+			}).Debugf("timeout (%v) waiting for reply: %s", ch.replyTimeout, msg.GetMessageName())
 			err = fmt.Errorf("no reply received within the timeout period %s", ch.replyTimeout)
 			return false, err
 		}
 	}
-	return
 }
 
 func (ch *Channel) processReply(reply *vppReply, expSeqNum uint16, msg api.Message) (ignore bool, lastReplyReceived bool, err error) {
@@ -273,7 +281,7 @@ func (ch *Channel) processReply(reply *vppReply, expSeqNum uint16, msg api.Messa
 	cmpSeqNums := compareSeqNumbers(reply.seqNum, expSeqNum)
 	if cmpSeqNums == -1 {
 		// reply received too late, ignore the message
-		logrus.WithField("seqNum", reply.seqNum).
+		log.WithField("seqNum", reply.seqNum).
 			Warn("Received reply to an already closed binary API request")
 		ignore = true
 		return

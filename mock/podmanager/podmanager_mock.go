@@ -55,6 +55,11 @@ func (m *MockPodManager) AddPod(pod *podmanager.LocalPod) *podmanager.AddPod {
 	}
 }
 
+// AddRemotePod adds remote pod in podmanager
+func (m *MockPodManager) AddRemotePod(pod *podmanager.Pod) {
+	m.pods[pod.ID] = pod
+}
+
 // DeletePod allows to simulate DeletePod event.
 func (m *MockPodManager) DeletePod(podID podmodel.ID) *podmanager.DeletePod {
 	delete(m.localPods, podID)

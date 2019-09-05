@@ -752,8 +752,8 @@
   version = "v1.14.1"
 
 [[projects]]
-  branch = "dev"
-  digest = "1:33c5b0dd948efedea3ad9cc5b7af1332ec9a5b2a6140f671ba351d42415ab352"
+  branch = "master"
+  digest = "1:e89101f51056614dec30e786e7a9aa9f743098e9d0972b149ad6ef71c205f19f"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -793,12 +793,11 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "d21e9619ebe2152154ea597b9c35977139aed4b6"
-  source = "github.com/milanlenco/cn-infra"
+  revision = "9bb0e395ce981f921420130be6d13a1582ed99f1"
 
 [[projects]]
   branch = "netalloc"
-  digest = "1:c0b3f32a145d8abd35cec6355eb86c04d46d950c910969a973105c0fee6a676d"
+  digest = "1:6f7441ed7b1006178e1b0dfa9dca362ea9aa9a0b0fa6ad7edb2cf403db7aac79"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -878,6 +877,7 @@
     "plugins/vpp/binapi/vpp1901/af_packet",
     "plugins/vpp/binapi/vpp1901/bond",
     "plugins/vpp/binapi/vpp1901/dhcp",
+    "plugins/vpp/binapi/vpp1901/gre",
     "plugins/vpp/binapi/vpp1901/interfaces",
     "plugins/vpp/binapi/vpp1901/ip",
     "plugins/vpp/binapi/vpp1901/ipsec",
@@ -898,6 +898,7 @@
     "plugins/vpp/binapi/vpp1904/af_packet",
     "plugins/vpp/binapi/vpp1904/bond",
     "plugins/vpp/binapi/vpp1904/dhcp",
+    "plugins/vpp/binapi/vpp1904/gre",
     "plugins/vpp/binapi/vpp1904/interfaces",
     "plugins/vpp/binapi/vpp1904/ip",
     "plugins/vpp/binapi/vpp1904/ipsec",
@@ -917,6 +918,7 @@
     "plugins/vpp/binapi/vpp1908/af_packet",
     "plugins/vpp/binapi/vpp1908/bond",
     "plugins/vpp/binapi/vpp1908/dhcp",
+    "plugins/vpp/binapi/vpp1908/gre",
     "plugins/vpp/binapi/vpp1908/interfaces",
     "plugins/vpp/binapi/vpp1908/ip",
     "plugins/vpp/binapi/vpp1908/ipsec",
@@ -986,7 +988,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1908",
   ]
   pruneopts = "UT"
-  revision = "2e68558b353692fe771971148b62b2a33340f792"
+  revision = "1a76f0b17ce72a62e4db3d3d4a1ba697e0108802"
   source = "github.com/milanlenco/vpp-agent"
 
 [[projects]]
@@ -1917,6 +1919,7 @@
     "github.com/ligato/vpp-agent/api/models/linux/iptables",
     "github.com/ligato/vpp-agent/api/models/linux/l3",
     "github.com/ligato/vpp-agent/api/models/linux/namespace",
+    "github.com/ligato/vpp-agent/api/models/netalloc",
     "github.com/ligato/vpp-agent/api/models/vpp",
     "github.com/ligato/vpp-agent/api/models/vpp/abf",
     "github.com/ligato/vpp-agent/api/models/vpp/acl",

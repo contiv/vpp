@@ -46,6 +46,8 @@ const (
 	b11000000 = 1<<7 + 1<<6
 	b11000101 = 1<<7 + 1<<6 + 1<<2 + 1
 	b00000101 = 1<<2 + 1
+
+	sfcName1 = "sfcName1"
 )
 
 var (
@@ -66,6 +68,8 @@ var (
 	expectedVSwitchNetwork                = network("2.3." + str(b11000000+int(nodeID1>>6)) + "." + str(int(nodeID1<<2)) + "/30")
 	expectedPodSubnetThisNodeZeroEndingIP = net.IPv4(1, 2, byte(b10000000+nodeID1>>5), byte(nodeID1<<3)).To4()
 	expectedPodSubnetThisNodeGatewayIP    = net.IPv4(1, 2, byte(b10000000+nodeID1>>5), byte((nodeID1<<3)+1)).To4()
+
+	sfcID1fromName1 = []byte{183, 127, 183, 106, 62, 32, 89, 164, 239, 160, 23, 0, 153, 219, 1, 83, 2, 77, 64, 195, 132, 162, 30, 29, 76, 235, 250, 51, 175, 85, 200, 209} // sha256 hash
 )
 
 func newDefaultConfig() *config.Config {
@@ -209,6 +213,10 @@ func TestDynamicGettersIPv6(t *testing.T) {
 	customConfig.IPAMConfig.SRv6.NodeToNodeHostLocalSIDSubnetCIDR = "9500::/16"
 	customConfig.IPAMConfig.SRv6.NodeToNodePodPolicySIDSubnetCIDR = "8501::/16"
 	customConfig.IPAMConfig.SRv6.NodeToNodeHostPolicySIDSubnetCIDR = "8500::/16"
+	customConfig.IPAMConfig.SRv6.SFCPolicyBSIDSubnetCIDR = "8eee::/16"
+	customConfig.IPAMConfig.SRv6.SFCServiceFunctionSIDSubnetCIDR = "9600::/16"
+	customConfig.IPAMConfig.SRv6.SFCEndLocalSIDSubnetCIDR = "9310::/16"
+	customConfig.IPAMConfig.SRv6.SFCIDLengthUsedInSidForServiceFunction = 32
 
 	i := setup(t, customConfig)
 	Expect(i).NotTo(BeNil())
@@ -244,6 +252,10 @@ func TestDynamicGettersIPv6(t *testing.T) {
 	Expect(i.SidForNodeToNodeHostLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("9500:2222::1")))
 	Expect(i.BsidForNodeToNodePodPolicy(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("8501:2222::1")))
 	Expect(i.BsidForNodeToNodeHostPolicy(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.ParseIP("8500:2222::1")))
+	Expect(i.BsidForSFCPolicy(sfcName1)).To(BeEquivalentTo(net.IP(append([]byte(net.ParseIP("8eee::1"))[0:2], sfcID1fromName1[2:16]...))))
+	Expect(i.SidForSFCServiceFunctionLocalsid(sfcName1, net.ParseIP("1111:2222:3333:4444::1"))).
+		To(BeEquivalentTo(net.IP(append(append([]byte(net.ParseIP("9600::1"))[0:2], sfcID1fromName1[2:6]...), []byte(net.ParseIP("1111:2222:3333:4444::1"))[6:16]...))))
+	Expect(i.SidForSFCEndLocalsid(net.ParseIP("1111:2222::1"))).To(BeEquivalentTo(net.IP(append([]byte(net.ParseIP("9310::1"))[0:2], []byte(net.ParseIP("1111:2222::1"))[2:16]...))))
 }
 
 // TestBasicAllocateReleasePodAddress test simple happy path scenario for getting 1 pod address and releasing it

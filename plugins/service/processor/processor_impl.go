@@ -17,8 +17,9 @@
 package processor
 
 import (
-	"github.com/contiv/vpp/plugins/ipam/ipalloc"
 	"strings"
+
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
@@ -330,7 +331,7 @@ func (sp *ServiceProcessor) applyCustomIPAlloc(alloc *ipalloc.CustomIPAllocation
 		}
 		if isLocal && ci.Network == defaultPodNetwork || ci.Network == "" {
 			// for local pod interfaces in the default pod network, update frontend interfaces
-			ifName, ifExists := sp.IPNet.GetPodCustomIfName(podID.Namespace, podID.Name, ci.Name)
+			ifName, _, ifExists := sp.IPNet.GetPodCustomIfNames(podID.Namespace, podID.Name, ci.Name)
 			if !ifExists {
 				sp.Log.Warnf("Unable to obtain interface name for interface %v, skipping frontend if update", ci)
 				continue
@@ -347,7 +348,7 @@ func (sp *ServiceProcessor) applyCustomIPAlloc(alloc *ipalloc.CustomIPAllocation
 	if redirected {
 		if isLocal && serviceEndpointIf != nil {
 			// for local pods with service redirect, update backend interfaces
-			ifName, ifExists := sp.IPNet.GetPodCustomIfName(podID.Namespace, podID.Name, serviceEndpointIf.Name)
+			ifName, _, ifExists := sp.IPNet.GetPodCustomIfNames(podID.Namespace, podID.Name, serviceEndpointIf.Name)
 			if !ifExists {
 				sp.Log.Warnf("Unable to obtain interface name for interface %s, skipping backend if update",
 					serviceEndpointIf.Name)

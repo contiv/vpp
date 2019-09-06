@@ -75,6 +75,9 @@ type RoutingConfig struct {
 	// part of route the "NodeToNodeTransport" setting. To communicate between nodes only using SRv6, set it to "srv6" (+ UseSRv6ForServices=true).
 	UseSRv6ForServices bool `json:"useSRv6ForServices,omitempty"`
 
+	// Enabled when Service Function Chaining for K8s service should be performed by using SRv6 (segment routing based on IPv6).
+	UseSRv6ForServiceFunctionChaining bool `json:"useSRv6ForServiceFunctionChaining,omitempty"`
+
 	// Enables usage of DX6 end function instead of DT6 end function for node-to-node communication using SRV6. This is limited to
 	// pod-to-pod communication use case in full IPv6 environment (pods and node fabric is IPv6)
 	UseDX6ForSrv6NodetoNodeTransport bool `json:"useDX6ForSrv6NodetoNodeTransport,omitempty"`
@@ -113,14 +116,18 @@ type IPAMConfig struct {
 
 // SRv6Config is part of IPAM configuration that configures SID prefixes of SRv6 components
 type SRv6Config struct {
-	ServicePolicyBSIDSubnetCIDR       string `json:"servicePolicyBSIDSubnetCIDR,omitempty"`
-	ServicePodLocalSIDSubnetCIDR      string `json:"servicePodLocalSIDSubnetCIDR,omitempty"`
-	ServiceHostLocalSIDSubnetCIDR     string `json:"serviceHostLocalSIDSubnetCIDR,omitempty"`
-	ServiceNodeLocalSIDSubnetCIDR     string `json:"serviceNodeLocalSIDSubnetCIDR,omitempty"`
-	NodeToNodePodLocalSIDSubnetCIDR   string `json:"nodeToNodePodLocalSIDSubnetCIDR,omitempty"`
-	NodeToNodeHostLocalSIDSubnetCIDR  string `json:"nodeToNodeHostLocalSIDSubnetCIDR,omitempty"`
-	NodeToNodePodPolicySIDSubnetCIDR  string `json:"nodeToNodePodPolicySIDSubnetCIDR,omitempty"`
-	NodeToNodeHostPolicySIDSubnetCIDR string `json:"nodeToNodeHostPolicySIDSubnetCIDR,omitempty"`
+	ServicePolicyBSIDSubnetCIDR            string `json:"servicePolicyBSIDSubnetCIDR,omitempty"`
+	ServicePodLocalSIDSubnetCIDR           string `json:"servicePodLocalSIDSubnetCIDR,omitempty"`
+	ServiceHostLocalSIDSubnetCIDR          string `json:"serviceHostLocalSIDSubnetCIDR,omitempty"`
+	ServiceNodeLocalSIDSubnetCIDR          string `json:"serviceNodeLocalSIDSubnetCIDR,omitempty"`
+	NodeToNodePodLocalSIDSubnetCIDR        string `json:"nodeToNodePodLocalSIDSubnetCIDR,omitempty"`
+	NodeToNodeHostLocalSIDSubnetCIDR       string `json:"nodeToNodeHostLocalSIDSubnetCIDR,omitempty"`
+	NodeToNodePodPolicySIDSubnetCIDR       string `json:"nodeToNodePodPolicySIDSubnetCIDR,omitempty"`
+	NodeToNodeHostPolicySIDSubnetCIDR      string `json:"nodeToNodeHostPolicySIDSubnetCIDR,omitempty"`
+	SFCPolicyBSIDSubnetCIDR                string `json:"sfcPolicyBSIDSubnetCIDR,omitempty"`
+	SFCServiceFunctionSIDSubnetCIDR        string `json:"sfcServiceFunctionSIDSubnetCIDR,omitempty"`
+	SFCEndLocalSIDSubnetCIDR               string `json:"sfcEndLocalSIDSubnetCIDR,omitempty"`
+	SFCIDLengthUsedInSidForServiceFunction uint8  `json:"sfcIDLengthUsedInSidForServiceFunction,omitempty"`
 }
 
 // NodeConfig represents configuration specific to a given node.

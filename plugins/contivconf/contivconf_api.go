@@ -153,6 +153,16 @@ type SRv6Settings struct {
 	NodeToNodePodPolicySIDSubnetCIDR *net.IPNet
 	// NodeToNodeHostPolicySIDSubnetCIDR is subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodeHostLocalSIDSubnetCIDR`.
 	NodeToNodeHostPolicySIDSubnetCIDR *net.IPNet
+	// SFCPolicyBSIDSubnetCIDR is subnet applied to SFC ID(trimmed hash of SFC name) to get unique binding sid for SRv6 policy used in SFC
+	SFCPolicyBSIDSubnetCIDR *net.IPNet
+	// SFCServiceFunctionSIDSubnetCIDR is subnet applied to combination of SFC ID(trimmed hash of SFC name) and service function pod IP address to get unique sid for SRv6 Localsid referring to SFC service function
+	SFCServiceFunctionSIDSubnetCIDR *net.IPNet
+	// SFCEndLocalSIDSubnetCIDR is subnet applied to the IP address of last link of SFC to get unique sid for last localsid in the segment routing path representing SFC chain
+	SFCEndLocalSIDSubnetCIDR *net.IPNet
+	// SFCIDLengthUsedInSidForServiceFunction is length(in bits) of SFC ID(trimmed hash of SFC name) that should be used by computing SFC ServiceFunction localsid SID.
+	// A hash is computed from SFC name, trimmed by length (this setting) and used in computation of SFC ServiceFunction localsid SID (SID=prefix from
+	// sfcServiceFunctionSIDSubnetCIDR + trimmed hash of SFC name + service function pod IP address).
+	SFCIDLengthUsedInSidForServiceFunction uint8
 }
 
 // CustomIPAMSubnets allows users to manually select individual subnets.

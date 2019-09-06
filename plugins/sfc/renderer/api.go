@@ -18,6 +18,7 @@ package renderer
 
 import (
 	"fmt"
+
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
@@ -148,6 +149,11 @@ type PodSF struct {
 	// without further processing. Non-local pods contain logical names as they came from CRD.
 	InputInterface  string // name of the interface trough which the traffic enters the pod
 	OutputInterface string // name of the interface using which the traffic leaves the pod
+
+	// name of the interface from configuration file through which the traffic enters the pod
+	InputInterfaceConfigName string
+	// name of the interface from configuration file through which the traffic enters the pod
+	OutputInterfaceConfigName string
 }
 
 // String converts PodSF into a human-readable string.

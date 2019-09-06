@@ -33,6 +33,7 @@ data:
   contiv.conf: |-
     nodeToNodeTransport: {{ .Values.contiv.nodeToNodeTransport }}
     useSRv6ForServices: {{ .Values.contiv.useSRv6ForServices }}
+    useSRv6ForServiceFunctionChaining: {{ .Values.contiv.useSRv6ForServiceFunctionChaining}}
     useDX6ForSrv6NodetoNodeTransport: {{ .Values.contiv.useDX6ForSrv6NodetoNodeTransport }}
     useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
@@ -98,6 +99,10 @@ data:
         nodeToNodeHostLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodeHostLocalSIDSubnetCIDR }}
         nodeToNodePodPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodePodPolicySIDSubnetCIDR }}
         nodeToNodeHostPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodeHostPolicySIDSubnetCIDR }}
+        sfcPolicyBSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcPolicyBSIDSubnetCIDR}}
+        sfcServiceFunctionSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcServiceFunctionSIDSubnetCIDR}}
+        sfcEndLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcEndLocalSIDSubnetCIDR}}
+        sfcIDLengthUsedInSidForServiceFunction: {{ .Values.contiv.ipamConfig.srv6.sfcIDLengthUsedInSidForServiceFunction}}
     {{- if .Values.contiv.nodeConfig }}
     nodeConfig:
     {{- range .Values.contiv.nodeConfig }}

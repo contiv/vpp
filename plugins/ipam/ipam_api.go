@@ -139,6 +139,16 @@ type API interface {
 	// BsidForNodeToNodeHostPolicy creates a valid SRv6 SID for policy that is part of node-to-node Srv6 tunnel and routes traffic to main VRF table
 	BsidForNodeToNodeHostPolicy(nodeIP net.IP) net.IP
 
+	// BsidForSFCPolicy creates a valid SRv6 SID for policy used for SFC
+	BsidForSFCPolicy(sfcName string) net.IP
+
+	// SidForSFCServiceFunctionLocalsid creates a valid SRv6 SID for locasid leading to pod of service function given by
+	// <serviceFunctionPodIP> IP address.
+	SidForSFCServiceFunctionLocalsid(sfcName string, serviceFunctionPodIP net.IP) net.IP
+
+	// SidForSFCEndLocalsid creates a valid SRv6 SID for locasid of segment that is the last link of SFC chain
+	SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP
+
 	// GetIPAMConfigForJSON returns IPAM configuration in format suitable
 	// for marshalling to JSON (subnets not converted to net.IPNet + defined
 	// JSON flag for every option). If contivCIDR is used it returns actual

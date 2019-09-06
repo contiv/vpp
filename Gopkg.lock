@@ -753,7 +753,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:aa00e0d1437bf3fcd7a14a2045ae96a39a80b30242fe42d413ec2896debb5bb9"
+  digest = "1:e89101f51056614dec30e786e7a9aa9f743098e9d0972b149ad6ef71c205f19f"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -793,10 +793,10 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "61443bee9914521191283f41c8715c41aaaa47f4"
+  revision = "9bb0e395ce981f921420130be6d13a1582ed99f1"
 
 [[projects]]
-  digest = "1:4a42689cfdad63602428befc56103c35b257ac58c3f70b75d92e4065f22ae6fe"
+  digest = "1:ecc9a38bfa4b707feca35ae219ec6ecfe742f64ea8242fd6865ef7f0652c7121"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -871,6 +871,7 @@
     "plugins/vpp/binapi/vpp1901/af_packet",
     "plugins/vpp/binapi/vpp1901/bond",
     "plugins/vpp/binapi/vpp1901/dhcp",
+    "plugins/vpp/binapi/vpp1901/gre",
     "plugins/vpp/binapi/vpp1901/interfaces",
     "plugins/vpp/binapi/vpp1901/ip",
     "plugins/vpp/binapi/vpp1901/ipsec",
@@ -891,6 +892,7 @@
     "plugins/vpp/binapi/vpp1904/af_packet",
     "plugins/vpp/binapi/vpp1904/bond",
     "plugins/vpp/binapi/vpp1904/dhcp",
+    "plugins/vpp/binapi/vpp1904/gre",
     "plugins/vpp/binapi/vpp1904/interfaces",
     "plugins/vpp/binapi/vpp1904/ip",
     "plugins/vpp/binapi/vpp1904/ipsec",
@@ -910,6 +912,7 @@
     "plugins/vpp/binapi/vpp1908/af_packet",
     "plugins/vpp/binapi/vpp1908/bond",
     "plugins/vpp/binapi/vpp1908/dhcp",
+    "plugins/vpp/binapi/vpp1908/gre",
     "plugins/vpp/binapi/vpp1908/interfaces",
     "plugins/vpp/binapi/vpp1908/ip",
     "plugins/vpp/binapi/vpp1908/ipsec",
@@ -979,8 +982,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1908",
   ]
   pruneopts = "UT"
-  revision = "8cdc8da9b3b5aab68d6897487a665eacf54248a4"
-  version = "v2.2.0"
+  revision = "db302e2f65e5c7789f785796e42b03b36aae440f"
 
 [[projects]]
   branch = "master"

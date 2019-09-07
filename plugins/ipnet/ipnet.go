@@ -402,6 +402,5 @@ func (n *IPNet) GetVxlanBVIIfName() string {
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport != contivconf.VXLANTransport {
 		return ""
 	}
-
-	return VxlanBVIInterfaceName
+	return n.vxlanBVIInterfaceName(defaultNetworkName)
 }

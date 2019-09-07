@@ -400,71 +400,51 @@ func (n *IPNet) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn cont
 
 	// remove obsolete configuration
 	if nodeHasIPAddress(nodeUpdate.PrevState) {
-		if !nodeHasIPAddress(nodeUpdate.NewState) {
-			// un-configure connectivity completely
-			connectivity, err := n.fullNodeConnectivityConfig(nodeUpdate.PrevState)
-			if err != nil {
-				err := fmt.Errorf("failed to generate config for connectivity to node ID=%d: %v",
-					otherNodeID, err)
-				n.Log.Error(err)
-				return change, err
-			}
-			controller.DeleteAll(txn, connectivity)
-			operationName = "disconnect"
-		} else {
-			// remove obsolete routes/SRv6 components/...
-			cfg, err := n.partialNodeConnectivityConfig(nodeUpdate.PrevState)
-			if err != nil {
-				// treat as warning
-				n.Log.Warnf("Failed to generate config for updating of obsolete node-to-node connectivity config for node ID=%d: %v",
-					otherNodeID, err)
-			} else {
-				controller.DeleteAll(txn, cfg)
-			}
-			// operation is "Update"
+		connectivity, err := n.otherNodeConnectivityConfig(nodeUpdate.PrevState)
+		if err != nil {
+			err := fmt.Errorf("failed to generate config for connectivity to node ID=%d: %v",
+				otherNodeID, err)
+			n.Log.Error(err)
+			return change, err
 		}
+		controller.DeleteAll(txn, connectivity)
+		operationName = "disconnect"
 	}
 
 	// add new configuration
 	if nodeHasIPAddress(nodeUpdate.NewState) {
-		if !nodeHasIPAddress(nodeUpdate.PrevState) {
-			// configure connectivity completely
-			connectivity, err := n.fullNodeConnectivityConfig(nodeUpdate.NewState)
-			if err != nil {
-				err := fmt.Errorf("failed to generate config for connectivity to node ID=%d: %v",
-					otherNodeID, err)
-				n.Log.Error(err)
-				return change, err
-			}
-			controller.PutAll(txn, connectivity)
-			operationName = "connect"
-		} else {
-			// just add updated routes/SRv6 components/...
-			cfg, err := n.partialNodeConnectivityConfig(nodeUpdate.NewState)
-			if err != nil {
-				err := fmt.Errorf("failed to generate config for updating of obsolete node-to-node connectivity config for node ID=%d: %v",
-					otherNodeID, err)
-				n.Log.Error(err)
-				return change, err
-			}
-			controller.PutAll(txn, cfg)
-			operationName = "update"
+		connectivity, err := n.otherNodeConnectivityConfig(nodeUpdate.NewState)
+		if err != nil {
+			err := fmt.Errorf("failed to generate config for connectivity to node ID=%d: %v",
+				otherNodeID, err)
+			n.Log.Error(err)
+			return change, err
 		}
+		controller.PutAll(txn, connectivity)
+		operationName = "connect/update"
 	}
 
-	// update default pod network bridge domain if node was newly connected or disconnected
+	// update default pod network bridge domains if node was newly connected or disconnected
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport &&
 		nodeHasIPAddress(nodeUpdate.PrevState) != nodeHasIPAddress(nodeUpdate.NewState) {
 
-		key, bd := n.vxlanBridgeDomain()
+		// update bridge domain of default pod network
+		key, bd := n.vxlanBridgeDomain(defaultNetworkName)
 		txn.Put(key, bd)
 	}
 
-	// update bridge domains of L2 custom networks
-	for _, nw := range n.customNetworks {
-		if nw.config != nil && nw.config.Type == customnetmodel.CustomNetwork_L2 {
-			bdKey, bd := n.customNwBridgeDomain(nw)
-			txn.Put(bdKey, bd)
+	// update bridge domains of custom networks
+	if nodeHasIPAddress(nodeUpdate.PrevState) != nodeHasIPAddress(nodeUpdate.NewState) {
+		for _, nw := range n.customNetworks {
+			if nw.config != nil && nw.config.Type == customnetmodel.CustomNetwork_L2 {
+				bdKey, bd := n.l2CustomNwBridgeDomain(nw)
+				txn.Put(bdKey, bd)
+			}
+			if nw.config != nil && nw.config.Type == customnetmodel.CustomNetwork_L3 &&
+				n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
+				key, bd := n.vxlanBridgeDomain(nw.config.Name)
+				txn.Put(key, bd)
+			}
 		}
 	}
 

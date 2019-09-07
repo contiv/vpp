@@ -96,6 +96,7 @@ Parameter | Description | Default
 `contiv.vswitch.memoryLimit` | overall memory limit for vswitch container | `512Mi`
 `contiv.vswitch.enableCoreDumps` | enable core dumps of VPP into coreDumpsDir | `false`
 `contiv.vswitch.coreDumpsDir` | location of the VPP core dumps | `/var/contiv/dumps`
+`contiv.vswitch.enableInterfaceStats` | enable periodic interface statistic readout from VPP  | `false`
 `controller.enableRetry` | Enable retry of failed CRUD operations | `true`
 `controller.delayRetry` | Delay retry of failed CRUD operations by the given time interval in nanoseconds | `1000000000`
 `controller.maxRetryAttempts` | Maximum number of retries to be performed for failed CRUD operations | `3`

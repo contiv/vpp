@@ -15,8 +15,10 @@
 package ipnet
 
 import (
-	"context"
+	"bytes"
 	"fmt"
+	"github.com/gogo/protobuf/proto"
+	"github.com/ligato/cn-infra/db/keyval"
 	"hash/fnv"
 	"net"
 	"os/exec"
@@ -31,6 +33,7 @@ import (
 	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
 	"github.com/ligato/vpp-agent/api/models/linux/namespace"
+	"github.com/ligato/vpp-agent/api/models/netalloc"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
 	"github.com/ligato/vpp-agent/pkg/models"
@@ -66,6 +69,9 @@ const (
 
 	// network name dedicated to the default pod network
 	defaultNetworkName = "default"
+
+	// prefix attached to custom network names inside IP allocations exposed by Contiv for CNFs
+	ipAllocNetPrefix = "contiv-"
 )
 
 const (
@@ -110,12 +116,12 @@ func (n *IPNet) podConnectivityConfig(pod *podmanager.LocalPod) (config controll
 		// TAP
 		key, vppTap := n.podVPPTap(pod, podIP, "")
 		config[key] = vppTap
-		key, linuxTap := n.podLinuxTAP(pod, podIP, "")
+		key, linuxTap := n.podLinuxTAP(pod, podIP, "", false)
 		config[key] = linuxTap
 		vppInterfaceToPod = vppTap.Name
 	} else {
 		// VETH pair + AF_PACKET
-		key, veth1 := n.podVeth1(pod, podIP, "")
+		key, veth1 := n.podVeth1(pod, podIP, "", false)
 		config[key] = veth1
 		key, veth2 := n.podVeth2(pod, "")
 		config[key] = veth2
@@ -125,7 +131,7 @@ func (n *IPNet) podConnectivityConfig(pod *podmanager.LocalPod) (config controll
 	}
 
 	// ARP to VPP
-	key, podArp := n.podToVPPArpEntry(pod)
+	key, podArp := n.podToVPPArpEntry(pod, "", "")
 	config[key] = podArp
 
 	// link scope route
@@ -137,7 +143,7 @@ func (n *IPNet) podConnectivityConfig(pod *podmanager.LocalPod) (config controll
 	config[key] = route
 
 	// ARP entry for POD IP
-	key, vppArp := n.vppToPodArpEntry(pod)
+	key, vppArp := n.vppToPodArpEntry(pod, podIP, "", "")
 	config[key] = vppArp
 
 	// route to PodIP via AF_PACKET / TAP
@@ -167,14 +173,31 @@ func (n *IPNet) podConnectivityConfig(pod *podmanager.LocalPod) (config controll
 
 // podInterfaceName returns logical names of interfaces on both sides
 // of the interconnection between VPP and the given Pod.
-func (n *IPNet) podInterfaceName(pod *podmanager.LocalPod, customIfName, customIfType string) (vppIfName, podIfName string) {
+func (n *IPNet) podInterfaceName(pod *podmanager.LocalPod, customIfName, customIfType string) (vppIfName, podIfName, msIfName string) {
 	if customIfType == memifIfType {
-		return n.podVPPSideMemifName(pod, customIfName), n.podMicroserviceSideMemifName(pod, customIfName)
+		vppIfName = n.podVPPSideMemifName(pod, customIfName)
+		msIfName = n.podMicroserviceSideIfName(pod, customIfName)
+		// nothing configured by vswitch on the pod side in the memif case
+		podIfName = ""
+		return
 	}
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces && customIfType != vethIfType {
-		return n.podVPPSideTAPName(pod, customIfName), n.podLinuxSideTAPName(pod, customIfName)
+		vppIfName = n.podVPPSideTAPName(pod, customIfName)
+		podIfName = n.podLinuxSideTAPName(pod, customIfName)
+		msIfName = n.podMicroserviceSideIfName(pod, customIfName)
+		return
+
 	}
-	return n.podAFPacketName(pod, customIfName), n.podVeth1Name(pod, customIfName)
+
+	// AF-PACKET + VETH
+	vppIfName = n.podAFPacketName(pod, customIfName)
+	podIfName = n.podVeth1Name(pod, customIfName)
+	msIfName = n.podMicroserviceSideIfName(pod, customIfName)
+	return
+}
+
+func (n *IPNet) podCustomInterfaceHostName(pod *podmanager.LocalPod, ifName string) string {
+	return trimInterfaceName(ifName, linuxIfNameMaxLen)
 }
 
 /****************************** Pod custom interfaces configuration ******************************/
@@ -185,8 +208,9 @@ func (n *IPNet) podInterfaceName(pod *podmanager.LocalPod, customIfName, customI
 // - updateConfig contains config to be updated (by any operation)
 func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEventType) (config, updateConfig controller.KeyValuePairs) {
 	var (
-		memifID   uint32
-		memifInfo *devicemanager.MemifInfo
+		memifID         uint32
+		memifInfo       *devicemanager.MemifInfo
+		memifRouteAdded bool
 	)
 	if pod == nil {
 		return
@@ -258,8 +282,16 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 				if podIP != nil {
 					k, arp := n.podMicroserviceGatewayARP(pod, customIf.ifName, customIf.ifType)
 					microserviceConfig[k] = arp
-					k, route := n.podMicroserviceDefaultRoute(pod, customIf.ifName, customIf.ifType)
-					microserviceConfig[k] = route
+
+					// TODO: get rid of the route once netalloc is integrated with vpp/l3 plugin
+					// - with multiple memif interfaces we cannot have multiple default GWs - let the
+					//   CNF to build the configuration using IP address obtained via netalloc
+					if !memifRouteAdded {
+						// first memif with IP in the list of custom interfaces is used for the default route
+						k, route := n.podMicroserviceDefaultRoute(pod, customIf.ifName, customIf.ifType)
+						microserviceConfig[k] = route
+						memifRouteAdded = true
+					}
 				}
 			}
 			memifID++
@@ -268,17 +300,45 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 			// handle custom tap interface
 			key, vppTap := n.podVPPTap(pod, podIP, customIf.ifName)
 			config[key] = vppTap
-			key, linuxTap := n.podLinuxTAP(pod, podIP, customIf.ifName)
+			key, linuxTap := n.podLinuxTAP(pod, podIP, customIf.ifName, serviceLabel != "")
 			config[key] = linuxTap
+			if serviceLabel != "" {
+				// if microservice is defined, it is assumed that a ligato-based CNF is running
+				// inside the pod and the non-link side of the interface will be managed
+				// by the agent of that CNF
+				k, iface := n.podMicroserviceLinuxIface(pod, podIP, customIf.ifName, customIf.ifType)
+				microserviceConfig[k] = iface
+				if podIP != nil {
+					k, arp := n.podMicroserviceLinuxGatewayARP(pod, customIf.ifName, customIf.ifType)
+					microserviceConfig[k] = arp
+				}
+			} else if podIP != nil {
+				// interface fully configured by the contiv-vswitch
+				key, podArp := n.podToVPPArpEntry(pod, customIf.ifName, customIf.ifType)
+				config[key] = podArp
+			}
 
 		case vethIfType:
 			// handle custom veth interface
-			key, veth1 := n.podVeth1(pod, podIP, customIf.ifName)
+			key, veth1 := n.podVeth1(pod, podIP, customIf.ifName, serviceLabel != "")
 			config[key] = veth1
 			key, veth2 := n.podVeth2(pod, customIf.ifName)
 			config[key] = veth2
 			key, afpacket := n.podAfPacket(pod, podIP, customIf.ifName)
 			config[key] = afpacket
+			if serviceLabel != "" {
+				// for explanation see the TAP case above
+				k, iface := n.podMicroserviceLinuxIface(pod, podIP, customIf.ifName, customIf.ifType)
+				microserviceConfig[k] = iface
+				if podIP != nil {
+					k, arp := n.podMicroserviceLinuxGatewayARP(pod, customIf.ifName, customIf.ifType)
+					microserviceConfig[k] = arp
+				}
+			} else if podIP != nil {
+				// interface fully configured by the contiv-vswitch
+				key, podArp := n.podToVPPArpEntry(pod, customIf.ifName, customIf.ifType)
+				config[key] = podArp
+			}
 
 		default:
 			n.Log.Warnf("Unsupported custom interface type %s, skipping", customIf.ifType)
@@ -286,13 +346,29 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 		}
 
 		if podIP != nil {
-			// pod has an IP assigned, add a route to pod IP from VPP
+			// expose IP address to the pod via netalloc plugin
+			//  - ligato-based CNF can reference the allocated IP from inside of VPP/Linux models
+			//  - non-ligato CNF can read the allocated IP from etcd
+			k, alloc := n.podMicroserviceIPAlloc(pod, podIP, customIf.ifName, customIf.ifType,
+				customIf.ifNet)
+			microserviceConfig[k] = alloc
+		}
+
+		if podIP != nil {
+			// pod has an IP assigned, add a route and ARP entry to pod IP from VPP
 			key, vppRoute := n.vppToPodRoute(pod, podIP, customIf.ifName, customIf.ifType)
 			config[key] = vppRoute
+
+			if customIf.ifType != memifIfType && serviceLabel == "" {
+				// TODO: enable also for the case with defined service label but only once netalloc
+				// supports MAC addresses
+				key, vppArp := n.vppToPodArpEntry(pod, podIP, customIf.ifName, customIf.ifType)
+				config[key] = vppArp
+			}
 		}
 		if !n.isDefaultPodNetwork(customIf.ifNet) && !n.isStubNetwork(customIf.ifNet) {
 			// configure interface in custom network
-			vppIfName, _ := n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
+			vppIfName, _, _ := n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
 			nwConfig := n.interfaceCustomNwConfig(vppIfName, customIf.ifNet, eventType != configDelete)
 			mergeConfiguration(updateConfig, nwConfig)
 		}
@@ -301,21 +377,68 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 	// in case of non-empty microservice config, put the config into ETCD
 	if len(microserviceConfig) > 0 {
 		n.Log.Debugf("Adding pod-end interface config for microservice %s into ETCD", serviceLabel)
-		txn := n.RemoteDB.NewBroker(servicelabel.GetDifferentAgentPrefix(serviceLabel)).NewTxn()
+		broker := n.RemoteDB.NewBrokerWithAtomic(servicelabel.GetDifferentAgentPrefix(serviceLabel))
 		for k, v := range microserviceConfig {
-			if eventType != configDelete {
-				txn.Put(k, v)
-			} else {
-				txn.Delete(k)
+			err := n.updateMsConfigItem(broker, k, v, eventType)
+			if err != nil {
+				n.Log.Errorf("Error by executing remote DB operation for key %s: %v", k, err)
 			}
-		}
-		err := txn.Commit(context.Background())
-		if err != nil {
-			n.Log.Errorf("Error by executing remote DB transaction: %v", err)
 		}
 	}
 
 	return
+}
+
+// updateMsConfigItem updates configuration written to etcd for a (ligato-based) microservice to apply.
+// If the configuration item is managed from outside of Contiv (e.g. CustomConfiguration CRD), the value will not be
+// changed.
+func (n *IPNet) updateMsConfigItem(broker keyval.BytesBrokerWithAtomic, key string, value proto.Message, eventType configEventType) error {
+	var succeeded bool
+	serializer := keyval.SerializerJSON{}
+
+	binData, err := serializer.Marshal(value)
+	if err != nil {
+		return err
+	}
+	prevData, hasPrevData := n.microserviceConfig[key]
+
+	if eventType != configDelete {
+		if !hasPrevData {
+			succeeded, err = broker.PutIfNotExists(key, binData)
+			if err != nil {
+				return err
+			}
+			if !succeeded {
+				// n.microserviceConfig might be out of sync (e.g. after vswitch restart)
+				// - check if it is the same as expected
+				data, found, _, err := broker.GetValue(key)
+				if err != nil {
+					return err
+				}
+				if found && bytes.Equal(data, binData) {
+					succeeded = true
+				}
+			}
+		} else {
+			succeeded, err = broker.CompareAndSwap(key, prevData, binData)
+			if err != nil {
+				return err
+			}
+		}
+		if succeeded {
+			n.microserviceConfig[key] = binData
+		} else {
+			// giving up on this config, it is probably managed via CustomConfiguration CRD
+			delete(n.microserviceConfig, key)
+		}
+	} else {
+		// try to delete
+		if hasPrevData {
+			_, err = broker.CompareAndDelete(key, prevData)
+			delete(n.microserviceConfig, key)
+		}
+	}
+	return err
 }
 
 // getContivMicroserviceLabel returns microservice label defined in pod annotations
@@ -440,7 +563,7 @@ func (n *IPNet) podVPPTap(pod *podmanager.LocalPod, podIP *net.IPNet, customIfNa
 		Mtu:         interfaceCfg.MTUSize,
 		Enabled:     true,
 		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
-		PhysAddress: n.hwAddrForPod(pod, true),
+		PhysAddress: n.hwAddrForPod(pod, customIfName, true),
 		Link: &vpp_interfaces.Interface_Tap{
 			Tap: &vpp_interfaces.TapLink{
 				EnableGso: interfaceCfg.EnableGSO,
@@ -471,29 +594,33 @@ func (n *IPNet) podVPPTap(pod *podmanager.LocalPod, podIP *net.IPNet, customIfNa
 
 // podLinuxTAP returns the configuration for TAP interface on the Linux side
 // connecting a given Pod to VPP.
-func (n *IPNet) podLinuxTAP(pod *podmanager.LocalPod, ip *net.IPNet, customIfName string) (key string, config *linux_interfaces.Interface) {
+func (n *IPNet) podLinuxTAP(pod *podmanager.LocalPod, ip *net.IPNet, customIfName string, linkOnly bool) (key string, config *linux_interfaces.Interface) {
 	tap := &linux_interfaces.Interface{
 		Name:        n.podLinuxSideTAPName(pod, customIfName),
 		Type:        linux_interfaces.Interface_TAP_TO_VPP,
 		Mtu:         n.ContivConf.GetInterfaceConfig().MTUSize,
 		Enabled:     true,
 		HostIfName:  podInterfaceHostName,
-		PhysAddress: n.hwAddrForPod(pod, false),
+		PhysAddress: n.hwAddrForPod(pod, customIfName, false),
 		Link: &linux_interfaces.Interface_Tap{
 			Tap: &linux_interfaces.TapLink{
 				VppTapIfName: n.podVPPSideTAPName(pod, customIfName),
 			},
 		},
+		LinkOnly: linkOnly,
 		Namespace: &linux_namespace.NetNamespace{
 			Type:      linux_namespace.NetNamespace_FD,
 			Reference: pod.NetworkNamespace,
 		},
 	}
-	if ip != nil {
+	if ip != nil && !linkOnly {
 		tap.IpAddresses = []string{ip.String()}
 	}
 	if customIfName != "" {
-		tap.HostIfName = customIfName
+		tap.HostIfName = n.podCustomInterfaceHostName(pod, customIfName)
+	}
+	if linkOnly {
+		tap.PhysAddress = ""
 	}
 	key = linux_interfaces.InterfaceKey(tap.Name)
 	return key, tap
@@ -534,7 +661,7 @@ func (n *IPNet) podVeth2HostIfName(pod *podmanager.LocalPod, customIfName string
 
 // podVeth1 returns the configuration for pod-side of the VETH interface
 // connecting the given pod with VPP.
-func (n *IPNet) podVeth1(pod *podmanager.LocalPod, podIP *net.IPNet, customIfName string) (key string, config *linux_interfaces.Interface) {
+func (n *IPNet) podVeth1(pod *podmanager.LocalPod, podIP *net.IPNet, customIfName string, linkOnly bool) (key string, config *linux_interfaces.Interface) {
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
 	veth := &linux_interfaces.Interface{
 		Name:        n.podVeth1Name(pod, customIfName),
@@ -542,7 +669,7 @@ func (n *IPNet) podVeth1(pod *podmanager.LocalPod, podIP *net.IPNet, customIfNam
 		Mtu:         interfaceCfg.MTUSize,
 		Enabled:     true,
 		HostIfName:  podInterfaceHostName,
-		PhysAddress: n.hwAddrForPod(pod, false),
+		PhysAddress: n.hwAddrForPod(pod, customIfName, false),
 		Link: &linux_interfaces.Interface_Veth{
 			Veth: &linux_interfaces.VethLink{PeerIfName: n.podVeth2Name(pod, customIfName)},
 		},
@@ -551,11 +678,14 @@ func (n *IPNet) podVeth1(pod *podmanager.LocalPod, podIP *net.IPNet, customIfNam
 			Reference: pod.NetworkNamespace,
 		},
 	}
-	if podIP != nil {
+	if podIP != nil && !linkOnly {
 		veth.IpAddresses = []string{podIP.String()}
 	}
 	if customIfName != "" {
-		veth.HostIfName = customIfName
+		veth.HostIfName = n.podCustomInterfaceHostName(pod, customIfName)
+	}
+	if linkOnly {
+		veth.PhysAddress = ""
 	}
 	if interfaceCfg.TCPChecksumOffloadDisabled {
 		veth.GetVeth().RxChecksumOffloading = linux_interfaces.VethLink_CHKSM_OFFLOAD_DISABLED
@@ -590,7 +720,7 @@ func (n *IPNet) podAfPacket(pod *podmanager.LocalPod, podIP *net.IPNet, customIf
 		Mtu:         n.ContivConf.GetInterfaceConfig().MTUSize,
 		Enabled:     true,
 		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
-		PhysAddress: n.hwAddrForPod(pod, true),
+		PhysAddress: n.hwAddrForPod(pod, customIfName, true),
 		Link: &vpp_interfaces.Interface_Afpacket{
 			Afpacket: &vpp_interfaces.AfpacketLink{
 				HostIfName: n.podVeth2HostIfName(pod, customIfName),
@@ -621,11 +751,6 @@ func (n *IPNet) podVPPSideMemifName(pod *podmanager.LocalPod, ifName string) str
 	return trimInterfaceName(podMemifLogicalNamePrefix+ifName+"-"+pod.ContainerID, logicalIfNameMaxLen)
 }
 
-// podMicroserviceSideMemifName returns logical name of the memif interface in microservice running in a given pod.
-func (n *IPNet) podMicroserviceSideMemifName(pod *podmanager.LocalPod, ifName string) string {
-	return trimInterfaceName(ifName, logicalIfNameMaxLen)
-}
-
 // podVPPMemif returns the configuration for memif interface on the VPP side connecting a given Pod.
 func (n *IPNet) podVPPMemif(pod *podmanager.LocalPod, podIP *net.IPNet, ifName string,
 	memifInfo *devicemanager.MemifInfo, memifID uint32) (key string, config *vpp_interfaces.Interface) {
@@ -636,7 +761,7 @@ func (n *IPNet) podVPPMemif(pod *podmanager.LocalPod, podIP *net.IPNet, ifName s
 		Type:        vpp_interfaces.Interface_MEMIF,
 		Enabled:     true,
 		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
-		PhysAddress: n.hwAddrForPod(pod, true),
+		PhysAddress: n.hwAddrForPod(pod, ifName, true),
 		Link: &vpp_interfaces.Interface_Memif{
 			Memif: &vpp_interfaces.MemifLink{
 				Master:         true,
@@ -664,13 +789,22 @@ func (n *IPNet) podVPPMemif(pod *podmanager.LocalPod, podIP *net.IPNet, ifName s
 	return key, memif
 }
 
+/************************** microservice config *******************************/
+
+// podMicroserviceSideIfName returns logical name of a custom interface in the namespace of a microservice
+// running inside a given pod.
+func (n *IPNet) podMicroserviceSideIfName(pod *podmanager.LocalPod, ifName string) string {
+	return trimInterfaceName(ifName, logicalIfNameMaxLen)
+}
+
 // podMicroserviceMemif returns the configuration for memif interface on the Pod (microservice) side.
 func (n *IPNet) podMicroserviceMemif(pod *podmanager.LocalPod, ip *net.IPNet, ifName string,
 	memifInfo *devicemanager.MemifInfo, memifID uint32) (key string, config *vpp_interfaces.Interface) {
 
 	interfaceCfg := n.ContivConf.GetInterfaceConfig()
+	_, _, ifName = n.podInterfaceName(pod, ifName, memifIfType)
 	memif := &vpp_interfaces.Interface{
-		Name:    n.podMicroserviceSideMemifName(pod, ifName),
+		Name:    ifName,
 		Type:    vpp_interfaces.Interface_MEMIF,
 		Enabled: true,
 		Link: &vpp_interfaces.Interface_Memif{
@@ -694,26 +828,67 @@ func (n *IPNet) podMicroserviceMemif(pod *podmanager.LocalPod, ip *net.IPNet, if
 			},
 		}
 	}
+	// TODO: use hwAddrForPod to configure HW address (and add static ARP entry),
+	//       but only once netalloc supports allocation of MAC addresses
 	key = vpp_interfaces.InterfaceKey(memif.Name)
 	return key, memif
 }
 
+// podMicroserviceTapOrVeth returns the configuration for Linux interface (TAP or VETH) on the Pod (microservice) side.
+func (n *IPNet) podMicroserviceLinuxIface(pod *podmanager.LocalPod, ip *net.IPNet, customIfName,
+	customIfType string) (key string, config *linux_interfaces.Interface) {
+
+	_, _, ifName := n.podInterfaceName(pod, customIfName, customIfType)
+	tap := &linux_interfaces.Interface{
+		Name:       ifName,
+		Type:       linux_interfaces.Interface_EXISTING,
+		Enabled:    true,
+		HostIfName: n.podCustomInterfaceHostName(pod, customIfName),
+	}
+	if ip != nil {
+		tap.IpAddresses = []string{ip.String()}
+	}
+	// TODO: use hwAddrForPod to configure HW address (and add static ARP entry),
+	//       but only once netalloc supports allocation of MAC addresses
+	key = linux_interfaces.InterfaceKey(tap.Name)
+	return key, tap
+}
+
 // podMicroserviceGatewayARP returns configuration for a static arp entry for the default gateway of the Pod (microservice).
-func (n *IPNet) podMicroserviceGatewayARP(pod *podmanager.LocalPod, customIfName, customIfType string) (key string, config *vpp_l3.ARPEntry) {
-	_, ifName := n.podInterfaceName(pod, customIfName, customIfType)
+func (n *IPNet) podMicroserviceGatewayARP(pod *podmanager.LocalPod, customIfName, customIfType string) (
+	key string, config *vpp_l3.ARPEntry) {
+
+	_, _, ifName := n.podInterfaceName(pod, customIfName, customIfType)
 	arp := &vpp_l3.ARPEntry{
 		Interface:   ifName,
 		IpAddress:   n.IPAM.PodGatewayIP().String(),
-		PhysAddress: n.hwAddrForPod(pod, true),
+		PhysAddress: n.hwAddrForPod(pod, customIfName, true),
 		Static:      true,
 	}
 	key = vpp_l3.ArpEntryKey(arp.Interface, arp.IpAddress)
 	return key, arp
 }
 
+// podMicroserviceLinuxGatewayARP returns configuration for a Linux static arp entry
+// for the default gateway of the Pod (microservice).
+func (n *IPNet) podMicroserviceLinuxGatewayARP(pod *podmanager.LocalPod, customIfName,
+	customIfType string) (key string, config *linux_l3.ARPEntry) {
+
+	_, _, ifName := n.podInterfaceName(pod, customIfName, customIfType)
+	arp := &linux_l3.ARPEntry{
+		Interface: ifName,
+		IpAddress: n.IPAM.PodGatewayIP().String(),
+		HwAddress: n.hwAddrForPod(pod, customIfName, true),
+	}
+	key = models.Key(arp)
+	return key, arp
+}
+
 // podMicroserviceDefaultRoute returns configuration for default route used on the Pod (microservice) side.
-func (n *IPNet) podMicroserviceDefaultRoute(pod *podmanager.LocalPod, customIfName, customIfType string) (key string, config *vpp_l3.Route) {
-	_, ifName := n.podInterfaceName(pod, customIfName, customIfType)
+func (n *IPNet) podMicroserviceDefaultRoute(pod *podmanager.LocalPod, customIfName,
+	customIfType string) (key string, config *vpp_l3.Route) {
+
+	_, _, ifName := n.podInterfaceName(pod, customIfName, customIfType)
 	route := &vpp_l3.Route{
 		OutgoingInterface: ifName,
 		DstNetwork:        anyNetAddrForAF(n.IPAM.PodGatewayIP()),
@@ -723,16 +898,37 @@ func (n *IPNet) podMicroserviceDefaultRoute(pod *podmanager.LocalPod, customIfNa
 	return key, route
 }
 
+// podMicroserviceIPAlloc returns IP allocation entry for an address allocated to a custom pod interface.
+func (n *IPNet) podMicroserviceIPAlloc(pod *podmanager.LocalPod, podIP *net.IPNet, customIfName string,
+	customIfType string, network string) (key string, config *netalloc.IPAllocation) {
+
+	if network == "" {
+		network = "default"
+	}
+	netLabel := ipAllocNetPrefix + network
+	_, _, ifName := n.podInterfaceName(pod, customIfName, customIfType)
+	alloc := &netalloc.IPAllocation{
+		NetworkName:   netLabel,
+		InterfaceName: ifName,
+		Address:       podIP.String(),
+
+		// TODO: set proper gateway for custom L3 networks
+		Gw: n.IPAM.PodGatewayIP().String() + hostPrefixForAF(n.IPAM.PodGatewayIP()),
+	}
+	key = models.Key(alloc)
+	return key, alloc
+}
+
 /***************************** Pod ARPs and routes *****************************/
 
 // podToVPPArpEntry returns configuration for ARP entry resolving hardware address
 // for pod gateway IP from VPP.
-func (n *IPNet) podToVPPArpEntry(pod *podmanager.LocalPod) (key string, config *linux_l3.ARPEntry) {
-	_, linuxIfName := n.podInterfaceName(pod, "", "")
+func (n *IPNet) podToVPPArpEntry(pod *podmanager.LocalPod, customIfName, customIfType string) (key string, config *linux_l3.ARPEntry) {
+	_, linuxIfName, _ := n.podInterfaceName(pod, customIfName, customIfType)
 	arp := &linux_l3.ARPEntry{
 		Interface: linuxIfName,
 		IpAddress: n.IPAM.PodGatewayIP().String(),
-		HwAddress: n.hwAddrForPod(pod, true),
+		HwAddress: n.hwAddrForPod(pod, customIfName, true),
 	}
 	key = linux_l3.ArpKey(arp.Interface, arp.IpAddress)
 	return key, arp
@@ -742,7 +938,7 @@ func (n *IPNet) podToVPPArpEntry(pod *podmanager.LocalPod) (key string, config *
 // the interface connecting pod with VPP (even though the GW IP does not fall into
 // the pod IP address network).
 func (n *IPNet) podToVPPLinkRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.Route) {
-	_, linuxIfName := n.podInterfaceName(pod, "", "")
+	_, linuxIfName, _ := n.podInterfaceName(pod, "", "")
 	route := &linux_l3.Route{
 		OutgoingInterface: linuxIfName,
 		Scope:             linux_l3.Route_LINK,
@@ -754,7 +950,7 @@ func (n *IPNet) podToVPPLinkRoute(pod *podmanager.LocalPod) (key string, config 
 
 // podToVPPLinkRoute returns configuration for the default route of the given pod.
 func (n *IPNet) podToVPPDefaultRoute(pod *podmanager.LocalPod) (key string, config *linux_l3.Route) {
-	_, linuxIfName := n.podInterfaceName(pod, "", "")
+	_, linuxIfName, _ := n.podInterfaceName(pod, "", "")
 	route := &linux_l3.Route{
 		OutgoingInterface: linuxIfName,
 		DstNetwork:        anyNetAddrForAF(n.IPAM.PodGatewayIP()),
@@ -769,12 +965,14 @@ func (n *IPNet) podToVPPDefaultRoute(pod *podmanager.LocalPod) (key string, conf
 
 // vppToPodArpEntry return configuration for ARP entry used in VPP to resolve
 // hardware address from the IP address of the given pod.
-func (n *IPNet) vppToPodArpEntry(pod *podmanager.LocalPod) (key string, config *vpp_l3.ARPEntry) {
-	vppIfName, _ := n.podInterfaceName(pod, "", "")
+func (n *IPNet) vppToPodArpEntry(pod *podmanager.LocalPod, podIP *net.IPNet, customIfName,
+	customIfType string) (key string, config *vpp_l3.ARPEntry) {
+
+	vppIfName, _, _ := n.podInterfaceName(pod, customIfName, customIfType)
 	arp := &vpp_l3.ARPEntry{
 		Interface:   vppIfName,
-		IpAddress:   n.IPAM.GetPodIP(pod.ID).IP.String(),
-		PhysAddress: n.hwAddrForPod(pod, false),
+		IpAddress:   podIP.IP.String(),
+		PhysAddress: n.hwAddrForPod(pod, customIfName, false),
 		Static:      true,
 	}
 	key = vpp_l3.ArpEntryKey(arp.Interface, arp.IpAddress)
@@ -783,8 +981,10 @@ func (n *IPNet) vppToPodArpEntry(pod *podmanager.LocalPod) (key string, config *
 
 // vppToPodRoute return configuration for route used in VPP to direct traffic destinated
 // to the IP address of the given pod.
-func (n *IPNet) vppToPodRoute(pod *podmanager.LocalPod, podIP *net.IPNet, customIfName, customIfType string) (key string, config *vpp_l3.Route) {
-	podVPPIfName, _ := n.podInterfaceName(pod, customIfName, customIfType)
+func (n *IPNet) vppToPodRoute(pod *podmanager.LocalPod, podIP *net.IPNet, customIfName,
+	customIfType string) (key string, config *vpp_l3.Route) {
+
+	podVPPIfName, _, _ := n.podInterfaceName(pod, customIfName, customIfType)
 	route := &vpp_l3.Route{
 		OutgoingInterface: podVPPIfName,
 		DstNetwork:        podIP.String(),
@@ -823,10 +1023,10 @@ func (n *IPNet) hostToPodRoute(pod *podmanager.LocalPod) (key string, config *li
 // generateHwAddrForPod generates hardware address for Pod interface on the VPP
 // side or on the host (Linux) side.
 // TODO: Safer may be to use node ID + pod IP address index
-func (n *IPNet) hwAddrForPod(pod *podmanager.LocalPod, vppSide bool) string {
+func (n *IPNet) hwAddrForPod(pod *podmanager.LocalPod, customIfName string, vppSide bool) string {
 	hwAddr := make(net.HardwareAddr, 6)
 	h := fnv.New32a()
-	h.Write([]byte(pod.ContainerID))
+	h.Write([]byte(pod.ContainerID + "/" + customIfName))
 	hash := h.Sum32()
 	if vppSide {
 		hash = ^hash

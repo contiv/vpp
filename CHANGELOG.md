@@ -1,3 +1,21 @@
+# Release v3.3.0 (2019-09-06)
+
+### VPP
+ - version **v19.08** (latest stable/1908)
+
+### New Features & Enhancements
+ - support for cluster-wide L2 cross-connect based [service chaining between pods](k8s/examples/sfc/README.md)
+ - support for [custom networks](k8s/examples/custom-network) defined in CRDs
+ - support for [external interfaces](k8s/examples/custom-network) defined in CRDs
+
+### Bugfixes
+ - fixed VPP NAT in multi-worker setup
+
+### Known Issues
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
 # Release v3.2.1 (2019-07-24)
 
 ### VPP

@@ -796,7 +796,8 @@
   revision = "61443bee9914521191283f41c8715c41aaaa47f4"
 
 [[projects]]
-  digest = "1:4a42689cfdad63602428befc56103c35b257ac58c3f70b75d92e4065f22ae6fe"
+  branch = "dev"
+  digest = "1:aed45286cca5d88cc6b5821879573c89f5ec1657f7a06215580195ebd8f77fec"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -806,6 +807,7 @@
     "api/models/linux/iptables",
     "api/models/linux/l3",
     "api/models/linux/namespace",
+    "api/models/netalloc",
     "api/models/vpp",
     "api/models/vpp/abf",
     "api/models/vpp/acl",
@@ -850,6 +852,10 @@
     "plugins/linux/nsplugin",
     "plugins/linux/nsplugin/descriptor",
     "plugins/linux/nsplugin/linuxcalls",
+    "plugins/netalloc",
+    "plugins/netalloc/descriptor",
+    "plugins/netalloc/descriptor/adapter",
+    "plugins/netalloc/utils",
     "plugins/orchestrator",
     "plugins/restapi",
     "plugins/restapi/resturl",
@@ -871,6 +877,7 @@
     "plugins/vpp/binapi/vpp1901/af_packet",
     "plugins/vpp/binapi/vpp1901/bond",
     "plugins/vpp/binapi/vpp1901/dhcp",
+    "plugins/vpp/binapi/vpp1901/gre",
     "plugins/vpp/binapi/vpp1901/interfaces",
     "plugins/vpp/binapi/vpp1901/ip",
     "plugins/vpp/binapi/vpp1901/ipsec",
@@ -891,6 +898,7 @@
     "plugins/vpp/binapi/vpp1904/af_packet",
     "plugins/vpp/binapi/vpp1904/bond",
     "plugins/vpp/binapi/vpp1904/dhcp",
+    "plugins/vpp/binapi/vpp1904/gre",
     "plugins/vpp/binapi/vpp1904/interfaces",
     "plugins/vpp/binapi/vpp1904/ip",
     "plugins/vpp/binapi/vpp1904/ipsec",
@@ -910,6 +918,7 @@
     "plugins/vpp/binapi/vpp1908/af_packet",
     "plugins/vpp/binapi/vpp1908/bond",
     "plugins/vpp/binapi/vpp1908/dhcp",
+    "plugins/vpp/binapi/vpp1908/gre",
     "plugins/vpp/binapi/vpp1908/interfaces",
     "plugins/vpp/binapi/vpp1908/ip",
     "plugins/vpp/binapi/vpp1908/ipsec",
@@ -979,8 +988,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1908",
   ]
   pruneopts = "UT"
-  revision = "8cdc8da9b3b5aab68d6897487a665eacf54248a4"
-  version = "v2.2.0"
+  revision = "365640cac4d896376a9e3ec26a9c1ae2328bbecb"
 
 [[projects]]
   branch = "master"
@@ -1910,6 +1918,7 @@
     "github.com/ligato/vpp-agent/api/models/linux/iptables",
     "github.com/ligato/vpp-agent/api/models/linux/l3",
     "github.com/ligato/vpp-agent/api/models/linux/namespace",
+    "github.com/ligato/vpp-agent/api/models/netalloc",
     "github.com/ligato/vpp-agent/api/models/vpp",
     "github.com/ligato/vpp-agent/api/models/vpp/abf",
     "github.com/ligato/vpp-agent/api/models/vpp/acl",

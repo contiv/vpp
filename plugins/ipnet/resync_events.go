@@ -82,7 +82,7 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 			if n.IPAM.GetPodIP(pod.ID) == nil {
 				continue
 			}
-			vppIfName, _ := n.podInterfaceName(pod, "", "")
+			vppIfName, _, _ := n.podInterfaceName(pod, "", "")
 			n.vppIfaceToPod[vppIfName] = pod.ID
 		}
 		n.vppIfaceToPodMutex.Unlock()
@@ -101,8 +101,11 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 		controller.PutAll(txn, updateConfig)
 	}
 
-	n.Log.Infof("IPNet plugin internal state after RESYNC: %s",
-		n.internalState.StateToString())
+	_, isVerification := event.(*controller.VerificationResync)
+	if !isVerification {
+		n.Log.Infof("IPNet plugin internal state after RESYNC: %s",
+			n.internalState.StateToString())
+	}
 	return wasErr
 }
 

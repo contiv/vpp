@@ -276,6 +276,8 @@ func (n *IPNet) Close() error {
 //   - AddPod and DeletePod (CNI)
 //   - POD k8s state changes
 //   - POD custom interfaces update
+//   - custom network update
+//   - external interfaces update
 //   - NodeUpdate for other nodes
 //   - Shutdown event
 func (n *IPNet) HandlesEvent(event controller.Event) bool {
@@ -402,5 +404,5 @@ func (n *IPNet) GetVxlanBVIIfName() string {
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport != contivconf.VXLANTransport {
 		return ""
 	}
-	return n.vxlanBVIInterfaceName(defaultNetworkName)
+	return n.vxlanBVIInterfaceName(DefaultPodNetworkName)
 }

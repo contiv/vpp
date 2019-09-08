@@ -271,15 +271,15 @@ func (n *IPNet) addPod(event *podmanager.AddPod, txn controller.UpdateOperations
 			{
 				Version: ipVersion,
 				Address: n.IPAM.GetPodIP(pod.ID),
-				Gateway: n.IPAM.PodGatewayIP(),
+				Gateway: n.IPAM.PodGatewayIP(DefaultPodNetworkName),
 			},
 		},
 	})
-	_, anyDstNet, _ := net.ParseCIDR(anyNetAddrForAF(n.IPAM.PodGatewayIP()))
+	_, anyDstNet, _ := net.ParseCIDR(anyNetAddrForAF(n.IPAM.PodGatewayIP(DefaultPodNetworkName)))
 
 	event.Routes = append(event.Routes, podmanager.Route{
 		Network: anyDstNet,
-		Gateway: n.IPAM.PodGatewayIP(),
+		Gateway: n.IPAM.PodGatewayIP(DefaultPodNetworkName),
 	})
 
 	return "configure IP connectivity", nil
@@ -429,7 +429,7 @@ func (n *IPNet) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn cont
 		nodeHasIPAddress(nodeUpdate.PrevState) != nodeHasIPAddress(nodeUpdate.NewState) {
 
 		// update bridge domain of default pod network
-		key, bd := n.vxlanBridgeDomain(defaultNetworkName)
+		key, bd := n.vxlanBridgeDomain(DefaultPodNetworkName)
 		txn.Put(key, bd)
 	}
 

@@ -52,35 +52,35 @@ type API interface {
 	// identified by nodeID.
 	HostInterconnectSubnetOtherNode(nodeID uint32) (*net.IPNet, error)
 
-	// NodeIDFromPodIP returns node ID from provided POD IP address.
-	NodeIDFromPodIP(podIP net.IP) (uint32, error)
-
 	// PodSubnetAllNodes returns POD subnet that is a base subnet for all PODs
-	// of all nodes.
-	PodSubnetAllNodes() *net.IPNet
+	// of all nodes for given pod network.
+	PodSubnetAllNodes(network string) *net.IPNet
 
 	// PodSubnetThisNode returns POD network for the current node
-	// (given by nodeID allocated for this node).
-	PodSubnetThisNode() *net.IPNet
+	// (given by network name and nodeID allocated for this node).
+	PodSubnetThisNode(network string) *net.IPNet
 
-	// PodSubnetOtherNode returns the POD network of another node identified by nodeID.
-	PodSubnetOtherNode(nodeID uint32) (*net.IPNet, error)
-
-	// ServiceNetwork returns range allocated for services.
-	ServiceNetwork() *net.IPNet
+	// PodSubnetOtherNode returns the POD network of another node identified by network name and nodeID.
+	PodSubnetOtherNode(network string, nodeID uint32) (*net.IPNet, error)
 
 	// PodGatewayIP returns gateway IP address of the POD subnet of this node.
-	PodGatewayIP() net.IP
+	PodGatewayIP(network string) net.IP
+
+	// NodeIDFromPodIP returns node ID from provided main POD IP address.
+	NodeIDFromPodIP(podIP net.IP) (uint32, error)
 
 	// NatLoopbackIP returns the IP address of a virtual loopback, used to route
 	// traffic between clients and services via VPP even if the source and destination
 	// are the same IP addresses and would otherwise be routed locally.
 	NatLoopbackIP() net.IP
 
+	// ServiceNetwork returns range allocated for services.
+	ServiceNetwork() *net.IPNet
+
 	// AllocatePodIP tries to allocate IP address for the given pod.
 	AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string) (net.IP, error)
 
-	// GetPodIP returns the allocated pod IP, together with the mask.
+	// GetPodIP returns the allocated (main) pod IP, together with the mask.
 	// Returns nil if the pod does not have allocated IP address.
 	GetPodIP(podID podmodel.ID) *net.IPNet
 

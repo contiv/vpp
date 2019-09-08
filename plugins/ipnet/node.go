@@ -83,7 +83,7 @@ func (n *IPNet) otherNodeConnectivityConfig(node *nodesync.Node) (config control
 
 	// VXLAN for the default pod network
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport && len(n.nodeIP) > 0 {
-		vxlanCfg := n.vxlanToOtherNodeConfig(node, defaultNetworkName, defaultPodVxlanVNI, false)
+		vxlanCfg := n.vxlanToOtherNodeConfig(node, DefaultPodNetworkName, defaultPodVxlanVNI, false)
 		mergeConfiguration(config, vxlanCfg)
 	}
 
@@ -113,7 +113,7 @@ func (n *IPNet) otherNodeConnectivityConfig(node *nodesync.Node) (config control
 
 	// route to pods of the other node
 	if !n.ContivConf.GetIPAMConfig().UseExternalIPAM { // skip in case that external IPAM is in use
-		podsCfg, err := n.connectivityToOtherNodePods(node.ID, nextHop)
+		podsCfg, err := n.connectivityToOtherNodePods(DefaultPodNetworkName, node.ID, nextHop)
 		if err != nil {
 			n.Log.Error(err)
 			return config, err
@@ -121,7 +121,17 @@ func (n *IPNet) otherNodeConnectivityConfig(node *nodesync.Node) (config control
 		mergeConfiguration(config, podsCfg)
 	}
 
-	// TODO: routes to pods in L3 custom networks
+	// routes to pods in L3 custom networks
+	for _, nw := range n.customNetworks {
+		if nw.config != nil && nw.config.Type == customnetmodel.CustomNetwork_L3 {
+			podsCfg, err := n.connectivityToOtherNodePods(nw.config.Name, node.ID, nextHop)
+			if err != nil {
+				n.Log.Error(err)
+				return config, err
+			}
+			mergeConfiguration(config, podsCfg)
+		}
+	}
 
 	// route to the host stack of the other node
 	hostStackCfg, err := n.connectivityToOtherNodeHostStack(node.ID, nextHop)
@@ -437,7 +447,7 @@ func (n *IPNet) vrfMainTables() map[string]*vpp_l3.VrfTable {
 	tables := make(map[string]*vpp_l3.VrfTable)
 	routingCfg := n.ContivConf.GetRoutingConfig()
 
-	// Note: we are not ignoring setting up vrf table in case of zero vrf id (vrf table is created automatically)
+	// Note: we are explicitly creating vrf tables even with zero vrf id (zero vrf tables are created automatically)
 	// to get uniform vrf table labeling in all cases
 	k, v := n.vrfTable(routingCfg.MainVRFID, vpp_l3.VrfTable_IPV4, "mainVRF")
 	tables[k] = v
@@ -489,7 +499,7 @@ func (n *IPNet) vrfTable(vrfID uint32, protocol vpp_l3.VrfTable_Protocol, label 
 	return key, vrf
 }
 
-// routesPodToMainVRF returns non-drop routes from Pod VRF to Main VRF.
+// routesPodToMainVRF returns non-drop routes from default Pod VRF to Main VRF.
 func (n *IPNet) routesPodToMainVRF() map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)
 	routingCfg := n.ContivConf.GetRoutingConfig()
@@ -497,10 +507,10 @@ func (n *IPNet) routesPodToMainVRF() map[string]*vpp_l3.Route {
 	// by default to go from Pod VRF via Main VRF
 	r1 := &vpp_l3.Route{
 		Type:        vpp_l3.Route_INTER_VRF,
-		DstNetwork:  anyNetAddrForAF(n.IPAM.PodGatewayIP()),
+		DstNetwork:  anyNetAddrForAF(n.IPAM.PodGatewayIP(DefaultPodNetworkName)),
 		VrfId:       routingCfg.PodVRFID,
 		ViaVrfId:    routingCfg.MainVRFID,
-		NextHopAddr: anyAddrForAF(n.IPAM.PodGatewayIP()),
+		NextHopAddr: anyAddrForAF(n.IPAM.PodGatewayIP(DefaultPodNetworkName)),
 	}
 	r1Key := models.Key(r1)
 	routes[r1Key] = r1
@@ -522,7 +532,7 @@ func (n *IPNet) routesPodToMainVRF() map[string]*vpp_l3.Route {
 	return routes
 }
 
-// routesMainToPodVRF returns non-drop routes from Main VRF to Pod VRF.
+// routesMainToPodVRF returns non-drop routes from Main VRF to default Pod VRF.
 func (n *IPNet) routesMainToPodVRF() map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)
 	routingCfg := n.ContivConf.GetRoutingConfig()
@@ -531,10 +541,10 @@ func (n *IPNet) routesMainToPodVRF() map[string]*vpp_l3.Route {
 		// pod subnet (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
 		r1 := &vpp_l3.Route{
 			Type:        vpp_l3.Route_INTER_VRF,
-			DstNetwork:  n.IPAM.PodSubnetAllNodes().String(),
+			DstNetwork:  n.IPAM.PodSubnetAllNodes(DefaultPodNetworkName).String(),
 			VrfId:       routingCfg.MainVRFID,
 			ViaVrfId:    routingCfg.PodVRFID,
-			NextHopAddr: anyAddrForAF(n.IPAM.PodSubnetAllNodes().IP),
+			NextHopAddr: anyAddrForAF(n.IPAM.PodSubnetAllNodes(DefaultPodNetworkName).IP),
 		}
 		r1Key := models.Key(r1)
 		routes[r1Key] = r1
@@ -553,10 +563,10 @@ func (n *IPNet) routesMainToPodVRF() map[string]*vpp_l3.Route {
 		// pod subnet (this node only) routed from Main VRF to Pod VRF
 		r1 := &vpp_l3.Route{
 			Type:        vpp_l3.Route_INTER_VRF,
-			DstNetwork:  n.IPAM.PodSubnetThisNode().String(),
+			DstNetwork:  n.IPAM.PodSubnetThisNode(DefaultPodNetworkName).String(),
 			VrfId:       routingCfg.MainVRFID,
 			ViaVrfId:    routingCfg.PodVRFID,
-			NextHopAddr: anyAddrForAF(n.IPAM.PodSubnetThisNode().IP),
+			NextHopAddr: anyAddrForAF(n.IPAM.PodSubnetThisNode(DefaultPodNetworkName).IP),
 		}
 		r1Key := models.Key(r1)
 		routes[r1Key] = r1
@@ -578,7 +588,7 @@ func (n *IPNet) routesMainToPodVRF() map[string]*vpp_l3.Route {
 	return routes
 }
 
-// dropRoutesIntoPodVRF returns drop routes for Pod VRF.
+// dropRoutesIntoPodVRF returns drop routes for default Pod VRF.
 func (n *IPNet) dropRoutesIntoPodVRF() map[string]*vpp_l3.Route {
 	routes := make(map[string]*vpp_l3.Route)
 	routingCfg := n.ContivConf.GetRoutingConfig()
@@ -592,7 +602,7 @@ func (n *IPNet) dropRoutesIntoPodVRF() map[string]*vpp_l3.Route {
 
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
 		// drop packets destined to pods no longer deployed
-		r1 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.PodSubnetAllNodes())
+		r1 := n.dropRoute(routingCfg.PodVRFID, n.IPAM.PodSubnetAllNodes(DefaultPodNetworkName))
 		r1Key := models.Key(r1)
 		routes[r1Key] = r1
 
@@ -617,16 +627,25 @@ func (n *IPNet) dropRoute(vrfID uint32, dstAddr *net.IPNet) *vpp_l3.Route {
 
 // podGwLoopback returns configuration of the loopback interface used in the POD VRF
 // to respond on POD gateway IP address.
-func (n *IPNet) podGwLoopback() (key string, config *vpp_interfaces.Interface) {
+func (n *IPNet) podGwLoopback(network string, vrf uint32) (key string, config *vpp_interfaces.Interface) {
 	lo := &vpp_interfaces.Interface{
-		Name:        podGwLoopbackInterfaceName,
-		Type:        vpp_interfaces.Interface_SOFTWARE_LOOPBACK,
-		Enabled:     true,
-		IpAddresses: []string{ipNetToString(combineAddrWithNet(n.IPAM.PodGatewayIP(), n.IPAM.PodSubnetThisNode()))},
-		Vrf:         n.ContivConf.GetRoutingConfig().PodVRFID,
+		Name:    n.podGwLoopbackInterfaceName(network),
+		Type:    vpp_interfaces.Interface_SOFTWARE_LOOPBACK,
+		Enabled: true,
+		IpAddresses: []string{ipNetToString(combineAddrWithNet(
+			n.IPAM.PodGatewayIP(network), n.IPAM.PodSubnetThisNode(network)))},
+		Vrf: vrf,
 	}
 	key = vpp_interfaces.InterfaceKey(lo.Name)
 	return key, lo
+}
+
+// podGwLoopbackInterfaceName returns the name of the loopback interface for pod default gateway.
+func (n *IPNet) podGwLoopbackInterfaceName(network string) string {
+	if network == "" || network == DefaultPodNetworkName {
+		return podGwLoopbackInterfaceName
+	}
+	return podGwLoopbackInterfaceName + "-" + network
 }
 
 /************************** Custom Networks **************************/
@@ -683,20 +702,37 @@ func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, even
 		vrfKey, vrf := n.vrfTable(vrfID, proto, nwConfig.Name)
 		config[vrfKey] = vrf
 
+		// loopback with the gateway IP address for PODs
+		// - used as the unnumbered IP for the POD facing interfaces
+		key, loop := n.podGwLoopback(nwConfig.Name, vrfID)
+		config[key] = loop
+
 		// VXLAN BD + BVI
 		key, bd := n.vxlanBridgeDomain(nwConfig.Name)
 		config[key] = bd
 		key, bvi, _ := n.vxlanBVILoopback(nwConfig.Name, vrfID)
 		config[key] = bvi
 
-		// VXLANs to the other nodes
+		// connectivity to the other nodes
 		for _, node := range n.getRemoteNodesWithIP() {
+			// VXLANs to the other nodes
 			if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
 				vxlanCfg := n.vxlanToOtherNodeConfig(node, nw.config.Name, vni, false)
 				mergeConfiguration(config, vxlanCfg)
 			}
 
-			// TODO: routes to pods in L3 custom networks
+			// routes to pods in L3 custom networks
+			nextHop, err := n.otherNodeNextHopIP(node)
+			if err != nil {
+				n.Log.Error(err)
+				return config, err
+			}
+			routesCfg, err := n.connectivityToOtherNodePods(nw.config.Name, node.ID, nextHop)
+			if err != nil {
+				n.Log.Error(err)
+				return config, err
+			}
+			mergeConfiguration(config, routesCfg)
 		}
 
 		// in case of delete event, release the VRF & VNI
@@ -768,9 +804,8 @@ func (n *IPNet) interfaceCustomNwConfig(ifName, customNwName string, isAdd bool)
 		config[bdKey] = bd
 	}
 	if nw.config.Type == customnetmodel.CustomNetwork_L3 {
-		// TODO
+		// TODO: L3 interface config
 	}
-	// TODO: handle other types of custom networks
 
 	return config
 }
@@ -802,7 +837,7 @@ func (n *IPNet) getOrAllocateVrfID(networkName string) (vrf uint32, err error) {
 
 // isDefaultPodNetwork returns true if provided network name is the default pod network.
 func (n *IPNet) isDefaultPodNetwork(nwName string) bool {
-	return nwName == defaultNetworkName || nwName == ""
+	return nwName == DefaultPodNetworkName || nwName == ""
 }
 
 // isStubNetwork returns true if provided network name is the "stub" network (not connected anywhere).
@@ -877,7 +912,7 @@ func (n *IPNet) vxlanBridgeDomain(network string) (key string, config *vpp_l2.Br
 
 // vxlanBDName returns name of the VXLAN bridge domain.
 func (n *IPNet) vxlanBDName(network string) string {
-	if network == "" || network == defaultNetworkName {
+	if network == "" || network == DefaultPodNetworkName {
 		return vxlanBDNamePrefix
 	}
 	return vxlanBDNamePrefix + "-" + network
@@ -885,7 +920,7 @@ func (n *IPNet) vxlanBDName(network string) string {
 
 // vxlanBVIInterfaceName returns the name of the VXLAN BVI interface.
 func (n *IPNet) vxlanBVIInterfaceName(network string) string {
-	if network == "" || network == defaultNetworkName {
+	if network == "" || network == DefaultPodNetworkName {
 		return vxlanBVIInterfacePrefix
 	}
 	return vxlanBVIInterfacePrefix + "-" + network
@@ -992,7 +1027,7 @@ func (n *IPNet) srv6NodeToNodeSegmentIngress(otherNodeID uint32, nextHopIP net.I
 	if err != nil {
 		return config, fmt.Errorf("unable to convert SID into IPv6 destination network: %v", err)
 	}
-	key, route := n.routeToOtherNodeNetworks(ipNet, nextHopIP)
+	key, route := n.routeToOtherNodeNetworks(defaultPodVxlanName, ipNet, nextHopIP)
 	if err != nil {
 		n.Log.Error(err)
 		return config, fmt.Errorf("unable create IPv6 route for SRv6 sid for k8s node: %v", err)
@@ -1017,7 +1052,7 @@ func (n *IPNet) srv6NodeToNodeDX6PodTunnelIngress(pod *podmodel.Pod) (config con
 		return config, errors.Wrapf(err, "srv6 node-to-node tunnel (using DX6 connecting to pod with ID %v) can't be created "+
 			"due to error from computing steering network for pod IP address %v", podmodel.GetID(pod), podIP)
 	}
-	if !n.IPAM.PodSubnetAllNodes().Contains(podIP) {
+	if !n.IPAM.PodSubnetAllNodes(DefaultPodNetworkName).Contains(podIP) {
 		n.Log.Warnf("excluding pod %v from creating srv6 DX6 node-to-node tunnel for it because its IP address(%v) seems not to be from Pod "+
 			"subnet. It is probably system pod with other IP address range ", podmodel.GetID(pod), podIP)
 		return make(controller.KeyValuePairs, 0), nil
@@ -1087,7 +1122,7 @@ func (n *IPNet) srv6NodeToNodeTunnelIngress(nextHopIP net.IP, networkToSteer *ne
 	if err != nil {
 		return config, fmt.Errorf("unable to convert SID into IPv6 destination network: %v", err)
 	}
-	key, route := n.routeToOtherNodeNetworks(ipNet, nextHopIP)
+	key, route := n.routeToOtherNodeNetworks(DefaultPodNetworkName, ipNet, nextHopIP)
 	if err != nil {
 		n.Log.Error(err)
 		return config, fmt.Errorf("unable create IPv6 route for SRv6 sid for k8s node: %v", err)
@@ -1175,9 +1210,9 @@ func (n *IPNet) srv6NodeToNodeSegmentEgress(sid net.IP) (key string, config *vpp
 /************************** Connectivity / routes to other nodes **************************/
 
 // connectivityToOtherNodePods returns configuration that will route traffic to pods of another node.
-func (n *IPNet) connectivityToOtherNodePods(otherNodeID uint32, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
+func (n *IPNet) connectivityToOtherNodePods(network string, otherNodeID uint32, nextHopIP net.IP) (config controller.KeyValuePairs, err error) {
 	config = make(controller.KeyValuePairs, 0)
-	podNetwork, err := n.IPAM.PodSubnetOtherNode(otherNodeID)
+	podNetwork, err := n.IPAM.PodSubnetOtherNode(network, otherNodeID)
 	if err != nil {
 		return config, fmt.Errorf("Failed to compute pod network for node ID %v, error: %v ", otherNodeID, err)
 	}
@@ -1209,7 +1244,7 @@ func (n *IPNet) connectivityToOtherNodePods(otherNodeID uint32, nextHopIP net.IP
 	case contivconf.NoOverlayTransport:
 		fallthrough // the same as for VXLANTransport
 	case contivconf.VXLANTransport:
-		key, route := n.routeToOtherNodeNetworks(podNetwork, nextHopIP)
+		key, route := n.routeToOtherNodeNetworks(network, podNetwork, nextHopIP)
 		config[key] = route
 	}
 
@@ -1241,14 +1276,14 @@ func (n *IPNet) connectivityToOtherNodeHostStack(otherNodeID uint32, nextHopIP n
 		if err != nil {
 			return nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", otherNodeID, err)
 		}
-		key, route := n.routeToOtherNodeNetworks(hostNetwork, nextHopIP)
+		key, route := n.routeToOtherNodeNetworks(DefaultPodNetworkName, hostNetwork, nextHopIP)
 		config[key] = route
 	}
 	return config, nil
 }
 
 // routeToOtherNodeNetworks is a helper function to build route for traffic destined to another node.
-func (n *IPNet) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net.IP) (key string, config *vpp_l3.Route) {
+func (n *IPNet) routeToOtherNodeNetworks(network string, destNetwork *net.IPNet, nextHopIP net.IP) (key string, config *vpp_l3.Route) {
 	route := &vpp_l3.Route{
 		DstNetwork:  destNetwork.String(),
 		NextHopAddr: nextHopIP.String(),
@@ -1259,8 +1294,12 @@ func (n *IPNet) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net.I
 	case contivconf.SRv6Transport:
 		route.VrfId = n.ContivConf.GetRoutingConfig().MainVRFID
 	case contivconf.VXLANTransport:
-		route.OutgoingInterface = n.vxlanBVIInterfaceName(defaultNetworkName)
-		route.VrfId = n.ContivConf.GetRoutingConfig().PodVRFID
+		route.OutgoingInterface = n.vxlanBVIInterfaceName(network)
+		if n.isDefaultPodNetwork(network) {
+			route.VrfId = n.ContivConf.GetRoutingConfig().PodVRFID
+		} else {
+			route.VrfId, _ = n.getOrAllocateVrfID(network)
+		}
 	}
 	key = models.Key(route)
 	return key, route
@@ -1295,7 +1334,7 @@ func (n *IPNet) connectivityToOtherNodeManagementIPAddresses(node *nodesync.Node
 			}
 		case contivconf.VXLANTransport:
 			// route management IP address towards the destination node
-			key, mgmtRoute1 := n.routeToOtherNodeManagementIP(mgmtIP, nextHop, n.ContivConf.GetRoutingConfig().PodVRFID, n.vxlanBVIInterfaceName(defaultNetworkName))
+			key, mgmtRoute1 := n.routeToOtherNodeManagementIP(mgmtIP, nextHop, n.ContivConf.GetRoutingConfig().PodVRFID, n.vxlanBVIInterfaceName(DefaultPodNetworkName))
 			if mgmtRoute1 != nil {
 				config[key] = mgmtRoute1
 			}

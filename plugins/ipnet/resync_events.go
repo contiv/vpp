@@ -416,15 +416,23 @@ func (n *IPNet) configureSTNConnectivity(txn controller.ResyncOperations) {
 
 // configureVrfTables configures VRF tables
 func (n *IPNet) configureVrfTables(txn controller.ResyncOperations) {
-	tables := n.vrfMainTables() // main vrf is by default 0 and tables with vrf id 0 are created automatically -> setting it up for possibly overridden values and for vrf table label uniformity
+	// main vrf is by default 0 and tables with vrf id 0 are created automatically,
+	// but we are still setting them up for vrf table label uniformity
+	tables := n.vrfMainTables()
 	for key, table := range tables {
 		txn.Put(key, table)
 	}
 
+	// default pod VRF
 	tables = n.vrfTablesForPods()
 	for key, table := range tables {
 		txn.Put(key, table)
 	}
+
+	// loopback with the gateway IP address for PODs
+	// - used as the unnumbered IP for the POD facing interfaces
+	key, lo := n.podGwLoopback(DefaultPodNetworkName, n.ContivConf.GetRoutingConfig().PodVRFID)
+	txn.Put(key, lo)
 }
 
 // configureVswitchVrfRoutes configures inter-VRF routing
@@ -477,11 +485,11 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations, kubeStateData 
 	// Note that bridge domains for custom networks are refreshed in customNetworkConfig.
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
 		// bridge domain
-		key, bd := n.vxlanBridgeDomain(defaultNetworkName)
+		key, bd := n.vxlanBridgeDomain(DefaultPodNetworkName)
 		txn.Put(key, bd)
 
 		// BVI interface
-		key, vxlanBVI, err := n.vxlanBVILoopback(defaultNetworkName, n.ContivConf.GetRoutingConfig().PodVRFID)
+		key, vxlanBVI, err := n.vxlanBVILoopback(DefaultPodNetworkName, n.ContivConf.GetRoutingConfig().PodVRFID)
 		if err != nil {
 			n.Log.Error(err)
 			return err
@@ -507,10 +515,6 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations, kubeStateData 
 			}
 		}
 	}
-
-	// loopback with the gateway IP address for PODs. Also used as the unnumbered IP for the POD facing interfaces.
-	key, lo := n.podGwLoopback()
-	txn.Put(key, lo)
 
 	return nil
 }

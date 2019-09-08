@@ -264,7 +264,7 @@ func (n *IPNet) configureMainVPPInterface(event controller.Event, txn controller
 
 	if nicName != "" {
 		// configure the physical NIC
-		nicKey, nic := n.physicalInterface(nicName, nicStaticIPs)
+		nicKey, nic := n.physicalInterface(nicName, n.ContivConf.GetRoutingConfig().MainVRFID, nicStaticIPs)
 		if n.useDHCP {
 			// clear IP addresses
 			nic.IpAddresses = []string{}
@@ -298,7 +298,7 @@ func (n *IPNet) configureMainVPPInterface(event controller.Event, txn controller
 // configureOtherVPPInterfaces configure all physical interfaces defined in the config but the main one.
 func (n *IPNet) configureOtherVPPInterfaces(txn controller.ResyncOperations) error {
 	for _, physicalIface := range n.ContivConf.GetOtherVPPInterfaces() {
-		key, iface := n.physicalInterface(physicalIface.InterfaceName, physicalIface.IPs)
+		key, iface := n.physicalInterface(physicalIface.InterfaceName, n.ContivConf.GetRoutingConfig().MainVRFID, physicalIface.IPs)
 		iface.SetDhcpClient = physicalIface.UseDHCP
 		txn.Put(key, iface)
 	}

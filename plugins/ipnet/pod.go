@@ -307,10 +307,13 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 			}
 		}
 		if !n.isDefaultPodNetwork(customIf.ifNet) && !n.isStubNetwork(customIf.ifNet) {
-			// configure interface in custom network
+			// post-configure interface in custom network
 			vppIfName, _, _ := n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
-			nwConfig := n.interfaceCustomNwConfig(vppIfName, customIf.ifNet, eventType != configDelete)
-			mergeConfiguration(updateConfig, nwConfig)
+			n.cacheCustomNetworkInterface(customIf.ifNet, pod, nil, vppIfName, eventType != configDelete)
+			if n.isL2Network(customIf.ifNet) {
+				bdKey, bd := n.l2CustomNwBridgeDomain(n.customNetworks[customIf.ifNet])
+				updateConfig[bdKey] = bd
+			}
 		}
 
 		// pod-side of the custom interface
@@ -373,12 +376,12 @@ func (n *IPNet) getOrAllocatePodCustomIfIP(pod *podmanager.LocalPod, customIf *p
 	allocate, isServiceEndpoint bool) (podIP *net.IPNet, err error) {
 
 	if allocate {
-		_, err = n.IPAM.AllocatePodCustomIfIP(pod.ID, customIf.ifName, customIf.ifNet, isServiceEndpoint)
+		ip, err := n.IPAM.AllocatePodCustomIfIP(pod.ID, customIf.ifName, customIf.ifNet, isServiceEndpoint)
 		if err != nil {
 			n.Log.Warnf("Unable to allocate IP for custom interface %s: %v", customIf.ifName, err)
-			return
+			return nil, err
 		}
-		n.Log.Debugf("IP allocated for the custom interface %s: %s", customIf.ifName, podIP.String())
+		n.Log.Debugf("IP allocated for the custom interface %s: %s", customIf.ifName, ip.String())
 	}
 
 	podIP = n.IPAM.GetPodCustomIfIP(pod.ID, customIf.ifName, customIf.ifNet)

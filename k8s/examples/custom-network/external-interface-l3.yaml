@@ -1,0 +1,12 @@
+---
+apiVersion: contivpp.io/v1
+kind: ExternalInterface
+metadata:
+  name: l3net-gw
+spec:
+  type: L3
+  network: l3net
+  nodes:
+    - node: lubuntu
+      vppInterfaceName: GigabitEthernet0/a/0
+      IP: 10.100.100.100/16

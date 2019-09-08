@@ -485,8 +485,7 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 		}
 		if ksChange.Resource == customnetmodel.Keyword {
 			// custom network data change
-			if ksChange.NewValue != nil && ksChange.PrevValue == nil {
-				// note that we do not support changes in custom network addressing
+			if ksChange.NewValue != nil {
 				nw := ksChange.NewValue.(*customnetmodel.CustomNetwork)
 				if nw.Type == customnetmodel.CustomNetwork_L3 && nw.SubnetCIDR != "" && nw.SubnetOneNodePrefix > 0 {
 					err = i.initializeCustomPodNetwork(nw.Name, nw.SubnetCIDR, nw.SubnetOneNodePrefix)

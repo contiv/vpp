@@ -117,7 +117,9 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 					return n.updateCustomNetwork(nw, txn, configAdd)
 				}
 				prevNw := ksChange.PrevValue.(*customnetmodel.CustomNetwork)
+				prevNwState := n.customNetworks[prevNw.Name].clone()
 				n.updateCustomNetwork(prevNw, txn, configDelete)
+				n.customNetworks[prevNw.Name] = prevNwState
 				return n.updateCustomNetwork(nw, txn, configAdd)
 			}
 			nw := ksChange.PrevValue.(*customnetmodel.CustomNetwork)

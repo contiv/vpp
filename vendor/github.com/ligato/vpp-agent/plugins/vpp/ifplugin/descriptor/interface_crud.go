@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/pkg/errors"
 
+	"github.com/ligato/vpp-agent/api/models/netalloc"
 	interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/pkg/models"
 	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
@@ -140,6 +141,13 @@ func (d *InterfaceDescriptor) Create(key string, intf *interfaces.Interface) (me
 			return nil, err
 		}
 		d.bondIDs[intf.GetBond().GetId()] = intf.GetName()
+
+	case interfaces.Interface_GRE_TUNNEL:
+		ifIdx, err = d.ifHandler.AddGreTunnel(intf.Name, intf.GetGre())
+		if err != nil {
+			d.log.Error(err)
+			return nil, err
+		}
 	}
 
 	// MAC address. Note: physical interfaces cannot have the MAC address changed. The bond interface uses its own
@@ -237,6 +245,8 @@ func (d *InterfaceDescriptor) Delete(key string, intf *interfaces.Interface, met
 	case interfaces.Interface_BOND_INTERFACE:
 		err = d.ifHandler.DeleteBondInterface(intf.Name, ifIdx)
 		delete(d.bondIDs, intf.GetBond().GetId())
+	case interfaces.Interface_GRE_TUNNEL:
+		_, err = d.ifHandler.DelGreTunnel(intf.Name, intf.GetGre())
 	}
 	if err != nil {
 		err = errors.Errorf("failed to remove interface %s, index %d: %v", intf.Name, ifIdx, err)
@@ -445,6 +455,11 @@ func (d *InterfaceDescriptor) Retrieve(correlate []adapter.InterfaceKVWithMetada
 			if len(expCfg.GetRxModes()) == 0 {
 				intf.Interface.RxModes = []*interfaces.Interface_RxMode{}
 			}
+
+			// correlate references to allocated IP addresses
+			intf.Interface.IpAddresses = d.addrAlloc.CorrelateRetrievedIPs(
+				expCfg.IpAddresses, intf.Interface.IpAddresses,
+				intf.Interface.Name, netalloc.IPAddressForm_ADDR_WITH_MASK)
 		}
 
 		// verify links between VPP and Linux side

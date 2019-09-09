@@ -152,6 +152,7 @@ vswitch:
   enableCoreDumps: true
   coreDumpsDir: /var/contiv/dumps
   useSocketVPPConnection: true
+  enableInterfaceStats: false
 
 cni:
   image:

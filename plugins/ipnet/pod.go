@@ -312,7 +312,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 					k, arp := n.podMicroserviceLinuxGatewayARP(pod, customIf.ifName, customIf.ifType)
 					microserviceConfig[k] = arp
 				}
-			} else {
+			} else if podIP != nil {
 				// interface fully configured by the contiv-vswitch
 				key, podArp := n.podToVPPArpEntry(pod, customIf.ifName, customIf.ifType)
 				config[key] = podArp
@@ -334,7 +334,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 					k, arp := n.podMicroserviceLinuxGatewayARP(pod, customIf.ifName, customIf.ifType)
 					microserviceConfig[k] = arp
 				}
-			} else {
+			} else if podIP != nil {
 				// interface fully configured by the contiv-vswitch
 				key, podArp := n.podToVPPArpEntry(pod, customIf.ifName, customIf.ifType)
 				config[key] = podArp

@@ -11,7 +11,7 @@ if [ "${ip_version}" == "ipv6" ]; then
 
    echo "Downloading Jool"
    git clone https://github.com/NICMx/Jool.git
-   cd /home/vagrant/Jool && git checkout v3.5.7
+   cd /home/vagrant/Jool && git checkout v3.5.8
    echo "Installing Jool kernel modules"
   ( cd /home/vagrant/ && sudo dkms install Jool )
 

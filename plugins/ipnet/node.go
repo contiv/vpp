@@ -714,10 +714,10 @@ func (n *IPNet) customNwBridgeDomain(nw *customNetworkInfo) (key string, config 
 		UnknownUnicastFlood: true,
 	}
 	// local interfaces
+	// SplitHorizonGroup must be zero for these!
 	for _, iface := range nw.localInterfaces {
 		bd.Interfaces = append(bd.Interfaces, &vpp_l2.BridgeDomain_Interface{
-			Name:              iface,
-			SplitHorizonGroup: vxlanSplitHorizonGroup,
+			Name: iface,
 		})
 	}
 	// VXLANs to the other nodes

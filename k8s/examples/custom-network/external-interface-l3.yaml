@@ -8,5 +8,6 @@ spec:
   network: l3net
   nodes:
     - node: lubuntu
-      vppInterfaceName: GigabitEthernet0/a/0
+      vppInterfaceName: GigabitEthernet0/9/0
       IP: 10.100.100.100/16
+      VLAN: 300

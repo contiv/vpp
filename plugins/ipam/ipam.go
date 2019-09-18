@@ -19,9 +19,7 @@ package ipam
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"github.com/gogo/protobuf/proto"
 	"math/big"
 	"net"
 	"sort"
@@ -41,7 +39,6 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
 	"github.com/contiv/vpp/plugins/ipam/ipalloc"
-	"github.com/contiv/vpp/plugins/ipam/vnialloc"
 	"github.com/contiv/vpp/plugins/ksr"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -57,10 +54,6 @@ const (
 
 	// sequence ID reserved for host(Linux)-end of the VPP to host interconnect
 	hostInterconnectInLinuxIPSeqID = 2
-
-	// VXLAN VNI allocation pool range
-	vxlanVNIPoolStart = 5000    // to leave enough space for custom config of the vswitch
-	vxlanVNIPoolEnd   = 1 << 24 // given by VXLAN header
 
 	defaultPodNetworkName = "default" // name of the default pod network
 )
@@ -101,10 +94,6 @@ type IPAM struct {
 	vxlanSubnet *net.IPNet
 	// IP subnet used to allocate ClusterIPs for a service
 	serviceCIDR *net.IPNet
-
-	/********** VXLAN VNI allocation maps **********/
-	allocatedVNIs map[uint32]string // allocated VNI number to VXLAN name
-	vxlanVNIs     map[string]uint32 // VXLAN name to allocated VNI
 }
 
 type podNetworkInfo struct {
@@ -193,8 +182,6 @@ func (i *IPAM) HandlesEvent(event controller.Event) bool {
 
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
 		switch ksChange.Resource {
-		case vnialloc.VxlanVNIKeyword:
-			return true
 		case customnetmodel.Keyword:
 			return true
 		default:
@@ -342,24 +329,15 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 		}
 	}
 
-	// resync VNI allocations
-	i.allocatedVNIs = make(map[uint32]string)
-	i.vxlanVNIs = make(map[string]uint32)
-	for _, vniAllocProto := range kubeStateData[vnialloc.VxlanVNIKeyword] {
-		alloc := vniAllocProto.(*vnialloc.VxlanVniAllocation)
-		i.allocatedVNIs[alloc.Vni] = alloc.VxlanName
-		i.vxlanVNIs[alloc.VxlanName] = alloc.Vni
-	}
-
 	i.Log.Infof("IPAM state after startup RESYNC: "+
 		"podNetworks=%+v, excludedIPsfromNodeSubnet=%v, hostInterconnectSubnetAllNodes=%v, "+
 		"hostInterconnectSubnetThisNode=%v, hostInterconnectIPInVpp=%v, hostInterconnectIPInLinux=%v, "+
 		"nodeInterconnectSubnet=%v, vxlanSubnet=%v, serviceCIDR=%v, "+
-		"assignedPodIPs=%+v, podToIP=%v, vxlanVNIs=%v",
+		"assignedPodIPs=%+v, podToIP=%v",
 		i.podNetworks, i.excludedIPsfromNodeSubnet, i.hostInterconnectSubnetAllNodes,
 		i.hostInterconnectSubnetThisNode, i.hostInterconnectIPInVpp, i.hostInterconnectIPInLinux,
 		i.nodeInterconnectSubnet, i.vxlanSubnet, i.serviceCIDR,
-		i.assignedPodIPs, i.podToIP, i.vxlanVNIs)
+		i.assignedPodIPs, i.podToIP)
 	return
 }
 
@@ -470,28 +448,15 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 		}
 	}
 
-	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
-		if ksChange.Resource == vnialloc.VxlanVNIKeyword {
-			// update VNI allocations
-			if ksChange.NewValue != nil {
-				alloc := ksChange.NewValue.(*vnialloc.VxlanVniAllocation)
-				i.allocatedVNIs[alloc.Vni] = alloc.VxlanName
-				i.vxlanVNIs[alloc.VxlanName] = alloc.Vni
-			} else if ksChange.PrevValue != nil {
-				alloc := ksChange.PrevValue.(*vnialloc.VxlanVniAllocation)
-				delete(i.allocatedVNIs, alloc.Vni)
-				delete(i.vxlanVNIs, alloc.VxlanName)
-			}
-		}
-		if ksChange.Resource == customnetmodel.Keyword {
-			// custom network data change
-			if ksChange.NewValue != nil {
-				nw := ksChange.NewValue.(*customnetmodel.CustomNetwork)
-				if nw.Type == customnetmodel.CustomNetwork_L3 && nw.SubnetCIDR != "" && nw.SubnetOneNodePrefix > 0 {
-					err = i.initializeCustomPodNetwork(nw.Name, nw.SubnetCIDR, nw.SubnetOneNodePrefix)
-					if err != nil {
-						return "", err
-					}
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange &&
+		ksChange.Resource == customnetmodel.Keyword {
+		// custom network data change
+		if ksChange.NewValue != nil {
+			nw := ksChange.NewValue.(*customnetmodel.CustomNetwork)
+			if nw.Type == customnetmodel.CustomNetwork_L3 && nw.SubnetCIDR != "" && nw.SubnetOneNodePrefix > 0 {
+				err = i.initializeCustomPodNetwork(nw.Name, nw.SubnetCIDR, nw.SubnetOneNodePrefix)
+				if err != nil {
+					return "", err
 				}
 			}
 		}
@@ -1030,100 +995,6 @@ func (i *IPAM) GetIPAMConfigForJSON() *config.IPAMConfig {
 	return res
 }
 
-// AllocateVxlanVNI tries to allocate a free VNI for the VXLAN with given name.
-// If the given VXLAN already has a VNI allocated, returns the existing allocation.
-func (i *IPAM) AllocateVxlanVNI(vxlanName string) (vni uint32, err error) {
-
-	// check if the given VXLAN has a VNI already allocated
-	if vni, exists := i.vxlanVNIs[vxlanName]; exists {
-		i.Log.Infof("Using already allocated VNI %d for VXLAN: %s", vni, vxlanName)
-		return vni, nil
-	}
-
-	// get db broker - would return error if not connected
-	db, err := i.getDBBroker()
-	if err != nil {
-		return 0, err
-	}
-
-	// step 1, allocate a free VNI number
-	for vni = uint32(vxlanVNIPoolStart); vni <= vxlanVNIPoolEnd; vni++ {
-		if _, used := i.allocatedVNIs[vni]; !used {
-			// try to allocate this VNI
-			ok, _ := i.dbPutIfNotExists(vnialloc.VNIAllocationKey(vni), nil)
-			if ok {
-				break // found a free VNI
-			}
-		}
-	}
-
-	// step 2, assign the VNI to the VXLAN
-	alloc := &vnialloc.VxlanVniAllocation{VxlanName: vxlanName, Vni: vni}
-	key := vnialloc.VxlanVNIKey(vxlanName)
-	ok, _ := i.dbPutIfNotExists(key, alloc)
-	if !ok {
-		// this VXLAN may already have another VNI allocated
-		// delete just allocated VNI number and try to use existing one
-		db.Delete(vnialloc.VNIAllocationKey(vni))
-		found, _, err := db.GetValue(key, alloc)
-		if !found || err != nil {
-			return 0, fmt.Errorf("error by getting existing allocation for vxlan %s: %v", vxlanName, err)
-		}
-		i.Log.Debugf("Using already allocated VNI %d for VXLAN: %s", vni, vxlanName)
-		vni = alloc.Vni
-	}
-
-	i.Log.Infof("Allocated VNI %d for VXLAN: %s", vni, vxlanName)
-
-	// save the allocation in internal maps
-	i.allocatedVNIs[vni] = vxlanName
-	i.vxlanVNIs[vxlanName] = vni
-
-	return vni, nil
-}
-
-// GetVxlanVNI returns an existing VNI allocation for the VXLAN with given name.
-// found is false if no allocation for the given VXLAN name exists.
-func (i *IPAM) GetVxlanVNI(vxlanName string) (vni uint32, found bool) {
-	vni, found = i.vxlanVNIs[vxlanName]
-	return
-}
-
-// ReleaseVxlanVNI releases VNI allocated for the VXLAN with given name.
-func (i *IPAM) ReleaseVxlanVNI(vxlanName string) error {
-
-	// get db broker - would return error if not connected
-	db, err := i.getDBBroker()
-	if err != nil {
-		i.Log.Errorf("Unable to release VXLAN VNI allocation: %v", err)
-		return err
-	}
-
-	// retrieve the allocation from ETCD (may be already deleted from internal maps at this time)
-	alloc := &vnialloc.VxlanVniAllocation{}
-	key := vnialloc.VxlanVNIKey(vxlanName)
-	found, _, err := db.GetValue(key, alloc)
-	if !found {
-		return nil // no need to release anything
-	}
-	if err != nil {
-		i.Log.Errorf("Unable to retrieve VXLAN VNI allocation: %v", err)
-		return err
-	}
-
-	// delete the allocations from ETCD
-	// - do not check for errors, may fail if already deleted by other node
-	db.Delete(vnialloc.VNIAllocationKey(alloc.Vni))
-	db.Delete(vnialloc.VxlanVNIKey(vxlanName))
-
-	i.Log.Infof("Released VNI %d allocated for VXLAN: %s", alloc.Vni, vxlanName)
-
-	delete(i.vxlanVNIs, vxlanName)
-	delete(i.allocatedVNIs, alloc.Vni)
-
-	return nil
-}
-
 // BsidForServicePolicy creates a valid SRv6 binding SID for given k8s service IP addresses <serviceIPs>. This sid
 // should be used only for k8s service policy
 func (i *IPAM) BsidForServicePolicy(serviceIPs []net.IP) net.IP {
@@ -1278,17 +1149,6 @@ func (i *IPAM) computeVxlanIPAddress(nodeID uint32) (net.IP, error) {
 	}
 
 	return computedIP, nil
-}
-
-// dbPutIfNotExists tries to put given proto value under given key.
-func (i *IPAM) dbPutIfNotExists(key string, val proto.Message) (succeeded bool, err error) {
-	encoded, err := json.Marshal(val)
-	if err != nil {
-		return false, err
-	}
-	ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
-	broker := i.RemoteDB.NewBrokerWithAtomic(ksrPrefix)
-	return broker.PutIfNotExists(key, encoded)
 }
 
 func isIPv6Net(network *net.IPNet) bool {

@@ -16,6 +16,7 @@ package ipnet
 
 import (
 	"fmt"
+	"github.com/contiv/vpp/plugins/idalloc/idallocation"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"net"
 
@@ -65,6 +66,16 @@ const (
 
 	// podGwLoopbackInterfaceName is the name of the POD gateway loopback interface.
 	podGwLoopbackInterfaceName = "podGwLoop"
+
+	// VxlanVniPoolName is name for the ID pool of VXLAN VNIs
+	VxlanVniPoolName  = "vni"
+	vxlanVNIPoolStart = 5000    // to leave enough space for custom config of the vswitch
+	vxlanVNIPoolEnd   = 1 << 24 // given by VXLAN header
+
+	// vrfPoolName is name for the ID pool of VRFs
+	vrfPoolName  = "vrf"
+	vrfPoolStart = 10         // to leave enough space for custom config of the vswitch
+	vrfPoolEnd   = ^uint32(0) // VRF is uint32
 )
 
 // customNetworkInfo holds information about a custom network
@@ -73,6 +84,8 @@ type customNetworkInfo struct {
 	localPods          map[string]*podmanager.LocalPod          // list of local pods in custom network
 	localExtInterfaces map[string]*extifmodel.ExternalInterface // list of local external interfaces in custom network
 	localInterfaces    []string                                 // list of local interfaces (pod + external) in custom network
+	vniPoolInitialized bool
+	vrfPoolInitialized bool
 }
 
 // prefix for the hardware address of VXLAN interfaces
@@ -694,7 +707,7 @@ func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, even
 
 		// in case of delete event, release the VXLAN VNI
 		if eventType == configDelete {
-			n.IPAM.ReleaseVxlanVNI(nwConfig.Name)
+			n.releaseVxlanVNI(nwConfig.Name)
 		}
 	}
 	if nwConfig.Type == customnetmodel.CustomNetwork_L3 {
@@ -758,8 +771,8 @@ func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, even
 
 		// in case of delete event, release the VRF & VNI
 		if eventType == configDelete {
-			// TODO: release VRF
-			n.IPAM.ReleaseVxlanVNI(nwConfig.Name)
+			n.releaseVxlanVNI(nwConfig.Name)
+			n.releaseVrfID(nwConfig.Name)
 		}
 	}
 
@@ -800,9 +813,8 @@ func (n *IPNet) l2CustomNwBridgeDomain(nw *customNetworkInfo) (key string, confi
 	return key, bd
 }
 
-// customInterfaceNwConfig returns custom network -specific configuration of an interface.
-// pod can be nil for external interfaces.
-// TODO: rename
+// cacheCustomNetworkInterface caches interface-related information for later use in custom networks.
+// Either pod or extIf argument can be null.
 func (n *IPNet) cacheCustomNetworkInterface(customNwName string, pod *podmanager.LocalPod, extIf *extifmodel.ExternalInterface,
 	ifName string, isAdd bool) {
 
@@ -836,29 +848,70 @@ func (n *IPNet) cacheCustomNetworkInterface(customNwName string, pod *podmanager
 	}
 }
 
-// getOrAllocateVxlanVNI returns the allocated VNI number for the given VXLAN.
+// getOrAllocateVxlanVNI returns the allocated VXLAN VNI number for the given network.
 // Allocates a new VNI if not already allocated.
-func (n *IPNet) getOrAllocateVxlanVNI(vxlanName string) (vni uint32, err error) {
-	// return existing VNI if already allocated
-	vni, found := n.IPAM.GetVxlanVNI(vxlanName)
-	if found {
-		return vni, nil
+func (n *IPNet) getOrAllocateVxlanVNI(networkName string) (vni uint32, err error) {
+
+	// allocate the pool if needed
+	nw := n.customNetworks[networkName]
+	if nw == nil || !nw.vniPoolInitialized {
+		err = n.IDAlloc.InitPool(VxlanVniPoolName, &idallocation.AllocationPool_Range{
+			MinId: vxlanVNIPoolStart,
+			MaxId: vxlanVNIPoolEnd,
+		})
+		if err != nil {
+			n.Log.Errorf("VNI pool init failed: %v", err)
+			return 0, err
+		}
+		if nw != nil {
+			nw.vniPoolInitialized = true
+		}
 	}
 
-	// allocate new VNI
-	vni, err = n.IPAM.AllocateVxlanVNI(vxlanName)
+	// get / allocate a VNI
+	vni, err = n.IDAlloc.GetOrAllocateID(VxlanVniPoolName, networkName)
 	if err != nil {
-		n.Log.Errorf("VNI allocation error: %v", err)
+		n.Log.Errorf("VNI retrieval/allocation failed: %v", err)
 	}
 	return vni, err
+}
+
+// releaseVxlanVNI releases the allocated VXLAN VNI number for the given network.
+func (n *IPNet) releaseVxlanVNI(networkName string) (err error) {
+	return n.IDAlloc.ReleaseID(VxlanVniPoolName, networkName)
 }
 
 // getOrAllocateVrfID returns the allocated VRF ID number for the given network.
 // Allocates a new VRF ID if not already allocated.
 func (n *IPNet) getOrAllocateVrfID(networkName string) (vrf uint32, err error) {
-	// TODO implement allocation logic in IPAM
-	vrf = 10
+
+	// allocate the pool if needed
+	nw := n.customNetworks[networkName]
+	if nw == nil || !nw.vrfPoolInitialized {
+		err = n.IDAlloc.InitPool(vrfPoolName, &idallocation.AllocationPool_Range{
+			MinId: vrfPoolStart,
+			MaxId: vrfPoolEnd,
+		})
+		if err != nil {
+			n.Log.Errorf("VRF pool init failed: %v", err)
+			return 0, err
+		}
+		if nw != nil {
+			nw.vrfPoolInitialized = true
+		}
+	}
+
+	// get / allocate a VRF
+	vrf, err = n.IDAlloc.GetOrAllocateID(vrfPoolName, networkName)
+	if err != nil {
+		n.Log.Errorf("VRF retrieval/allocation failed: %v", err)
+	}
 	return vrf, err
+}
+
+// releaseVrfID releases the allocated VRF ID number for the given network.
+func (n *IPNet) releaseVrfID(networkName string) (err error) {
+	return n.IDAlloc.ReleaseID(vrfPoolName, networkName)
 }
 
 // isDefaultPodNetwork returns true if provided network name is the default pod network.

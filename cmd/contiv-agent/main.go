@@ -36,6 +36,7 @@ import (
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/devicemanager"
 	contivgrpc "github.com/contiv/vpp/plugins/grpc"
+	"github.com/contiv/vpp/plugins/idalloc"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipnet"
 	"github.com/contiv/vpp/plugins/nodesync"
@@ -101,6 +102,7 @@ type ContivAgent struct {
 	ContivGRPC    *contivgrpc.Plugin
 	NodeSync      *nodesync.NodeSync
 	PodManager    *podmanager.PodManager
+	IDAlloc       *idalloc.API
 	IPAM          ipam.API
 	IPNet         *ipnet.IPNet
 	Policy        *policy.Plugin
@@ -174,6 +176,11 @@ func main() {
 		deps.ContivConf = contivConf
 	}))
 
+	idAllocPlugin := idalloc.NewPlugin(idalloc.UseDeps(func(deps *idalloc.Deps) {
+		deps.RemoteDB = &etcd.DefaultPlugin
+		deps.ContivConf = contivConf
+	}))
+
 	ipamPlugin := ipam.NewPlugin(ipam.UseDeps(func(deps *ipam.Deps) {
 		deps.RemoteDB = &etcd.DefaultPlugin
 		deps.ContivConf = contivConf
@@ -186,6 +193,7 @@ func main() {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.LinuxNsPlugin = &linux_nsplugin.DefaultPlugin
 		deps.ContivConf = contivConf
+		deps.IDAlloc = idAllocPlugin
 		deps.IPAM = ipamPlugin
 		deps.NodeSync = nodeSyncPlugin
 		deps.PodManager = podManager
@@ -212,6 +220,7 @@ func main() {
 
 	sfcPlugin := sfc.NewPlugin(sfc.UseDeps(func(deps *sfc.Deps) {
 		deps.ContivConf = contivConf
+		deps.IDAlloc = idAllocPlugin
 		deps.IPAM = ipamPlugin
 		deps.IPNet = ipNetPlugin
 		deps.NodeSync = nodeSyncPlugin
@@ -230,6 +239,7 @@ func main() {
 			nodeSyncPlugin,
 			podManager,
 			deviceManager,
+			idAllocPlugin,
 			ipamPlugin,
 			ipNetPlugin,
 			servicePlugin,

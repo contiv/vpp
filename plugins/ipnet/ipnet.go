@@ -16,6 +16,7 @@ package ipnet
 
 import (
 	"fmt"
+	"github.com/contiv/vpp/plugins/idalloc"
 	"net"
 	"sync"
 
@@ -126,6 +127,7 @@ type Deps struct {
 	EventLoop     controller.EventLoop
 	ServiceLabel  servicelabel.ReaderAPI
 	ContivConf    contivconf.API
+	IDAlloc       idalloc.API
 	IPAM          ipam.API
 	NodeSync      nodesync.API
 	PodManager    podmanager.API

@@ -98,17 +98,6 @@ type API interface {
 	// ReleasePodIPs releases all pod IP addresses making them available for new PODs.
 	ReleasePodIPs(podID podmodel.ID) error
 
-	// AllocateVxlanVNI tries to allocate a free VNI for the VXLAN with given name.
-	// If the given VXLAN already has a VNI allocated, returns the existing allocation.
-	AllocateVxlanVNI(vxlanName string) (vni uint32, err error)
-
-	// GetVxlanVNI returns an existing VNI allocation for the VXLAN with given name.
-	// found is false if no allocation for the given VXLAN name exists.
-	GetVxlanVNI(vxlanName string) (vni uint32, found bool)
-
-	// ReleaseVxlanVNI releases VNI allocated for the VXLAN with given name.
-	ReleaseVxlanVNI(vxlanName string) (err error)
-
 	// BsidForServicePolicy creates a valid SRv6 binding SID for given k8s service IP addresses <serviceIPs>. This sid
 	// should be used only for k8s service policy
 	BsidForServicePolicy(serviceIPs []net.IP) net.IP

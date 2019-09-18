@@ -5,5 +5,5 @@ metadata:
   name: l3net
 spec:
   type: L3
-  subnetCIDR: 10.99.0.0/16
+  subnetCIDR: 10.100.0.0/16
   subnetOneNodePrefixLen: 24

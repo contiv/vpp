@@ -86,7 +86,7 @@ func (a *IDAllocator) HandlesEvent(event controller.Event) bool {
 	return false
 }
 
-// Resync resynchronizes Device Manager. The first resync starts the device plugin server.
+// Resync resynchronizes ID Allocator.
 func (a *IDAllocator) Resync(event controller.Event, kubeStateData controller.KubeStateData,
 	resyncCount int, txn controller.ResyncOperations) (err error) {
 

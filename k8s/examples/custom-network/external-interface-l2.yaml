@@ -7,6 +7,6 @@ spec:
   type: L2
   network: l2net
   nodes:
-    - node: lubuntu
+    - node: k8s-master
       vppInterfaceName: GigabitEthernet0/9/0
       VLAN: 200

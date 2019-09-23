@@ -1,0 +1,41 @@
+---
+# Linux CNF 1 pod definition. Pod is connected with one additional tap interface in the "l2net" network.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: linux-cnf3
+  annotations:
+    contivpp.io/custom-if: tap1/tap/l3net
+  labels:
+    cnf: linux-cnf3
+spec:
+  containers:
+    - name: busybox
+      image: busybox
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        privileged: true
+      command:
+        - sleep
+        - "3600"
+
+---
+# Linux CNF 2 pod definition. Pod is connected with one additional tap interface in the "l2net" network.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: linux-cnf4
+  annotations:
+    contivpp.io/custom-if: tap1/tap/l3net
+  labels:
+    cnf: linux-cnf4
+spec:
+  containers:
+    - name: busybox
+      image: busybox
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        privileged: true
+      command:
+        - sleep
+        - "3600"

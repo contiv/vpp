@@ -75,7 +75,7 @@ func nodeIpamCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, w *tab
 		intfs := make(telemetrymodel.NodeInterfaces, 0)
 		if err := json.Unmarshal(b, &intfs); err == nil {
 			for _, ifc := range intfs {
-				if ifc.Value.Name == ipnet.VxlanBVIInterfaceName {
+				if ifc.Value.Name == ipnet.DefaultVxlanBVIInterfaceName {
 					bviIP = strings.Split(ifc.Value.IpAddresses[0], "/")[0]
 				}
 			}

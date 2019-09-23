@@ -1,0 +1,13 @@
+---
+apiVersion: contivpp.io/v1
+kind: ExternalInterface
+metadata:
+  name: l3net-gw
+spec:
+  type: L3
+  network: l3net
+  nodes:
+    - node: k8s-master
+      vppInterfaceName: GigabitEthernet0/9/0
+      IP: 10.100.100.100/16
+      VLAN: 300

@@ -69,11 +69,8 @@ type Deps struct {
 	infra.PluginDeps
 	ContivConf contivconf.API
 	IPAM       ipam.API
-	IPNet      ipnet.API /* for GetIfName() */
+	IPNet      ipnet.API
 	PodManager podmanager.API
-
-	// Note: L4 was removed from Contiv but may be re-added in the future
-	// GoVPP   govppmux.API  /* for VPPTCP Renderer */
 }
 
 // Init initializes policy layers and caches and starts watching ETCD for K8s configuration.

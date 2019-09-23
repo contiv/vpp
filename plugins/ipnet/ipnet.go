@@ -16,6 +16,7 @@ package ipnet
 
 import (
 	"fmt"
+	"github.com/contiv/vpp/plugins/idalloc"
 	"net"
 	"sync"
 
@@ -126,6 +127,7 @@ type Deps struct {
 	EventLoop     controller.EventLoop
 	ServiceLabel  servicelabel.ReaderAPI
 	ContivConf    contivconf.API
+	IDAlloc       idalloc.API
 	IPAM          ipam.API
 	NodeSync      nodesync.API
 	PodManager    podmanager.API
@@ -276,6 +278,8 @@ func (n *IPNet) Close() error {
 //   - AddPod and DeletePod (CNI)
 //   - POD k8s state changes
 //   - POD custom interfaces update
+//   - custom network update
+//   - external interfaces update
 //   - NodeUpdate for other nodes
 //   - Shutdown event
 func (n *IPNet) HandlesEvent(event controller.Event) bool {
@@ -402,6 +406,5 @@ func (n *IPNet) GetVxlanBVIIfName() string {
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport != contivconf.VXLANTransport {
 		return ""
 	}
-
-	return VxlanBVIInterfaceName
+	return n.vxlanBVIInterfaceName(DefaultPodNetworkName)
 }

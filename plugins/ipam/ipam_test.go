@@ -151,9 +151,9 @@ func TestStaticGetters(t *testing.T) {
 	i := setup(t, newDefaultConfig())
 
 	// pods addresses IPAM API
-	Expect(*i.PodSubnetAllNodes()).To(BeEquivalentTo(network("1.2." + str(b10000000) + ".0/17")))
-	Expect(*i.PodSubnetThisNode()).To(BeEquivalentTo(expectedPodSubnetThisNode))
-	Expect(expectedPodSubnetThisNode.Contains(i.PodGatewayIP())).To(BeTrue(), "Pod Gateway IP is not in range of network for pods for given host.")
+	Expect(*i.PodSubnetAllNodes(defaultPodNetworkName)).To(BeEquivalentTo(network("1.2." + str(b10000000) + ".0/17")))
+	Expect(*i.PodSubnetThisNode(defaultPodNetworkName)).To(BeEquivalentTo(expectedPodSubnetThisNode))
+	Expect(expectedPodSubnetThisNode.Contains(i.PodGatewayIP(defaultPodNetworkName))).To(BeTrue(), "Pod Gateway IP is not in range of network for pods for given host.")
 
 	// vSwitch addresses IPAM API
 	Expect(*i.HostInterconnectSubnetThisNode()).To(BeEquivalentTo(expectedVSwitchNetwork))
@@ -178,7 +178,7 @@ func TestDynamicGetters(t *testing.T) {
 	Expect(*ipNet).To(BeEquivalentTo(ipWithNetworkMask("4.5.6.192/26")))
 	Expect(ip.String()).To(BeEquivalentTo("4.5.6.197"))
 
-	ipNet, err = i.PodSubnetOtherNode(nodeID2)
+	ipNet, err = i.PodSubnetOtherNode(defaultPodNetworkName, nodeID2)
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(network("1.2." + str(b10000000+int(nodeID2>>5)) + "." + str(int(nodeID2<<3)) + "/29")))
 
@@ -224,7 +224,7 @@ func TestDynamicGettersIPv6(t *testing.T) {
 	Expect(size).To(BeEquivalentTo(120))
 	Expect(ip.String()).To(BeEquivalentTo("fe20:f00d::5"))
 
-	ipNet, err = i.PodSubnetOtherNode(nodeID2)
+	ipNet, err = i.PodSubnetOtherNode(defaultPodNetworkName, nodeID2)
 	Expect(err).To(BeNil())
 	Expect(ipNet.String()).To(BeEquivalentTo("fe10:f00d::500/120"))
 
@@ -252,7 +252,7 @@ func TestBasicAllocateReleasePodAddress(t *testing.T) {
 	ip, err := i.AllocatePodIP(podID[0], "", "")
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
-	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+	Expect(i.PodSubnetThisNode(defaultPodNetworkName).Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	err = i.ReleasePodIPs(podID[0])
 	Expect(err).To(BeNil())
@@ -270,7 +270,7 @@ func TestBasicAllocateReleasePodAddressIPv6(t *testing.T) {
 	ip, err := i.AllocatePodIP(podID[0], "", "")
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
-	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+	Expect(i.PodSubnetThisNode(defaultPodNetworkName).Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	err = i.ReleasePodIPs(podID[0])
 	Expect(err).To(BeNil())
@@ -288,7 +288,7 @@ func TestWideIPv6PodSubenet(t *testing.T) {
 	ip, err := i.AllocatePodIP(podID[0], "", "")
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
-	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+	Expect(i.PodSubnetThisNode(defaultPodNetworkName).Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	err = i.ReleasePodIPs(podID[0])
 	Expect(err).To(BeNil())
@@ -300,7 +300,7 @@ func TestAlreadyAllocatedAddress(t *testing.T) {
 	ip, err := i.AllocatePodIP(podID[0], "", "")
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
-	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+	Expect(i.PodSubnetThisNode(defaultPodNetworkName).Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	repeated, err := i.AllocatePodIP(podID[0], "", "")
 	Expect(err).To(BeNil())
@@ -318,13 +318,13 @@ func TestAssigniningIncrementalIPs(t *testing.T) {
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
 	Expect(ip.String()).To(BeEquivalentTo("1.2.128.10"))
-	Expect(i.PodSubnetThisNode().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+	Expect(i.PodSubnetThisNode(defaultPodNetworkName).Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	second, err := i.AllocatePodIP(podID[1], "", "")
 	Expect(err).To(BeNil())
 	Expect(second).NotTo(BeNil())
 	Expect(second.String()).To(BeEquivalentTo("1.2.128.11"))
-	Expect(i.PodSubnetThisNode().Contains(second)).To(BeTrue(), "Pod IP address is not from pod network")
+	Expect(i.PodSubnetThisNode(defaultPodNetworkName).Contains(second)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	err = i.ReleasePodIPs(podID[1])
 	Expect(err).To(BeNil())
@@ -334,19 +334,19 @@ func TestAssigniningIncrementalIPs(t *testing.T) {
 	Expect(err).To(BeNil())
 	Expect(third).NotTo(BeNil())
 	Expect(third.String()).To(BeEquivalentTo("1.2.128.12"))
-	Expect(i.PodSubnetThisNode().Contains(third)).To(BeTrue(), "Pod IP address is not from pod network")
+	Expect(i.PodSubnetThisNode(defaultPodNetworkName).Contains(third)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	// exhaust the range
 	assigned, err := i.AllocatePodIP(podID[3], "", "")
 	Expect(err).To(BeNil())
 	Expect(assigned).NotTo(BeNil())
-	Expect(i.PodSubnetThisNode().Contains(assigned)).To(BeTrue(), "Pod IP address is not from pod network")
+	Expect(i.PodSubnetThisNode(defaultPodNetworkName).Contains(assigned)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	// expect released IP to be reused
 	reused, err := i.AllocatePodIP(podID[1], "", "")
 	Expect(err).To(BeNil())
 	Expect(reused).NotTo(BeNil())
-	Expect(i.PodSubnetThisNode().Contains(reused)).To(BeTrue(), "Pod IP address is not from pod network")
+	Expect(i.PodSubnetThisNode(defaultPodNetworkName).Contains(reused)).To(BeTrue(), "Pod IP address is not from pod network")
 	Expect(reused.String()).To(BeEquivalentTo("1.2.128.11"))
 
 }
@@ -423,7 +423,7 @@ func TestPodSubnetThisNodeSubnets(t *testing.T) {
 	first, err := newIPAM(customConfig, firstID)
 	Expect(err).To(BeNil())
 	Expect(first).NotTo(BeNil())
-	Expect(first.PodSubnetThisNode().String()).To(BeEquivalentTo("1.4.1.16/28"))
+	Expect(first.PodSubnetThisNode(defaultPodNetworkName).String()).To(BeEquivalentTo("1.4.1.16/28"))
 	firstNodeIP, _, err := first.NodeIPAddress(firstID)
 	Expect(err).To(BeNil())
 	Expect(firstNodeIP.String()).To(BeEquivalentTo("3.4.5.193"))
@@ -432,7 +432,7 @@ func TestPodSubnetThisNodeSubnets(t *testing.T) {
 	last, err := newIPAM(customConfig, 16)
 	Expect(err).To(BeNil())
 	Expect(last).NotTo(BeNil())
-	Expect(last.PodSubnetThisNode().String()).To(BeEquivalentTo("1.4.1.0/28"))
+	Expect(last.PodSubnetThisNode(defaultPodNetworkName).String()).To(BeEquivalentTo("1.4.1.0/28"))
 	lastNodeIP, _, err := last.NodeIPAddress(lastID)
 	Expect(err).To(BeNil())
 	Expect(lastNodeIP.String()).To(BeEquivalentTo("3.4.5.208"))
@@ -456,7 +456,7 @@ func TestMoreThan256Node(t *testing.T) {
 	Expect(err).To(BeNil())
 	Expect(last).NotTo(BeNil())
 
-	fmt.Println(last.PodSubnetThisNode().String())
+	fmt.Println(last.PodSubnetThisNode(defaultPodNetworkName).String())
 
 	nodeIP, _, err := last.NodeIPAddress(257)
 	fmt.Println(nodeIP)

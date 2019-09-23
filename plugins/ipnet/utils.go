@@ -166,6 +166,14 @@ func isIPv6(ip net.IP) bool {
 	return strings.Contains(ip.String(), ipv6AddrDelimiter)
 }
 
+// isIPv6Str returns true if the string contains IPv6 address, false otherwise.
+func isIPv6Str(ip string) bool {
+	if ip == "" {
+		return false
+	}
+	return strings.Contains(ip, ipv6AddrDelimiter)
+}
+
 // hostPrefixForAF returns prefix length string to address a host
 // for address family determined from given IP address.
 func hostPrefixForAF(ip net.IP) string {

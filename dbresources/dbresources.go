@@ -16,6 +16,7 @@
 package dbresources
 
 import (
+	"github.com/contiv/vpp/plugins/idalloc/idallocation"
 	"github.com/contiv/vpp/plugins/ipam/ipalloc"
 	"github.com/contiv/vpp/plugins/ipam/vnialloc"
 	"github.com/gogo/protobuf/proto"
@@ -114,6 +115,11 @@ func GetDBResources() []*DBResource {
 			Keyword:          vnialloc.VxlanVNIKeyword,
 			ProtoMessageName: proto.MessageName((*vnialloc.VxlanVniAllocation)(nil)),
 			KeyPrefix:        vnialloc.VxlanVNIKeyPrefix(),
+		},
+		{
+			Keyword:          idallocation.Keyword,
+			ProtoMessageName: proto.MessageName((*idallocation.AllocationPool)(nil)),
+			KeyPrefix:        idallocation.KeyPrefix(),
 		},
 	}
 }

@@ -44,7 +44,7 @@ func (n *IPNet) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
 			NodeID:            n.NodeSync.GetNodeID(),
 			NodeName:          n.ServiceLabel.GetAgentLabel(),
 			NodeIP:            nodeIP.String(),
-			PodSubnetThisNode: n.IPAM.PodSubnetThisNode().String(),
+			PodSubnetThisNode: n.IPAM.PodSubnetThisNode(DefaultPodNetworkName).String(),
 			VppHostNetwork:    n.IPAM.HostInterconnectSubnetThisNode().String(),
 			Config:            n.IPAM.GetIPAMConfigForJSON(),
 		})

@@ -26,6 +26,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/idalloc"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipnet"
 	"github.com/contiv/vpp/plugins/nodesync"
@@ -44,6 +45,7 @@ type Deps struct {
 	Log              logging.Logger
 	Config           *config.Config
 	ContivConf       contivconf.API
+	IDAlloc          idalloc.API
 	IPAM             ipam.API
 	IPNet            ipnet.API
 	NodeSync         nodesync.API
@@ -71,7 +73,7 @@ func (rndr *Renderer) AddChain(sfc *renderer.ContivSFC) error {
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("add SFC '%s'", sfc.Name))
 
-	config := rndr.renderChain(sfc)
+	config := rndr.renderChain(sfc, false)
 	controller.PutAll(txn, config)
 
 	return nil
@@ -83,8 +85,8 @@ func (rndr *Renderer) UpdateChain(oldSFC, newSFC *renderer.ContivSFC) error {
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("update SFC '%s'", newSFC.Name))
 
-	oldConfig := rndr.renderChain(oldSFC)
-	newConfig := rndr.renderChain(newSFC)
+	oldConfig := rndr.renderChain(oldSFC, true)
+	newConfig := rndr.renderChain(newSFC, false)
 
 	controller.DeleteAll(txn, oldConfig)
 	controller.PutAll(txn, newConfig)
@@ -99,7 +101,7 @@ func (rndr *Renderer) DeleteChain(sfc *renderer.ContivSFC) error {
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("delete SFC chain '%s'", sfc.Name))
 
-	config := rndr.renderChain(sfc)
+	config := rndr.renderChain(sfc, true)
 	controller.DeleteAll(txn, config)
 
 	return nil
@@ -111,7 +113,7 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 
 	// resync SFC configuration
 	for _, sfc := range resyncEv.Chains {
-		config := rndr.renderChain(sfc)
+		config := rndr.renderChain(sfc, false)
 		controller.PutAll(txn, config)
 	}
 
@@ -124,7 +126,7 @@ func (rndr *Renderer) Close() error {
 }
 
 // renderChain renders Contiv SFC to VPP configuration.
-func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.KeyValuePairs) {
+func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC, isDelete bool) (config controller.KeyValuePairs) {
 	config = make(controller.KeyValuePairs)
 	var prevSF *renderer.ServiceFunction
 	for sfIdx, sf := range sfc.Chain {
@@ -146,6 +148,9 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 				// allocate a VNI for this SF interconnection - each SF may need an exclusive VNI
 				vxlanName := fmt.Sprintf("sfc-%s-%d", sfc.Name, sfIdx)
 				vni, err := rndr.getOrAllocateVxlanVNI(vxlanName)
+				if isDelete {
+					rndr.releaseVxlanVNI(vxlanName)
+				}
 				if err != nil {
 					rndr.Log.Infof("Unable to allocate VXLAN VNI: %v", err)
 					break
@@ -388,18 +393,17 @@ func (rndr *Renderer) mergeConfiguration(destConf, sourceConf controller.KeyValu
 // getOrAllocateVxlanVNI returns the allocated VNI number for the given VXLAN.
 // Allocates a new VNI if not already allocated.
 func (rndr *Renderer) getOrAllocateVxlanVNI(vxlanName string) (vni uint32, err error) {
-	// return existing VNI if already allocated
-	vni, found := rndr.IPAM.GetVxlanVNI(vxlanName)
-	if found {
-		return vni, nil
-	}
-
-	// allocate new VNI
-	vni, err = rndr.IPAM.AllocateVxlanVNI(vxlanName)
+	// we relay on VXLAN pool instantiated by ipnet plugin
+	vni, err = rndr.IDAlloc.GetOrAllocateID(ipnet.VxlanVniPoolName, vxlanName)
 	if err != nil {
-		rndr.Log.Errorf("VNI allocation error: %v", err)
+		rndr.Log.Errorf("VNI retrieval/allocation failed: %v", err)
 	}
-	return vni, err
+	return
+}
+
+// releaseVxlanVNI releases the allocated VNI number for the given VXLAN.
+func (rndr *Renderer) releaseVxlanVNI(vxlanName string) (err error) {
+	return rndr.IDAlloc.ReleaseID(ipnet.VxlanVniPoolName, vxlanName)
 }
 
 // sliceContains returns true if provided slice contains provided value, false otherwise.

@@ -1,7 +1,7 @@
 /*
  * // Copyright (c) 2019 Cisco and/or its affiliates.
- * // Other Contributors: 1. Adel Bouridah ESIEE Paris, adel.Bouridah@esiee.fr
- * // 2. Nadjib Aitsaadi Universite Paris Est Creteil, Nadjib.Aitsaadi@u-pec.fr
+ * // Other Contributors: 1. Adel Bouridah Centre Universitaire Abdelhafid Boussouf Mila - Algerie a.bouridah@centre-univ-mila.dz
+ * // 2. Nadjib Aitsaadi Universite Paris Est Creteil, nadjib.aitsaadi@u-pec.fr
  * // Licensed under the Apache License, Version 2.0 (the "License");
  * // you may not use this file except in compliance with the License.
  * // You may obtain a copy of the License at:

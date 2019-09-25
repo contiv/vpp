@@ -116,7 +116,7 @@ func (h *Handler) nodeInterfaceToProto(nodeIf v1.NodeInterface) *model.ExternalI
 	return protoVal
 }
 
-// Validation generates OpenAPIV3 validator for custom network CRD
+// Validation generates OpenAPIV3 validator for external interfaces CRD
 func Validation() *apiextv1beta1.CustomResourceValidation {
 	validation := &apiextv1beta1.CustomResourceValidation{
 		OpenAPIV3Schema: &apiextv1beta1.JSONSchemaProps{

@@ -99,8 +99,6 @@ func (h *Handler) customNetworkToProto(customNetwork *v1.CustomNetwork) *model.C
 		customNetworkProto.Type = model.CustomNetwork_L2
 	case "L3":
 		customNetworkProto.Type = model.CustomNetwork_L3
-	case "STUB":
-		customNetworkProto.Type = model.CustomNetwork_STUB
 	}
 	customNetworkProto.SubnetCIDR = customNetwork.Spec.SubnetCIDR
 	customNetworkProto.SubnetOneNodePrefix = customNetwork.Spec.SubnetOneNodePrefixLen
@@ -126,9 +124,6 @@ func Validation() *apiextv1beta1.CustomResourceValidation {
 								},
 								{
 									Raw: []byte(`"L3"`),
-								},
-								{
-									Raw: []byte(`"STUB"`),
 								},
 							},
 						},

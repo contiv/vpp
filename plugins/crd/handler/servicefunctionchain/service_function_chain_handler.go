@@ -91,8 +91,11 @@ func (h *Handler) PublishCrdStatus(obj interface{}, opRetval error) error {
 // serviceFunctionChainToProto converts service function chain data from the Contiv's own CRD representation
 // to the corresponding protobuf-modelled data format.
 func (h *Handler) serviceFunctionChainToProto(serviceFunctionChain *v1.ServiceFunctionChain) *model.ServiceFunctionChain {
-	chain := &model.ServiceFunctionChain{}
-	chain.Name = serviceFunctionChain.Name
+	chain := &model.ServiceFunctionChain{
+		Name:           serviceFunctionChain.Name,
+		Unidirectional: serviceFunctionChain.Spec.Unidirectional,
+		Network:        serviceFunctionChain.Spec.Network,
+	}
 
 	for _, c := range serviceFunctionChain.Spec.Chain {
 		chain.Chain = append(chain.Chain,

@@ -48,6 +48,10 @@ type ContivSFC struct {
 	// Name uniquely identifies a service function chain.
 	Name string
 
+	// Unidirectional is true if the service chain should be unidirectional (the traffic should pass in one way only).
+	// Otherwise the chain is bidirectional (the traffic can pass both ways).
+	Unidirectional bool
+
 	// Network defines a custom network where the chain is being rendered,
 	// may be empty in case of the default network.
 	Network string

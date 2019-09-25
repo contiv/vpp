@@ -20,11 +20,11 @@ package servicefunctionchain
 
 import (
 	"errors"
-
 	"github.com/contiv/vpp/plugins/crd/handler/kvdbreflector"
 	"github.com/contiv/vpp/plugins/crd/handler/servicefunctionchain/model"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
+	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
 
 // Handler implements the Handler interface for CRD<->KVDB Reflector.
@@ -121,4 +121,73 @@ func (h *Handler) serviceFunctionToProto(sf v1.ServiceFunction) *model.ServiceFu
 	protoVal.InputInterface = sf.InputInterface
 	protoVal.OutputInterface = sf.OutputInterface
 	return protoVal
+}
+
+// Validation generates OpenAPIV3 validator for SFC CRD
+func Validation() *apiextv1beta1.CustomResourceValidation {
+	one := int64(1)
+	validation := &apiextv1beta1.CustomResourceValidation{
+		OpenAPIV3Schema: &apiextv1beta1.JSONSchemaProps{
+			Required: []string{"spec"},
+			Type:     "object",
+			Properties: map[string]apiextv1beta1.JSONSchemaProps{
+				"spec": {
+					Type:     "object",
+					Required: []string{"chain"},
+					Properties: map[string]apiextv1beta1.JSONSchemaProps{
+						"unidirectional": {
+							Type: "boolean",
+						},
+						"network": {
+							Type: "string",
+						},
+						"chain": {
+							Type: "array",
+							Items: &apiextv1beta1.JSONSchemaPropsOrArray{
+								Schema: &apiextv1beta1.JSONSchemaProps{
+									Type:     "object",
+									Required: []string{"type"},
+									Properties: map[string]apiextv1beta1.JSONSchemaProps{
+										"name": {
+											Type: "string",
+										},
+										"type": {
+											Type: "string",
+											Enum: []apiextv1beta1.JSON{
+												{
+													Raw: []byte(`"Pod"`),
+												},
+												{
+													Raw: []byte(`"ExternalInterface"`),
+												},
+											},
+										},
+										"podSelector": {
+											Type: "object",
+											AdditionalProperties: &apiextv1beta1.JSONSchemaPropsOrBool{
+												Schema: &apiextv1beta1.JSONSchemaProps{
+													Type: "string",
+												},
+											},
+											MinProperties: &one,
+										},
+										"interface": {
+											Type: "string",
+										},
+										"inputInterface": {
+											Type: "string",
+										},
+										"outputInterface": {
+											Type: "string",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	return validation
 }

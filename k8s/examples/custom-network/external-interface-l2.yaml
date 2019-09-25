@@ -9,4 +9,4 @@ spec:
   nodes:
     - node: k8s-master
       vppInterfaceName: GigabitEthernet0/9/0
-      VLAN: 200
+      vlan: 200

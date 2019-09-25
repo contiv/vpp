@@ -25,6 +25,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/handler/kvdbreflector"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
+	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
 
 // Handler implements the Handler interface for CRD<->KVDB Reflector.
@@ -113,4 +114,62 @@ func (h *Handler) nodeInterfaceToProto(nodeIf v1.NodeInterface) *model.ExternalI
 		Vlan:             nodeIf.VLAN,
 	}
 	return protoVal
+}
+
+// Validation generates OpenAPIV3 validator for custom network CRD
+func Validation() *apiextv1beta1.CustomResourceValidation {
+	validation := &apiextv1beta1.CustomResourceValidation{
+		OpenAPIV3Schema: &apiextv1beta1.JSONSchemaProps{
+			Required: []string{"spec"},
+			Type:     "object",
+			Properties: map[string]apiextv1beta1.JSONSchemaProps{
+				"spec": {
+					Type:     "object",
+					Required: []string{"type"},
+					Properties: map[string]apiextv1beta1.JSONSchemaProps{
+						"type": {
+							Type: "string",
+							Enum: []apiextv1beta1.JSON{
+								{
+									Raw: []byte(`"L2"`),
+								},
+								{
+									Raw: []byte(`"L3"`),
+								},
+							},
+						},
+						"network": {
+							Type: "string",
+						},
+						"nodes": {
+							Type: "array",
+							Items: &apiextv1beta1.JSONSchemaPropsOrArray{
+								Schema: &apiextv1beta1.JSONSchemaProps{
+									Type:     "object",
+									Required: []string{"node", "vppInterfaceName"},
+									Properties: map[string]apiextv1beta1.JSONSchemaProps{
+										"node": {
+											Type: "string",
+										},
+										"vppInterfaceName": {
+											Type: "string",
+										},
+										"ip": {
+											Type:        "string",
+											Description: "IPv4 or IPv6 address with prefix length",
+											Pattern:     `^[0-9a-fA-F:\.]+/[0-9]+$`,
+										},
+										"vlan": {
+											Type: "integer",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	return validation
 }

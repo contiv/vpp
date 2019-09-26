@@ -102,7 +102,14 @@ VARIABLES = ['http_proxy', 'https_proxy', 'k8s_version', 'docker_version',
 
 VARIABLES.each do |x|
   env[x] = eval x
-  puts "#{x} = #{env [x]}"
+end
+
+# Log variable values if provisioning
+if (ARGV.include?("up") || ARGV.include?("reload") || ARGV.include?("--provision"))
+  puts "Using variables:"
+  VARIABLES.each do |x|
+    puts "#{x} = #{env [x]}"
+  end
 end
 
 VAGRANTFILE_API_VERSION = "2"

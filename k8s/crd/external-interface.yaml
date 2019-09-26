@@ -9,12 +9,12 @@ spec:
   nodes:
     - node: node-name-1
       vppInterfaceName: GigabitEthernet0/5/0
-      # IP: 10.99.0.100/16
-      VLAN: 200
+      # ip: 10.99.0.100/16
+      vlan: 200
     - node: node-name-2
       vppInterfaceName: GigabitEthernet0/5/0
-      # IP: 10.99.0.101/16
-      VLAN: 200
+      # ip: 10.99.0.101/16
+      vlan: 200
 
 ---
 apiVersion: contivpp.io/v1
@@ -27,9 +27,9 @@ spec:
   nodes:
     - node: node-name-1
       vppInterfaceName: GigabitEthernet0/5/0
-      # IP: 10.99.0.100/16
-      VLAN: 300
+      # ip: 10.99.0.100/16
+      vlan: 300
     - node: node-name-2
       vppInterfaceName: GigabitEthernet0/5/0
-      # IP: 10.99.0.101/16
-      VLAN: 300
+      # ip: 10.99.0.101/16
+      vlan: 300

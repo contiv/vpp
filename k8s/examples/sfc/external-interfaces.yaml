@@ -8,7 +8,7 @@ spec:
   nodes:
     - node: k8s-master
       vppInterfaceName: GigabitEthernet0/a/0
-      VLAN: 200
+      vlan: 200
 
 ---
 apiVersion: contivpp.io/v1
@@ -20,4 +20,4 @@ spec:
   nodes:
     - node: k8s-master
       vppInterfaceName: GigabitEthernet0/a/0
-      VLAN: 300
+      vlan: 300

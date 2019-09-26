@@ -1,6 +1,7 @@
 // Copyright (c) 2018 Cisco and/or its affiliates.
-// Other Contributors: 1. Adel Bouridah Centre Universitaire Abdelhafid Boussouf Mila - Algerie a.bouridah@centre-univ-mila.dz
-// 2. Nadjib Aitsaadi Universite Paris Est Creteil, nadjib.aitsaadi@u-pec.fr
+// Other Contributors:
+// - Adel Bouridah Centre Universitaire Abdelhafid Boussouf Mila - Algerie, a.bouridah@centre-univ-mila.dz
+// - Nadjib Aitsaadi Universite Paris Est Creteil, nadjib.aitsaadi@u-pec.fr
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +20,6 @@ package dbresources
 import (
 	"github.com/contiv/vpp/plugins/idalloc/idallocation"
 	"github.com/contiv/vpp/plugins/ipam/ipalloc"
-	"github.com/contiv/vpp/plugins/ipam/vnialloc"
 	"github.com/gogo/protobuf/proto"
 
 	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
@@ -111,11 +111,6 @@ func GetDBResources() []*DBResource {
 			Keyword:          ipalloc.Keyword,
 			ProtoMessageName: proto.MessageName((*ipalloc.CustomIPAllocation)(nil)),
 			KeyPrefix:        ipalloc.KeyPrefix(),
-		},
-		{
-			Keyword:          vnialloc.VxlanVNIKeyword,
-			ProtoMessageName: proto.MessageName((*vnialloc.VxlanVniAllocation)(nil)),
-			KeyPrefix:        vnialloc.VxlanVNIKeyPrefix(),
 		},
 		{
 			Keyword:          idallocation.Keyword,

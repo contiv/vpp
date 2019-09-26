@@ -21,7 +21,6 @@ message CustomNetwork {
     enum Type {
         L2 = 0;
         L3 = 1;
-        STUB = 2;
     }
 
     // name of the custom network

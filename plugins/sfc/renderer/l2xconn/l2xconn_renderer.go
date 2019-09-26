@@ -139,8 +139,8 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC, isDelete bool) (confi
 
 		if iface != "" && prevIface != "" {
 			if rndr.isNodeLocalSF(sf) && rndr.isNodeLocalSF(prevSF) {
-				// the two SFs (prevSF and SF) are local - cross-connect the interfaces in both directions
-				xconnect := rndr.crossConnectIfaces(iface, prevIface)
+				// the two SFs (prevSF and SF) are local - cross-connect the interfaces
+				xconnect := rndr.crossConnectIfaces(prevIface, iface, sfc.Unidirectional)
 				rndr.mergeConfiguration(config, xconnect)
 
 			} else if rndr.shouldChainToRemoteSF(prevSF, sf) {
@@ -156,12 +156,12 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC, isDelete bool) (confi
 					break
 				}
 				if rndr.isNodeLocalSF(sf) { // sf is local
-					// create vxlan and connect sf to vxlan in both directions
+					// create vxlan and connect sf to vxlan interface
 					vxlanConfig := rndr.vxlanToRemoteSF(prevSF, vxlanName, vni)
 					rndr.mergeConfiguration(config, vxlanConfig)
 
-					// cross-connect between the SF interface and vxlan interface
-					xconnect := rndr.crossConnectIfaces(iface, vxlanName)
+					// cross-connect between the vxlan interface and the SF interface
+					xconnect := rndr.crossConnectIfaces(vxlanName, iface, sfc.Unidirectional)
 					rndr.mergeConfiguration(config, xconnect)
 				} else { // prevSF is local
 					// create vxlan and connect prevSF to vxlan in both directions
@@ -169,7 +169,7 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC, isDelete bool) (confi
 					rndr.mergeConfiguration(config, vxlanConfig)
 
 					// cross-connect between the prevSF interface and vxlan interface
-					xconnect := rndr.crossConnectIfaces(prevIface, vxlanName)
+					xconnect := rndr.crossConnectIfaces(prevIface, vxlanName, sfc.Unidirectional)
 					rndr.mergeConfiguration(config, xconnect)
 				}
 			}
@@ -335,8 +335,9 @@ func (rndr *Renderer) getSFNodeIDs(sf *renderer.ServiceFunction) (nodeIDs []uint
 	return
 }
 
-// crossConnectIfaces returns the config for cross-connecting the given interfaces in both directions.
-func (rndr *Renderer) crossConnectIfaces(iface1 string, iface2 string) (config controller.KeyValuePairs) {
+// crossConnectIfaces returns the config for cross-connecting the given interfaces.
+// If unidirectional is true, connects iface1 to iface2 only, otherwise connects in both directions.
+func (rndr *Renderer) crossConnectIfaces(iface1 string, iface2 string, unidirectional bool) (config controller.KeyValuePairs) {
 	config = make(controller.KeyValuePairs)
 
 	xconn := &vpp_l2.XConnectPair{
@@ -346,12 +347,14 @@ func (rndr *Renderer) crossConnectIfaces(iface1 string, iface2 string) (config c
 	key := vpp_l2.XConnectKey(iface1)
 	config[key] = xconn
 
-	xconn = &vpp_l2.XConnectPair{
-		ReceiveInterface:  iface2,
-		TransmitInterface: iface1,
+	if !unidirectional {
+		xconn = &vpp_l2.XConnectPair{
+			ReceiveInterface:  iface2,
+			TransmitInterface: iface1,
+		}
+		key = vpp_l2.XConnectKey(iface2)
+		config[key] = xconn
 	}
-	key = vpp_l2.XConnectKey(iface2)
-	config[key] = xconn
 	return config
 }
 

@@ -228,3 +228,6 @@ init:
 bolt:
   debug: false
   dataDir: /var/bolt
+
+k8sVersion:
+  post_1_9: true

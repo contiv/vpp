@@ -884,6 +884,10 @@ func (n *IPNet) releaseVxlanVNI(networkName string) (err error) {
 // getOrAllocateVrfID returns the allocated VRF ID number for the given network.
 // Allocates a new VRF ID if not already allocated.
 func (n *IPNet) getOrAllocateVrfID(networkName string) (vrf uint32, err error) {
+	// default pod network does not need any allocation
+	if n.isDefaultPodNetwork(networkName) {
+		return n.ContivConf.GetRoutingConfig().PodVRFID, nil
+	}
 
 	// allocate the pool if needed
 	nw := n.customNetworks[networkName]

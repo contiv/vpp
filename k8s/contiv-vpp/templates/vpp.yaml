@@ -265,7 +265,11 @@ data:
 {{- range $k, $v := . -}}{{- if not $local.first -}},{{- end -}}{{- $v -}}{{- $_ := set $local "first" false -}}{{- end -}}
 {{- end }}
 {{- if not .Values.etcd.useExternalInstance }}
+{{- if .Values.k8sVersion.post_1_9 }}
+apiVersion: apps/v1
+{{- else }}
 apiVersion: apps/v1beta2
+{{- end }}
 kind: StatefulSet
 metadata:
   name: contiv-etcd
@@ -592,7 +596,11 @@ data:
 # It consists of the following containers:
 #   - contiv-vswitch container: contains VPP and its management agent
 #   - contiv-cni container: installs CNI on the host
+{{- if .Values.k8sVersion.post_1_9 }}
+apiVersion: apps/v1
+{{- else }}
 apiVersion: extensions/v1beta1
+{{- end }}
 kind: DaemonSet
 metadata:
   name: contiv-vswitch
@@ -1089,7 +1097,11 @@ spec:
 ---
 
 # This installs the contiv-ksr (Kubernetes State Reflector) on the master node in a Kubernetes cluster.
+{{- if .Values.k8sVersion.post_1_9 }}
+apiVersion: apps/v1
+{{- else }}
 apiVersion: extensions/v1beta1
+{{- end }}
 kind: DaemonSet
 metadata:
   name: contiv-ksr
@@ -1097,6 +1109,9 @@ metadata:
   labels:
     k8s-app: contiv-ksr
 spec:
+  selector:
+    matchLabels:
+      k8s-app: contiv-ksr
   updateStrategy:
     type: {{ .Values.ksr.updateStrategy }}
   template:
@@ -1357,7 +1372,11 @@ subjects:
 ---
 
 # This installs the contiv-crd on the master node in a Kubernetes cluster.
+{{- if .Values.k8sVersion.post_1_9 }}
+apiVersion: apps/v1
+{{- else }}
 apiVersion: extensions/v1beta1
+{{- end }}
 kind: DaemonSet
 metadata:
   name: contiv-crd
@@ -1365,6 +1384,9 @@ metadata:
   labels:
     k8s-app: contiv-crd
 spec:
+  selector:
+    matchLabels:
+      k8s-app: contiv-crd
   updateStrategy:
     type: {{ .Values.crd.updateStrategy }}
   template:

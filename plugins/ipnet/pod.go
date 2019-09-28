@@ -406,7 +406,7 @@ func (n *IPNet) linuxPodL3CustomIfConfig(pod *podmanager.LocalPod, customIf *pod
 		// configure routes / ARP for interfaces in non-default networks only once per pod
 		return config
 	}
-	customNwCounter[customIf.ifNet] += 1
+	customNwCounter[customIf.ifNet]++
 
 	// ARP entry for the GW
 	key, podArp := n.podToVPPArpEntry(pod, customIf.ifName, customIf.ifType, customIf.ifNet)

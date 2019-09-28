@@ -549,6 +549,8 @@ func parseCustomIfInfo(ifAnnotation string) (ifInfo *podCustomIfInfo, err error)
 
 	if len(ifParts) > 2 {
 		ifInfo.ifNet = ifParts[2]
+	} else {
+		ifInfo.ifNet = DefaultPodNetworkName
 	}
 	return
 }

@@ -395,6 +395,13 @@ func (n *IPNet) getOrAllocatePodCustomIfIP(pod *podmanager.LocalPod, customIf *p
 func (n *IPNet) linuxPodL3CustomIfConfig(pod *podmanager.LocalPod, customIf *podCustomIfInfo) controller.KeyValuePairs {
 	config := make(controller.KeyValuePairs)
 
+	if n.isDefaultPodNetwork(customIf.ifNet) {
+		// Do not configure routes / ARP for interface in default network,
+		// since they are already present on the main pod interface.
+		// Linux does not allow multiple link-scope routes for the same destination IP.
+		return config
+	}
+
 	// ARP entry for the GW
 	key, podArp := n.podToVPPArpEntry(pod, customIf.ifName, customIf.ifType, customIf.ifNet)
 	config[key] = podArp

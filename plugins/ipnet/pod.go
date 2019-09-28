@@ -227,6 +227,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 	customIfs := getContivCustomIfs(podMeta.Annotations)
 	serviceLabel := getContivMicroserviceLabel(podMeta.Annotations)
 	serviceEndpointIf := getContivServiceEndpointIf(podMeta.Annotations)
+	podCustomNwCounter := make(map[string]uint32)
 
 	for _, customIfStr := range customIfs {
 		customIf, err := parseCustomIfInfo(customIfStr)
@@ -322,11 +323,10 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 			//  a) fully configured by the contiv-vswitch (linux interfaces)
 			//  b) memif outside of our control
 			if customIf.ifType != memifIfType && podIP != nil {
-				linuxCfg := n.linuxPodL3CustomIfConfig(pod, customIf)
+				linuxCfg := n.linuxPodL3CustomIfConfig(pod, customIf, podCustomNwCounter)
 				mergeConfiguration(config, linuxCfg)
 			}
-		}
-		if serviceLabel != "" {
+		} else {
 			// if microservice label is defined, it is assumed that a ligato-based CNF is running inside the pod
 			// and the non-link side of the interface will be managed by the agent of that CNF
 			if customIf.ifType == memifIfType {
@@ -342,7 +342,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 				k, iface := n.podMicroserviceLinuxIface(pod, podIP, customIf.ifName, customIf.ifType)
 				microserviceConfig[k] = iface
 				if podIP != nil {
-					linuxCfg := n.linuxPodL3CustomIfConfig(pod, customIf)
+					linuxCfg := n.linuxPodL3CustomIfConfig(pod, customIf, podCustomNwCounter)
 					mergeConfiguration(microserviceConfig, linuxCfg)
 				}
 			}
@@ -392,15 +392,21 @@ func (n *IPNet) getOrAllocatePodCustomIfIP(pod *podmanager.LocalPod, customIf *p
 }
 
 // linuxPodL3CustomIfConfig returns L3 config of a custom interface for a linux (non-VPP) pod.
-func (n *IPNet) linuxPodL3CustomIfConfig(pod *podmanager.LocalPod, customIf *podCustomIfInfo) controller.KeyValuePairs {
+func (n *IPNet) linuxPodL3CustomIfConfig(pod *podmanager.LocalPod, customIf *podCustomIfInfo,
+	customNwCounter map[string]uint32) controller.KeyValuePairs {
 	config := make(controller.KeyValuePairs)
 
 	if n.isDefaultPodNetwork(customIf.ifNet) {
-		// Do not configure routes / ARP for interface in default network,
+		// Do not configure routes / ARP for interfaces in default network,
 		// since they are already present on the main pod interface.
 		// Linux does not allow multiple link-scope routes for the same destination IP.
 		return config
 	}
+	if customNwCounter[customIf.ifNet] > 0 {
+		// configure routes / ARP for interfaces in non-default networks only once per pod
+		return config
+	}
+	customNwCounter[customIf.ifNet] += 1
 
 	// ARP entry for the GW
 	key, podArp := n.podToVPPArpEntry(pod, customIf.ifName, customIf.ifType, customIf.ifNet)

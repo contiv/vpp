@@ -733,8 +733,7 @@ metadata:
 rules:
   - apiGroups:
       - ""
-      - networking
-      - extensions
+      - networking.k8s.io
     resources:
       - pods
       - namespaces

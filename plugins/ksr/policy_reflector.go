@@ -68,8 +68,8 @@ func (pr *PolicyReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) err
 			return pr.policyToProto(k8sPolicy), policy.Key(k8sPolicy.Name, k8sPolicy.Namespace), true
 		},
 		K8sClntGetFunc: func(cs *kubernetes.Clientset) rest.Interface {
-			// Use ExtensionsV1beta1 API client for policies
-			return cs.ExtensionsV1beta1().RESTClient()
+			// Use NetworkingV1 API client for policies
+			return cs.NetworkingV1().RESTClient()
 		},
 	}
 

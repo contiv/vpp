@@ -117,7 +117,7 @@ func (c *FakeServiceFunctionChains) DeleteCollection(options *v1.DeleteOptions, 
 // Patch applies the patch and returns the patched serviceFunctionChain.
 func (c *FakeServiceFunctionChains) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *contivppiov1.ServiceFunctionChain, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(servicefunctionchainsResource, c.ns, name, data, subresources...), &contivppiov1.ServiceFunctionChain{})
+		Invokes(testing.NewPatchSubresourceAction(servicefunctionchainsResource, c.ns, name, pt, data, subresources...), &contivppiov1.ServiceFunctionChain{})
 
 	if obj == nil {
 		return nil, err

@@ -117,7 +117,7 @@ func (c *FakeCustomConfigurations) DeleteCollection(options *v1.DeleteOptions, l
 // Patch applies the patch and returns the patched customConfiguration.
 func (c *FakeCustomConfigurations) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *contivppiov1.CustomConfiguration, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(customconfigurationsResource, c.ns, name, data, subresources...), &contivppiov1.CustomConfiguration{})
+		Invokes(testing.NewPatchSubresourceAction(customconfigurationsResource, c.ns, name, pt, data, subresources...), &contivppiov1.CustomConfiguration{})
 
 	if obj == nil {
 		return nil, err

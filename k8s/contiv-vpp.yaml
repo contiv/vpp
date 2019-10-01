@@ -733,6 +733,7 @@ metadata:
 rules:
   - apiGroups:
       - ""
+      - networking
       - extensions
     resources:
       - pods

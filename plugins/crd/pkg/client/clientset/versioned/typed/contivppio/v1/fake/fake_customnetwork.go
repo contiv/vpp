@@ -117,7 +117,7 @@ func (c *FakeCustomNetworks) DeleteCollection(options *v1.DeleteOptions, listOpt
 // Patch applies the patch and returns the patched customNetwork.
 func (c *FakeCustomNetworks) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *contivppiov1.CustomNetwork, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(customnetworksResource, c.ns, name, data, subresources...), &contivppiov1.CustomNetwork{})
+		Invokes(testing.NewPatchSubresourceAction(customnetworksResource, c.ns, name, pt, data, subresources...), &contivppiov1.CustomNetwork{})
 
 	if obj == nil {
 		return nil, err

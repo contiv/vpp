@@ -129,7 +129,7 @@ func (c *FakeTelemetryReports) DeleteCollection(options *v1.DeleteOptions, listO
 // Patch applies the patch and returns the patched telemetryReport.
 func (c *FakeTelemetryReports) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *telemetryv1.TelemetryReport, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(telemetryreportsResource, c.ns, name, data, subresources...), &telemetryv1.TelemetryReport{})
+		Invokes(testing.NewPatchSubresourceAction(telemetryreportsResource, c.ns, name, pt, data, subresources...), &telemetryv1.TelemetryReport{})
 
 	if obj == nil {
 		return nil, err

@@ -27,7 +27,7 @@ import (
 	"github.com/onsi/gomega"
 
 	coreV1 "k8s.io/api/core/v1"
-	coreV1Beta1 "k8s.io/api/extensions/v1beta1"
+	networkingV1 "k8s.io/api/networking/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
@@ -40,7 +40,7 @@ type PolicyTestVars struct {
 	k8sListWatch      *mockK8sListWatch
 	mockKvBroker      *mockKeyProtoValBroker
 	policyReflector   *PolicyReflector
-	policyTestData    []coreV1Beta1.NetworkPolicy
+	policyTestData    []networkingV1.NetworkPolicy
 	reflectorRegistry ReflectorRegistry
 }
 
@@ -71,28 +71,28 @@ func TestPolicyReflector(t *testing.T) {
 
 	var pprotTCP coreV1.Protocol = "TCP"
 
-	policyTestVars.policyTestData = []coreV1Beta1.NetworkPolicy{
+	policyTestVars.policyTestData = []networkingV1.NetworkPolicy{
 		// Test data 0: mocks a new object to be added or a "pre-existing"
 		// object that is updated during sync
 		{
 			ObjectMeta: metaV1.ObjectMeta{
 				Name:            "test-network-policy",
 				Namespace:       "default",
-				SelfLink:        "/apis/extensions/v1beta1/namespaces/default/networkpolicies/test-network-policy",
+				SelfLink:        "/apis/networking/v1/namespaces/default/networkpolicies/test-network-policy",
 				UID:             "44a9312f-f99f-11e7-b9b5-0800271d72be",
 				ResourceVersion: "692693",
 				Generation:      1,
 				CreationTimestamp: metaV1.Date(2018, 01, 14, 18, 53, 37, 0,
 					time.FixedZone("PST", -800)),
 			},
-			Spec: coreV1Beta1.NetworkPolicySpec{
+			Spec: networkingV1.NetworkPolicySpec{
 				PodSelector: metaV1.LabelSelector{
 					MatchLabels:      map[string]string{"role": "db"},
 					MatchExpressions: []metaV1.LabelSelectorRequirement{},
 				},
-				Ingress: []coreV1Beta1.NetworkPolicyIngressRule{
+				Ingress: []networkingV1.NetworkPolicyIngressRule{
 					{
-						Ports: []coreV1Beta1.NetworkPolicyPort{
+						Ports: []networkingV1.NetworkPolicyPort{
 							{
 								Protocol: &pprotTCP,
 								Port: &intstr.IntOrString{
@@ -101,9 +101,9 @@ func TestPolicyReflector(t *testing.T) {
 								},
 							},
 						},
-						From: []coreV1Beta1.NetworkPolicyPeer{
+						From: []networkingV1.NetworkPolicyPeer{
 							{
-								IPBlock: &coreV1Beta1.IPBlock{
+								IPBlock: &networkingV1.IPBlock{
 									CIDR: "172.17.0.0/16",
 									Except: []string{
 										"172.17.1.0/24",
@@ -126,9 +126,9 @@ func TestPolicyReflector(t *testing.T) {
 						},
 					},
 				},
-				Egress: []coreV1Beta1.NetworkPolicyEgressRule{
+				Egress: []networkingV1.NetworkPolicyEgressRule{
 					{
-						Ports: []coreV1Beta1.NetworkPolicyPort{
+						Ports: []networkingV1.NetworkPolicyPort{
 							{
 								Protocol: &pprotTCP,
 								Port: &intstr.IntOrString{
@@ -137,16 +137,16 @@ func TestPolicyReflector(t *testing.T) {
 								},
 							},
 						},
-						To: []coreV1Beta1.NetworkPolicyPeer{
+						To: []networkingV1.NetworkPolicyPeer{
 							{
-								IPBlock: &coreV1Beta1.IPBlock{
+								IPBlock: &networkingV1.IPBlock{
 									CIDR: "10.0.0.0/24",
 								},
 							},
 						},
 					},
 				},
-				PolicyTypes: []coreV1Beta1.PolicyType{
+				PolicyTypes: []networkingV1.PolicyType{
 					"Ingress",
 					"Egress",
 				},
@@ -159,21 +159,21 @@ func TestPolicyReflector(t *testing.T) {
 			ObjectMeta: metaV1.ObjectMeta{
 				Name:            "access-nginx",
 				Namespace:       "default",
-				SelfLink:        "/apis/extensions/v1beta1/namespaces/default/networkpolicies/access-nginx",
+				SelfLink:        "/apis/networking/v1/namespaces/default/networkpolicies/access-nginx",
 				UID:             "4c4a8d72-f9bc-11e7-b9b5-0800271d72be",
 				ResourceVersion: "706490",
 				Generation:      1,
 				CreationTimestamp: metaV1.Date(2018, 01, 14, 18, 53, 37, 0,
 					time.FixedZone("PST", -800)),
 			},
-			Spec: coreV1Beta1.NetworkPolicySpec{
+			Spec: networkingV1.NetworkPolicySpec{
 				PodSelector: metaV1.LabelSelector{
 					MatchLabels:      map[string]string{"run": "nginx"},
 					MatchExpressions: []metaV1.LabelSelectorRequirement{},
 				},
-				Ingress: []coreV1Beta1.NetworkPolicyIngressRule{
+				Ingress: []networkingV1.NetworkPolicyIngressRule{
 					{
-						From: []coreV1Beta1.NetworkPolicyPeer{
+						From: []networkingV1.NetworkPolicyPeer{
 							{
 								PodSelector: &metaV1.LabelSelector{
 									MatchLabels:      map[string]string{},
@@ -183,9 +183,9 @@ func TestPolicyReflector(t *testing.T) {
 						},
 					},
 				},
-				Egress: []coreV1Beta1.NetworkPolicyEgressRule{
+				Egress: []networkingV1.NetworkPolicyEgressRule{
 					{
-						Ports: []coreV1Beta1.NetworkPolicyPort{
+						Ports: []networkingV1.NetworkPolicyPort{
 							{
 								Protocol: &pprotTCP,
 								Port: &intstr.IntOrString{
@@ -194,7 +194,7 @@ func TestPolicyReflector(t *testing.T) {
 								},
 							},
 						},
-						To: []coreV1Beta1.NetworkPolicyPeer{
+						To: []networkingV1.NetworkPolicyPeer{
 							{
 								NamespaceSelector: &metaV1.LabelSelector{
 									MatchLabels:      map[string]string{"name": "name"},
@@ -210,7 +210,7 @@ func TestPolicyReflector(t *testing.T) {
 						},
 					},
 				},
-				PolicyTypes: []coreV1Beta1.PolicyType{
+				PolicyTypes: []networkingV1.PolicyType{
 					"Ingress",
 					"Egress",
 				},
@@ -223,21 +223,21 @@ func TestPolicyReflector(t *testing.T) {
 			ObjectMeta: metaV1.ObjectMeta{
 				Name:            "redis-allow-services",
 				Namespace:       "default",
-				SelfLink:        "/apis/extensions/v1beta1/namespaces/default/networkpolicies/redis-allow-services",
+				SelfLink:        "/apis/networking/v1/namespaces/default/networkpolicies/redis-allow-services",
 				UID:             "5a091b3c-f9c1-11e7-b9b5-0800271d72be",
 				ResourceVersion: "708875",
 				Generation:      1,
 				CreationTimestamp: metaV1.Date(2018, 01, 14, 18, 53, 37, 0,
 					time.FixedZone("PST", -800)),
 			},
-			Spec: coreV1Beta1.NetworkPolicySpec{
+			Spec: networkingV1.NetworkPolicySpec{
 				PodSelector: metaV1.LabelSelector{
 					MatchLabels:      map[string]string{"app": "bookstore", "role": "db"},
 					MatchExpressions: []metaV1.LabelSelectorRequirement{},
 				},
-				Ingress: []coreV1Beta1.NetworkPolicyIngressRule{
+				Ingress: []networkingV1.NetworkPolicyIngressRule{
 					{
-						From: []coreV1Beta1.NetworkPolicyPeer{
+						From: []networkingV1.NetworkPolicyPeer{
 							{
 								PodSelector: &metaV1.LabelSelector{
 									MatchLabels:      map[string]string{"app": "bookstore", "role": "db"},
@@ -259,7 +259,7 @@ func TestPolicyReflector(t *testing.T) {
 						},
 					},
 				},
-				PolicyTypes: []coreV1Beta1.PolicyType{
+				PolicyTypes: []networkingV1.PolicyType{
 					"Ingress",
 				},
 			},
@@ -413,7 +413,7 @@ func testUpdatePolicy(t *testing.T) {
 	k8sPolicyOld := &policyTestVars.policyTestData[0]
 	tmpBuf, err := json.Marshal(k8sPolicyOld)
 	gomega.Ω(err).Should(gomega.Succeed())
-	k8sPolicyNew := &coreV1Beta1.NetworkPolicy{}
+	k8sPolicyNew := &networkingV1.NetworkPolicy{}
 	err = json.Unmarshal(tmpBuf, k8sPolicyNew)
 	gomega.Ω(err).Should(gomega.Succeed())
 
@@ -432,8 +432,8 @@ func testUpdatePolicy(t *testing.T) {
 	gomega.Expect(upds).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Updates))
 
 	// Test update where everything should be good
-	k8sPolicyNew.Spec.Egress = append(k8sPolicyNew.Spec.Egress, coreV1Beta1.NetworkPolicyEgressRule{
-		Ports: []coreV1Beta1.NetworkPolicyPort{
+	k8sPolicyNew.Spec.Egress = append(k8sPolicyNew.Spec.Egress, networkingV1.NetworkPolicyEgressRule{
+		Ports: []networkingV1.NetworkPolicyPort{
 			{
 				Port: &intstr.IntOrString{
 					Type:   intstr.String,
@@ -441,7 +441,7 @@ func testUpdatePolicy(t *testing.T) {
 				},
 			},
 		},
-		To: []coreV1Beta1.NetworkPolicyPeer{
+		To: []networkingV1.NetworkPolicyPeer{
 			{
 				NamespaceSelector: &metaV1.LabelSelector{
 					MatchLabels:      map[string]string{"key1": "name1"},
@@ -597,7 +597,7 @@ func testResyncPolicyUpdateFail(t *testing.T) {
 	k8sPolicyOld := &policyTestVars.policyTestData[0]
 	tmpBuf, err := json.Marshal(k8sPolicyOld)
 	gomega.Ω(err).Should(gomega.Succeed())
-	k8sPolicyNew := &coreV1Beta1.NetworkPolicy{}
+	k8sPolicyNew := &networkingV1.NetworkPolicy{}
 	err = json.Unmarshal(tmpBuf, k8sPolicyNew)
 	gomega.Ω(err).Should(gomega.Succeed())
 
@@ -612,8 +612,8 @@ func testResyncPolicyUpdateFail(t *testing.T) {
 	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
 
 	// Test update where everything should be good
-	k8sPolicyNew.Spec.Egress = append(k8sPolicyNew.Spec.Egress, coreV1Beta1.NetworkPolicyEgressRule{
-		Ports: []coreV1Beta1.NetworkPolicyPort{
+	k8sPolicyNew.Spec.Egress = append(k8sPolicyNew.Spec.Egress, networkingV1.NetworkPolicyEgressRule{
+		Ports: []networkingV1.NetworkPolicyPort{
 			{
 				Port: &intstr.IntOrString{
 					Type:   intstr.String,
@@ -621,7 +621,7 @@ func testResyncPolicyUpdateFail(t *testing.T) {
 				},
 			},
 		},
-		To: []coreV1Beta1.NetworkPolicyPeer{
+		To: []networkingV1.NetworkPolicyPeer{
 			{
 				NamespaceSelector: &metaV1.LabelSelector{
 					MatchLabels:      map[string]string{"key1": "name1"},
@@ -896,7 +896,7 @@ func testResyncPolicyTransientDsError(t *testing.T) {
 
 // checkPolicyToProtoTranslation checks whether the translation of K8s policy
 // into the Contiv-VPP protobuf format is correct.
-func checkPolicyToProtoTranslation(t *testing.T, protoNp *policy.Policy, k8sNp *coreV1Beta1.NetworkPolicy) {
+func checkPolicyToProtoTranslation(t *testing.T, protoNp *policy.Policy, k8sNp *networkingV1.NetworkPolicy) {
 
 	gomega.Expect(protoNp.Name).To(gomega.Equal(k8sNp.GetName()))
 	gomega.Expect(protoNp.Namespace).To(gomega.Equal(k8sNp.GetNamespace()))
@@ -951,7 +951,7 @@ func checkLabelSelector(protoLbl *policy.Policy_LabelSelector, k8sLbl *metaV1.La
 
 // checkRulePorts checks whether the translation of K8s policy rules ports
 // into the Contiv-VPP protobuf format is correct.
-func checkRulePorts(protoPorts []*policy.Policy_Port, k8sPorts []coreV1Beta1.NetworkPolicyPort) {
+func checkRulePorts(protoPorts []*policy.Policy_Port, k8sPorts []networkingV1.NetworkPolicyPort) {
 
 	gomega.Expect(len(protoPorts)).To(gomega.Equal(len(k8sPorts)))
 
@@ -979,7 +979,7 @@ func checkRulePorts(protoPorts []*policy.Policy_Port, k8sPorts []coreV1Beta1.Net
 
 // checkRulePeers checks whether the translation of K8s policy rules peers
 // into the Contiv-VPP protobuf format is correct.
-func checkRulePeers(protoPeers []*policy.Policy_Peer, k8sPeers []coreV1Beta1.NetworkPolicyPeer) {
+func checkRulePeers(protoPeers []*policy.Policy_Peer, k8sPeers []networkingV1.NetworkPolicyPeer) {
 	gomega.Expect(len(protoPeers)).To(gomega.Equal(len(k8sPeers)))
 	for j, protoPeer := range protoPeers {
 		k8sPeer := k8sPeers[j]
@@ -1010,22 +1010,22 @@ func checkRulePeers(protoPeers []*policy.Policy_Peer, k8sPeers []coreV1Beta1.Net
 
 // checkPolicyType checks whether the translation of K8s policy type into
 // the Contiv-VPP protobuf format is correct.
-func checkPolicyType(protoPtype policy.Policy_PolicyType, k8sPtypes []coreV1Beta1.PolicyType) {
+func checkPolicyType(protoPtype policy.Policy_PolicyType, k8sPtypes []networkingV1.PolicyType) {
 	switch protoPtype {
 
 	case policy.Policy_INGRESS:
 		gomega.Expect(len(k8sPtypes)).To(gomega.Equal(1))
-		gomega.Expect(k8sPtypes[0]).To(gomega.BeEquivalentTo(coreV1Beta1.PolicyTypeIngress))
+		gomega.Expect(k8sPtypes[0]).To(gomega.BeEquivalentTo(networkingV1.PolicyTypeIngress))
 
 	case policy.Policy_EGRESS:
 		gomega.Expect(len(k8sPtypes)).To(gomega.Equal(1))
-		gomega.Expect(k8sPtypes[0]).To(gomega.BeEquivalentTo(coreV1Beta1.PolicyTypeEgress))
+		gomega.Expect(k8sPtypes[0]).To(gomega.BeEquivalentTo(networkingV1.PolicyTypeEgress))
 
 	case policy.Policy_INGRESS_AND_EGRESS:
 		gomega.Expect(len(k8sPtypes)).To(gomega.Equal(2))
-		gomega.Expect(stringsInSlice([]coreV1Beta1.PolicyType{
-			coreV1Beta1.PolicyTypeEgress,
-			coreV1Beta1.PolicyTypeIngress,
+		gomega.Expect(stringsInSlice([]networkingV1.PolicyType{
+			networkingV1.PolicyTypeEgress,
+			networkingV1.PolicyTypeIngress,
 		}, k8sPtypes)).To(gomega.BeTrue())
 
 	case policy.Policy_DEFAULT:
@@ -1035,7 +1035,7 @@ func checkPolicyType(protoPtype policy.Policy_PolicyType, k8sPtypes []coreV1Beta
 
 // stringsInSlice ensures that K8sPolicyTypes contains all policy types
 // listed in 'pd'.
-func stringsInSlice(pd []coreV1Beta1.PolicyType, K8sPolicyTypes []coreV1Beta1.PolicyType) bool {
+func stringsInSlice(pd []networkingV1.PolicyType, K8sPolicyTypes []networkingV1.PolicyType) bool {
 loop:
 	for _, s := range pd {
 		for _, v := range K8sPolicyTypes {

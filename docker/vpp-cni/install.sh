@@ -17,6 +17,7 @@
 # Defaults can be overridden via environment variables.
 HOST_CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin}
 HOST_CNI_NET_DIR=${CNI_NET_DIR:-/etc/cni/net.d}
+HOST_CNI_CONFIG_FILE=${CNI_CONFIG_FILE:-10-contiv-vpp.conflist}
 HOST_LOG_FILE=${HOST_LOG_FILE:-/var/run/contiv/cni.log}
 
 # Install loopback CNI binary if it does not exist yet.
@@ -36,7 +37,7 @@ cp /cni/bin/portmap ${HOST_CNI_BIN_DIR}
 
 # Erase all existing CNI config files.
 echo "Erasing old CNI config in ${HOST_CNI_NET_DIR}"
-rm -rf ${HOST_CNI_NET_DIR}/*
+rm -f ${HOST_CNI_NET_DIR}/${HOST_CNI_CONFIG_FILE}
 
 # Install our CNI config files.
 echo "Installing new CNI config to ${HOST_CNI_NET_DIR}"

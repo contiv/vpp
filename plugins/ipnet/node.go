@@ -16,24 +16,26 @@ package ipnet
 
 import (
 	"fmt"
-	"github.com/contiv/vpp/plugins/idalloc/idallocation"
-	"github.com/contiv/vpp/plugins/podmanager"
 	"net"
 
-	"github.com/contiv/vpp/plugins/contivconf"
-	controller "github.com/contiv/vpp/plugins/controller/api"
-	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
-	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
-	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/gogo/protobuf/proto"
+	"github.com/pkg/errors"
+
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/api/models/vpp/l2"
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
 	"github.com/ligato/vpp-agent/api/models/vpp/srv6"
 	"github.com/ligato/vpp-agent/pkg/models"
-	"github.com/pkg/errors"
+
+	"github.com/contiv/vpp/plugins/contivconf"
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
+	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
+	"github.com/contiv/vpp/plugins/idalloc/idallocation"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/podmanager"
 )
 
 /* Main VPP interface */
@@ -346,7 +348,7 @@ func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface, eve
 			}
 			vppIfName := nodeIf.VppInterfaceName
 			vrf := n.ContivConf.GetRoutingConfig().MainVRFID
-			if n.isL3Network(extIf.Network) {
+			if n.isDefaultPodNetwork(extIf.Network) || n.isL3Network(extIf.Network) {
 				vrf, _ = n.getOrAllocateVrfID(extIf.Network)
 			}
 			if nodeIf.Vlan == 0 {
@@ -357,7 +359,7 @@ func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface, eve
 				// VLAN subinterface config (main interface with no IP + subinterface)
 				key, iface := n.physicalInterface(nodeIf.VppInterfaceName, vrf, nil)
 				config[key] = iface
-				key, iface = n.subInterface(nodeIf.VppInterfaceName, nodeIf.Vlan, ip)
+				key, iface = n.subInterface(nodeIf.VppInterfaceName, vrf, nodeIf.Vlan, ip)
 				config[key] = iface
 				vppIfName = iface.Name
 			}
@@ -408,12 +410,13 @@ func (n *IPNet) physicalInterface(name string, vrf uint32, ips contivconf.IPsWit
 }
 
 // subInterface returns configuration for a VLAN subinterface of an interface.
-func (n *IPNet) subInterface(parentIfName string, vlan uint32, ips contivconf.IPsWithNetworks) (key string, config *vpp_interfaces.Interface) {
+func (n *IPNet) subInterface(parentIfName string, vrf uint32, vlan uint32, ips contivconf.IPsWithNetworks) (
+	key string, config *vpp_interfaces.Interface) {
 	iface := &vpp_interfaces.Interface{
 		Name:    n.getSubInterfaceName(parentIfName, vlan),
 		Type:    vpp_interfaces.Interface_SUB_INTERFACE,
 		Enabled: true,
-		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
+		Vrf:     vrf,
 		Link: &vpp_interfaces.Interface_Sub{
 			Sub: &vpp_interfaces.SubInterface{
 				ParentName: parentIfName,

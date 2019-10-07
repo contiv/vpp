@@ -170,7 +170,7 @@ data:
 # This installs the contiv-etcd (ETCD server to be used by Contiv) on the master node in a Kubernetes cluster.
 # In odrer to dump the content of ETCD, you can use the kubectl exec command similar to this:
 #   kubectl exec contiv-etcd-cxqhr -n kube-system etcdctl -- get --endpoints=[127.0.0.1:12379] --prefix="true" ""
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: contiv-etcd
@@ -207,7 +207,7 @@ spec:
 
       containers:
         - name: contiv-etcd
-          image: quay.io/coreos/etcd:v3.3.11
+          image: quay.io/coreos/etcd:v3.3.15
           imagePullPolicy: IfNotPresent
           env:
             - name: CONTIV_ETCD_IP
@@ -315,7 +315,7 @@ data:
 # It consists of the following containers:
 #   - contiv-vswitch container: contains VPP and its management agent
 #   - contiv-cni container: installs CNI on the host
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: contiv-vswitch
@@ -610,7 +610,7 @@ spec:
 ---
 
 # This installs the contiv-ksr (Kubernetes State Reflector) on the master node in a Kubernetes cluster.
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: contiv-ksr
@@ -618,6 +618,9 @@ metadata:
   labels:
     k8s-app: contiv-ksr
 spec:
+  selector:
+    matchLabels:
+      k8s-app: contiv-ksr
   updateStrategy:
     type: RollingUpdate
   template:
@@ -730,7 +733,7 @@ metadata:
 rules:
   - apiGroups:
       - ""
-      - extensions
+      - networking.k8s.io
     resources:
       - pods
       - namespaces
@@ -770,7 +773,7 @@ subjects:
 ---
 
 # This installs the contiv-crd on the master node in a Kubernetes cluster.
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: contiv-crd
@@ -778,6 +781,9 @@ metadata:
   labels:
     k8s-app: contiv-crd
 spec:
+  selector:
+    matchLabels:
+      k8s-app: contiv-crd
   updateStrategy:
     type: RollingUpdate
   template:

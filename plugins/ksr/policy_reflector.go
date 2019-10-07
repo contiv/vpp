@@ -22,7 +22,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	coreV1 "k8s.io/api/core/v1"
-	coreV1Beta1 "k8s.io/api/extensions/v1beta1"
+	networkingV1 "k8s.io/api/networking/v1"
 	clientApiMetaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
@@ -59,7 +59,7 @@ func (pr *PolicyReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) err
 			return &policy.Policy{}
 		},
 		K8s2NodeFunc: func(k8sObj interface{}) (interface{}, string, bool) {
-			k8sPolicy, ok := k8sObj.(*coreV1Beta1.NetworkPolicy)
+			k8sPolicy, ok := k8sObj.(*networkingV1.NetworkPolicy)
 			if !ok {
 				pr.Log.Errorf("service syncDataStore: wrong object type %s, obj %+v",
 					reflect.TypeOf(k8sObj), k8sObj)
@@ -68,13 +68,13 @@ func (pr *PolicyReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) err
 			return pr.policyToProto(k8sPolicy), policy.Key(k8sPolicy.Name, k8sPolicy.Namespace), true
 		},
 		K8sClntGetFunc: func(cs *kubernetes.Clientset) rest.Interface {
-			// Use ExtensionsV1beta1 API client for policies
-			return cs.ExtensionsV1beta1().RESTClient()
+			// Use NetworkingV1 API client for policies
+			return cs.NetworkingV1().RESTClient()
 		},
 	}
 
 	return pr.ksrInit(stopCh2, wg, policy.KeyPrefix(), "networkpolicies",
-		&coreV1Beta1.NetworkPolicy{}, policyReflectorFuncs)
+		&networkingV1.NetworkPolicy{}, policyReflectorFuncs)
 }
 
 // addPolicy adds state data of a newly created K8s pod into the data
@@ -82,7 +82,7 @@ func (pr *PolicyReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) err
 func (pr *PolicyReflector) addPolicy(obj interface{}) {
 	pr.Log.WithField("policy", obj).Info("Policy added")
 
-	k8sPolicy, ok := obj.(*coreV1Beta1.NetworkPolicy)
+	k8sPolicy, ok := obj.(*networkingV1.NetworkPolicy)
 	if !ok {
 		pr.Log.Warn("Failed to cast newly created policy object")
 		pr.stats.ArgErrors++
@@ -99,7 +99,7 @@ func (pr *PolicyReflector) addPolicy(obj interface{}) {
 func (pr *PolicyReflector) deletePolicy(obj interface{}) {
 	pr.Log.WithField("policy", obj).Info("Policy updated")
 
-	k8sPolicy, ok := obj.(*coreV1Beta1.NetworkPolicy)
+	k8sPolicy, ok := obj.(*networkingV1.NetworkPolicy)
 	if !ok {
 		pr.Log.Warn("Failed to cast newly created service object")
 		pr.stats.ArgErrors++
@@ -113,8 +113,8 @@ func (pr *PolicyReflector) deletePolicy(obj interface{}) {
 // updatePolicy updates state data of a changes K8s network policy in the data
 // store.
 func (pr *PolicyReflector) updatePolicy(oldObj, newObj interface{}) {
-	oldK8sPolicy, ok1 := oldObj.(*coreV1Beta1.NetworkPolicy)
-	newK8sPolicy, ok2 := newObj.(*coreV1Beta1.NetworkPolicy)
+	oldK8sPolicy, ok1 := oldObj.(*networkingV1.NetworkPolicy)
+	newK8sPolicy, ok2 := newObj.(*networkingV1.NetworkPolicy)
 	if !ok1 || !ok2 {
 		pr.Log.Warn("Failed to cast changed service object")
 		pr.stats.ArgErrors++
@@ -131,7 +131,7 @@ func (pr *PolicyReflector) updatePolicy(oldObj, newObj interface{}) {
 
 // policyToProto converts pod state data from the k8s representation into
 // our protobuf-modelled data structure.
-func (pr *PolicyReflector) policyToProto(k8sPolicy *coreV1Beta1.NetworkPolicy) *policy.Policy {
+func (pr *PolicyReflector) policyToProto(k8sPolicy *networkingV1.NetworkPolicy) *policy.Policy {
 	policyProto := &policy.Policy{}
 
 	// Name
@@ -158,9 +158,9 @@ func (pr *PolicyReflector) policyToProto(k8sPolicy *coreV1Beta1.NetworkPolicy) *
 	egress := 0
 	for _, policyType := range k8sPolicy.Spec.PolicyTypes {
 		switch policyType {
-		case coreV1Beta1.PolicyTypeIngress:
+		case networkingV1.PolicyTypeIngress:
 			ingress++
-		case coreV1Beta1.PolicyTypeEgress:
+		case networkingV1.PolicyTypeEgress:
 			egress++
 		}
 	}
@@ -260,7 +260,7 @@ func (pr *PolicyReflector) labelSelectorToProto(selector *clientApiMetaV1.LabelS
 
 // portsToProto converts a list of ports from the k8s representation into
 // our protobuf-modelled data structure.
-func (pr *PolicyReflector) portsToProto(ports []coreV1Beta1.NetworkPolicyPort) (portsProto []*policy.Policy_Port) {
+func (pr *PolicyReflector) portsToProto(ports []networkingV1.NetworkPolicyPort) (portsProto []*policy.Policy_Port) {
 	for _, port := range ports {
 		portProto := &policy.Policy_Port{}
 		// Protocol
@@ -292,7 +292,7 @@ func (pr *PolicyReflector) portsToProto(ports []coreV1Beta1.NetworkPolicyPort) (
 
 // peersToProto converts a list of peers from the k8s representation into
 // our protobuf-modelled data structure.
-func (pr *PolicyReflector) peersToProto(peers []coreV1Beta1.NetworkPolicyPeer) (peersProto []*policy.Policy_Peer) {
+func (pr *PolicyReflector) peersToProto(peers []networkingV1.NetworkPolicyPeer) (peersProto []*policy.Policy_Peer) {
 	for _, peer := range peers {
 		peerProto := &policy.Policy_Peer{}
 		if peer.PodSelector != nil {

@@ -1,5 +1,5 @@
 # 1. Backend
-FROM golang:1.11.5-alpine3.8 as builder
+FROM golang:1.12.9-alpine3.10 as builder
 ENV CGO_ENABLED=0
 RUN apk add --update git make
 COPY . /go/src/github.com/contiv/vpp

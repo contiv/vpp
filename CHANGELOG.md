@@ -1,3 +1,17 @@
+# Release v3.3.1 (2019-09-20)
+
+### VPP
+ - version **v19.08** (latest stable/1908)
+
+### Bugfixes
+ - address CVE-2019-9512 and CVE-2019-9514 issues
+ - fix SplitHorizonGroup for [L2 custom networks](k8s/examples/custom-network)
+
+### Known Issues
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
 # Release v3.3.0 (2019-09-06)
 
 ### VPP

@@ -6,7 +6,7 @@ This is a step-by-step guide for developers on how to add new [Custom Resource (
    structures - the resource top-level definition grouping metadata and the specification, the resource specification
    and a structure representing list of your resources.
    Here is the template to follow (notice the `genclient` and `k8s` tags):
-   ```
+   ```go
    // <Your-Resource> is used to ...
    // +genclient
    // +genclient:noStatus
@@ -41,7 +41,7 @@ This is a step-by-step guide for developers on how to add new [Custom Resource (
    
 2. Generate ClientSet, Informers and Listers for you CRD.
    From the Contiv-VPP top-level directory, run: 
-   ```
+   ```bash
    $ cd $GOPATH/src/github.com/contiv/vpp
    $ plugins/crd/scripts/update-codegen.sh
    ```
@@ -64,7 +64,7 @@ This is a step-by-step guide for developers on how to add new [Custom Resource (
 5. Create controller for your resource.
    Use the following code template (replace `<your-resource>`) to construct and initialize resource controller inside
    the `initializeCRDs` method of the crd plugin (`plugins/crd/plugin_impl_crd.go`):
-```
+```go
 import "github.com/contiv/vpp/plugins/crd/handler/<your-resource>"
 
 type Plugin struct {
@@ -130,7 +130,7 @@ func (p *Plugin) onEtcdConnect() error {
 7. Allow contiv-crd to access your CRD through Kubernetes client. Open [contiv-vpp.yaml template] [contiv-yaml-template]
    and under `resources` of the `contiv-crd` cluster role add the plural name of your CRD.
    Rebuild contiv-vpp.yaml using helm:
-   ```
+   ```bash
    make helm-yaml-latest
    make helm-yaml-arm64-latest 
    ``` 

@@ -35,11 +35,14 @@ spec:
   containers:
     - name: vpp-agent
       image: ligato/vpp-agent:v2.1.1
+      imagePullPolicy: IfNotPresent
       env:
         - name: ETCD_CONFIG
           value: "/etc/etcd/etcd.conf"
         - name: MICROSERVICE_LABEL
           value: memif-pod
+        - name: ETCD_EXPAND_ENV_VARS
+          value: "true"
       resources:
         limits:
           contivpp.io/memif: 1

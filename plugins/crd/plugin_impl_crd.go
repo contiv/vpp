@@ -222,10 +222,11 @@ func (p *Plugin) initializeCRDs() error {
 			},
 		},
 		Spec: controller.CrdSpec{
-			TypeName: reflect.TypeOf(v1.CustomNetwork{}).Name(),
-			Group:    contivppio.GroupName,
-			Version:  "v1",
-			Plural:   "customnetworks",
+			TypeName:   reflect.TypeOf(v1.CustomNetwork{}).Name(),
+			Group:      contivppio.GroupName,
+			Version:    "v1",
+			Plural:     "customnetworks",
+			Validation: customnetwork.Validation(),
 		},
 	}
 
@@ -248,10 +249,11 @@ func (p *Plugin) initializeCRDs() error {
 			},
 		},
 		Spec: controller.CrdSpec{
-			TypeName: reflect.TypeOf(v1.ExternalInterface{}).Name(),
-			Group:    contivppio.GroupName,
-			Version:  "v1",
-			Plural:   "externalinterfaces",
+			TypeName:   reflect.TypeOf(v1.ExternalInterface{}).Name(),
+			Group:      contivppio.GroupName,
+			Version:    "v1",
+			Plural:     "externalinterfaces",
+			Validation: externalinterface.Validation(),
 		},
 	}
 
@@ -274,10 +276,11 @@ func (p *Plugin) initializeCRDs() error {
 			},
 		},
 		Spec: controller.CrdSpec{
-			TypeName: reflect.TypeOf(v1.ServiceFunctionChain{}).Name(),
-			Group:    contivppio.GroupName,
-			Version:  "v1",
-			Plural:   "servicefunctionchains",
+			TypeName:   reflect.TypeOf(v1.ServiceFunctionChain{}).Name(),
+			Group:      contivppio.GroupName,
+			Version:    "v1",
+			Plural:     "servicefunctionchains",
+			Validation: servicefunctionchain.Validation(),
 		},
 	}
 

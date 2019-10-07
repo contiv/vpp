@@ -485,7 +485,7 @@ func testValidateInterfaceLookup(t *testing.T) {
 	// --------------------------------------------------
 	// INJECT FAULT:
 	// - Bad vlxanBVI interface name
-	bviIfc, err := findInterface(ipnet.VxlanBVIInterfaceName, vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces)
+	bviIfc, err := findInterface(ipnet.DefaultVxlanBVIInterfaceName, vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces)
 	oldBviIfName := gigeIfc.Value.Name
 	bviIfc.Value.Name = "SomeInterface"
 	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[bviIfc.Metadata.SwIfIndex] = *bviIfc

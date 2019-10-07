@@ -1,6 +1,7 @@
 /*
  * // Copyright (c) 2019 Cisco and/or its affiliates.
- * //
+ * // Other Contributors: 1. Adel Bouridah Centre Universitaire Abdelhafid Boussouf Mila - Algerie a.bouridah@centre-univ-mila.dz
+ * // 2. Nadjib Aitsaadi Universite Paris Est Creteil, nadjib.aitsaadi@u-pec.fr
  * // Licensed under the Apache License, Version 2.0 (the "License");
  * // you may not use this file except in compliance with the License.
  * // You may obtain a copy of the License at:
@@ -18,6 +19,7 @@ package renderer
 
 import (
 	"fmt"
+
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
@@ -45,6 +47,10 @@ type SFCRendererAPI interface {
 type ContivSFC struct {
 	// Name uniquely identifies a service function chain.
 	Name string
+
+	// Unidirectional is true if the service chain should be unidirectional (the traffic should pass in one way only).
+	// Otherwise the chain is bidirectional (the traffic can pass both ways).
+	Unidirectional bool
 
 	// Network defines a custom network where the chain is being rendered,
 	// may be empty in case of the default network.

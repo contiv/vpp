@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Cisco and/or its affiliates.
+// Copyright (c) 2018 Cisco and/or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package idallocation
 
-package model;
+// Keyword defines the keyword identifying ID allocation pools.
+const Keyword = "idalloc"
 
-// CustomNetwork is used to store definition of custom network defined via CRD.
-message CustomNetwork {
-    enum Type {
-        L2 = 0;
-        L3 = 1;
-    }
+// KeyPrefix return prefix where all ID allocation pools are persisted.
+func KeyPrefix() string {
+	return Keyword + "/"
+}
 
-    // name of the custom network
-    string name = 1;
-
-    // type of the custom network
-    Type type = 2;
-
-    // subnet of the custom network
-    string subnetCIDR = 3;
-
-    // prefix length defining network subnet used for each node in the cluster
-    uint32 subnet_one_node_prefix = 4;
-
+// Key returns the key under which ID allocation pool data should be stored in the data-store.
+func Key(poolName string) string {
+	return KeyPrefix() + poolName
 }

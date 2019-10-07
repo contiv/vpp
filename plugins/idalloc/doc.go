@@ -12,12 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
-
-package vnialloc;
-
-// VxlanVniAllocation represents a VXLAN VNI allocation made for the specified unique VXLAN name
-message VxlanVniAllocation {
-    string vxlan_name= 1;
-    uint32 vni = 2;
-}
+// Package idalloc is responsible for allocation of numeric identifiers in distributed manner,
+// where each node in the cluster needs to be able to allocate an unique ID from the given pool
+// for a given purpose identified by a string label, but once allocated, other nodes can not change
+// / allocate a different ID for given purpose (label).
+package idalloc

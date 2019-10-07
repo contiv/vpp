@@ -15,6 +15,7 @@
 package sfc
 
 import (
+	"github.com/contiv/vpp/plugins/idalloc"
 	"strings"
 
 	"github.com/contiv/vpp/plugins/statscollector"
@@ -58,6 +59,7 @@ type Deps struct {
 	infra.PluginDeps
 	ServiceLabel    servicelabel.ReaderAPI
 	ContivConf      contivconf.API
+	IDAlloc         idalloc.API
 	IPAM            ipam.API
 	IPNet           ipnet.API
 	NodeSync        nodesync.API
@@ -101,6 +103,7 @@ func (p *Plugin) Init() error {
 			Log:        p.Log.NewLogger("-sfcL2xconnRenderer"),
 			Config:     p.config,
 			ContivConf: p.ContivConf,
+			IDAlloc:    p.IDAlloc,
 			IPAM:       p.IPAM,
 			IPNet:      p.IPNet,
 			NodeSync:   p.NodeSync,

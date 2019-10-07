@@ -16,6 +16,7 @@ package ipnet
 
 import (
 	"fmt"
+	"github.com/contiv/vpp/plugins/idalloc"
 	"net"
 	"sync"
 
@@ -103,6 +104,9 @@ type internalState struct {
 
 	// custom network information
 	customNetworks map[string]*customNetworkInfo // custom network name to info map
+
+	// configuration written to etcd for other ligato-based microservices to apply
+	microserviceConfig map[string][]byte
 }
 
 // configEventType represents the type of an configuration event processed by the ipnet plugin
@@ -123,6 +127,7 @@ type Deps struct {
 	EventLoop     controller.EventLoop
 	ServiceLabel  servicelabel.ReaderAPI
 	ContivConf    contivconf.API
+	IDAlloc       idalloc.API
 	IPAM          ipam.API
 	NodeSync      nodesync.API
 	PodManager    podmanager.API
@@ -181,8 +186,9 @@ func (n *IPNet) Init() error {
 
 	// init internal maps
 	n.podCustomIf = make(map[string]*podCustomIfInfo)
-	n.internalState.pendingAddPodCustomIf = make(map[podmodel.ID]bool)
+	n.pendingAddPodCustomIf = make(map[podmodel.ID]bool)
 	n.customNetworks = make(map[string]*customNetworkInfo)
+	n.microserviceConfig = make(map[string][]byte)
 
 	return nil
 }
@@ -204,11 +210,58 @@ func (s *internalState) StateToString() string {
 	}
 	vppIfaceToPod += "}"
 
+	// custom interface information
+	podCustomIf := "{"
+	first = true
+	for podID, ifInfo := range s.podCustomIf {
+		if !first {
+			podCustomIf += ", "
+		}
+		first = false
+		podCustomIf += fmt.Sprintf("%s: %s/%s/%s", podID,
+			ifInfo.ifName, ifInfo.ifType, ifInfo.ifNet)
+	}
+	podCustomIf += "}"
+
+	// pods pending for AddPodCustomIfs
+	pendingCustomIf := "["
+	first = true
+	for podID := range s.pendingAddPodCustomIf {
+		if !first {
+			pendingCustomIf += ", "
+		}
+		first = false
+		pendingCustomIf += podID.String()
+	}
+	pendingCustomIf += "]"
+
+	// custom network information
+	customNetworks := "{"
+	first = true
+	for nwName, nwInfo := range s.customNetworks {
+		if !first {
+			customNetworks += ", "
+		}
+		first = false
+		customNetworks += fmt.Sprintf("%s: <config: %s, interfaces: %v>", nwName,
+			nwInfo.config.String(), nwInfo.localInterfaces)
+	}
+	customNetworks += "}"
+
+	// microserviceConfig not printed (too big and not so important)
+
 	return fmt.Sprintf("<useDHCP: %t, watchingDHCP: %t, "+
-		"nodeIP: %s, nodeIPNet: %s, hostIPs: %v, vppIfaceToPod: %s",
+		"nodeIP: %s, nodeIPNet: %s, hostIPs: %v, vppIfaceToPod: %s, "+
+		"podCustomIf: %s, pendingAddPodCustomIf: %s, customNetworks: %s",
 		s.useDHCP, s.watchingDHCP,
 		s.nodeIP.String(), ipNetToString(s.nodeIPNet), s.hostIPs,
-		vppIfaceToPod)
+		vppIfaceToPod, podCustomIf, pendingCustomIf, customNetworks)
+}
+
+// DescribeInternalData describes the internal state of IPNet plugin.
+// Used for Verification Resync.
+func (n *IPNet) DescribeInternalData() string {
+	return n.internalState.StateToString()
 }
 
 // Close is called by the plugin infra upon agent cleanup.
@@ -225,6 +278,8 @@ func (n *IPNet) Close() error {
 //   - AddPod and DeletePod (CNI)
 //   - POD k8s state changes
 //   - POD custom interfaces update
+//   - custom network update
+//   - external interfaces update
 //   - NodeUpdate for other nodes
 //   - Shutdown event
 func (n *IPNet) HandlesEvent(event controller.Event) bool {
@@ -292,7 +347,7 @@ func (n *IPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, l
 	// check that the pod is attached to VPP network stack
 	n.vppIfaceToPodMutex.RLock()
 	defer n.vppIfaceToPodMutex.RUnlock()
-	vppIfName, linuxIfName = n.podInterfaceName(pod, "", "")
+	vppIfName, linuxIfName, _ = n.podInterfaceName(pod, "", "")
 	loopIfName = n.podLinuxLoopName(pod)
 	_, configured := n.vppIfaceToPod[vppIfName]
 	if !configured {
@@ -317,7 +372,7 @@ func (n *IPNet) GetPodCustomIfName(podNamespace, podName, customIfName string) (
 		return "", false
 	}
 
-	ifName, _ = n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
+	ifName, _, _ = n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
 	return ifName, true
 }
 
@@ -351,6 +406,5 @@ func (n *IPNet) GetVxlanBVIIfName() string {
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport != contivconf.VXLANTransport {
 		return ""
 	}
-
-	return VxlanBVIInterfaceName
+	return n.vxlanBVIInterfaceName(DefaultPodNetworkName)
 }

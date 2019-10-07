@@ -21,6 +21,7 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 
+	"github.com/contiv/vpp/plugins/ipnet"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -173,10 +174,10 @@ func (s *Service) Refresh() {
 			if redirIP, isRedirected := s.sp.epRedirects[epAddr.GetIp()]; isRedirected {
 				epIP = net.ParseIP(redirIP)
 			}
-			if s.sp.IPAM.PodSubnetThisNode().Contains(epIP) {
+			if s.sp.IPAM.PodSubnetThisNode(ipnet.DefaultPodNetworkName).Contains(epIP) {
 				local = true
 			}
-			if !s.sp.IPAM.PodSubnetAllNodes().Contains(epIP) {
+			if !s.sp.IPAM.PodSubnetAllNodes(ipnet.DefaultPodNetworkName).Contains(epIP) {
 				hostNetwork = true
 				if s.isLocalNodeOrHostIP(epIP) {
 					local = true

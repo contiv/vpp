@@ -373,7 +373,7 @@ func (rndr *Renderer) renderService(service *renderer.ContivService, oper operat
 					route := &vpp_l3.Route{
 						DstNetwork:        serviceIP.String() + ipv6HostPrefix,
 						NextHopAddr:       nextHop.String(),
-						OutgoingInterface: ipnet.VxlanBVIInterfaceName,
+						OutgoingInterface: rndr.IPNet.GetVxlanBVIIfName(),
 						VrfId:             rndr.ContivConf.GetRoutingConfig().PodVRFID,
 					}
 					key := models.Key(route)

@@ -2,11 +2,11 @@
 apiVersion: contivpp.io/v1
 kind: ExternalInterface
 metadata:
-  name: vlan-200
+  name: l2net-lan
 spec:
   type: L2
   network: l2net
   nodes:
     - node: k8s-master
-      vppInterfaceName: GigabitEthernet0/a/0
-      VLAN: 200
+      vppInterfaceName: GigabitEthernet0/9/0
+      vlan: 200

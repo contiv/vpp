@@ -74,7 +74,6 @@ type ExternalInterface struct {
 
 // ExternalInterfaceSpec is the spec for external interface configuration resource
 type ExternalInterfaceSpec struct {
-	Name    string          `json:"name"`
 	Type    string          `json:"type"`
 	Network string          `json:"network"`
 	Nodes   []NodeInterface `json:"nodes"`
@@ -84,8 +83,8 @@ type ExternalInterfaceSpec struct {
 type NodeInterface struct {
 	Node             string `json:"node"`
 	VppInterfaceName string `json:"vppInterfaceName"`
-	IP               string `json:"IP"`
-	VLAN             uint32 `json:"VLAN"`
+	IP               string `json:"ip"`
+	VLAN             uint32 `json:"vlan"`
 }
 
 // ExternalInterfaceList is a list of ExternalInterface resources
@@ -114,8 +113,9 @@ type ServiceFunctionChain struct {
 
 // ServiceFunctionChainSpec describe service function chain
 type ServiceFunctionChainSpec struct {
-	Network string            `json:"network"`
-	Chain   []ServiceFunction `json:"chain"`
+	Unidirectional bool              `json:"unidirectional"`
+	Network        string            `json:"network"`
+	Chain          []ServiceFunction `json:"chain"`
 }
 
 // ServiceFunction describes single segment of the chain

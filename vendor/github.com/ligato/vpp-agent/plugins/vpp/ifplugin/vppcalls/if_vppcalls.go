@@ -109,17 +109,6 @@ type InterfaceSpanDetails struct {
 	IsL2          uint8
 }
 
-// GreTunnelDetails is something
-type GreTunnelDetails struct {
-	SwIfIndex  uint32
-	Instance   uint32
-	TunnelType uint8
-	SrcAddress net.IP
-	DstAddress net.IP
-	OuterFibID uint32
-	SessionID  uint16
-}
-
 // InterfaceVppAPI provides methods for creating and managing interface plugin
 type InterfaceVppAPI interface {
 	InterfaceVppRead

@@ -35,7 +35,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/l3plugin/descriptor"
 	"github.com/ligato/vpp-agent/plugins/vpp/l3plugin/vppcalls"
 	"github.com/ligato/vpp-agent/plugins/vpp/l3plugin/vrfidx"
-	"github.com/ligato/vpp-agent/plugins/netalloc"
 
 	_ "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/vppcalls/vpp1904"
 	_ "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/vppcalls/vpp1908"

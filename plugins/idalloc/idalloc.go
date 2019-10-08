@@ -40,8 +40,8 @@ const (
 type IDAllocator struct {
 	Deps
 
-	dbBroker   keyval.BytesBrokerWithAtomic
-	serializer keyval.SerializerJSON
+	dbBrokerUnsafe keyval.BytesBrokerWithAtomic
+	serializer     keyval.SerializerJSON
 
 	poolCache map[string]*idallocation.AllocationPool // pool name to pool data
 	poolMeta  map[string]*poolMetadata                // pool name to pool metadata
@@ -64,8 +64,6 @@ type poolMetadata struct {
 // Init initializes plugin internals.
 func (a *IDAllocator) Init() (err error) {
 
-	ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
-	a.dbBroker = a.RemoteDB.NewBrokerWithAtomic(ksrPrefix)
 	a.serializer = keyval.SerializerJSON{}
 
 	return nil
@@ -164,7 +162,12 @@ func (a *IDAllocator) InitPool(name string, poolRange *idallocation.AllocationPo
 		a.Log.Error(err)
 		return err
 	}
-	success, err := a.dbBroker.PutIfNotExists(idallocation.Key(name), encodedPool)
+	db, err := a.getDBBroker()
+	if err != nil {
+		a.Log.Error(err)
+		return err
+	}
+	success, err := db.PutIfNotExists(idallocation.Key(name), encodedPool)
 
 	if err == nil && success == false {
 		// the pool already exists in db, check if the specification matches
@@ -318,7 +321,12 @@ func (a *IDAllocator) tryToAllocateID(pool *idallocation.AllocationPool, poolMet
 	if err != nil {
 		return 0, false, err
 	}
-	succeeded, err = a.dbBroker.CompareAndSwap(idallocation.Key(pool.Name), prevData, newData)
+	db, err := a.getDBBroker()
+	if err != nil {
+		a.Log.Error(err)
+		return 0, false, err
+	}
+	succeeded, err = db.CompareAndSwap(idallocation.Key(pool.Name), prevData, newData)
 
 	return
 }
@@ -342,13 +350,23 @@ func (a *IDAllocator) tryToReleaseID(pool *idallocation.AllocationPool, poolMeta
 	if err != nil {
 		return false, err
 	}
-	succeeded, err = a.dbBroker.CompareAndSwap(idallocation.Key(pool.Name), prevData, newData)
+	db, err := a.getDBBroker()
+	if err != nil {
+		a.Log.Error(err)
+		return false, err
+	}
+	succeeded, err = db.CompareAndSwap(idallocation.Key(pool.Name), prevData, newData)
 	return
 }
 
 // dbReadPool reads pool date from database.
 func (a *IDAllocator) dbReadPool(poolName string) (pool *idallocation.AllocationPool, err error) {
-	existData, found, _, err := a.dbBroker.GetValue(idallocation.Key(poolName))
+	db, err := a.getDBBroker()
+	if err != nil {
+		a.Log.Error(err)
+		return nil, err
+	}
+	existData, found, _, err := db.GetValue(idallocation.Key(poolName))
 	if err != nil {
 		return nil, err
 	}
@@ -378,4 +396,23 @@ func (a *IDAllocator) buildPoolMetadata(pool *idallocation.AllocationPool) *pool
 		meta.allocatedIDs[id] = label
 	}
 	return meta
+}
+
+// getDBBroker returns broker for accessing remote database, error if database is not connected.
+func (a *IDAllocator) getDBBroker() (keyval.BytesBrokerWithAtomic, error) {
+	// return error if ETCD is not connected
+	dbIsConnected := false
+	a.RemoteDB.OnConnect(func() error {
+		dbIsConnected = true
+		return nil
+	})
+	if !dbIsConnected {
+		return nil, fmt.Errorf("remote database is not connected")
+	}
+	// return existing broker if possible
+	if a.dbBrokerUnsafe == nil {
+		ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
+		a.dbBrokerUnsafe = a.RemoteDB.NewBrokerWithAtomic(ksrPrefix)
+	}
+	return a.dbBrokerUnsafe, nil
 }

@@ -392,9 +392,11 @@ func (n *IPNet) physicalInterface(name string, vrf uint32, ips contivconf.IPsWit
 	}
 	if n.ContivConf.UseVmxnet3() {
 		iface.Type = vpp_interfaces.Interface_VMXNET3_INTERFACE
-		if ifConfig.Vmxnet3RxRingSize != 0 && ifConfig.Vmxnet3TxRingSize != 0 {
-			iface.GetVmxNet3().RxqSize = uint32(ifConfig.Vmxnet3RxRingSize)
-			iface.GetVmxNet3().TxqSize = uint32(ifConfig.Vmxnet3TxRingSize)
+		iface.Link = &vpp_interfaces.Interface_VmxNet3{
+			VmxNet3: &vpp_interfaces.VmxNet3Link{
+				RxqSize: uint32(ifConfig.Vmxnet3RxRingSize),
+				TxqSize: uint32(ifConfig.Vmxnet3TxRingSize),
+			},
 		}
 	}
 	if interfaceRxModeType(ifConfig.InterfaceRxMode) != vpp_interfaces.Interface_RxMode_DEFAULT {

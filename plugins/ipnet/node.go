@@ -86,8 +86,6 @@ type customNetworkInfo struct {
 	localPods          map[string]*podmanager.LocalPod          // list of local pods in custom network
 	localExtInterfaces map[string]*extifmodel.ExternalInterface // list of local external interfaces in custom network
 	localInterfaces    []string                                 // list of local interfaces (pod + external) in custom network
-	vniPoolInitialized bool
-	vrfPoolInitialized bool
 }
 
 // prefix for the hardware address of VXLAN interfaces
@@ -858,8 +856,7 @@ func (n *IPNet) cacheCustomNetworkInterface(customNwName string, pod *podmanager
 func (n *IPNet) getOrAllocateVxlanVNI(networkName string) (vni uint32, err error) {
 
 	// allocate the pool if needed
-	nw := n.customNetworks[networkName]
-	if nw == nil || !nw.vniPoolInitialized {
+	if !n.vniPoolInitialized {
 		err = n.IDAlloc.InitPool(VxlanVniPoolName, &idallocation.AllocationPool_Range{
 			MinId: vxlanVNIPoolStart,
 			MaxId: vxlanVNIPoolEnd,
@@ -868,9 +865,7 @@ func (n *IPNet) getOrAllocateVxlanVNI(networkName string) (vni uint32, err error
 			n.Log.Errorf("VNI pool init failed: %v", err)
 			return 0, err
 		}
-		if nw != nil {
-			nw.vniPoolInitialized = true
-		}
+		n.vniPoolInitialized = true
 	}
 
 	// get / allocate a VNI
@@ -895,8 +890,7 @@ func (n *IPNet) getOrAllocateVrfID(networkName string) (vrf uint32, err error) {
 	}
 
 	// allocate the pool if needed
-	nw := n.customNetworks[networkName]
-	if nw == nil || !nw.vrfPoolInitialized {
+	if !n.vrfPoolInitialized {
 		err = n.IDAlloc.InitPool(vrfPoolName, &idallocation.AllocationPool_Range{
 			MinId: vrfPoolStart,
 			MaxId: vrfPoolEnd,
@@ -905,9 +899,7 @@ func (n *IPNet) getOrAllocateVrfID(networkName string) (vrf uint32, err error) {
 			n.Log.Errorf("VRF pool init failed: %v", err)
 			return 0, err
 		}
-		if nw != nil {
-			nw.vrfPoolInitialized = true
-		}
+		n.vrfPoolInitialized = true
 	}
 
 	// get / allocate a VRF

@@ -107,6 +107,10 @@ type internalState struct {
 
 	// configuration written to etcd for other ligato-based microservices to apply
 	microserviceConfig map[string][]byte
+
+	// VNI / VRF pool states
+	vniPoolInitialized bool
+	vrfPoolInitialized bool
 }
 
 // configEventType represents the type of an configuration event processed by the ipnet plugin

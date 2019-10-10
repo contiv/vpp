@@ -57,6 +57,20 @@ type API interface {
 	// GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
 	// Returns an empty string if VXLAN is not used (in no-overlay interconnect mode).
 	GetVxlanBVIIfName() string
+
+	// GetOrAllocateVxlanVNI returns the allocated VXLAN VNI number for the given network.
+	// Allocates a new VNI if not already allocated.
+	GetOrAllocateVxlanVNI(networkName string) (vni uint32, err error)
+
+	// ReleaseVxlanVNI releases the allocated VXLAN VNI number for the given network.
+	ReleaseVxlanVNI(networkName string) (err error)
+
+	// GetOrAllocateVrfID returns the allocated VRF ID number for the given network.
+	// Allocates a new VRF ID if not already allocated.
+	GetOrAllocateVrfID(networkName string) (vrf uint32, err error)
+
+	// ReleaseVrfID releases the allocated VRF ID number for the given network.
+	ReleaseVrfID(networkName string) (err error)
 }
 
 /*************************** Node IPv4 Change Event ***************************/

@@ -296,7 +296,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 		// VPP side of the custom interface
 		if podIP != nil {
 			// route to pod IP from VPP
-			vrf, _ := n.getOrAllocateVrfID(customIf.ifNet)
+			vrf, _ := n.GetOrAllocateVrfID(customIf.ifNet)
 			key, vppRoute := n.vppToPodRoute(pod, podIP, customIf.ifName, customIf.ifType, vrf)
 			config[key] = vppRoute
 			// static ARP entry to pod IP from VPP

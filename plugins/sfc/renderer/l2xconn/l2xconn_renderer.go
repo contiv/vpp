@@ -147,9 +147,9 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC, isDelete bool) (confi
 				// one of the SFs (prevSF or SF) is local and the other not - use VXLAN to interconnect between them
 				// allocate a VNI for this SF interconnection - each SF may need an exclusive VNI
 				vxlanName := fmt.Sprintf("sfc-%s-%d", sfc.Name, sfIdx)
-				vni, err := rndr.getOrAllocateVxlanVNI(vxlanName)
+				vni, err := rndr.IPNet.GetOrAllocateVxlanVNI(vxlanName)
 				if isDelete {
-					rndr.releaseVxlanVNI(vxlanName)
+					rndr.IPNet.ReleaseVxlanVNI(vxlanName)
 				}
 				if err != nil {
 					rndr.Log.Infof("Unable to allocate VXLAN VNI: %v", err)
@@ -391,22 +391,6 @@ func (rndr *Renderer) mergeConfiguration(destConf, sourceConf controller.KeyValu
 	for k, v := range sourceConf {
 		destConf[k] = v
 	}
-}
-
-// getOrAllocateVxlanVNI returns the allocated VNI number for the given VXLAN.
-// Allocates a new VNI if not already allocated.
-func (rndr *Renderer) getOrAllocateVxlanVNI(vxlanName string) (vni uint32, err error) {
-	// we relay on VXLAN pool instantiated by ipnet plugin
-	vni, err = rndr.IDAlloc.GetOrAllocateID(ipnet.VxlanVniPoolName, vxlanName)
-	if err != nil {
-		rndr.Log.Errorf("VNI retrieval/allocation failed: %v", err)
-	}
-	return
-}
-
-// releaseVxlanVNI releases the allocated VNI number for the given VXLAN.
-func (rndr *Renderer) releaseVxlanVNI(vxlanName string) (err error) {
-	return rndr.IDAlloc.ReleaseID(ipnet.VxlanVniPoolName, vxlanName)
 }
 
 // sliceContains returns true if provided slice contains provided value, false otherwise.

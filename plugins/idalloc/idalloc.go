@@ -344,24 +344,28 @@ func (a *IDAllocator) tryToReleaseID(pool *idallocation.AllocationPool, poolMeta
 		// already released
 		return true, nil
 	}
-
-	// delete the allocation from cache
-	delete(pool.IdAllocations, idLabel)
-
 	if alloc.Owner != a.ServiceLabel.GetAgentLabel() {
 		// we do not own this allocation, do not write into db
+		delete(pool.IdAllocations, idLabel)
 		return true, nil
 	}
 
-	// try to write into db
+	// marshal the old state
 	prevData, err := a.serializer.Marshal(pool)
 	if err != nil {
 		return false, err
 	}
+
+	// delete the allocation from cache
+	delete(pool.IdAllocations, idLabel)
+
+	// marshal the new state
 	newData, err := a.serializer.Marshal(pool)
 	if err != nil {
 		return false, err
 	}
+
+	// delete from db
 	db, err := a.getDBBroker()
 	if err != nil {
 		a.Log.Error(err)

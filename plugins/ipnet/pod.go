@@ -260,6 +260,7 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 		switch customIf.ifType {
 		case memifIfType:
 			// handle custom memif interface
+			memifID++
 			if memifInfo == nil {
 				memifInfo, err = n.DeviceManager.GetPodMemifInfo(pod.ID)
 				if err != nil || memifInfo == nil {
@@ -270,7 +271,6 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 			// VPP side of the memif
 			k, v := n.podVPPMemif(pod, podIP, customIf.ifName, customIf.ifNet, memifInfo, memifID)
 			config[k] = v
-			memifID++
 
 		case tapIfType:
 			// handle custom tap interface

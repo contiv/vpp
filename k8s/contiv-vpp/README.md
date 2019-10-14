@@ -97,6 +97,8 @@ Parameter | Description | Default
 `contiv.vswitch.enableCoreDumps` | enable core dumps of VPP into coreDumpsDir | `false`
 `contiv.vswitch.coreDumpsDir` | location of the VPP core dumps | `/var/contiv/dumps`
 `contiv.vswitch.enableInterfaceStats` | enable periodic interface statistic readout from VPP  | `false`
+`contiv.vswitch.httpPort` | The port on which the REST API of vswitch will be exposed | `9999`
+`contiv.vswitch.grpcPort` | The port on which the gRPC server accepting additional network configuration will listen | `9111`
 `controller.enableRetry` | Enable retry of failed CRUD operations | `true`
 `controller.delayRetry` | Delay retry of failed CRUD operations by the given time interval in nanoseconds | `1000000000`
 `controller.maxRetryAttempts` | Maximum number of retries to be performed for failed CRUD operations | `3`
@@ -116,6 +118,7 @@ Parameter | Description | Default
 `ksr.image.repository` | ksr container image repository | `contivvpp/ksr`
 `ksr.image.tag`| ksr container image tag | `latest`
 `ksr.image.pullPolicy` | ksr container image pull policy | `IfNotPresent`
+`ksr.httpPort` | The port on which the REST API of KSR will be exposed | `9191`
 `etcd.useExternalInstance` | do not deploy etcd as a part of contiv, options except `externalInstance` block are ignored if set to `true` | `false`
 `etcd.externalInstance.secretName` | name of secret containing etcd certificates | `false`
 `etcd.externalInstance.endpoints` | endpoints of external etcd instance | `false`
@@ -158,3 +161,4 @@ Parameter | Description | Default
 `crd.validateInterval` | Interval in minutes between Contiv configuration validations for TelemetryReport CRD | `1`
 `crd.validateState` | Which state of the Contiv configuration to validate for TelemetryReport CRD (options: "SB", "internal", "NB") | `SB`
 `crd.disableNetctlREST` | Disable exposing of contiv-netctl via REST | `false`
+`crd.httpPort` | The port on which the REST API of Contiv-CRD will be exposed | `9090`

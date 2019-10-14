@@ -66,8 +66,7 @@ import (
 const (
 	defaultStartupTimeout = 45 * time.Second
 
-	grpcDBPath   = "/var/bolt/grpc.db"
-	grpcEndpoint = "localhost:9111"
+	grpcDBPath = "/var/bolt/grpc.db"
 )
 
 // ContivAgent manages vswitch in contiv/vpp solution
@@ -162,9 +161,6 @@ func main() {
 		})
 		deps.GRPCServer = grpc.NewPlugin(func(plugin *grpc.Plugin) {
 			plugin.PluginName = "grpc2"
-			plugin.Config = &grpc.Config{
-				Endpoint: grpcEndpoint,
-			}
 		})
 	}))
 

@@ -153,6 +153,8 @@ vswitch:
   coreDumpsDir: /var/contiv/dumps
   useSocketVPPConnection: true
   enableInterfaceStats: false
+  httpPort: 9999
+  grpcPort: 9111
 
 cni:
   image:
@@ -174,6 +176,7 @@ ksr:
   probeFailureThreshold: 3
   cpuRequest: 100m
   cpuLimit: 0
+  httpPort: 9191
 
 crd:
   image:
@@ -192,6 +195,7 @@ crd:
   probeFailureThreshold: 3
   cpuRequest: 100m
   cpuLimit: 0
+  httpPort: 9090
 
 # GoVPP configuration
 # It contains time intervals used for VPP health probing (in nanoseconds).
@@ -202,7 +206,6 @@ govpp:
   healthCheckReplyTimeout: 500000000
   healthCheckThreshold: 3
   replyTimeout: 3000000000
-
 
 http:
   enableBasicAuth: false

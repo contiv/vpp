@@ -17,6 +17,7 @@ package idalloc
 import (
 	"github.com/contiv/vpp/plugins/contivconf"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/servicelabel"
 )
 
 // DefaultPlugin is a default instance of IDAlloc plugin.
@@ -28,6 +29,7 @@ func NewPlugin(opts ...Option) *IDAllocator {
 
 	p.PluginName = "idalloc"
 	p.ContivConf = &contivconf.DefaultPlugin
+	p.ServiceLabel = &servicelabel.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)

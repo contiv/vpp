@@ -1,3 +1,20 @@
+# Release v3.3.2 (2019-10-16)
+
+### VPP
+ - version **v19.08.1**
+
+### New Features & Enhancements
+ - k8s 1.16 support
+ - support for [L3 custom networks](k8s/examples/custom-network) defined in CRDs
+
+### Bugfixes
+ - fixed crash issue of vmxnet3 interfaces
+
+### Known Issues
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
 # Release v3.3.1 (2019-09-20)
 
 ### VPP

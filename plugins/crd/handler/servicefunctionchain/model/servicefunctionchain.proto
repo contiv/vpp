@@ -22,9 +22,13 @@ message ServiceFunctionChain {
     // Name of the chain.
     string name = 1;
 
+    // true if the service chain should be unidirectional (the traffic should pass in one way only).
+    // Otherwise the chain is bidirectional (the traffic can pass both ways).
+    bool unidirectional = 2;
+
     // Name of the custom pod network where the chain resides
     // (if applicable, can be left blank for the default pod network).
-    string network = 2;
+    string network = 3;
 
     message ServiceFunction {
         enum Type {
@@ -54,9 +58,8 @@ message ServiceFunctionChain {
         // Interface trough which the traffic leaves the service function. Applicable for:
         // - pods using different interfaces for SFC input and output
         string output_interface = 5;
-
     }
 
     // List of service functions (chain elements) in the chain.
-    repeated ServiceFunction chain = 3;
+    repeated ServiceFunction chain = 4;
 }

@@ -419,8 +419,9 @@ func (sp *SFCProcessor) renderServiceFunctionChain(sfc *sfcmodel.ServiceFunction
 		return nil
 	}
 	contivSFC := &renderer.ContivSFC{
-		Name:    sfc.Name,
-		Network: sfc.Network,
+		Name:           sfc.Name,
+		Unidirectional: sfc.Unidirectional,
+		Network:        sfc.Network,
 	}
 
 	for _, serviceFunc := range sfc.Chain {

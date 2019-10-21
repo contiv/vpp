@@ -23,6 +23,11 @@ import (
 	"time"
 
 	govpp "git.fd.io/govpp.git/api"
+	"github.com/gogo/protobuf/proto"
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/api/models/vpp/nat"
+	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/nat"
+
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
@@ -30,10 +35,6 @@ import (
 	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
-	"github.com/gogo/protobuf/proto"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/nat"
 )
 
 const (
@@ -528,7 +529,7 @@ func (rndr *Renderer) isThisNodeOrHostIP(ip net.IP) bool {
 
 // isLocalPodIP returns true if the given IP is this node's local POD IP.
 func (rndr *Renderer) isLocalPodIP(ip net.IP) bool {
-	return rndr.IPAM.PodSubnetThisNode().Contains(ip)
+	return rndr.IPAM.PodSubnetThisNode(ipnet.DefaultPodNetworkName).Contains(ip)
 }
 
 // exportIdentityMappings returns DNAT configuration with identities to exclude

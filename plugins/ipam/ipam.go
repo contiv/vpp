@@ -19,8 +19,6 @@ package ipam
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"net"
@@ -30,21 +28,21 @@ import (
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
-	"github.com/contiv/vpp/plugins/contivconf"
-	"github.com/contiv/vpp/plugins/contivconf/config"
-	controller "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/ipam/ipalloc"
-	"github.com/contiv/vpp/plugins/ipam/vnialloc"
-	"github.com/contiv/vpp/plugins/ksr"
-	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
-	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/go-errors/errors"
-	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
+
+	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/contivconf/config"
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
+	"github.com/contiv/vpp/plugins/ksr"
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/nodesync"
 )
 
 const (
@@ -57,9 +55,7 @@ const (
 	// sequence ID reserved for host(Linux)-end of the VPP to host interconnect
 	hostInterconnectInLinuxIPSeqID = 2
 
-	// VXLAN VNI allocation pool range
-	vxlanVNIPoolStart = 5000    // to leave enough space for custom config of the vswitch
-	vxlanVNIPoolEnd   = 1 << 24 // given by VXLAN header
+	defaultPodNetworkName = "default" // name of the default pod network
 )
 
 // IPAM plugin implements IP address allocation for Contiv.
@@ -72,22 +68,13 @@ type IPAM struct {
 	excludedIPsfromNodeSubnet []net.IP // IPs from the NodeInterconnect Subnet that should not be assigned
 
 	/********** POD related variables **********/
-	// IP subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
-	podSubnetAllNodes *net.IPNet
-	// IP subnet prefix for all PODs on this node (given by nodeID), podSubnetAllNodes + nodeID ==<computation>==> podSubnetThisNode
-	podSubnetThisNode *net.IPNet
-	// gateway IP address for PODs on this node (given by nodeID)
-	podSubnetGatewayIP net.IP
+	podNetworks map[string]*podNetworkInfo
 
 	/********** maps to convert between Pod and the assigned IP **********/
 	// pool of assigned POD IP addresses
 	assignedPodIPs map[string]*podIPAllocation
 	// pod -> allocated IP address
 	podToIP map[podmodel.ID]*podIPInfo
-	// remote pod IP info
-	remotePodToIP map[podmodel.ID]*podIPInfo
-	// counter denoting last assigned pod IP address
-	lastPodIPAssigned int
 
 	/********** VSwitch related variables **********/
 	// IP subnet used across all nodes for VPP to host Linux stack interconnect
@@ -107,10 +94,17 @@ type IPAM struct {
 	vxlanSubnet *net.IPNet
 	// IP subnet used to allocate ClusterIPs for a service
 	serviceCIDR *net.IPNet
+}
 
-	/********** VXLAN VNI allocation maps **********/
-	allocatedVNIs map[uint32]string // allocated VNI number to VXLAN name
-	vxlanVNIs     map[string]uint32 // VXLAN name to allocated VNI
+type podNetworkInfo struct {
+	// IP subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
+	podSubnetAllNodes *net.IPNet
+	// IP subnet prefix for all PODs on this node (given by nodeID), podSubnetAllNodes + nodeID ==<computation>==> podSubnetThisNode
+	podSubnetThisNode *net.IPNet
+	// gateway IP address for PODs on this node (given by nodeID)
+	podSubnetGatewayIP net.IP
+	// counter denoting last assigned pod IP address
+	lastPodIPAssigned int
 }
 
 // podIPAllocation represents allocation of an IP address from the IPAM pool.
@@ -126,6 +120,12 @@ type podIPAllocation struct {
 type podIPInfo struct {
 	mainIP      net.IP            // IP address of the main interface
 	customIfIPs map[string]net.IP // custom interface name + network to IP address map
+}
+
+// String provides human-readable representation of podNetworkInfo
+func (i *podNetworkInfo) String() string {
+	return fmt.Sprintf("<podSubnetAllNodes=%v, podSubnetThisNode=%v, podSubnetGatewayIP=%v, lastPodIPAssigned=%d>",
+		i.podSubnetAllNodes, i.podSubnetThisNode, i.podSubnetGatewayIP, i.lastPodIPAssigned)
 }
 
 // String provides human-readable representation of podIPAllocation
@@ -164,10 +164,11 @@ func (i *IPAM) Init() (err error) {
 	return nil
 }
 
-// HandlesEvent selects any Resync event.
+// HandlesEvent selects:
 //   - any Resync event
 //   - NodeUpdate for the current node if external IPAM is in use (may trigger PodCIDRChange)
-//   - k8s change with VNI allocations
+//   - VNI allocation
+//   - custom network update
 func (i *IPAM) HandlesEvent(event controller.Event) bool {
 	if event.Method() != controller.Update {
 		return true
@@ -180,10 +181,12 @@ func (i *IPAM) HandlesEvent(event controller.Event) bool {
 	}
 
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
-		if ksChange.Resource == vnialloc.VxlanVNIKeyword ||
-			ksChange.Resource == ipalloc.Keyword ||
-			ksChange.Resource == podmodel.PodKeyword {
+		switch ksChange.Resource {
+		case customnetmodel.Keyword:
 			return true
+		default:
+			// unhandled Kubernetes state change
+			return false
 		}
 	}
 
@@ -236,133 +239,124 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 			return err
 		}
 	}
-	if err := i.initializePods(kubeStateData, subnets, nodeID); err != nil {
+	if err := i.initializePodNetwork(kubeStateData, subnets, nodeID); err != nil {
 		return err
 	}
-	if err := i.initializeVPPHost(subnets, nodeID); err != nil {
+	if err := i.initializeVPPHostNetwork(subnets, nodeID); err != nil {
 		return err
 	}
 	i.serviceCIDR = ipamConfig.ServiceCIDR
 	i.nodeInterconnectSubnet = subnets.NodeInterconnectCIDR
 	i.vxlanSubnet = subnets.VxlanCIDR
 
+	// resync custom pod networks
+	for _, extIfProto := range kubeStateData[customnetmodel.Keyword] {
+		nw := extIfProto.(*customnetmodel.CustomNetwork)
+		if nw.Type == customnetmodel.CustomNetwork_L3 && nw.SubnetCIDR != "" && nw.SubnetOneNodePrefix > 0 {
+			err = i.initializeCustomPodNetwork(nw.Name, nw.SubnetCIDR, nw.SubnetOneNodePrefix)
+			if err != nil {
+				i.Log.Warnf("Error by initializing pod network %s: %v - skipping", nw.Name, err)
+			}
+		}
+	}
+
 	// resync allocated IP addresses (main pod interfaces)
-	networkPrefix := new(big.Int).SetBytes(i.podSubnetThisNode.IP)
+	podNw := i.podNetworks[defaultPodNetworkName]
+	networkPrefix := new(big.Int).SetBytes(podNw.podSubnetThisNode.IP)
 
 	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
 		pod := podProto.(*podmodel.Pod)
-		podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
+		// ignore pods deployed on other nodes or without IP address
 		podIPAddress := net.ParseIP(pod.IpAddress)
-		// ignore pods without IP address
-		if podIPAddress != nil {
-			if i.podSubnetThisNode.Contains(podIPAddress) { // local pod
-				// register address as already allocated
-				addr := new(big.Int).SetBytes(podIPAddress)
-				i.assignedPodIPs[podIPAddress.String()] = &podIPAllocation{
-					pod:    podID,
-					mainIP: true,
-				}
-				i.podToIP[podID] = &podIPInfo{
-					mainIP:      podIPAddress,
-					customIfIPs: map[string]net.IP{},
-				}
-				diff := int(addr.Sub(addr, networkPrefix).Int64())
-				if i.lastPodIPAssigned < diff {
-					i.lastPodIPAssigned = diff
-				}
-			} else { // remote pod
-				i.remotePodToIP[podID] = &podIPInfo{
-					mainIP:      podIPAddress,
-					customIfIPs: map[string]net.IP{},
-				}
-			}
+		if podIPAddress == nil || !podNw.podSubnetThisNode.Contains(podIPAddress) {
+			continue
+		}
+
+		// register address as already allocated
+		addr := new(big.Int).SetBytes(podIPAddress)
+		podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
+		i.assignedPodIPs[podIPAddress.String()] = &podIPAllocation{
+			pod:    podID,
+			mainIP: true,
+		}
+		i.podToIP[podID] = &podIPInfo{
+			mainIP:      podIPAddress,
+			customIfIPs: map[string]net.IP{},
+		}
+		diff := int(addr.Sub(addr, networkPrefix).Int64())
+		if podNw.lastPodIPAssigned < diff {
+			podNw.lastPodIPAssigned = diff
 		}
 	}
 
 	// resync custom interface IP allocations
 	for _, ipAllocProto := range kubeStateData[ipalloc.Keyword] {
 		ipAlloc := ipAllocProto.(*ipalloc.CustomIPAllocation)
+
 		for _, customAlloc := range ipAlloc.CustomInterfaces {
-			podID := podmodel.ID{Name: ipAlloc.PodName, Namespace: ipAlloc.PodNamespace}
+			podNw := i.podNetworks[customAlloc.Network]
+			if podNw == nil || podNw.podSubnetThisNode == nil {
+				i.Log.Warnf("Missing subnet information for the pod network %s, skipping", customAlloc.Network)
+				continue
+			}
+			networkPrefix := new(big.Int).SetBytes(podNw.podSubnetThisNode.IP)
+
 			podIPAddress := net.ParseIP(customAlloc.IpAddress)
-			// ignore pods without IP address
-			if podIPAddress != nil {
-				if i.podSubnetThisNode.Contains(podIPAddress) { // local pod
-					// register address as already allocated
-					addr := new(big.Int).SetBytes(podIPAddress)
-					i.assignedPodIPs[podIPAddress.String()] = &podIPAllocation{
-						pod:             podID,
-						mainIP:          false,
-						customIfName:    customAlloc.Name,
-						customIfNetwork: customAlloc.Network,
-					}
-					if _, found := i.podToIP[podID]; !found {
-						i.podToIP[podID] = &podIPInfo{
-							customIfIPs: map[string]net.IP{},
-						}
-					}
-					i.podToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = podIPAddress
-					diff := int(addr.Sub(addr, networkPrefix).Int64())
-					if i.lastPodIPAssigned < diff {
-						i.lastPodIPAssigned = diff
-					}
-				} else { // remote pod
-					i.remotePodToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = podIPAddress
+			// ignore pods deployed on other nodes or without IP address
+			if podIPAddress == nil || !podNw.podSubnetThisNode.Contains(podIPAddress) {
+				continue
+			}
+
+			// register address as already allocated
+			addr := new(big.Int).SetBytes(podIPAddress)
+			podID := podmodel.ID{Name: ipAlloc.PodName, Namespace: ipAlloc.PodNamespace}
+			i.assignedPodIPs[podIPAddress.String()] = &podIPAllocation{
+				pod:             podID,
+				mainIP:          false,
+				customIfName:    customAlloc.Name,
+				customIfNetwork: customAlloc.Network,
+			}
+			if _, found := i.podToIP[podID]; !found {
+				i.podToIP[podID] = &podIPInfo{
+					customIfIPs: map[string]net.IP{},
 				}
+			}
+			i.podToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = podIPAddress
+			diff := int(addr.Sub(addr, networkPrefix).Int64())
+			if podNw.lastPodIPAssigned < diff {
+				podNw.lastPodIPAssigned = diff
 			}
 		}
 	}
 
-	// resync VNI allocations
-	i.allocatedVNIs = make(map[uint32]string)
-	i.vxlanVNIs = make(map[string]uint32)
-	for _, vniAllocProto := range kubeStateData[vnialloc.VxlanVNIKeyword] {
-		alloc := vniAllocProto.(*vnialloc.VxlanVniAllocation)
-		i.allocatedVNIs[alloc.Vni] = alloc.VxlanName
-		i.vxlanVNIs[alloc.VxlanName] = alloc.Vni
-	}
-
 	i.Log.Infof("IPAM state after startup RESYNC: "+
-		"excludedIPsfromNodeSubnet=%v, podSubnetAllNodes=%v, podSubnetThisNode=%v, "+
-		"podSubnetGatewayIP=%v, hostInterconnectSubnetAllNodes=%v, "+
+		"podNetworks=%+v, excludedIPsfromNodeSubnet=%v, hostInterconnectSubnetAllNodes=%v, "+
 		"hostInterconnectSubnetThisNode=%v, hostInterconnectIPInVpp=%v, hostInterconnectIPInLinux=%v, "+
 		"nodeInterconnectSubnet=%v, vxlanSubnet=%v, serviceCIDR=%v, "+
-		"assignedPodIPs=%+v, podToIP=%v, lastPodIPAssigned=%v, vxlanVNIs=%v",
-		i.excludedIPsfromNodeSubnet, i.podSubnetAllNodes, i.podSubnetThisNode,
-		i.podSubnetGatewayIP, i.hostInterconnectSubnetAllNodes,
+		"assignedPodIPs=%+v, podToIP=%v",
+		i.podNetworks, i.excludedIPsfromNodeSubnet, i.hostInterconnectSubnetAllNodes,
 		i.hostInterconnectSubnetThisNode, i.hostInterconnectIPInVpp, i.hostInterconnectIPInLinux,
 		i.nodeInterconnectSubnet, i.vxlanSubnet, i.serviceCIDR,
-		i.assignedPodIPs, i.podToIP, i.lastPodIPAssigned, i.vxlanVNIs)
+		i.assignedPodIPs, i.podToIP)
 	return
 }
 
-// initializePodsIPAM initializes POD-related variables.
-func (i *IPAM) initializePods(kubeStateData controller.KubeStateData, config *contivconf.CustomIPAMSubnets, nodeID uint32) (err error) {
+// initializePodNetwork initializes pod network -related variables.
+func (i *IPAM) initializePodNetwork(kubeStateData controller.KubeStateData, config *contivconf.CustomIPAMSubnets, nodeID uint32) (err error) {
 
-	err = i.initializePodSubnets(kubeStateData, config, nodeID)
-	if err != nil {
-		return
-	}
-
-	i.podSubnetGatewayIP, err = cidr.Host(i.podSubnetThisNode, podGatewaySeqID)
-	if err != nil {
-		return nil
-	}
-	i.lastPodIPAssigned = 1
+	// init pod IP maps
 	i.assignedPodIPs = make(map[string]*podIPAllocation)
-	i.remotePodToIP = make(map[podmodel.ID]*podIPInfo)
 	i.podToIP = make(map[podmodel.ID]*podIPInfo)
 
-	return nil
-}
-
-// initializePodsIPAM initializes POD-related variables.
-func (i *IPAM) initializePodSubnets(kubeStateData controller.KubeStateData, config *contivconf.CustomIPAMSubnets, nodeID uint32) (err error) {
-	i.podSubnetAllNodes = config.PodSubnetCIDR
-
-	thisNodePodCIDR := ""
+	// init default pod network info
+	i.podNetworks = make(map[string]*podNetworkInfo)
+	podNw := &podNetworkInfo{
+		podSubnetAllNodes: config.PodSubnetCIDR,
+	}
+	i.podNetworks[defaultPodNetworkName] = podNw
 
 	// if external IPAM is in use, try to look up for this node's POD CIDR in k8s state data
+	thisNodePodCIDR := ""
 	if i.ContivConf.GetIPAMConfig().UseExternalIPAM {
 		nodeName := i.ServiceLabel.GetAgentLabel()
 		for _, k8sNodeProto := range kubeStateData[nodemodel.NodeKeyword] {
@@ -377,24 +371,51 @@ func (i *IPAM) initializePodSubnets(kubeStateData controller.KubeStateData, conf
 
 	if thisNodePodCIDR != "" {
 		// pod subnet as detected
-		_, i.podSubnetThisNode, err = net.ParseCIDR(thisNodePodCIDR)
+		_, podNw.podSubnetThisNode, err = net.ParseCIDR(thisNodePodCIDR)
 		if err != nil {
 			return
 		}
 	} else {
 		// pod subnet based on node ID
-		i.podSubnetThisNode, err = dissectSubnetForNode(
-			i.podSubnetAllNodes, config.PodSubnetOneNodePrefixLen, nodeID)
+		podNw.podSubnetThisNode, err = dissectSubnetForNode(
+			podNw.podSubnetAllNodes, config.PodSubnetOneNodePrefixLen, nodeID)
 		if err != nil {
 			return
 		}
 	}
 
+	podNw.podSubnetGatewayIP, err = cidr.Host(podNw.podSubnetThisNode, podGatewaySeqID)
+	if err != nil {
+		return nil
+	}
+	podNw.lastPodIPAssigned = 1
+
 	return nil
 }
 
-// initializeVPPHost initializes VPP-host interconnect-related variables.
-func (i *IPAM) initializeVPPHost(config *contivconf.CustomIPAMSubnets, nodeID uint32) (err error) {
+// initializeCustomPodNetwork initializes custom pod network -related variables.
+func (i *IPAM) initializeCustomPodNetwork(name string, subnetCIDR string, subnetOneNodePrefix uint32) (err error) {
+	podNw := &podNetworkInfo{}
+	i.podNetworks[name] = podNw
+
+	_, podNw.podSubnetAllNodes, err = net.ParseCIDR(subnetCIDR)
+	if err != nil {
+		i.Log.Errorf("unable to parse network %s subnet CIDR: %v: %v", name, subnetCIDR, err)
+		return err
+	}
+	podNw.podSubnetThisNode, err = dissectSubnetForNode(podNw.podSubnetAllNodes, uint8(subnetOneNodePrefix), i.NodeSync.GetNodeID())
+	podNw.podSubnetGatewayIP, err = cidr.Host(podNw.podSubnetThisNode, podGatewaySeqID)
+	if err != nil {
+		return err
+	}
+	podNw.lastPodIPAssigned = 1
+
+	i.Log.Infof("New L3 pod network %s: %v", name, podNw)
+	return nil
+}
+
+// initializeVPPHostNetwork initializes VPP-host interconnect-related variables.
+func (i *IPAM) initializeVPPHostNetwork(config *contivconf.CustomIPAMSubnets, nodeID uint32) (err error) {
 	i.hostInterconnectSubnetAllNodes = config.VPPHostSubnetCIDR
 	i.hostInterconnectSubnetThisNode, err = dissectSubnetForNode(
 		i.hostInterconnectSubnetAllNodes, config.VPPHostSubnetOneNodePrefixLen, nodeID)
@@ -427,56 +448,20 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 		}
 	}
 
-	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
-		switch ksChange.Resource {
-		case ipalloc.Keyword:
-			if newIPAlloc, newOK := ksChange.NewValue.(*ipalloc.CustomIPAllocation); newOK {
-				podID := podmodel.ID{Name: newIPAlloc.PodName, Namespace: newIPAlloc.PodNamespace}
-				if _, exists := i.podToIP[podID]; !exists { // pod is remote
-					if _, found := i.remotePodToIP[podID]; !found {
-						i.remotePodToIP[podID] = &podIPInfo{}
-					}
-					i.remotePodToIP[podID].customIfIPs = make(map[string]net.IP)
-					for _, customAlloc := range newIPAlloc.CustomInterfaces {
-						podIPAddress := net.ParseIP(customAlloc.IpAddress)
-						i.remotePodToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = podIPAddress
-					}
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange &&
+		ksChange.Resource == customnetmodel.Keyword {
+		// custom network data change
+		if ksChange.NewValue != nil {
+			nw := ksChange.NewValue.(*customnetmodel.CustomNetwork)
+			if nw.Type == customnetmodel.CustomNetwork_L3 && nw.SubnetCIDR != "" && nw.SubnetOneNodePrefix > 0 {
+				err = i.initializeCustomPodNetwork(nw.Name, nw.SubnetCIDR, nw.SubnetOneNodePrefix)
+				if err != nil {
+					return "", err
 				}
-			}
-		case podmodel.PodKeyword:
-			oldPod, _ := ksChange.PrevValue.(*podmodel.Pod)
-			newPod, _ := ksChange.NewValue.(*podmodel.Pod)
-			if oldPod != nil && newPod == nil { // delete pod event
-				if !i.podSubnetThisNode.Contains(net.ParseIP(oldPod.IpAddress)) { // remote pod
-					deletedPodID := podmodel.ID{Name: oldPod.Name, Namespace: oldPod.Namespace}
-					delete(i.remotePodToIP, deletedPodID)
-				}
-			} else if newPod != nil { // update pod event
-				if newIPAddress := net.ParseIP(newPod.IpAddress); newIPAddress != nil && !i.podSubnetThisNode.Contains(newIPAddress) { // remote pod
-					updatedPodID := podmodel.ID{Name: newPod.Name, Namespace: newPod.Namespace}
-					if pod, exists := i.remotePodToIP[updatedPodID]; exists {
-						pod.mainIP = newIPAddress
-					} else {
-						i.remotePodToIP[updatedPodID] = &podIPInfo{
-							mainIP:      newIPAddress,
-							customIfIPs: map[string]net.IP{},
-						}
-					}
-				}
-			}
-		case vnialloc.VxlanVNIKeyword:
-			// update VNI allocations
-			if ksChange.NewValue != nil {
-				alloc := ksChange.NewValue.(*vnialloc.VxlanVniAllocation)
-				i.allocatedVNIs[alloc.Vni] = alloc.VxlanName
-				i.vxlanVNIs[alloc.VxlanName] = alloc.Vni
-			} else if ksChange.PrevValue != nil {
-				alloc := ksChange.PrevValue.(*vnialloc.VxlanVniAllocation)
-				delete(i.allocatedVNIs, alloc.Vni)
-				delete(i.vxlanVNIs, alloc.VxlanName)
 			}
 		}
 	}
+
 	return "", nil
 }
 
@@ -569,53 +554,68 @@ func (i *IPAM) HostInterconnectSubnetOtherNode(nodeID uint32) (*net.IPNet, error
 	return newIPNet(vSwitchNetworkIPPrefix), nil
 }
 
-// PodSubnetAllNodes returns POD subnet that is a base subnet for all PODs of all nodes.
-func (i *IPAM) PodSubnetAllNodes() *net.IPNet {
+// PodSubnetAllNodes returns POD subnet that is a base subnet for all PODs of all nodes for given pod network.
+func (i *IPAM) PodSubnetAllNodes(network string) *net.IPNet {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
-	return newIPNet(i.podSubnetAllNodes)
+
+	podNw := i.getPodNetwork(network)
+	return newIPNet(podNw.podSubnetAllNodes)
 }
 
-// PodSubnetThisNode returns POD network for the current node (given by nodeID given at IPAM creation).
-func (i *IPAM) PodSubnetThisNode() *net.IPNet {
+// PodSubnetThisNode returns POD network for the current node (given by network name and nodeID given at IPAM creation).
+func (i *IPAM) PodSubnetThisNode(network string) *net.IPNet {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
-	return newIPNet(i.podSubnetThisNode)
+
+	podNw := i.getPodNetwork(network)
+	return newIPNet(podNw.podSubnetThisNode)
 }
 
-// PodSubnetOtherNode returns the POD network of another node identified by nodeID.
-func (i *IPAM) PodSubnetOtherNode(nodeID uint32) (*net.IPNet, error) {
+// PodSubnetOtherNode returns the POD network of another node identified by by network name and nodeID.
+func (i *IPAM) PodSubnetOtherNode(network string, nodeID uint32) (*net.IPNet, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 
-	oneNodePrefixLen, _ := i.podSubnetThisNode.Mask.Size()
+	podNw := i.getPodNetwork(network)
+	oneNodePrefixLen, _ := podNw.podSubnetThisNode.Mask.Size()
 	podSubnetThisNode, err := dissectSubnetForNode(
-		i.podSubnetAllNodes, uint8(oneNodePrefixLen), nodeID)
+		podNw.podSubnetAllNodes, uint8(oneNodePrefixLen), nodeID)
 	if err != nil {
 		return nil, err
 	}
 	return newIPNet(podSubnetThisNode), nil
 }
 
-// NodeIDFromPodIP returns node ID from provided POD IP address.
+// PodGatewayIP returns gateway IP address of the POD subnet of this node.
+func (i *IPAM) PodGatewayIP(network string) net.IP {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+
+	podNw := i.getPodNetwork(network)
+	return newIP(podNw.podSubnetGatewayIP)
+}
+
+// NodeIDFromPodIP returns node ID from provided main POD IP address.
 func (i *IPAM) NodeIDFromPodIP(podIP net.IP) (uint32, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 
-	if !i.podSubnetAllNodes.Contains(podIP) {
-		return 0, fmt.Errorf("pod IP %v not from pod subnet %v", podIP, i.podSubnetAllNodes)
+	podNw := i.podNetworks[defaultPodNetworkName]
+	if !podNw.podSubnetAllNodes.Contains(podIP) {
+		return 0, fmt.Errorf("pod IP %v not from pod subnet %v", podIP, podNw.podSubnetAllNodes)
 	}
 
-	subnet := i.podSubnetAllNodes.IP
-	if !isIPv6Net(i.podSubnetAllNodes) {
+	subnet := podNw.podSubnetAllNodes.IP
+	if !isIPv6Net(podNw.podSubnetAllNodes) {
 		podIP = podIP.To4()
 		subnet = subnet.To4()
 	}
 	ip := new(big.Int).SetBytes(podIP)
 	podSubnetAllNodes := new(big.Int).SetBytes(subnet)
 
-	addrLen := addrLenFromNet(i.podSubnetThisNode)
-	oneNodePrefixLen, _ := i.podSubnetThisNode.Mask.Size()
+	addrLen := addrLenFromNet(podNw.podSubnetThisNode)
+	oneNodePrefixLen, _ := podNw.podSubnetThisNode.Mask.Size()
 
 	// zero pod subnet prefix for all nodes
 	ip.Xor(ip, podSubnetAllNodes)
@@ -626,20 +626,6 @@ func (i *IPAM) NodeIDFromPodIP(podIP net.IP) (uint32, error) {
 	return uint32(ip.Uint64()), nil
 }
 
-// ServiceNetwork returns range allocated for services.
-func (i *IPAM) ServiceNetwork() *net.IPNet {
-	i.mutex.RLock()
-	defer i.mutex.RUnlock()
-	return newIPNet(i.serviceCIDR)
-}
-
-// PodGatewayIP returns gateway IP address of the POD subnet of this node.
-func (i *IPAM) PodGatewayIP() net.IP {
-	i.mutex.RLock()
-	defer i.mutex.RUnlock()
-	return newIP(i.podSubnetGatewayIP)
-}
-
 // NatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
 // between clients and services via VPP even if the source and destination are the same
 // IP addresses and would otherwise be routed locally.
@@ -647,9 +633,18 @@ func (i *IPAM) NatLoopbackIP() net.IP {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 
+	podNw := i.podNetworks[defaultPodNetworkName]
+
 	// Last unicast IP from the pod subnet is used as NAT-loopback.
-	_, broadcastIP := cidr.AddressRange(i.podSubnetThisNode)
+	_, broadcastIP := cidr.AddressRange(podNw.podSubnetThisNode)
 	return cidr.Dec(broadcastIP)
+}
+
+// ServiceNetwork returns range allocated for services.
+func (i *IPAM) ServiceNetwork() *net.IPNet {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+	return newIPNet(i.serviceCIDR)
 }
 
 // AllocatePodIP tries to allocate IP address for the given pod.
@@ -669,7 +664,7 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 	}
 
 	// allocate an IP
-	ip, err := i.allocateIP()
+	ip, err := i.allocateIP(i.podNetworks[defaultPodNetworkName])
 	if err != nil {
 		i.Log.Errorf("Unable to allocate main pod IP: %v", err)
 		return nil, err
@@ -696,8 +691,15 @@ func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string, 
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
+	podNw := i.podNetworks[network]
+	if podNw == nil {
+		err := fmt.Errorf("unable to allocate IP in pod network %s: missing subnet information", network)
+		i.Log.Error(err)
+		return nil, err
+	}
+
 	// allocate an IP
-	ip, err := i.allocateIP()
+	ip, err := i.allocateIP(podNw)
 	if err != nil {
 		i.Log.Errorf("Unable to allocate pod custom interface IP: %v", err)
 		return nil, err
@@ -786,6 +788,20 @@ func (i IPAM) getDBBroker() (keyval.ProtoBroker, error) {
 	return i.dbBroker, nil
 }
 
+// getPodNetwork returns pod network information for the given pod network name.
+func (i *IPAM) getPodNetwork(network string) *podNetworkInfo {
+	podNw := i.podNetworks[defaultPodNetworkName]
+
+	if network != defaultPodNetworkName && network != "" {
+		if i.podNetworks[network] != nil {
+			podNw = i.podNetworks[network]
+		} else {
+			i.Log.Warnf("Missing subnet information for the pod network %s", network)
+		}
+	}
+	return podNw
+}
+
 // allocateExternalPodIP allocates IP address for the given pod using the external IPAM.
 func (i *IPAM) allocateExternalPodIP(podID podmodel.ID, ipamType string, ipamData string) (net.IP, error) {
 
@@ -809,12 +825,12 @@ func (i *IPAM) allocateExternalPodIP(podID podmodel.ID, ipamType string, ipamDat
 	return ip, nil
 }
 
-// allocateIP allocates a new IP from the main po IP pool.
-func (i *IPAM) allocateIP() (net.IP, error) {
-	last := i.lastPodIPAssigned + 1
+// allocateIP allocates a new IP from the pod IP pool of the given network.
+func (i *IPAM) allocateIP(podNw *podNetworkInfo) (net.IP, error) {
+	last := podNw.lastPodIPAssigned + 1
 	// iterate over all possible IP addresses for pod network prefix
 	// start from the last assigned and take first available IP
-	prefixBits, totalBits := i.podSubnetThisNode.Mask.Size()
+	prefixBits, totalBits := podNw.podSubnetThisNode.Mask.Size()
 	// get the maximum sequence ID available in the provided range; the last valid unicast IP is used as "NAT-loopback"
 	podBitSize := uint(totalBits - prefixBits)
 	// IPAM currently support up to 2^63 pods
@@ -823,23 +839,23 @@ func (i *IPAM) allocateIP() (net.IP, error) {
 	}
 	maxSeqID := (1 << podBitSize) - 2
 	for j := last; j < maxSeqID; j++ {
-		ipForAssign, success := i.tryToAllocateIP(j, i.podSubnetThisNode)
+		ipForAssign, success := i.tryToAllocateIP(j, podNw.podSubnetThisNode)
 		if success {
-			i.lastPodIPAssigned = j
+			podNw.lastPodIPAssigned = j
 			return ipForAssign, nil
 		}
 	}
 
 	// iterate from the range start until lastPodIPAssigned
 	for j := 1; j < last; j++ { // zero ending IP is reserved for network => skip seqID=0
-		ipForAssign, success := i.tryToAllocateIP(j, i.podSubnetThisNode)
+		ipForAssign, success := i.tryToAllocateIP(j, podNw.podSubnetThisNode)
 		if success {
-			i.lastPodIPAssigned = j
+			podNw.lastPodIPAssigned = j
 			return ipForAssign, nil
 		}
 	}
 
-	return nil, fmt.Errorf("no IP address is free for allocation in the subnet %v", i.podSubnetThisNode)
+	return nil, fmt.Errorf("no IP address is free for allocation in the subnet %v", podNw.podSubnetThisNode)
 }
 
 // tryToAllocatePodIP checks whether the IP at the given index is available.
@@ -860,31 +876,39 @@ func (i *IPAM) tryToAllocateIP(index int, networkPrefix *net.IPNet) (assignedIP 
 	return ip, true
 }
 
-// GetPodIP returns the allocated pod IP, together with the mask.
-// Searches for both local and remote pods
+// GetPodIP returns the allocated (main) pod IP, together with the mask.
 // Returns nil if the pod does not have allocated IP address.
 func (i *IPAM) GetPodIP(podID podmodel.ID) *net.IPNet {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
-	if allocation, addrLen, found := i.getPodIPInfo(podID); found {
-		return &net.IPNet{IP: allocation.mainIP, Mask: net.CIDRMask(addrLen, addrLen)}
+	allocation, found := i.podToIP[podID]
+	if !found {
+		return nil
 	}
-	return nil
+
+	podNw := i.podNetworks[defaultPodNetworkName]
+	addrLen := addrLenFromNet(podNw.podSubnetThisNode)
+	return &net.IPNet{IP: allocation.mainIP, Mask: net.CIDRMask(addrLen, addrLen)}
 }
 
 // GetPodCustomIfIP returns the allocated custom interface pod IP, together with the mask.
-// Searches for both local and remote pods
 // Returns nil if the pod does not have allocated custom interface IP address.
 func (i *IPAM) GetPodCustomIfIP(podID podmodel.ID, ifName, network string) *net.IPNet {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
-	if allocation, addrLen, found := i.getPodIPInfo(podID); found {
-		if ip, hasCustomIf := allocation.customIfIPs[customIfID(ifName, network)]; hasCustomIf {
-			return &net.IPNet{IP: ip, Mask: net.CIDRMask(addrLen, addrLen)}
-		}
+	allocation, found := i.podToIP[podID]
+	if !found {
+		return nil
 	}
+
+	if ip, found := allocation.customIfIPs[customIfID(ifName, network)]; found {
+		podNw := i.getPodNetwork(network)
+		addrLen := addrLenFromNet(podNw.podSubnetThisNode)
+		return &net.IPNet{IP: ip, Mask: net.CIDRMask(addrLen, addrLen)}
+	}
+
 	return nil
 }
 
@@ -956,113 +980,19 @@ func (i *IPAM) GetIPAMConfigForJSON() *config.IPAMConfig {
 		DefaultGateway:       c.DefaultGateway,
 		NodeInterconnectDHCP: c.NodeInterconnectDHCP,
 		NodeInterconnectCIDR: i.nodeInterconnectSubnet.String(),
-		PodSubnetCIDR:        i.PodSubnetAllNodes().String(),
+		PodSubnetCIDR:        i.PodSubnetAllNodes(defaultPodNetworkName).String(),
 		VPPHostSubnetCIDR:    i.HostInterconnectSubnetAllNodes().String(),
 	}
 	if i.vxlanSubnet != nil {
 		res.VxlanCIDR = i.vxlanSubnet.String()
 	}
-	s, _ := i.PodSubnetThisNode().Mask.Size()
+	s, _ := i.PodSubnetThisNode(defaultPodNetworkName).Mask.Size()
 	res.PodSubnetOneNodePrefixLen = uint8(s)
 
 	s, _ = i.HostInterconnectSubnetThisNode().Mask.Size()
 	res.VPPHostSubnetOneNodePrefixLen = uint8(s)
 
 	return res
-}
-
-// AllocateVxlanVNI tries to allocate a free VNI for the VXLAN with given name.
-// If the given VXLAN already has a VNI allocated, returns the existing allocation.
-func (i *IPAM) AllocateVxlanVNI(vxlanName string) (vni uint32, err error) {
-
-	// check if the given VXLAN has a VNI already allocated
-	if vni, exists := i.vxlanVNIs[vxlanName]; exists {
-		i.Log.Infof("Using already allocated VNI %d for VXLAN: %s", vni, vxlanName)
-		return vni, nil
-	}
-
-	// get db broker - would return error if not connected
-	db, err := i.getDBBroker()
-	if err != nil {
-		return 0, err
-	}
-
-	// step 1, allocate a free VNI number
-	for vni = uint32(vxlanVNIPoolStart); vni <= vxlanVNIPoolEnd; vni++ {
-		if _, used := i.allocatedVNIs[vni]; !used {
-			// try to allocate this VNI
-			ok, _ := i.dbPutIfNotExists(vnialloc.VNIAllocationKey(vni), nil)
-			if ok {
-				break // found a free VNI
-			}
-		}
-	}
-
-	// step 2, assign the VNI to the VXLAN
-	alloc := &vnialloc.VxlanVniAllocation{VxlanName: vxlanName, Vni: vni}
-	key := vnialloc.VxlanVNIKey(vxlanName)
-	ok, _ := i.dbPutIfNotExists(key, alloc)
-	if !ok {
-		// this VXLAN may already have another VNI allocated
-		// delete just allocated VNI number and try to use existing one
-		db.Delete(vnialloc.VNIAllocationKey(vni))
-		found, _, err := db.GetValue(key, alloc)
-		if !found || err != nil {
-			return 0, fmt.Errorf("error by getting existing allocation for vxlan %s: %v", vxlanName, err)
-		}
-		i.Log.Debugf("Using already allocated VNI %d for VXLAN: %s", vni, vxlanName)
-		vni = alloc.Vni
-	}
-
-	i.Log.Infof("Allocated VNI %d for VXLAN: %s", vni, vxlanName)
-
-	// save the allocation in internal maps
-	i.allocatedVNIs[vni] = vxlanName
-	i.vxlanVNIs[vxlanName] = vni
-
-	return vni, nil
-}
-
-// GetVxlanVNI returns an existing VNI allocation for the VXLAN with given name.
-// found is false if no allocation for the given VXLAN name exists.
-func (i *IPAM) GetVxlanVNI(vxlanName string) (vni uint32, found bool) {
-	vni, found = i.vxlanVNIs[vxlanName]
-	return
-}
-
-// ReleaseVxlanVNI releases VNI allocated for the VXLAN with given name.
-func (i *IPAM) ReleaseVxlanVNI(vxlanName string) error {
-
-	// get db broker - would return error if not connected
-	db, err := i.getDBBroker()
-	if err != nil {
-		i.Log.Errorf("Unable to release VXLAN VNI allocation: %v", err)
-		return err
-	}
-
-	// retrieve the allocation from ETCD (may be already deleted from internal maps at this time)
-	alloc := &vnialloc.VxlanVniAllocation{}
-	key := vnialloc.VxlanVNIKey(vxlanName)
-	found, _, err := db.GetValue(key, alloc)
-	if !found {
-		return nil // no need to release anything
-	}
-	if err != nil {
-		i.Log.Errorf("Unable to retrieve VXLAN VNI allocation: %v", err)
-		return err
-	}
-
-	// delete the allocations from ETCD
-	// - do not check for errors, may fail if already deleted by other node
-	db.Delete(vnialloc.VNIAllocationKey(alloc.Vni))
-	db.Delete(vnialloc.VxlanVNIKey(vxlanName))
-
-	i.Log.Infof("Released VNI %d allocated for VXLAN: %s", alloc.Vni, vxlanName)
-
-	delete(i.vxlanVNIs, vxlanName)
-	delete(i.allocatedVNIs, alloc.Vni)
-
-	return nil
 }
 
 // BsidForServicePolicy creates a valid SRv6 binding SID for given k8s service IP addresses <serviceIPs>. This sid
@@ -1121,109 +1051,14 @@ func (i *IPAM) BsidForNodeToNodeHostPolicy(nodeIP net.IP) net.IP {
 	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.NodeToNodeHostPolicySIDSubnetCIDR) // bsid = binding sid -> using the same util method
 }
 
-// BsidForSFCPolicy creates a valid SRv6 SID for policy used for SFC
-func (i *IPAM) BsidForSFCPolicy(sfcName string) net.IP {
-	// prepare computation values
-	prefix := i.ContivConf.GetIPAMConfig().SRv6Settings.SFCPolicyBSIDSubnetCIDR
-	prefixMaskSize, _ := prefix.Mask.Size()
-	sfcID := i.computeSFCID(sfcName)
-
-	// compute BSID as combination of configurable prefix and SFC ID
-	return i.combineMultipleIPAddresses(
-		newIPWithPositionableMaskFromIPNet(prefix),
-		newIPWithPositionableMask(sfcID, prefixMaskSize, 128-prefixMaskSize))
-}
-
-// SidForSFCServiceFunctionLocalsid creates a valid SRv6 SID for locasid leading to pod of service function given by
-// <serviceFunctionPodIP> IP address.
-func (i *IPAM) SidForSFCServiceFunctionLocalsid(sfcName string, serviceFunctionPodIP net.IP) net.IP {
-	// prepare computation values
-	prefix := i.ContivConf.GetIPAMConfig().SRv6Settings.SFCServiceFunctionSIDSubnetCIDR
-	prefixMaskSize, _ := prefix.Mask.Size()
-	sfcID := i.computeSFCID(sfcName)
-	sfcIDMaskLength := int(i.ContivConf.GetIPAMConfig().SRv6Settings.SFCIDLengthUsedInSidForServiceFunction)
-
-	// compute SID as combination of configurable prefix, SFC ID and IP address of service function pod
-	return i.combineMultipleIPAddresses(
-		newIPWithPositionableMaskFromIPNet(prefix),
-		newIPWithPositionableMask(sfcID, prefixMaskSize, sfcIDMaskLength),
-		newIPWithPositionableMask(serviceFunctionPodIP, prefixMaskSize+sfcIDMaskLength, 128-prefixMaskSize-sfcIDMaskLength))
-}
-
-// SidForSFCEndLocalsid creates a valid SRv6 SID for locasid of segment that is the last link of SFC chain
-func (i *IPAM) SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP {
-	// prepare computation values
-	prefix := i.ContivConf.GetIPAMConfig().SRv6Settings.SFCEndLocalSIDSubnetCIDR
-	prefixMaskSize, _ := prefix.Mask.Size()
-
-	// compute SID as combination of configurable prefix and IP address of service function pod
-	return i.combineMultipleIPAddresses(
-		newIPWithPositionableMaskFromIPNet(prefix),
-		newIPWithPositionableMask(serviceFunctionPodIP, prefixMaskSize, 128-prefixMaskSize))
-}
-
-// ipWithPositionableMask holds IP address with positionable mask that defines what part of IP address should be used
-// in IP address combination functionality. The net.IPNet could not be used as it's mask start always on first bit of IP address.
-type ipWithPositionableMask struct {
-	ip               net.IP
-	positionableMask net.IPMask
-}
-
-// newIPWithPositionableMaskFromIPNet creates ipWithPositionableMask with IP and mask from given <ipNet> (mask is from start of IP address)
-func newIPWithPositionableMaskFromIPNet(ipNet *net.IPNet) *ipWithPositionableMask {
-	return &ipWithPositionableMask{
-		ip:               ipNet.IP,
-		positionableMask: ipNet.Mask,
-	}
-}
-
-// newIPWithPositionableMask creates ipWithPositionableMask with given IP address and mask that is zeroed except of one
-// sequence of ones starting at <maskStartBit>-th bit and having length <maskBitLength>
-func newIPWithPositionableMask(ip net.IP, maskStartBit int, maskBitLength int) *ipWithPositionableMask {
-	leftToMask := net.CIDRMask(maskStartBit, 128)
-	negatedRightToMask := net.CIDRMask(maskStartBit+maskBitLength, 128)
-	mask := net.CIDRMask(128, 128) // empty mask
-	for i := range mask {
-		mask[i] = ^(leftToMask[i] | ^negatedRightToMask[i])
-	}
-
-	return &ipWithPositionableMask{
-		ip:               ip,
-		positionableMask: mask,
-	}
-}
-
-// combineMultipleIPAddresses combines multiple addresses together into one IP address. The combining IP addresses have
-// additional information(positionableMask) that is saying what part of given combining IP address should be used in
-// combined IP address. It is expected that positionableMasks from all ipAddresses are not overlapping.
-func (i *IPAM) combineMultipleIPAddresses(ipAddresses ...*ipWithPositionableMask) net.IP {
-	result := net.IP(net.CIDRMask(128, 128))
-	for _, ipWithPositionableMask := range ipAddresses {
-		for i := range result {
-			result[i] = (result[i] & ^ipWithPositionableMask.positionableMask[i]) | // copy/paste parts that won't be changed by applying this ipWithPositionableMask
-				(ipWithPositionableMask.ip[i] & ipWithPositionableMask.positionableMask[i]) // apply part from this ipWithPositionableMask to result IP address
-		}
-	}
-	return result
-}
-
-// computeSFCID creates 128-bit SFC ID from SFC name
-func (i *IPAM) computeSFCID(sfcName string) net.IP {
-	h := sha256.New()
-	h.Write([]byte(sfcName))
-	return h.Sum(nil)[:16]
-}
-
 // computeSID creates SID by applying network prefix from <prefixNetwork> to IP <ip>
 func (i *IPAM) computeSID(ip net.IP, prefixNetwork *net.IPNet) net.IP {
-	// prepare computation values
 	ip = ip.To16()
-	prefixNetworkMaskSize, _ := prefixNetwork.Mask.Size()
-
-	// compute SID as combination of configurable prefix (PrefixNetwork) and IP address
-	return i.combineMultipleIPAddresses(
-		newIPWithPositionableMaskFromIPNet(prefixNetwork),
-		newIPWithPositionableMask(ip, prefixNetworkMaskSize, 128-prefixNetworkMaskSize))
+	sid := net.IP(make([]byte, 16))
+	for i := range ip {
+		sid[i] = ip[i] & ^prefixNetwork.Mask[i] | prefixNetwork.IP[i]
+	}
+	return sid
 }
 
 // Close is NOOP.
@@ -1314,32 +1149,6 @@ func (i *IPAM) computeVxlanIPAddress(nodeID uint32) (net.IP, error) {
 	}
 
 	return computedIP, nil
-}
-
-// dbPutIfNotExists tries to put given proto value under given key.
-func (i *IPAM) dbPutIfNotExists(key string, val proto.Message) (succeeded bool, err error) {
-	encoded, err := json.Marshal(val)
-	if err != nil {
-		return false, err
-	}
-	ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
-	broker := i.RemoteDB.NewBrokerWithAtomic(ksrPrefix)
-	return broker.PutIfNotExists(key, encoded)
-}
-
-// getPodIPInfo returns local/remote pod IP information
-func (i *IPAM) getPodIPInfo(podID podmodel.ID) (*podIPInfo, int, bool) {
-	allocation, local := i.podToIP[podID]
-	if local {
-		return allocation, addrLenFromNet(i.podSubnetThisNode), true
-	}
-
-	allocation, remote := i.remotePodToIP[podID]
-	if remote {
-		return allocation, addrLenFromNet(i.podSubnetAllNodes), true
-	}
-
-	return nil, 0, false
 }
 
 func isIPv6Net(network *net.IPNet) bool {

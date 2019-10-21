@@ -107,11 +107,15 @@ data:
         level: info
       - name: vpp-rest
         level: info
+  # GRPC server used to accept CNI Add/Del Pod requests
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock
     force-socket-removal: true
     permission: 700
+  # GRCP server used to accept additional network configuration
+  grpc2.conf: |
+    endpoint: "0.0.0.0:9111"
   http.conf: |
     endpoint: "0.0.0.0:9999"
   bolt.conf: |
@@ -175,7 +179,7 @@ data:
 # This installs the contiv-etcd (ETCD server to be used by Contiv) on the master node in a Kubernetes cluster.
 # In odrer to dump the content of ETCD, you can use the kubectl exec command similar to this:
 #   kubectl exec contiv-etcd-cxqhr -n kube-system etcdctl -- get --endpoints=[127.0.0.1:12379] --prefix="true" ""
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: contiv-etcd
@@ -212,7 +216,7 @@ spec:
 
       containers:
         - name: contiv-etcd
-          image: quay.io/coreos/etcd:v3.3.11
+          image: quay.io/coreos/etcd:v3.3.15
           imagePullPolicy: IfNotPresent
           env:
             - name: CONTIV_ETCD_IP
@@ -320,7 +324,7 @@ data:
 # It consists of the following containers:
 #   - contiv-vswitch container: contains VPP and its management agent
 #   - contiv-cni container: installs CNI on the host
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: contiv-vswitch
@@ -497,12 +501,16 @@ spec:
               value: "/etc/vpp-agent/http.conf"
             - name: GRPC_CONFIG
               value: "/etc/vpp-agent/grpc.conf"
+            - name: GRPC2_CONFIG
+              value: "/etc/vpp-agent/grpc2.conf"
             - name: LINUX_IFPLUGIN_CONFIG
               value: "/etc/vpp-agent/linux-ifplugin.conf"
             - name: LINUX_L3PLUGIN_CONFIG
               value: "/etc/vpp-agent/linux-l3plugin.conf"
             - name: KVSCHEDULER_CONFIG
               value: "/etc/vpp-agent/kvscheduler.conf"
+            - name: DISABLE_INTERFACE_STATS
+              value: "y"
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt
@@ -613,7 +621,7 @@ spec:
 ---
 
 # This installs the contiv-ksr (Kubernetes State Reflector) on the master node in a Kubernetes cluster.
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: contiv-ksr
@@ -621,6 +629,9 @@ metadata:
   labels:
     k8s-app: contiv-ksr
 spec:
+  selector:
+    matchLabels:
+      k8s-app: contiv-ksr
   updateStrategy:
     type: RollingUpdate
   template:
@@ -733,7 +744,7 @@ metadata:
 rules:
   - apiGroups:
       - ""
-      - extensions
+      - networking.k8s.io
     resources:
       - pods
       - namespaces
@@ -773,7 +784,7 @@ subjects:
 ---
 
 # This installs the contiv-crd on the master node in a Kubernetes cluster.
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: contiv-crd
@@ -781,6 +792,9 @@ metadata:
   labels:
     k8s-app: contiv-crd
 spec:
+  selector:
+    matchLabels:
+      k8s-app: contiv-crd
   updateStrategy:
     type: RollingUpdate
   template:

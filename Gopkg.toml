@@ -31,9 +31,9 @@ required = [
     "github.com/opencontainers/runc",
     "golang.org/x/exp/inotify",
     "github.com/google/cadvisor",
-    "k8s.io/apiserver/pkg/apis/apiserver",
     "github.com/ugorji/go/codec",
     "github.com/docker/distribution",
+    "k8s.io/apiserver/pkg/apis/apiserver",
     "k8s.io/code-generator/cmd/client-gen",
     "k8s.io/code-generator/cmd/deepcopy-gen",
     "k8s.io/code-generator/cmd/defaulter-gen",
@@ -44,8 +44,7 @@ required = [
 
 [[constraint]]
   name = "github.com/ligato/vpp-agent"
-  #version = "2.2.0"
-  revision = "db302e2f65e5c7789f785796e42b03b36aae440f"
+  version = "2.3.0"
 
 [[constraint]]
   revision = "b5bfa59ec0adc420475f97f89b58045c721d761c"
@@ -54,10 +53,6 @@ required = [
 [[constraint]]
   revision = "1c81e2a794c6e26a4c650142ae8893c47f619764"
   name = "github.com/opencontainers/runc"
-
-[[constraint]]
-  name = "k8s.io/apiserver"
-  revision = "a35277792fddcf69f8cbbb8a9cb7727b23077409"
 
 [[constraint]]
   name = "github.com/ugorji/go"
@@ -105,20 +100,32 @@ required = [
   revision = "292a51b8d262487dab23a588950e8052d63d9113"
 
 [[constraint]]
+  name = "k8s.io/kubernetes"
+  version = "1.16.0"
+
+[[constraint]]
   name = "k8s.io/api"
-  version="kubernetes-1.11.0"
+  version="kubernetes-1.16.0"
+
+[[constraint]]
+  name = "k8s.io/apiserver"
+  version="kubernetes-1.16.0"
 
 [[constraint]]
   name = "k8s.io/apiextensions-apiserver"
-  version="kubernetes-1.11.0"
+  version="kubernetes-1.16.0"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  revision="103fd098999dc9c0c88536f5c9ad2e5da39373ae"
+  version="kubernetes-1.16.0"
 
 [[constraint]]
   name = "k8s.io/client-go"
-  version="kubernetes-1.11.0"
+  version="kubernetes-1.16.0"
+
+[[override]]
+  name = "k8s.io/code-generator"
+  version = "kubernetes-1.16.0"
 
 [[constraint]]
   name = "github.com/safchain/ethtool"
@@ -136,19 +143,11 @@ required = [
   name = "github.com/docker/libnetwork"
   revision = "9ffeaf7d8b64fa0eb64cc27835dc1a5a90328024"
 
-[[override]]
-  name = "k8s.io/code-generator"
-  version = "kubernetes-1.11.0"
-
 [prune]
   go-tests = true
   unused-packages = true
 
-  [[prune.project]]
-    name = "k8s.io/code-generator"
-    unused-packages = false
-    go-tests = false
-
-[[constraint]]
-  name = "k8s.io/kubernetes"
-  version = "1.14.0"
+[[prune.project]]
+  name = "k8s.io/code-generator"
+  go-tests = true
+  unused-packages = false

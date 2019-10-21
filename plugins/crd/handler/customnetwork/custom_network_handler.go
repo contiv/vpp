@@ -24,6 +24,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/handler/kvdbreflector"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
+	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
 
 // Handler implements the Handler interface for CRD<->KVDB Reflector.
@@ -98,10 +99,46 @@ func (h *Handler) customNetworkToProto(customNetwork *v1.CustomNetwork) *model.C
 		customNetworkProto.Type = model.CustomNetwork_L2
 	case "L3":
 		customNetworkProto.Type = model.CustomNetwork_L3
-	case "stub":
-		customNetworkProto.Type = model.CustomNetwork_STUB
 	}
 	customNetworkProto.SubnetCIDR = customNetwork.Spec.SubnetCIDR
 	customNetworkProto.SubnetOneNodePrefix = customNetwork.Spec.SubnetOneNodePrefixLen
 	return customNetworkProto
+}
+
+// Validation generates OpenAPIV3 validator for custom network CRD
+func Validation() *apiextv1beta1.CustomResourceValidation {
+	validation := &apiextv1beta1.CustomResourceValidation{
+		OpenAPIV3Schema: &apiextv1beta1.JSONSchemaProps{
+			Required: []string{"spec"},
+			Type:     "object",
+			Properties: map[string]apiextv1beta1.JSONSchemaProps{
+				"spec": {
+					Type:     "object",
+					Required: []string{"type"},
+					Properties: map[string]apiextv1beta1.JSONSchemaProps{
+						"type": {
+							Type: "string",
+							Enum: []apiextv1beta1.JSON{
+								{
+									Raw: []byte(`"L2"`),
+								},
+								{
+									Raw: []byte(`"L3"`),
+								},
+							},
+						},
+						"subnetCIDR": {
+							Type:        "string",
+							Description: "IPv4 or IPv6 address with prefix length",
+							Pattern:     `^[0-9a-fA-F:\.]+/[0-9]+$`,
+						},
+						"subnetOneNodePrefix": {
+							Type: "integer",
+						},
+					},
+				},
+			},
+		},
+	}
+	return validation
 }

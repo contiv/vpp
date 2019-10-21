@@ -94,7 +94,7 @@ func (vds *VppDataStore) DeleteNode(nodeName string) error {
 	for _, node := range vds.NodeMap {
 		if node.ID == uint32(nodeID) {
 			for _, intf := range node.NodeInterfaces {
-				if intf.Value.Name == ipnet.VxlanBVIInterfaceName {
+				if intf.Value.Name == ipnet.DefaultVxlanBVIInterfaceName {
 					delete(vds.LoopMACMap, intf.Value.PhysAddress)
 					for _, ip := range intf.Value.IpAddresses {
 						delete(vds.LoopIPMap, ip)
@@ -416,7 +416,7 @@ func (vds *VppDataStore) RetrieveNodeByGigEIPAddr(ipAddress string) (*telemetrym
 // GetNodeLoopIFInfo gets the loop interface for the given node
 func GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface, error) {
 	for _, ifs := range node.NodeInterfaces {
-		if ifs.Value.Name == ipnet.VxlanBVIInterfaceName {
+		if ifs.Value.Name == ipnet.DefaultVxlanBVIInterfaceName {
 			return &ifs, nil
 		}
 	}

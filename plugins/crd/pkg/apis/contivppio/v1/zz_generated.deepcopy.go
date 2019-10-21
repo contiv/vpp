@@ -70,7 +70,7 @@ func (in *CustomConfiguration) DeepCopyObject() runtime.Object {
 func (in *CustomConfigurationList) DeepCopyInto(out *CustomConfigurationList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]CustomConfiguration, len(*in))
@@ -152,7 +152,7 @@ func (in *CustomNetwork) DeepCopyObject() runtime.Object {
 func (in *CustomNetworkList) DeepCopyInto(out *CustomNetworkList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]CustomNetwork, len(*in))
@@ -229,7 +229,7 @@ func (in *ExternalInterface) DeepCopyObject() runtime.Object {
 func (in *ExternalInterfaceList) DeepCopyInto(out *ExternalInterfaceList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]ExternalInterface, len(*in))
@@ -350,7 +350,7 @@ func (in *ServiceFunctionChain) DeepCopyObject() runtime.Object {
 func (in *ServiceFunctionChainList) DeepCopyInto(out *ServiceFunctionChainList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]ServiceFunctionChain, len(*in))

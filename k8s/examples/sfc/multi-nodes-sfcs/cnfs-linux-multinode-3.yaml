@@ -1,0 +1,87 @@
+---
+# Create three linux CNFs - the second CNFs with 2 tap intefaces - for multi-node SFC
+# Linux CNF 1 pod definition. Pod is connected with one additional tap interface
+# in the "stub" network = meaning that it won't have any IP address assigned.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: linux-cnf9
+  annotations:
+    contivpp.io/custom-if: tap1/tap/stub
+  labels:
+    cnf: linux-cnf9
+spec:
+  containers:
+    - name: busybox
+      image: busybox
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        privileged: true
+      command:
+        - sleep
+        - "3600"
+  nodeName: k8s-master
+---
+# Linux CNF 2 pod definition. Pod is connected with Two (** old one) additional tap interface
+# in the "stub" network = meaning that it won't have any IP address assigned.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: linux-cnf10
+  annotations:
+    contivpp.io/custom-if: tap1/tap/stub, tap2/tap/stub
+  labels:
+    cnf: linux-cnf10
+spec:
+  containers:
+    - name: busybox
+      image: busybox
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        privileged: true
+      command:
+        - sleep
+        - "3600"
+  nodeName: k8s-master
+---
+# Linux CNF 1 pod definition. Pod is connected with one additional tap interface
+# in the "stub" network = meaning that it won't have any IP address assigned.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: linux-cnf11
+  annotations:
+    contivpp.io/custom-if: tap1/tap/stub, tap2/tap/stub
+  labels:
+    cnf: linux-cnf11
+spec:
+  containers:
+    - name: busybox
+      image: busybox
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        privileged: true
+      command:
+        - sleep
+        - "3600"
+---
+# Linux CNF 3 pod definition. Pod is connected with one additional tap interface
+# in the "stub" network = meaning that it won't have any IP address assigned.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: linux-cnf12
+  annotations:
+    contivpp.io/custom-if: tap1/tap/stub
+  labels:
+    cnf: linux-cnf12
+spec:
+  containers:
+    - name: busybox
+      image: busybox
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        privileged: true
+      command:
+        - sleep
+        - "3600"

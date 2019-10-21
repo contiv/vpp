@@ -297,7 +297,7 @@ func (n *IPNet) routePODsFromHost(nextHopIP net.IP) (key string, config *linux_l
 	route := &linux_l3.Route{
 		OutgoingInterface: hostInterconnectVETH1LogicalName,
 		Scope:             linux_l3.Route_GLOBAL,
-		DstNetwork:        n.IPAM.PodSubnetAllNodes().String(),
+		DstNetwork:        n.IPAM.PodSubnetAllNodes(DefaultPodNetworkName).String(),
 		GwAddr:            nextHopIP.String(),
 	}
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {

@@ -82,7 +82,7 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 			if n.IPAM.GetPodIP(pod.ID) == nil {
 				continue
 			}
-			vppIfName, _ := n.podInterfaceName(pod, "", "")
+			vppIfName, _, _ := n.podInterfaceName(pod, "", "")
 			n.vppIfaceToPod[vppIfName] = pod.ID
 		}
 		n.vppIfaceToPodMutex.Unlock()
@@ -101,8 +101,11 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 		controller.PutAll(txn, updateConfig)
 	}
 
-	n.Log.Infof("IPNet plugin internal state after RESYNC: %s",
-		n.internalState.StateToString())
+	_, isVerification := event.(*controller.VerificationResync)
+	if !isVerification {
+		n.Log.Infof("IPNet plugin internal state after RESYNC: %s",
+			n.internalState.StateToString())
+	}
 	return wasErr
 }
 
@@ -261,7 +264,7 @@ func (n *IPNet) configureMainVPPInterface(event controller.Event, txn controller
 
 	if nicName != "" {
 		// configure the physical NIC
-		nicKey, nic := n.physicalInterface(nicName, nicStaticIPs)
+		nicKey, nic := n.physicalInterface(nicName, n.ContivConf.GetRoutingConfig().MainVRFID, nicStaticIPs)
 		if n.useDHCP {
 			// clear IP addresses
 			nic.IpAddresses = []string{}
@@ -295,7 +298,7 @@ func (n *IPNet) configureMainVPPInterface(event controller.Event, txn controller
 // configureOtherVPPInterfaces configure all physical interfaces defined in the config but the main one.
 func (n *IPNet) configureOtherVPPInterfaces(txn controller.ResyncOperations) error {
 	for _, physicalIface := range n.ContivConf.GetOtherVPPInterfaces() {
-		key, iface := n.physicalInterface(physicalIface.InterfaceName, physicalIface.IPs)
+		key, iface := n.physicalInterface(physicalIface.InterfaceName, n.ContivConf.GetRoutingConfig().MainVRFID, physicalIface.IPs)
 		iface.SetDhcpClient = physicalIface.UseDHCP
 		txn.Put(key, iface)
 	}
@@ -413,15 +416,23 @@ func (n *IPNet) configureSTNConnectivity(txn controller.ResyncOperations) {
 
 // configureVrfTables configures VRF tables
 func (n *IPNet) configureVrfTables(txn controller.ResyncOperations) {
-	tables := n.vrfMainTables() // main vrf is by default 0 and tables with vrf id 0 are created automatically -> setting it up for possibly overridden values and for vrf table label uniformity
+	// main vrf is by default 0 and tables with vrf id 0 are created automatically,
+	// but we are still setting them up for vrf table label uniformity
+	tables := n.vrfMainTables()
 	for key, table := range tables {
 		txn.Put(key, table)
 	}
 
+	// default pod VRF
 	tables = n.vrfTablesForPods()
 	for key, table := range tables {
 		txn.Put(key, table)
 	}
+
+	// loopback with the gateway IP address for PODs
+	// - used as the unnumbered IP for the POD facing interfaces
+	key, lo := n.podGwLoopback(DefaultPodNetworkName, n.ContivConf.GetRoutingConfig().PodVRFID)
+	txn.Put(key, lo)
 }
 
 // configureVswitchVrfRoutes configures inter-VRF routing
@@ -459,7 +470,7 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations, kubeStateData 
 		// collect configuration for node connectivity
 		if nodeHasIPAddress(node) {
 			// generate configuration
-			nodeConnectConfig, err := n.fullNodeConnectivityConfig(node)
+			nodeConnectConfig, err := n.otherNodeConnectivityConfig(node)
 			if err != nil {
 				// treat as warning
 				n.Log.Warnf("Failed to configure connectivity to node ID=%d: %v",
@@ -471,26 +482,19 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations, kubeStateData 
 	}
 
 	// bridge domain for VXLAN interfaces of default pod network
+	// Note that bridge domains for custom networks are refreshed in customNetworkConfig.
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.VXLANTransport {
 		// bridge domain
-		key, bd := n.vxlanBridgeDomain()
+		key, bd := n.vxlanBridgeDomain(DefaultPodNetworkName)
 		txn.Put(key, bd)
 
 		// BVI interface
-		key, vxlanBVI, err := n.vxlanBVILoopback()
+		key, vxlanBVI, err := n.vxlanBVILoopback(DefaultPodNetworkName, n.ContivConf.GetRoutingConfig().PodVRFID)
 		if err != nil {
 			n.Log.Error(err)
 			return err
 		}
 		txn.Put(key, vxlanBVI)
-	}
-
-	// bridge domains of L2 custom networks
-	for _, nw := range n.customNetworks {
-		if nw.config != nil && nw.config.Type == customnetmodel.CustomNetwork_L2 {
-			bdKey, bd := n.customNwBridgeDomain(nw)
-			txn.Put(bdKey, bd)
-		}
 	}
 
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport && n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport {
@@ -511,10 +515,6 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations, kubeStateData 
 			}
 		}
 	}
-
-	// loopback with the gateway IP address for PODs. Also used as the unnumbered IP for the POD facing interfaces.
-	key, lo := n.podGwLoopback()
-	txn.Put(key, lo)
 
 	return nil
 }

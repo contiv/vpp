@@ -96,7 +96,7 @@ controller:
 etcd:
   image:
     repository: quay.io/coreos/etcd
-    tag: v3.3.11
+    tag: v3.3.15
     pullPolicy: IfNotPresent
   service:
     # nodePort where contiv-etcd can be reached on any node.
@@ -157,6 +157,9 @@ vswitch:
   enableCoreDumps: true
   coreDumpsDir: /var/contiv/dumps
   useSocketVPPConnection: true
+  enableInterfaceStats: false
+  httpPort: 9999
+  grpcPort: 9111
 
 cni:
   image:
@@ -178,6 +181,7 @@ ksr:
   probeFailureThreshold: 3
   cpuRequest: 100m
   cpuLimit: 0
+  httpPort: 9191
 
 crd:
   image:
@@ -196,6 +200,7 @@ crd:
   probeFailureThreshold: 3
   cpuRequest: 100m
   cpuLimit: 0
+  httpPort: 9090
 
 # GoVPP configuration
 # It contains time intervals used for VPP health probing (in nanoseconds).
@@ -206,7 +211,6 @@ govpp:
   healthCheckReplyTimeout: 500000000
   healthCheckThreshold: 3
   replyTimeout: 3000000000
-
 
 http:
   enableBasicAuth: false
@@ -232,3 +236,6 @@ init:
 bolt:
   debug: false
   dataDir: /var/bolt
+
+k8sVersion:
+  post_1_9: true

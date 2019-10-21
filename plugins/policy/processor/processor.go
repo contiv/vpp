@@ -22,6 +22,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/contiv/vpp/plugins/contivconf"
+	"github.com/contiv/vpp/plugins/ipnet"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
@@ -59,7 +60,7 @@ type Deps struct {
 type IPAM interface {
 	// PodSubnetThisNode returns POD network for the current node
 	// (given by nodeID allocated for this node).
-	PodSubnetThisNode() *net.IPNet
+	PodSubnetThisNode(network string) *net.IPNet
 }
 
 // Init initializes the Policy Processor.
@@ -351,7 +352,7 @@ func (pp *PolicyProcessor) filterHostPods(pods []podmodel.ID) []podmodel.ID {
 		hadIP        bool
 		hostPods     []podmodel.ID
 	)
-	hostNetwork := pp.IPAM.PodSubnetThisNode()
+	hostNetwork := pp.IPAM.PodSubnetThisNode(ipnet.DefaultPodNetworkName)
 
 	for _, podID := range pods {
 		found, podData := pp.Cache.LookupPod(podID)

@@ -889,7 +889,7 @@ func getExpectedPodTunnelSetup(nodeIP net.IP, fixture *TunnelTestingFixture, plu
 	}
 
 	// steering
-	podNetwork, err := fixture.Ipam.PodSubnetOtherNode(node2ID)
+	podNetwork, err := fixture.Ipam.PodSubnetOtherNode(DefaultPodNetworkName, node2ID)
 	Expect(err).ShouldNot(HaveOccurred())
 	expectedSetup.ingress.steerings = []*vpp_srv6.Steering{
 		getSteering(podNetwork, bsid, "lookupInPodVRF", fixture.ContivConf.GetRoutingConfig().MainVRFID),
@@ -1063,7 +1063,7 @@ func getExpectedPodToPodDX6TunnelSetup(localPod *podmanager.LocalPod, remotePod 
 	// egress
 	podIP := plugin.IPAM.GetPodIP(localPod.ID)
 	podSid := plugin.IPAM.SidForNodeToNodePodLocalsid(podIP.IP)
-	_, vppTap := plugin.podVPPTap(localPod, podIP, "")
+	_, vppTap := plugin.podVPPTap(localPod, podIP, "", DefaultPodNetworkName)
 	expectedSetup.egress = &vpp_srv6.LocalSID{
 		Sid:               podSid.String(),
 		InstallationVrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,

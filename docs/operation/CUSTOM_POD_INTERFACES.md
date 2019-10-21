@@ -10,22 +10,27 @@ be one of the 3 supported types:
  - Linux veth (virtual ethernet) interface
  - memif interface (requires memif-compatible application running in the pod)
 
+Custom interfaces can be requested using annotations in pod definition. The name
+of the annotation is `contivpp.io/custom-if` and its value can be a comma-separated
+list of custom interfaces in the `<custom-interface-name>/<interface-type>/<network>`
+format. 
+
+The `<network>` part is optional, leaving it unspecified means the default pod
+network. Apart from the default pod network, there is another special network with the name `stub`, 
+which leaves the interface without any IP address and routes pointing to it. The stub interfaces
+may be used together with [service function chaining](../../k8s/examples/sfc/README.md).
+Apart form `default` and `stub`, you can reference any other L2 or L3 
+[custom network](../../k8s/examples/custom-network/README.md) defined via CRDs.
+
+K8s service traffic can be also redirected towards custom interfaces using the `contivpp.io/service-endpoint-if` 
+pod annotation, where the value should refer to the name of a custom interface in the default pod network.
+An example of this feature can be found in the [k8s example folder](../../k8s/examples/memif).
+
 In order to use this feature, the Kubelet feature gate `KubeletPodResources` needs to be enabled,
 e.g. add the following into in the `KUBELET_EXTRA_ARGS` in the `/etc/default/kubelet` file:
 ```
 KUBELET_EXTRA_ARGS=--feature-gates KubeletPodResources=true
 ```
-
-Custom interfaces can be requested using annotations in pod definition. The name
-of the annotation is `contivpp.io/custom-if` and its value can be a comma-separated
-list of custom interfaces in the `<custom-interface-name>/<interface-type>/<network>`
-format. The `<network>` part is optional, leaving it unspecified means the default pod
-network. Apart from the default pod network, only a special `stub` network is 
-currently supported, which leaves the interface without any IP address and routes pointing to it.
-
-K8s service traffic can be also redirected towards custom interfaces using the `contivpp.io/service-endpoint-if` 
-pod annotation, where the value should refer to the name of a custom interface in the default pod network.
-An example of this feature can be found in the [k8s example folder](../../k8s/examples/memif).
 
 An example of a pod definition that connects a pod with a default interface plus one 
 extra tap interface with the name `tap1` and one extra veth interface with the name `veth1`:
@@ -84,7 +89,7 @@ metadata:
 spec:
   containers:
     - name: vnf-memif
-      image: ligato/vpp-agent:latest
+      image: ligato/vpp-agent:v2.1.1
       resources:
         limits:
           contivpp.io/memif: 1

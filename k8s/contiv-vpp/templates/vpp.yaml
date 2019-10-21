@@ -37,15 +37,15 @@ data:
     useDX6ForSrv6NodetoNodeTransport: {{ .Values.contiv.useDX6ForSrv6NodetoNodeTransport }}
     useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
-    {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}
+    {{- if eq (.Values.contiv.tapInterfaceVersion) "2" }}
     tapv2RxRingSize: {{ .Values.contiv.tapv2RxRingSize }}
     tapv2TxRingSize: {{ .Values.contiv.tapv2TxRingSize }}
     enableGSO: {{ .Values.contiv.enableGSO }}
     {{- end }}
-    {{- if ne (.Values.contiv.vmxnet3RxRingSize | int) 1024 }}
+    {{- if ne (.Values.contiv.vmxnet3RxRingSize) "1024" }}
     vmxnet3RxRingSize: {{ .Values.contiv.vmxnet3RxRingSize }}
     {{- end }}
-    {{- if ne (.Values.contiv.vmxnet3TxRingSize | int) 1024 }}
+    {{- if ne (.Values.contiv.vmxnet3TxRingSize) "1024" }}
     vmxnet3TxRingSize: {{ .Values.contiv.vmxnet3TxRingSize }}
     {{- end }}
     {{- if ne .Values.contiv.interfaceRxMode "default" }}
@@ -135,15 +135,15 @@ data:
     {{- end }}
   controller.conf: |
     enableRetry: {{ .Values.controller.enableRetry }}
-    delayRetry: {{ .Values.controller.delayRetry | int64 }}
+    delayRetry: {{ .Values.controller.delayRetry }}
     maxRetryAttempts: {{ .Values.controller.maxRetryAttempts }}
     enableExpBackoffRetry: {{ .Values.controller.enableExpBackoffRetry }}
-    delayLocalResync: {{ .Values.controller.delayLocalResync | int64 }}
-    startupResyncDeadline: {{ .Values.controller.startupResyncDeadline | int64 }}
+    delayLocalResync: {{ .Values.controller.delayLocalResync }}
+    startupResyncDeadline: {{ .Values.controller.startupResyncDeadline }}
     enablePeriodicHealing: {{ .Values.controller.enablePeriodicHealing }}
-    periodicHealingInterval: {{ .Values.controller.periodicHealingInterval | int64 }}
-    delayAfterErrorHealing: {{ .Values.controller.delayAfterErrorHealing | int64 }}
-    remoteDBProbingInterval: {{ .Values.controller.remoteDBProbingInterval | int64 }}
+    periodicHealingInterval: {{ .Values.controller.periodicHealingInterval }}
+    delayAfterErrorHealing: {{ .Values.controller.delayAfterErrorHealing }}
+    remoteDBProbingInterval: {{ .Values.controller.remoteDBProbingInterval }}
     recordEventHistory: {{ .Values.controller.recordEventHistory }}
     eventHistoryAgeLimit: {{ .Values.controller.eventHistoryAgeLimit }}
     permanentlyRecordedInitPeriod: {{ .Values.controller.permanentlyRecordedInitPeriod }}
@@ -167,10 +167,10 @@ metadata:
   namespace: kube-system
 data:
   govpp.conf: |
-    health-check-probe-interval: {{ .Values.govpp.healthCheckProbeInterval | int64 }}
-    health-check-reply-timeout: {{ .Values.govpp.healthCheckReplyTimeout | int64 }}
-    health-check-threshold: {{ .Values.govpp.healthCheckThreshold | int64 }}
-    reply-timeout: {{ .Values.govpp.replyTimeout | int64 }}
+    health-check-probe-interval: {{ .Values.govpp.healthCheckProbeInterval }}
+    health-check-reply-timeout: {{ .Values.govpp.healthCheckReplyTimeout }}
+    health-check-threshold: {{ .Values.govpp.healthCheckThreshold }}
+    reply-timeout: {{ .Values.govpp.replyTimeout }}
   logs.conf: |
     default-level: {{ .Values.logs.defaultLevel }}
     loggers:
@@ -206,7 +206,7 @@ data:
     file-mode: 432
     lock-timeout: 0
   telemetry.conf: |
-    polling-interval: {{ .Values.telemetry.pollingInterval | int64 }}
+    polling-interval: {{ .Values.telemetry.pollingInterval }}
     disabled: {{ .Values.telemetry.disabled }}
   linux-ifplugin.conf: |
     dump-go-routines-count: 5
@@ -390,7 +390,7 @@ spec:
             initialDelaySeconds: {{ .Values.etcd.livenessProbeInitialDelaySeconds }}
           {{- end }}
           resources:
-            {{- if .Values.etcd.cpuLimit }}
+            {{- if ne (.Values.etcd.cpuLimit) "0" }}
             limits:
               cpu: {{ .Values.etcd.cpuLimit }}
             {{- end }}
@@ -979,7 +979,7 @@ spec:
               {{- end }}
               memory: {{ .Values.vswitch.memoryLimit }}
             {{- end }}
-            {{- if .Values.vswitch.cpuLimit }}
+            {{- if ne (.Values.vswitch.cpuLimit) "0" }}
               cpu: {{ .Values.vswitch.cpuLimit }}
             {{- end }}
             {{- if .Values.vswitch.cpuRequest }}
@@ -1264,7 +1264,7 @@ spec:
             initialDelaySeconds: {{ .Values.ksr.livenessProbeInitialDelaySeconds }}
           {{- end }}
           resources:
-            {{- if .Values.ksr.cpuLimit }}
+            {{- if ne (.Values.ksr.cpuLimit) "0" }}
             limits:
               cpu: {{ .Values.ksr.cpuLimit }}
             {{- end }}
@@ -1570,7 +1570,7 @@ spec:
             initialDelaySeconds: {{ .Values.crd.livenessProbeInitialDelaySeconds }}
           {{- end }}
           resources:
-            {{- if .Values.crd.cpuLimit }}
+            {{- if ne (.Values.crd.cpuLimit) "0" }}
             limits:
               cpu: {{ .Values.crd.cpuLimit }}
             {{- end }}

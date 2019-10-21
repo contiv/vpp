@@ -70,7 +70,7 @@ type Deps struct {
 // LocalEndpoint represents a node-local endpoint.
 type LocalEndpoint struct {
 	ifName     string   /* main interface name used as the pod service front-end and (optionally) back-end */
-	secIfNames []string /* secondary interfaces used as service front-ends (may be empty, used for multi-interface pods) */
+	secIfNames []string /* secondary interfaces used as service front-ends(may be empty,used for multi-interface pods)*/
 	svcCount   int      /* number of services running on this endpoint. */
 }
 

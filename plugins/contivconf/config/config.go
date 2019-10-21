@@ -62,24 +62,28 @@ type RoutingConfig struct {
 
 	// Transportation used for node-to-node communication:
 	// 1. VXLAN overlay ("vxlan") encapsulates/decapsulates traffic between nodes using VXLAN.
-	// 2. SRv6 overlay ("srv6") encapsulates/decapsulates traffic between nodes using SRv6 (segment routing based on IPv6).
-	// SRv6's steering and policy will be on ingress node and SRv6's localsid on egress node. This transportation expects
-	// ipv6 to be enabled (SRv6 packets=IPv6 packets using SR header extension).
-	// 3. Using none of the previous mentioned overlays ("nooverlay") and route traffic using routing tables/etc., e.g. if the nodes are on the same L2 network.
+	// 2. SRv6 overlay ("srv6") encapsulates/decapsulates traffic between nodes using SRv6
+	//    (segment routing based on IPv6).
+	// SRv6's steering and policy will be on ingress node and SRv6's localsid on egress node. This transportation
+	// expects ipv6 to be enabled (SRv6 packets=IPv6 packets using SR header extension).
+	// 3. Using none of the previous mentioned overlays ("nooverlay") and route traffic using routing
+	//    tables/etc., e.g. if the nodes are on the same L2 network.
 	NodeToNodeTransport string `json:"nodeToNodeTransport,omitempty"`
 
 	// Enabled when routing for K8s service should be performed by using SRv6 (segment routing based on IPv6).
 	// The routing within the routing segments is done as normal IPv6 routing, therefore IPv6 must be enabled.
-	// This setting handles how packet is transported from service client to service backend, but not how is transported
-	// response packet(if any) from backend to service client. This is handled by non-service routing that uses on node-to-node
-	// part of route the "NodeToNodeTransport" setting. To communicate between nodes only using SRv6, set it to "srv6" (+ UseSRv6ForServices=true).
+	// This setting handles how packet is transported from service client to service backend, but not how is
+	// transported response packet(if any) from backend to service client. This is handled by non-service routing
+	// that uses on node-to-node part of route the "NodeToNodeTransport" setting. To communicate between nodes
+	// only using SRv6, set it to "srv6" (+ UseSRv6ForServices=true).
 	UseSRv6ForServices bool `json:"useSRv6ForServices,omitempty"`
 
-	// Enabled when Service Function Chaining for K8s service should be performed by using SRv6 (segment routing based on IPv6).
+	// Enabled when Service Function Chaining for K8s service should be performed by using SRv6 (segment routing
+	// based on IPv6).
 	UseSRv6ForServiceFunctionChaining bool `json:"useSRv6ForServiceFunctionChaining,omitempty"`
 
-	// Enables usage of DX6 end function instead of DT6 end function for node-to-node communication using SRV6. This is limited to
-	// pod-to-pod communication use case in full IPv6 environment (pods and node fabric is IPv6)
+	// Enables usage of DX6 end function instead of DT6 end function for node-to-node communication using SRV6.
+	// This is limited to pod-to-pod communication use case in full IPv6 environment (pods and node fabric is IPv6)
 	UseDX6ForSrv6NodetoNodeTransport bool `json:"useDX6ForSrv6NodetoNodeTransport,omitempty"`
 
 	// when enabled, cluster IP CIDR should be routed towards VPP from Linux

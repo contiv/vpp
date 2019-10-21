@@ -63,6 +63,7 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 	// external interfaces
 	for _, extIfProto := range kubeStateData[extifmodel.Keyword] {
 		extIf := extIfProto.(*extifmodel.ExternalInterface)
+		n.notifyIpamExtIfIPChange(extIf, false)
 		config, updateConfig, err := n.externalInterfaceConfig(extIf, configResync)
 		if err == nil {
 			controller.PutAll(txn, config)
@@ -87,6 +88,12 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 		}
 		n.vppIfaceToPodMutex.Unlock()
 	}
+
+	// update custom network information cache of custom network interfaces for all pods
+	for podID := range n.PodManager.GetPods() {
+		n.cacheCustomNetworkInterfaces(podID, configResync)
+	}
+
 	for _, pod := range n.PodManager.GetLocalPods() {
 		if n.IPAM.GetPodIP(pod.ID) == nil {
 			continue
@@ -158,7 +165,8 @@ func (n *IPNet) configureVswitchConnectivity(event controller.Event, txn control
 
 	// create localsid as receiving end for SRv6 encapsulated communication between 2 nodes
 	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport {
-		if !n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport { // using DT6 -> can be created once (for resync)
+		if !n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport {
+			// using DT6 -> can be created once (for resync)
 			// create localsid with DT6/DT4 end function (decapsulate and lookup in POD VRF ipv6/ipv4 table)
 			// -SRv6 route ends in destination node's VPP
 			// -used for pod-to-pod communication (further routing in destination node is done using ipv6)
@@ -298,7 +306,8 @@ func (n *IPNet) configureMainVPPInterface(event controller.Event, txn controller
 // configureOtherVPPInterfaces configure all physical interfaces defined in the config but the main one.
 func (n *IPNet) configureOtherVPPInterfaces(txn controller.ResyncOperations) error {
 	for _, physicalIface := range n.ContivConf.GetOtherVPPInterfaces() {
-		key, iface := n.physicalInterface(physicalIface.InterfaceName, n.ContivConf.GetRoutingConfig().MainVRFID, physicalIface.IPs)
+		key, iface := n.physicalInterface(physicalIface.InterfaceName,
+			n.ContivConf.GetRoutingConfig().MainVRFID, physicalIface.IPs)
 		iface.SetDhcpClient = physicalIface.UseDHCP
 		txn.Put(key, iface)
 	}
@@ -497,18 +506,21 @@ func (n *IPNet) otherNodesResync(txn controller.ResyncOperations, kubeStateData 
 		txn.Put(key, vxlanBVI)
 	}
 
-	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport && n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport {
+	if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport &&
+		n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport {
 		for _, podProto := range kubeStateData[podmodel.PodKeyword] {
 			pod := podProto.(*podmodel.Pod)
 			if _, isLocal := n.PodManager.GetLocalPods()[podmodel.GetID(pod)]; !isLocal {
 				if net.ParseIP(pod.IpAddress) == nil {
-					n.Log.Warnf("ignoring srv6 dx6 pod-to-pod tunnel creation due to not assigned IP(or unable to parse it from string %v) "+
-						"to destination pod (pod id %+v)", pod.IpAddress, podmodel.GetID(pod))
+					n.Log.Warnf("ignoring srv6 dx6 pod-to-pod tunnel creation due to not assigned "+
+						"IP(or unable to parse it from string %v) to destination pod (pod id %+v)",
+						pod.IpAddress, podmodel.GetID(pod))
 					continue
 				}
 				config, err := n.srv6NodeToNodeDX6PodTunnelIngress(pod)
 				if err != nil {
-					n.Log.Errorf("can't add SRv6 node-to-node tunnel crossconnecting to pod %+v due to %v", podmodel.GetID(pod), err)
+					n.Log.Errorf("can't add SRv6 node-to-node tunnel crossconnecting to pod %+v "+
+						"due to %v", podmodel.GetID(pod), err)
 					continue
 				}
 				addToTxn(config, txn)

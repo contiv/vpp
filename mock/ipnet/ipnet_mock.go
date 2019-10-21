@@ -31,16 +31,24 @@ const (
 type MockIPNet struct {
 	sync.Mutex
 
-	podIf            map[podmodel.ID]string
-	hostIPs          []net.IP
-	nodeIP           *net.IPNet
-	hostInterconnect string
-	vxlanBVIIfName   string
+	podIf                      map[podmodel.ID]string
+	networkToVRFID             map[string]uint32
+	podInterfaceToNetwork      map[string]string
+	externalInterfaceToNetwork map[string]string
+	hostIPs                    []net.IP
+	nodeIP                     *net.IPNet
+	hostInterconnect           string
+	vxlanBVIIfName             string
 }
 
 // NewMockIPNet is a constructor for MockIPNet.
 func NewMockIPNet() *MockIPNet {
-	return &MockIPNet{podIf: make(map[podmodel.ID]string)}
+	return &MockIPNet{
+		podIf:                      make(map[podmodel.ID]string),
+		networkToVRFID:             make(map[string]uint32),
+		podInterfaceToNetwork:      make(map[string]string),
+		externalInterfaceToNetwork: make(map[string]string),
+	}
 }
 
 // SetPodIfName allows to create a fake association between a pod and an interface.
@@ -72,16 +80,34 @@ func (mn *MockIPNet) SetHostIPs(ips []net.IP) {
 	mn.hostIPs = ips
 }
 
+// SetGetPodCustomIfNetworkName sets network name that pod custom interface belongs to.
+func (mn *MockIPNet) SetGetPodCustomIfNetworkName(podID podmodel.ID, ifName string, networkName string) {
+	mn.podInterfaceToNetwork[fmt.Sprintf("%s/%s", podID.String(), ifName)] = networkName
+}
+
+// SetGetExternalIfNetworkName sets network name that external interface belongs to.
+func (mn *MockIPNet) SetGetExternalIfNetworkName(ifName string, networkName string) {
+	mn.externalInterfaceToNetwork[ifName] = networkName
+}
+
+// SetNetworkVrfID sets VRF table ID to network name that it should belong to.
+func (mn *MockIPNet) SetNetworkVrfID(networkName string, vrfID uint32) {
+	mn.networkToVRFID[networkName] = vrfID
+}
+
 // GetPodIfNames returns pod's interface name as set previously using SetPodIfName.
-func (mn *MockIPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string, exists bool) {
+func (mn *MockIPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName,
+	loopIfName string, exists bool) {
 	vppIfName, exists = mn.podIf[podmodel.ID{Name: podName, Namespace: podNamespace}]
 	return vppIfName, "", mn.GetPodLoopIfName(podNamespace, podName), exists
 }
 
 // GetPodCustomIfNames looks up logical interface name that corresponds to the custom interface
 // with specified name and type associated with the given local pod name + namespace.
-func (mn *MockIPNet) GetPodCustomIfNames(podNamespace, podName, customIfName string) (ifName string, linuxIfName string, exists bool) {
-	return "", linuxIfName, false
+func (mn *MockIPNet) GetPodCustomIfNames(podNamespace, podName, customIfName string) (ifName string,
+	linuxIfName string, exists bool) {
+	//return "", linuxIfName, false
+	return customIfName, customIfName, true
 }
 
 // GetExternalIfName returns logical name that corresponds to the specified external interface name and VLAN ID.
@@ -136,4 +162,22 @@ func (mn *MockIPNet) GetVxlanBVIIfName() string {
 // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
 func (mn *MockIPNet) GetHostIPs() []net.IP {
 	return mn.hostIPs
+}
+
+// GetPodCustomIfNetworkName returns the name of custom network which should contain given
+// pod custom interface or error otherwise. This supports both type of pods, remote and local
+func (mn *MockIPNet) GetPodCustomIfNetworkName(podID podmodel.ID, ifName string) (string, error) {
+	return mn.podInterfaceToNetwork[fmt.Sprintf("%s/%s", podID.String(), ifName)], nil
+}
+
+// GetExternalIfNetworkName returns the name of custom network which should contain given
+// external interface or error otherwise.
+func (mn *MockIPNet) GetExternalIfNetworkName(ifName string) (string, error) {
+	return mn.externalInterfaceToNetwork[ifName], nil
+}
+
+// GetNetworkVrfID returns the allocated VRF ID number for the given custom/default network. If VRF table
+// is not allocated yet for given network, it allocates the VRF table and returns its ID.
+func (mn *MockIPNet) GetNetworkVrfID(networkName string) (vrf uint32, err error) {
+	return mn.networkToVRFID[networkName], nil
 }

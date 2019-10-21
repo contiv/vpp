@@ -50,7 +50,8 @@ const (
 	VXLANTransport = "vxlan"
 	// SRv6Transport is config value representing usage of SRv6 in node-to-node communication
 	SRv6Transport = "srv6"
-	// NoOverlayTransport is config value representing usage of other (not above mentioned) techniques in node-to-node communication (routing tables/...)
+	// NoOverlayTransport is config value representing usage of other (not above mentioned)
+	// techniques in node-to-node communication (routing tables/...)
 	NoOverlayTransport = "nooverlay"
 )
 
@@ -107,7 +108,8 @@ const (
 
 	defaultUseSRv6ForServiceFunctionChaining = false
 
-	// default usage of DX6 instead of DT6 for SRv6 node-to-node transport (only pod-to-pod communication in full IPv6 environment)
+	// default usage of DX6 instead of DT6 for SRv6 node-to-node transport (only pod-to-pod communication
+	// in full IPv6 environment)
 	defaultUseDX6ForSrv6NodetoNodeTransport = false
 
 	// default VRF IDs
@@ -392,47 +394,58 @@ func (c *ContivConf) Init() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to parse VxlanCIDR: %v", err)
 	}
-	_, c.ipamConfig.SRv6Settings.ServicePolicyBSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.ServicePolicyBSIDSubnetCIDR)
+	_, c.ipamConfig.SRv6Settings.ServicePolicyBSIDSubnetCIDR, err = net.ParseCIDR(
+		c.config.IPAMConfig.SRv6.ServicePolicyBSIDSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse Srv6ServicePolicyBSIDSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.SRv6Settings.ServicePodLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.ServicePodLocalSIDSubnetCIDR)
+	_, c.ipamConfig.SRv6Settings.ServicePodLocalSIDSubnetCIDR, err = net.ParseCIDR(
+		c.config.IPAMConfig.SRv6.ServicePodLocalSIDSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse Srv6ServicePodLocalSIDSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.SRv6Settings.ServiceHostLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.ServiceHostLocalSIDSubnetCIDR)
+	_, c.ipamConfig.SRv6Settings.ServiceHostLocalSIDSubnetCIDR, err = net.ParseCIDR(
+		c.config.IPAMConfig.SRv6.ServiceHostLocalSIDSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse Srv6ServiceHostLocalSIDSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.SRv6Settings.ServiceNodeLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.ServiceNodeLocalSIDSubnetCIDR)
+	_, c.ipamConfig.SRv6Settings.ServiceNodeLocalSIDSubnetCIDR, err = net.ParseCIDR(
+		c.config.IPAMConfig.SRv6.ServiceNodeLocalSIDSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse Srv6ServiceNodeLocalSIDSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.SRv6Settings.NodeToNodePodLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.NodeToNodePodLocalSIDSubnetCIDR)
+	_, c.ipamConfig.SRv6Settings.NodeToNodePodLocalSIDSubnetCIDR, err = net.ParseCIDR(
+		c.config.IPAMConfig.SRv6.NodeToNodePodLocalSIDSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse Srv6NodeToNodePodLocalSIDSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.SRv6Settings.NodeToNodeHostLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.NodeToNodeHostLocalSIDSubnetCIDR)
+	_, c.ipamConfig.SRv6Settings.NodeToNodeHostLocalSIDSubnetCIDR, err = net.ParseCIDR(
+		c.config.IPAMConfig.SRv6.NodeToNodeHostLocalSIDSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse Srv6NodeToNodeHostLocalSIDSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.SRv6Settings.NodeToNodePodPolicySIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.NodeToNodePodPolicySIDSubnetCIDR)
+	_, c.ipamConfig.SRv6Settings.NodeToNodePodPolicySIDSubnetCIDR, err = net.ParseCIDR(
+		c.config.IPAMConfig.SRv6.NodeToNodePodPolicySIDSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse Srv6NodeToNodePodPolicySIDSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.SRv6Settings.NodeToNodeHostPolicySIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.NodeToNodeHostPolicySIDSubnetCIDR)
+	_, c.ipamConfig.SRv6Settings.NodeToNodeHostPolicySIDSubnetCIDR, err = net.ParseCIDR(
+		c.config.IPAMConfig.SRv6.NodeToNodeHostPolicySIDSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse Srv6NodeToNodeHostPolicySIDSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.SRv6Settings.SFCPolicyBSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.SFCPolicyBSIDSubnetCIDR)
+	_, c.ipamConfig.SRv6Settings.SFCPolicyBSIDSubnetCIDR, err = net.ParseCIDR(
+		c.config.IPAMConfig.SRv6.SFCPolicyBSIDSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse SFCPolicyBSIDSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.SRv6Settings.SFCServiceFunctionSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.SFCServiceFunctionSIDSubnetCIDR)
+	_, c.ipamConfig.SRv6Settings.SFCServiceFunctionSIDSubnetCIDR, err = net.ParseCIDR(
+		c.config.IPAMConfig.SRv6.SFCServiceFunctionSIDSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse SFCServiceFunctionSIDSubnetCIDR: %v", err)
 	}
-	_, c.ipamConfig.SRv6Settings.SFCEndLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.SFCEndLocalSIDSubnetCIDR)
+	_, c.ipamConfig.SRv6Settings.SFCEndLocalSIDSubnetCIDR, err = net.ParseCIDR(
+		c.config.IPAMConfig.SRv6.SFCEndLocalSIDSubnetCIDR)
 	if err != nil {
 		return fmt.Errorf("failed to parse SFCEndLocalSIDSubnetCIDR: %v", err)
 	}
@@ -579,7 +592,8 @@ func (c *ContivConf) Resync(event controller.Event, kubeStateData controller.Kub
 }
 
 // Update is called for KubeStateChange for CRD node-specific config of this node.
-func (c *ContivConf) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
+func (c *ContivConf) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string,
+	err error) {
 	var nodeConfig *config.NodeConfig
 	ksChange := event.(*controller.KubeStateChange)
 	if ksChange.NewValue != nil {
@@ -1071,8 +1085,8 @@ func vmxnet3PCIFromName(ifName string) (string, error) {
 		return "", err
 	}
 	if numLen != 4 {
-		err = fmt.Errorf("cannot parse PCI address from the interface name %s: expected 4 address elements, received %d",
-			ifName, numLen)
+		err = fmt.Errorf("cannot parse PCI address from the interface name %s: expected 4 address elements, "+
+			"received %d", ifName, numLen)
 		return "", err
 	}
 	return fmt.Sprintf("%04x:%02x:%02x.%0x", domain, bus, slot, function), nil

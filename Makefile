@@ -97,6 +97,7 @@ test:
 	go test ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
 	#go test ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/sfc/renderer/srv6 -tags="${GO_BUILD_TAGS}"
 
 # Run tests with race
 test-race:

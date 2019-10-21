@@ -112,7 +112,8 @@ type ServiceFunction struct {
 	// Pods satisfying the pod selector criteria for this service function.
 	Pods []*PodSF
 
-	// ExternalInterfaces contains list of interfaces satisfying the interface selector criteria for this service function.
+	// ExternalInterfaces contains list of interfaces satisfying
+	// the interface selector criteria for this service function.
 	ExternalInterfaces []*InterfaceSF
 }
 
@@ -150,15 +151,8 @@ type PodSF struct {
 	NodeID uint32 // ID of the node where the service function runs
 	Local  bool   // true if this is a node-local pod
 
-	// For local pods, interface names contain actual pod interface names which can be used for configuration
-	// without further processing. Non-local pods contain logical names as they came from CRD.
-	InputInterface  string // name of the interface trough which the traffic enters the pod
-	OutputInterface string // name of the interface using which the traffic leaves the pod
-
-	// name of the interface from configuration file through which the traffic enters the pod
-	InputInterfaceConfigName string
-	// name of the interface from configuration file through which the traffic enters the pod
-	OutputInterfaceConfigName string
+	InputInterface  *InterfaceNames // names of the interface trough which the traffic enters the pod
+	OutputInterface *InterfaceNames // names of the interface using which the traffic leaves the pod
 }
 
 // String converts PodSF into a human-readable string.
@@ -167,11 +161,26 @@ func (pod PodSF) String() string {
 		pod.ID, pod.NodeID, pod.Local, pod.InputInterface, pod.OutputInterface)
 }
 
+// InterfaceNames is container for multiple names for one interface
+type InterfaceNames struct {
+	// LogicalName for local pods, LogicalName contain actual pod interface name which can be used for configuration
+	// without further processing. LogicalName for non-local pods contain name from CRD.
+	LogicalName string
+	// CRDName is name of the interface as it came from CRD
+	CRDName string
+}
+
+// String converts InterfaceNames into a human-readable string.
+func (in InterfaceNames) String() string {
+	return fmt.Sprintf("<LogicalName: %s, CRDName: %s>", in.LogicalName, in.CRDName)
+}
+
 // InterfaceSF represents an interface-type service function.
 type InterfaceSF struct {
 	// InterfaceName contains name of the interface to/from which the traffic flows
 	// (can be used for the configuration without further processing).
-	InterfaceName string
+	InterfaceName    string // name of the vpp interface attached to this external interface
+	VppInterfaceName string // true if this is a node-local interface
 
 	NodeID uint32 // ID of the node where the interface resides
 	Local  bool   // true if this is a node-local interface

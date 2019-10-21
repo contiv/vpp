@@ -40,6 +40,18 @@ type API interface {
 	// GetExternalIfName returns logical name that corresponds to the specified external interface name and VLAN ID.
 	GetExternalIfName(extIfName string, vlan uint32) (ifName string)
 
+	// GetPodCustomIfNetworkName returns the name of custom network which should contain given
+	// pod custom interface or error otherwise. This supports both type of pods, remote and local
+	GetPodCustomIfNetworkName(podID podmodel.ID, ifName string) (string, error)
+
+	// GetExternalIfNetworkName returns the name of custom network which should contain given
+	// external interface or error otherwise.
+	GetExternalIfNetworkName(ifName string) (string, error)
+
+	// GetNetworkVrfID returns the allocated VRF ID number for the given custom/default network. If VRF table
+	// is not allocated yet for given network, it allocates the VRF table and returns its ID.
+	GetNetworkVrfID(networkName string) (vrf uint32, err error)
+
 	// GetPodByIf looks up name and namespace that is associated with logical interface name.
 	// The method can be called from outside of the main event loop.
 	GetPodByIf(ifname string) (podNamespace string, podName string, exists bool)

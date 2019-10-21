@@ -17,8 +17,6 @@ package ipnet
 import (
 	"bytes"
 	"fmt"
-	"github.com/gogo/protobuf/proto"
-	"github.com/ligato/cn-infra/db/keyval"
 	"hash/fnv"
 	"net"
 	"os/exec"
@@ -29,6 +27,8 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/devicemanager"
 	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/gogo/protobuf/proto"
+	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	"github.com/ligato/vpp-agent/api/models/linux/l3"
@@ -310,7 +310,8 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 		if !n.isDefaultPodNetwork(customIf.ifNet) && !n.isStubNetwork(customIf.ifNet) {
 			// post-configure interface in custom network
 			vppIfName, _, _ := n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
-			n.cacheCustomNetworkInterface(customIf.ifNet, pod, nil, vppIfName, eventType != configDelete)
+			n.cacheCustomNetworkInterface(customIf.ifNet, pod, nil, nil, vppIfName,
+				true, eventType != configDelete)
 			if n.isL2Network(customIf.ifNet) {
 				bdKey, bd := n.l2CustomNwBridgeDomain(n.customNetworks[customIf.ifNet])
 				updateConfig[bdKey] = bd

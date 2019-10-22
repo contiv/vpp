@@ -48,10 +48,6 @@ type API interface {
 	// external interface or error otherwise.
 	GetExternalIfNetworkName(ifName string) (string, error)
 
-	// GetNetworkVrfID returns the allocated VRF ID number for the given custom/default network. If VRF table
-	// is not allocated yet for given network, it allocates the VRF table and returns its ID.
-	GetNetworkVrfID(networkName string) (vrf uint32, err error)
-
 	// GetPodByIf looks up name and namespace that is associated with logical interface name.
 	// The method can be called from outside of the main event loop.
 	GetPodByIf(ifname string) (podNamespace string, podName string, exists bool)

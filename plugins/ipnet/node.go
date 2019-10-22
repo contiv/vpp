@@ -895,12 +895,6 @@ func (n *IPNet) cacheCustomNetworkInterface(customNwName string, localPod *podma
 	}
 }
 
-// GetNetworkVrfID returns the allocated VRF ID number for the given custom/default network. If VRF table
-// is not allocated yet for given network, it allocates the VRF table and returns its ID.
-func (n *IPNet) GetNetworkVrfID(networkName string) (vrf uint32, err error) {
-	return n.GetOrAllocateVrfID(networkName)
-}
-
 // isDefaultPodNetwork returns true if provided network name is the default pod network.
 func (n *IPNet) isDefaultPodNetwork(nwName string) bool {
 	return nwName == DefaultPodNetworkName || nwName == ""

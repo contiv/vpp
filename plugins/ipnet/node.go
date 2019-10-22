@@ -32,7 +32,6 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
 	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
-	"github.com/contiv/vpp/plugins/idalloc/idallocation"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
@@ -106,7 +105,7 @@ func (n *IPNet) otherNodeConnectivityConfig(node *nodesync.Node) (config control
 	// VXLANs for custom networks
 	for _, nw := range n.customNetworks {
 		// get the VNI of the VXLAN
-		vni, err := n.getOrAllocateVxlanVNI(nw.config.Name)
+		vni, err := n.GetOrAllocateVxlanVNI(nw.config.Name)
 		if err != nil {
 			return config, err
 		}
@@ -347,7 +346,7 @@ func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface, eve
 			vppIfName := nodeIf.VppInterfaceName
 			vrf := n.ContivConf.GetRoutingConfig().MainVRFID
 			if n.isDefaultPodNetwork(extIf.Network) || n.isL3Network(extIf.Network) {
-				vrf, _ = n.getOrAllocateVrfID(extIf.Network)
+				vrf, _ = n.GetOrAllocateVrfID(extIf.Network)
 			}
 			if nodeIf.Vlan == 0 {
 				// standard interface config
@@ -390,9 +389,11 @@ func (n *IPNet) physicalInterface(name string, vrf uint32, ips contivconf.IPsWit
 	}
 	if n.ContivConf.UseVmxnet3() {
 		iface.Type = vpp_interfaces.Interface_VMXNET3_INTERFACE
-		if ifConfig.Vmxnet3RxRingSize != 0 && ifConfig.Vmxnet3TxRingSize != 0 {
-			iface.GetVmxNet3().RxqSize = uint32(ifConfig.Vmxnet3RxRingSize)
-			iface.GetVmxNet3().TxqSize = uint32(ifConfig.Vmxnet3TxRingSize)
+		iface.Link = &vpp_interfaces.Interface_VmxNet3{
+			VmxNet3: &vpp_interfaces.VmxNet3Link{
+				RxqSize: uint32(ifConfig.Vmxnet3RxRingSize),
+				TxqSize: uint32(ifConfig.Vmxnet3TxRingSize),
+			},
 		}
 	}
 	if interfaceRxModeType(ifConfig.InterfaceRxMode) != vpp_interfaces.Interface_RxMode_DEFAULT {
@@ -691,7 +692,7 @@ func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, even
 	}
 
 	// get / allocate a VNI for the VXLAN
-	vni, err := n.getOrAllocateVxlanVNI(nwConfig.Name)
+	vni, err := n.GetOrAllocateVxlanVNI(nwConfig.Name)
 	if err != nil {
 		return config, err
 	}
@@ -708,12 +709,12 @@ func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, even
 
 		// in case of delete event, release the VXLAN VNI
 		if eventType == configDelete {
-			n.releaseVxlanVNI(nwConfig.Name)
+			n.ReleaseVxlanVNI(nwConfig.Name)
 		}
 	}
 	if nwConfig.Type == customnetmodel.CustomNetwork_L3 {
 		// get / allocate a VRF ID
-		vrfID, err := n.getOrAllocateVrfID(nwConfig.Name)
+		vrfID, err := n.GetOrAllocateVrfID(nwConfig.Name)
 		if err != nil {
 			return config, err
 		}
@@ -772,8 +773,8 @@ func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, even
 
 		// in case of delete event, release the VRF & VNI
 		if eventType == configDelete {
-			n.releaseVxlanVNI(nwConfig.Name)
-			n.releaseVrfID(nwConfig.Name)
+			n.ReleaseVxlanVNI(nwConfig.Name)
+			n.ReleaseVrfID(nwConfig.Name)
 		}
 	}
 
@@ -847,70 +848,6 @@ func (n *IPNet) cacheCustomNetworkInterface(customNwName string, pod *podmanager
 			delete(nw.localExtInterfaces, extIf.Name)
 		}
 	}
-}
-
-// getOrAllocateVxlanVNI returns the allocated VXLAN VNI number for the given network.
-// Allocates a new VNI if not already allocated.
-func (n *IPNet) getOrAllocateVxlanVNI(networkName string) (vni uint32, err error) {
-
-	// allocate the pool if needed
-	if !n.vniPoolInitialized {
-		err = n.IDAlloc.InitPool(VxlanVniPoolName, &idallocation.AllocationPool_Range{
-			MinId: vxlanVNIPoolStart,
-			MaxId: vxlanVNIPoolEnd,
-		})
-		if err != nil {
-			n.Log.Errorf("VNI pool init failed: %v", err)
-			return 0, err
-		}
-		n.vniPoolInitialized = true
-	}
-
-	// get / allocate a VNI
-	vni, err = n.IDAlloc.GetOrAllocateID(VxlanVniPoolName, networkName)
-	if err != nil {
-		n.Log.Errorf("VNI retrieval/allocation failed: %v", err)
-	}
-	return vni, err
-}
-
-// releaseVxlanVNI releases the allocated VXLAN VNI number for the given network.
-func (n *IPNet) releaseVxlanVNI(networkName string) (err error) {
-	return n.IDAlloc.ReleaseID(VxlanVniPoolName, networkName)
-}
-
-// getOrAllocateVrfID returns the allocated VRF ID number for the given network.
-// Allocates a new VRF ID if not already allocated.
-func (n *IPNet) getOrAllocateVrfID(networkName string) (vrf uint32, err error) {
-	// default pod network does not need any allocation
-	if n.isDefaultPodNetwork(networkName) {
-		return n.ContivConf.GetRoutingConfig().PodVRFID, nil
-	}
-
-	// allocate the pool if needed
-	if !n.vrfPoolInitialized {
-		err = n.IDAlloc.InitPool(vrfPoolName, &idallocation.AllocationPool_Range{
-			MinId: vrfPoolStart,
-			MaxId: vrfPoolEnd,
-		})
-		if err != nil {
-			n.Log.Errorf("VRF pool init failed: %v", err)
-			return 0, err
-		}
-		n.vrfPoolInitialized = true
-	}
-
-	// get / allocate a VRF
-	vrf, err = n.IDAlloc.GetOrAllocateID(vrfPoolName, networkName)
-	if err != nil {
-		n.Log.Errorf("VRF retrieval/allocation failed: %v", err)
-	}
-	return vrf, err
-}
-
-// releaseVrfID releases the allocated VRF ID number for the given network.
-func (n *IPNet) releaseVrfID(networkName string) (err error) {
-	return n.IDAlloc.ReleaseID(vrfPoolName, networkName)
 }
 
 // isDefaultPodNetwork returns true if provided network name is the default pod network.
@@ -1376,7 +1313,7 @@ func (n *IPNet) routeToOtherNodeNetworks(network string, destNetwork *net.IPNet,
 		if n.isDefaultPodNetwork(network) {
 			route.VrfId = n.ContivConf.GetRoutingConfig().PodVRFID
 		} else {
-			route.VrfId, _ = n.getOrAllocateVrfID(network)
+			route.VrfId, _ = n.GetOrAllocateVrfID(network)
 		}
 	}
 	key = models.Key(route)

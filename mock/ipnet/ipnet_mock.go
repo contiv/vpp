@@ -36,6 +36,8 @@ type MockIPNet struct {
 	nodeIP           *net.IPNet
 	hostInterconnect string
 	vxlanBVIIfName   string
+	vniID            uint32
+	vrfID            uint32
 }
 
 // NewMockIPNet is a constructor for MockIPNet.
@@ -136,4 +138,26 @@ func (mn *MockIPNet) GetVxlanBVIIfName() string {
 // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
 func (mn *MockIPNet) GetHostIPs() []net.IP {
 	return mn.hostIPs
+}
+
+// GetOrAllocateVxlanVNI returns the allocated VXLAN VNI number for the given network.
+// Allocates a new VNI if not already allocated.
+func (mn *MockIPNet) GetOrAllocateVxlanVNI(networkName string) (vni uint32, err error) {
+	return mn.vniID, err
+}
+
+// ReleaseVxlanVNI releases the allocated VXLAN VNI number for the given network.
+func (mn *MockIPNet) ReleaseVxlanVNI(networkName string) (err error) {
+	return nil
+}
+
+// GetOrAllocateVrfID returns the allocated VRF ID number for the given network.
+// Allocates a new VRF ID if not already allocated.
+func (mn *MockIPNet) GetOrAllocateVrfID(networkName string) (vrf uint32, err error) {
+	return mn.vrfID, err
+}
+
+// ReleaseVrfID releases the allocated VRF ID number for the given network.
+func (mn *MockIPNet) ReleaseVrfID(networkName string) (err error) {
+	return nil
 }

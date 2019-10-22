@@ -513,23 +513,25 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 				}
 			} else if newPod != nil { // update pod event
 				updatedPodID := podmodel.ID{Name: newPod.Name, Namespace: newPod.Namespace}
-				if newIPAddress := net.ParseIP(newPod.IpAddress); newIPAddress != nil &&
-					!podNw.podSubnetThisNode.Contains(newIPAddress) { // remote pod
-					if pod, exists := i.remotePodToIP[updatedPodID]; exists {
-						pod.mainIP = newIPAddress
-					} else {
-						i.remotePodToIP[updatedPodID] = &podIPInfo{
-							mainIP:      newIPAddress,
-							customIfIPs: map[string]net.IP{},
+				// ignore changes with no IP Address
+				if newIPAddress := net.ParseIP(newPod.IpAddress); newIPAddress != nil {
+					if !podNw.podSubnetThisNode.Contains(newIPAddress) { // remote pod
+						if pod, exists := i.remotePodToIP[updatedPodID]; exists {
+							pod.mainIP = newIPAddress
+						} else {
+							i.remotePodToIP[updatedPodID] = &podIPInfo{
+								mainIP:      newIPAddress,
+								customIfIPs: map[string]net.IP{},
+							}
 						}
-					}
-				} else { // local pod
-					if pod, exists := i.podToIP[updatedPodID]; exists {
-						pod.mainIP = newIPAddress
-					} else {
-						i.podToIP[updatedPodID] = &podIPInfo{
-							mainIP:      newIPAddress,
-							customIfIPs: map[string]net.IP{},
+					} else { // local pod
+						if pod, exists := i.podToIP[updatedPodID]; exists {
+							pod.mainIP = newIPAddress
+						} else {
+							i.podToIP[updatedPodID] = &podIPInfo{
+								mainIP:      newIPAddress,
+								customIfIPs: map[string]net.IP{},
+							}
 						}
 					}
 				}

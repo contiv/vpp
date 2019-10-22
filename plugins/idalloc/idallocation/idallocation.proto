@@ -27,7 +27,12 @@ message AllocationPool {
     }
     Range range = 2; // specification of the pool range
 
+    message Allocation {
+        uint32 id = 1;    // allocated ID
+        string owner = 2; // owner of the allocation (only owner can release the allocation)
+    }
+
     // map of all allocations, key is the allocation "label"
-    // describing its purpose (e.g. nework name for vrf pool, etc.)
-    map<string, uint32> id_allocations = 3;
+    // describing its purpose (e.g. network name for vrf pool, etc.)
+    map<string, Allocation> id_allocations = 3;
 }

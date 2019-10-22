@@ -23,6 +23,7 @@ import (
 
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/infra"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
@@ -37,11 +38,11 @@ import (
 	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	"github.com/contiv/vpp/plugins/devicemanager"
 	"github.com/contiv/vpp/plugins/idalloc"
+	"github.com/contiv/vpp/plugins/idalloc/idallocation"
 	"github.com/contiv/vpp/plugins/ipam"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
-	"github.com/ligato/cn-infra/logging"
 )
 
 const (
@@ -414,6 +415,70 @@ func (n *IPNet) GetVxlanBVIIfName() string {
 		return ""
 	}
 	return n.vxlanBVIInterfaceName(DefaultPodNetworkName)
+}
+
+// GetOrAllocateVxlanVNI returns the allocated VXLAN VNI number for the given network.
+// Allocates a new VNI if not already allocated.
+func (n *IPNet) GetOrAllocateVxlanVNI(networkName string) (vni uint32, err error) {
+
+	// allocate the pool if needed
+	if !n.vniPoolInitialized {
+		err = n.IDAlloc.InitPool(VxlanVniPoolName, &idallocation.AllocationPool_Range{
+			MinId: vxlanVNIPoolStart,
+			MaxId: vxlanVNIPoolEnd,
+		})
+		if err != nil {
+			n.Log.Errorf("VNI pool init failed: %v", err)
+			return 0, err
+		}
+		n.vniPoolInitialized = true
+	}
+
+	// get / allocate a VNI
+	vni, err = n.IDAlloc.GetOrAllocateID(VxlanVniPoolName, networkName)
+	if err != nil {
+		n.Log.Errorf("VNI retrieval/allocation failed: %v", err)
+	}
+	return vni, err
+}
+
+// ReleaseVxlanVNI releases the allocated VXLAN VNI number for the given network.
+func (n *IPNet) ReleaseVxlanVNI(networkName string) (err error) {
+	return n.IDAlloc.ReleaseID(VxlanVniPoolName, networkName)
+}
+
+// GetOrAllocateVrfID returns the allocated VRF ID number for the given network.
+// Allocates a new VRF ID if not already allocated.
+func (n *IPNet) GetOrAllocateVrfID(networkName string) (vrf uint32, err error) {
+	// default pod network does not need any allocation
+	if n.isDefaultPodNetwork(networkName) {
+		return n.ContivConf.GetRoutingConfig().PodVRFID, nil
+	}
+
+	// allocate the pool if needed
+	if !n.vrfPoolInitialized {
+		err = n.IDAlloc.InitPool(vrfPoolName, &idallocation.AllocationPool_Range{
+			MinId: vrfPoolStart,
+			MaxId: vrfPoolEnd,
+		})
+		if err != nil {
+			n.Log.Errorf("VRF pool init failed: %v", err)
+			return 0, err
+		}
+		n.vrfPoolInitialized = true
+	}
+
+	// get / allocate a VRF
+	vrf, err = n.IDAlloc.GetOrAllocateID(vrfPoolName, networkName)
+	if err != nil {
+		n.Log.Errorf("VRF retrieval/allocation failed: %v", err)
+	}
+	return vrf, err
+}
+
+// ReleaseVrfID releases the allocated VRF ID number for the given network.
+func (n *IPNet) ReleaseVrfID(networkName string) (err error) {
+	return n.IDAlloc.ReleaseID(vrfPoolName, networkName)
 }
 
 // GetPodCustomIfNetworkName returns the name of custom network which should contain given

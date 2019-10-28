@@ -138,8 +138,8 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC, isDelete bool) (confi
 		}
 
 		if iface != "" && prevIface != "" {
-			if rndr.isNodeLocalSF(sf) && rndr.isNodeLocalSF(prevSF) {
-				// the two SFs (prevSF and SF) are local - Rgarding the node ID (lower or note) cross-connect the interfaces
+			if rndr.shouldChainLocalSFs(sf, prevSF) {
+				// the two SFs (prevSF and SF) are local and should be chained -  cross-connect the interfaces
 				if rndr.shouldChainLocalSFs(sf, prevSF) {
 					xconnect := rndr.crossConnectIfaces(prevIface, iface, sfc.Unidirectional)
 					rndr.mergeConfiguration(config, xconnect)

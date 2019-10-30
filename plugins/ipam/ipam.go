@@ -319,6 +319,7 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 	}
 
 	// external interfaces
+	i.extIfToIPNet = make(map[string][]extIfIPInfo)
 	for _, extIfProto := range kubeStateData[extifmodel.Keyword] {
 		i.updateExtIfIPInfo(extIfProto.(*extifmodel.ExternalInterface), false)
 	}
@@ -385,7 +386,6 @@ func (i *IPAM) initializePodNetwork(kubeStateData controller.KubeStateData, conf
 	i.assignedPodIPs = make(map[string]*podIPAllocation)
 	i.remotePodToIP = make(map[podmodel.ID]*podIPInfo)
 	i.podToIP = make(map[podmodel.ID]*podIPInfo)
-	i.extIfToIPNet = make(map[string][]extIfIPInfo)
 
 	// init default pod network info
 	i.podNetworks = make(map[string]*podNetworkInfo)

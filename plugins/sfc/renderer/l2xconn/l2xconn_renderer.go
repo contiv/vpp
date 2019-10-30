@@ -138,11 +138,11 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC, isDelete bool) (confi
 		}
 
 		if iface != "" && prevIface != "" {
-			if rndr.isNodeLocalSF(sf) && rndr.isNodeLocalSF(prevSF) {
-				// the two SFs (prevSF and SF) are local - cross-connect the interfaces
-				xconnect := rndr.crossConnectIfaces(prevIface, iface, sfc.Unidirectional)
-				rndr.mergeConfiguration(config, xconnect)
-
+			if rndr.shouldChainLocalSFs(sf, prevSF) {
+				if rndr.shouldChainLocalSFs(sf, prevSF) {
+					xconnect := rndr.crossConnectIfaces(prevIface, iface, sfc.Unidirectional)
+					rndr.mergeConfiguration(config, xconnect)
+				}
 			} else if rndr.shouldChainToRemoteSF(prevSF, sf) {
 				// one of the SFs (prevSF or SF) is local and the other not - use VXLAN to interconnect between them
 				// allocate a VNI for this SF interconnection - each SF may need an exclusive VNI
@@ -409,4 +409,26 @@ func sliceAppendIfNotExists(slice []uint32, value uint32) []uint32 {
 		slice = append(slice, value)
 	}
 	return slice
+}
+
+// shouldChainLocalSFs returns true if the local Fs should be chained together.
+func (rndr *Renderer) shouldChainLocalSFs(sf1, sf2 *renderer.ServiceFunction) bool {
+
+	// do not chain if one of the SFs is not local
+	if !rndr.isNodeLocalSF(sf1) || !rndr.isNodeLocalSF(sf2) {
+		return false
+	}
+
+	// if there is another node where both SFs are present and nodeID is lower than ours, do not chain
+	sf1NodeIDs := rndr.getSFNodeIDs(sf1)
+	sf2NodeIDs := rndr.getSFNodeIDs(sf2)
+	for _, nodeID := range sf1NodeIDs {
+		if sliceContains(sf2NodeIDs, nodeID) {
+			if nodeID < rndr.NodeSync.GetNodeID() {
+				return false
+			}
+		}
+	}
+
+	return true // otherwise chain
 }

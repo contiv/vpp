@@ -33,6 +33,7 @@ import (
 	"github.com/contiv/vpp/plugins/contivconf/config"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
+	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	"github.com/contiv/vpp/plugins/ipam/ipalloc"
 	"github.com/contiv/vpp/plugins/ksr"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
@@ -205,6 +206,8 @@ func (i *IPAM) HandlesEvent(event controller.Event) bool {
 			return true
 		case podmodel.PodKeyword:
 			return true
+		case extifmodel.Keyword:
+			return true
 		default:
 			// unhandled Kubernetes state change
 			return false
@@ -313,6 +316,11 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 				}
 			}
 		}
+	}
+
+	// external interfaces
+	for _, extIfProto := range kubeStateData[extifmodel.Keyword] {
+		i.updateExtIfIPInfo(extIfProto.(*extifmodel.ExternalInterface), false)
 	}
 
 	// resync custom interface IP allocations
@@ -536,6 +544,26 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 					}
 				}
 			}
+
+		case extifmodel.Keyword:
+			// external interface data change
+			if ksChange.NewValue != nil {
+				extIf := ksChange.NewValue.(*extifmodel.ExternalInterface)
+				if ksChange.PrevValue == nil { // create
+					i.updateExtIfIPInfo(extIf, false)
+					break
+				}
+				// update
+				prevIf := ksChange.PrevValue.(*extifmodel.ExternalInterface)
+				i.updateExtIfIPInfo(prevIf, true)
+				i.updateExtIfIPInfo(extIf, false)
+				break
+			}
+			// delete
+			extIf := ksChange.PrevValue.(*extifmodel.ExternalInterface)
+			i.updateExtIfIPInfo(extIf, true)
+			break
+
 		case customnetmodel.Keyword:
 			// custom network data change
 			if ksChange.NewValue != nil {
@@ -1225,37 +1253,6 @@ func (i *IPAM) SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP {
 		newIPWithPositionableMask(serviceFunctionPodIP, prefixMaskSize, 128-prefixMaskSize))
 }
 
-// UpdateExternalInterfaceIPInfo is notifying IPAM about external interfacew IP allocation
-func (i *IPAM) UpdateExternalInterfaceIPInfo(extif, vppInterface string, nodeID uint32, ipNet *net.IPNet,
-	isDelete bool) {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	if !isDelete {
-		if _, exists := i.extIfToIPNet[extif]; !exists {
-			i.extIfToIPNet[extif] = make([]extIfIPInfo, 0)
-		}
-		i.extIfToIPNet[extif] = append(i.extIfToIPNet[extif],
-			extIfIPInfo{vppInterface: vppInterface, nodeID: nodeID, ipNet: ipNet})
-	} else {
-		if ipInfos, exists := i.extIfToIPNet[extif]; exists {
-			ind := -1
-			for index, ipInfo := range ipInfos { // try find a matching entry
-				if ipInfo.vppInterface == vppInterface && ipInfo.nodeID == nodeID {
-					ind = index
-					break
-				}
-			}
-			if ind >= 0 { // found entry, erase it
-				ipInfos = append(ipInfos[0:ind], ipInfos[ind+1:]...)
-			}
-			if len(ipInfos) <= 0 { // no more ip infos, delete
-				delete(i.extIfToIPNet, extif)
-			}
-		}
-	}
-}
-
 // ipWithPositionableMask holds IP address with positionable mask that defines what part of IP address should
 // be used in IP address combination functionality. The net.IPNet could not be used as it's mask start always
 // on first bit of IP address.
@@ -1432,6 +1429,58 @@ func (i *IPAM) getPodIPInfo(podID podmodel.ID) (*podIPInfo, bool) {
 	}
 
 	return nil, false
+}
+
+func (i *IPAM) updateExtIfIPInfo(extIf *extifmodel.ExternalInterface, isDelete bool) {
+	for _, node := range extIf.Nodes {
+		if n, exists := i.NodeSync.GetAllNodes()[node.Node]; exists {
+			i.updateNodeExtIfIPInfo(node, n.ID, extIf, isDelete)
+		}
+	}
+}
+
+func (i *IPAM) updateNodeExtIfIPInfo(node *extifmodel.ExternalInterface_NodeInterface, nodeID uint32,
+	extIf *extifmodel.ExternalInterface, isDelete bool) {
+
+	_, nodeIPNet, err := net.ParseCIDR(node.Ip)
+	if err != nil {
+		if ip := net.ParseIP(node.Ip); ip != nil {
+			nodeIPNet = &net.IPNet{IP: ip}
+		}
+	}
+	if nodeIPNet != nil {
+		if nodeIPNet.Mask == nil {
+			if strings.Contains(nodeIPNet.IP.String(), ":") { // is IPv6
+				nodeIPNet.Mask = net.CIDRMask(net.IPv6len*8, net.IPv6len*8)
+			} else {
+				nodeIPNet.Mask = net.CIDRMask(net.IPv4len*8, net.IPv4len*8)
+			}
+		}
+		if !isDelete {
+			if _, exists := i.extIfToIPNet[extIf.Name]; !exists {
+				i.extIfToIPNet[extIf.Name] = make([]extIfIPInfo, 0)
+			}
+			i.extIfToIPNet[extIf.Name] = append(i.extIfToIPNet[extIf.Name],
+				extIfIPInfo{vppInterface: node.VppInterfaceName, nodeID: nodeID, ipNet: nodeIPNet})
+		} else {
+			if ipInfos, exists := i.extIfToIPNet[extIf.Name]; exists {
+				ind := -1
+				for index, ipInfo := range ipInfos { // try find a matching entry
+					if ipInfo.vppInterface == node.VppInterfaceName && ipInfo.nodeID == nodeID {
+						ind = index
+						break
+					}
+				}
+				if ind >= 0 { // found entry, erase it
+					ipInfos = append(ipInfos[0:ind], ipInfos[ind+1:]...)
+				}
+				if len(ipInfos) <= 0 { // no more ip infos, delete
+					delete(i.extIfToIPNet, extIf.Name)
+				}
+			}
+		}
+		return
+	}
 }
 
 func isIPv6Net(network *net.IPNet) bool {

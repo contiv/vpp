@@ -1502,30 +1502,3 @@ func (n *IPNet) getNodeID(nodeName string) (uint32, bool) {
 	}
 	return 0, false
 }
-
-// notifyIpamExtIfIPChange is passing an external interface IP change information
-// to IPAM plugin
-func (n *IPNet) notifyIpamExtIfIPChange(extIf *extifmodel.ExternalInterface, isDelete bool) {
-	for _, node := range extIf.Nodes {
-		if nodeID, ok := n.getNodeID(node.Node); ok {
-			_, nodeIPNet, err := net.ParseCIDR(node.Ip)
-			if err != nil {
-				if ip := net.ParseIP(node.Ip); ip != nil {
-					nodeIPNet = &net.IPNet{IP: ip}
-				}
-			}
-			if nodeIPNet != nil {
-				if nodeIPNet.Mask == nil {
-					if isIPv6(nodeIPNet.IP) {
-						nodeIPNet.Mask = net.CIDRMask(net.IPv6len*8, net.IPv6len*8)
-					} else {
-						nodeIPNet.Mask = net.CIDRMask(net.IPv4len*8, net.IPv4len*8)
-					}
-				}
-				n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName,
-					nodeID, nodeIPNet, isDelete)
-				return
-			}
-		}
-	}
-}

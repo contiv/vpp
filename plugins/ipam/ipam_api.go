@@ -153,9 +153,6 @@ type API interface {
 	// JSON flag for every option). If contivCIDR is used it returns actual
 	// dissected subnets.
 	GetIPAMConfigForJSON() *config.IPAMConfig
-
-	// UpdateExternalInterfaceIPInfo is notifying IPAM about external interfacew IP allocation
-	UpdateExternalInterfaceIPInfo(extif, vppInterface string, nodeID uint32, ipNet *net.IPNet, isDelete bool)
 }
 
 // PodCIDRChange is triggered when CIDR for PODs on the current node changes.

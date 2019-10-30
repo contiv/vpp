@@ -392,7 +392,8 @@ func (n *IPNet) cacheCustomNetworkInterfaces(podID podmodel.ID, eventType config
 func (n *IPNet) updateExternalIf(extIf *extifmodel.ExternalInterface, txn controller.UpdateOperations,
 	eventType configEventType) (change string, err error) {
 
-	n.notifyIpamExtIfIPChange(extIf, eventType == configDelete)
+	n.cacheCustomNetworkInterface(extIf.Network, nil, nil, extIf,
+		extIf.Name, false, eventType != configDelete)
 
 	config, updateConfig, err := n.externalInterfaceConfig(extIf, eventType)
 	if err != nil {

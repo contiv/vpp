@@ -892,7 +892,7 @@ func ipNet(sfSelectable ServiceFunctionSelectable, i ipam.API) *net.IPNet {
 		return i.GetPodIP(pod.ID)
 	case *renderer.InterfaceSF:
 		iface := selectable
-		return i.GetExternalInterfaceIP(iface.InterfaceName, iface.NodeID)
+		return i.GetExternalInterfaceIP(iface.VppInterfaceName, iface.NodeID)
 	default:
 		return nil
 	}
@@ -906,7 +906,7 @@ func inInterface(sfSelectable ServiceFunctionSelectable) string {
 		return pod.InputInterface.LogicalName
 	case *renderer.InterfaceSF:
 		iface := selectable
-		return iface.InterfaceName
+		return iface.VppInterfaceName
 	default:
 		return ""
 	}
@@ -920,7 +920,7 @@ func outInterface(sfSelectable ServiceFunctionSelectable) string {
 		return pod.OutputInterface.LogicalName
 	case *renderer.InterfaceSF:
 		iface := selectable
-		return iface.InterfaceName
+		return iface.VppInterfaceName
 	default:
 		return ""
 	}
@@ -935,7 +935,7 @@ func sidEndLocalSid(sfSelectable ServiceFunctionSelectable, i ipam.API, podVRF, 
 		return i.SidForSFCEndLocalsid(address), podVRF
 	case *renderer.InterfaceSF:
 		iface := selectable
-		if ipNet := i.GetExternalInterfaceIP(iface.InterfaceName, iface.NodeID); ipNet != nil {
+		if ipNet := i.GetExternalInterfaceIP(iface.VppInterfaceName, iface.NodeID); ipNet != nil {
 			return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, ipNet.IP), podVRF
 		}
 		return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, nil), podVRF

@@ -1210,15 +1210,18 @@ func (i *IPAM) BsidForSFCPolicy(sfcName string) net.IP {
 
 // SidForSFCExternalIfLocalsid creates a valid SRv6 SID for external interface
 func (i *IPAM) SidForSFCExternalIfLocalsid(externalIfName string, externalIfIP net.IP) net.IP {
+	prefix := i.ContivConf.GetIPAMConfig().SRv6Settings.SFCEndLocalSIDSubnetCIDR
+	prefixMaskSize, _ := prefix.Mask.Size()
+
 	var ip net.IP
 	if externalIfIP != nil {
-		ip = i.SidForSFCEndLocalsid(externalIfIP)
+		ip = i.combineMultipleIPAddresses(
+			newIPWithPositionableMaskFromIPNet(prefix),
+			newIPWithPositionableMask(externalIfIP, prefixMaskSize, 128-prefixMaskSize))
 	} else {
 		ip = i.computeExtIfID(externalIfName)
 	}
 
-	prefix := i.ContivConf.GetIPAMConfig().SRv6Settings.SFCEndLocalSIDSubnetCIDR
-	prefixMaskSize, _ := prefix.Mask.Size()
 	return i.combineMultipleIPAddresses(
 		newIPWithPositionableMaskFromIPNet(prefix),
 		newIPWithPositionableMask(ip, prefixMaskSize, 128-prefixMaskSize))

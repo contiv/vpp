@@ -502,8 +502,11 @@ func (n *IPNet) GetPodCustomIfNetworkName(podID podmodel.ID, ifName string) (str
 func (n *IPNet) GetExternalIfNetworkName(ifName string) (string, error) {
 	for name, info := range n.customNetworks {
 		if extIf, exists := info.extInterfaces[ifName]; exists {
+			if ifName == extIf.Name { // match of external interface resource name
+				return name, nil
+			}
 			for _, intf := range info.interfaces[extIf.Name] {
-				if ifName == intf {
+				if ifName == intf { // match of external interface vpp (DPDK) name
 					return name, nil
 				}
 			}

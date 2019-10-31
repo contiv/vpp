@@ -576,7 +576,8 @@ func removePod(podID podmodel.ID, ip string, chainIndex int, fixture *Fixture) {
 
 func addExternalInterface(name, vppInterface, extIfIPNet, mac string, nodeID uint32, fixture *Fixture) {
 	extIf := &extifmodel.ExternalInterface{
-		Name: name,
+		Name:    name,
+		Network: DefaultNetwork,
 		Nodes: []*extifmodel.ExternalInterface_NodeInterface{
 			{
 				Node:             WorkerLabel,
@@ -593,10 +594,9 @@ func addExternalInterface(name, vppInterface, extIfIPNet, mac string, nodeID uin
 
 	fixture.ConfigRetriever.AddConfig(vpp_interfaces.InterfaceKey(vppInterface), vppIf)
 
-	fixture.IPNet.SetGetExternalIfNetworkName(vppInterface, DefaultNetwork)
+	fixture.IPNet.SetGetExternalIfNetworkName(name, DefaultNetwork)
 
 	if _, ipNet, err := net.ParseCIDR(extIfIPNet); err == nil && ipNet != nil {
-		fixture.IPAM.UpdateExternalInterfaceIPInfo(name, vppInterface, nodeID, ipNet, false)
 		extIf.Type = extifmodel.ExternalInterface_L3
 
 	} else {
@@ -607,6 +607,10 @@ func addExternalInterface(name, vppInterface, extIfIPNet, mac string, nodeID uin
 		Resource: extifmodel.Keyword,
 		NewValue: extIf,
 	}
+
+	_, err := fixture.IPAM.Update(ev, nil)
+	Expect(err).To(BeNil())
+	Expect(fixture.Txn.Commit()).To(BeNil())
 
 	Expect(fixture.SFCProcessor.Update(ev)).To(BeNil())
 	Expect(fixture.Txn.Commit()).To(BeNil())

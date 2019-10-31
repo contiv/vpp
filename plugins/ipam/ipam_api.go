@@ -80,8 +80,8 @@ type API interface {
 	// AllocatePodIP tries to allocate IP address for the given pod.
 	AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string) (net.IP, error)
 
-	// GetPodIP returns the allocated (main) pod IP, together with the mask.
-	// Returns nil if the pod does not have allocated IP address.
+	// GetPodIP returns the allocated (main) pod IP, together with the mask. Searches for
+	// both local and remote pods. Returns nil if the pod does not have allocated IP address.
 	GetPodIP(podID podmodel.ID) *net.IPNet
 
 	// GetExternalInterfaceIP returns the allocated external interface IP.
@@ -92,7 +92,8 @@ type API interface {
 	AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string, isServiceEndpoint bool) (net.IP, error)
 
 	// GetPodCustomIfIP returns the allocated custom interface pod IP, together with the mask.
-	// Returns nil if the pod does not have allocated custom interface IP address.
+	// Searches for both local and remote pods. Returns nil if the pod does not have allocated
+	// custom interface IP address.
 	GetPodCustomIfIP(podID podmodel.ID, ifName, network string) *net.IPNet
 
 	// GetPodFromIP returns the pod information related to the allocated pod IP.

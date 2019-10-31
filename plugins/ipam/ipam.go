@@ -309,11 +309,12 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 				if podNw.lastPodIPAssigned < diff {
 					podNw.lastPodIPAssigned = diff
 				}
-			} else { // remote pod
+			} else if podNw.podSubnetAllNodes.Contains(podIPAddress) { // remote pod
 				i.remotePodToIP[podID] = &podIPInfo{
 					mainIP:      podIPAddress,
 					customIfIPs: map[string]net.IP{},
 				}
+				// NOTE: ignoring pods outside of all pod subnets (across all nodes and networks)
 			}
 		}
 	}
@@ -359,9 +360,10 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 					if podNw.lastPodIPAssigned < diff {
 						podNw.lastPodIPAssigned = diff
 					}
-				} else { // remote pod
+				} else if podNw.podSubnetAllNodes.Contains(podIPAddress) { // remote pod
 					i.remotePodToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = podIPAddress
 				}
+				// NOTE: ignoring pods outside of all pod subnets (across all nodes and networks)
 			}
 		}
 	}
@@ -501,13 +503,14 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 							i.podToIP[podID].customIfIPs = make(map[string]net.IP)
 						}
 						i.podToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = ifIPAddress
-					} else { // remote pod
+					} else if i.isInAnyPodSubnet(ifIPAddress) { // remote pod
 						if _, found := i.remotePodToIP[podID]; !found {
 							i.remotePodToIP[podID] = &podIPInfo{}
 							i.remotePodToIP[podID].customIfIPs = make(map[string]net.IP)
 						}
 						i.remotePodToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = ifIPAddress
 					}
+					// NOTE: ignoring pods outside of all pod subnets (across all nodes and networks)
 				}
 			}
 		case podmodel.PodKeyword:
@@ -515,24 +518,13 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 			newPod, _ := ksChange.NewValue.(*podmodel.Pod)
 			podNw := i.podNetworks[defaultPodNetworkName] // main pod interfaces
 			if oldPod != nil && newPod == nil {           // delete pod event
-				if !podNw.podSubnetThisNode.Contains(net.ParseIP(oldPod.IpAddress)) { // remote pod
-					deletedPodID := podmodel.ID{Name: oldPod.Name, Namespace: oldPod.Namespace}
-					delete(i.remotePodToIP, deletedPodID)
-				}
+				deletedPodID := podmodel.ID{Name: oldPod.Name, Namespace: oldPod.Namespace}
+				delete(i.remotePodToIP, deletedPodID) // no-op for pods not previously inserted
 			} else if newPod != nil { // update pod event
 				updatedPodID := podmodel.ID{Name: newPod.Name, Namespace: newPod.Namespace}
 				// ignore changes with no IP Address
 				if newIPAddress := net.ParseIP(newPod.IpAddress); newIPAddress != nil {
-					if !podNw.podSubnetThisNode.Contains(newIPAddress) { // remote pod
-						if pod, exists := i.remotePodToIP[updatedPodID]; exists {
-							pod.mainIP = newIPAddress
-						} else {
-							i.remotePodToIP[updatedPodID] = &podIPInfo{
-								mainIP:      newIPAddress,
-								customIfIPs: map[string]net.IP{},
-							}
-						}
-					} else { // local pod
+					if podNw.podSubnetThisNode.Contains(newIPAddress) { // local pod
 						if pod, exists := i.podToIP[updatedPodID]; exists {
 							pod.mainIP = newIPAddress
 						} else {
@@ -541,7 +533,17 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 								customIfIPs: map[string]net.IP{},
 							}
 						}
+					} else if podNw.podSubnetAllNodes.Contains(newIPAddress) { // remote pod
+						if pod, exists := i.remotePodToIP[updatedPodID]; exists {
+							pod.mainIP = newIPAddress
+						} else {
+							i.remotePodToIP[updatedPodID] = &podIPInfo{
+								mainIP:      newIPAddress,
+								customIfIPs: map[string]net.IP{},
+							}
+						}
 					}
+					// NOTE: ignoring pods outside of default network's pod subnet
 				}
 			}
 
@@ -584,6 +586,17 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 func (i *IPAM) isLocalPodInterface(intefaceIPAddress net.IP) bool {
 	for _, nw := range i.podNetworks {
 		if nw.podSubnetThisNode.Contains(intefaceIPAddress) {
+			return true
+		}
+	}
+	return false
+}
+
+// isInAnyPodSubnet determines from pod interface IP address whether interface (and pod) belongs to any pod subnet
+// from any custom/default network
+func (i *IPAM) isInAnyPodSubnet(intefaceIPAddress net.IP) bool {
+	for _, nw := range i.podNetworks {
+		if nw.podSubnetAllNodes.Contains(intefaceIPAddress) {
 			return true
 		}
 	}

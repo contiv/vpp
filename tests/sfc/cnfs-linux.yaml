@@ -1,0 +1,105 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: linux-cnf1
+
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        cnf: linux-cnf1
+      annotations:
+        contivpp.io/custom-if: tap1/tap/stub
+    spec:
+      containers:
+        - name: busybox
+          image: praqma/network-multitool
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          command:
+            - sleep
+            - "3600"
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: cnf
+                    operator: NotIn
+                    values:
+                      - linux-cnf2
+                      - linux-cnf3
+              topologyKey: "kubernetes.io/hostname"
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: linux-cnf2
+
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        cnf: linux-cnf2
+      annotations:
+        contivpp.io/custom-if: tap1/tap/stub, tap2/tap/stub
+    spec:
+      containers:
+        - name: busybox
+          image: praqma/network-multitool
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          command:
+            - sleep
+            - "3600"
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: cnf
+                    operator: NotIn
+                    values:
+                      - linux-cnf1
+                      - linux-cnf3
+              topologyKey: "kubernetes.io/hostname"
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: linux-cnf3
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        cnf: linux-cnf3
+      annotations:
+        contivpp.io/custom-if: tap1/tap/stub
+    spec:
+      containers:
+        - name: busybox
+          image: praqma/network-multitool
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          command:
+            - sleep
+            - "3600"
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: cnf
+                    operator: NotIn
+                    values:
+                      - linux-cnf1
+                      - linux-cnf2
+              topologyKey: "kubernetes.io/hostname"

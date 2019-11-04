@@ -2,6 +2,7 @@
 contiv:
   nodeToNodeTransport: "vxlan"  # possible values: "vxlan", "srv6", "nooverlay"
   useSRv6ForServices: false
+  useSRv6ForServiceFunctionChaining: false
   useDX6ForSrv6NodetoNodeTransport: false
   useTAPInterfaces: true
   tapInterfaceVersion: 2
@@ -68,6 +69,10 @@ contiv:
       nodeToNodeHostLocalSIDSubnetCIDR: 9500::/16
       nodeToNodePodPolicySIDSubnetCIDR: 8501::/16
       nodeToNodeHostPolicySIDSubnetCIDR: 8500::/16
+      sfcPolicyBSIDSubnetCIDR: 8eee::/16
+      sfcServiceFunctionSIDSubnetCIDR: 9600::/16
+      sfcEndLocalSIDSubnetCIDR: 9310::/16
+      sfcIDLengthUsedInSidForServiceFunction: 16
 logs:
   defaultLevel: debug
 

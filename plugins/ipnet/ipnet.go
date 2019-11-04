@@ -27,6 +27,7 @@ import (
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
+	"github.com/pkg/errors"
 
 	linux_nsplugin "github.com/ligato/vpp-agent/plugins/linux/nsplugin"
 	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vpp/ifplugin"
@@ -341,7 +342,8 @@ func (n *IPNet) GetPodByIf(ifName string) (podNamespace string, podName string, 
 
 // GetPodIfNames looks up logical interface names that correspond to the interfaces
 // associated with the given local pod name + namespace.
-func (n *IPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string, exists bool) {
+func (n *IPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string,
+	exists bool) {
 	// check that the pod is locally deployed
 	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 	pod, exists := n.PodManager.GetLocalPods()[podID]
@@ -362,23 +364,24 @@ func (n *IPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, l
 	return vppIfName, linuxIfName, loopIfName, true
 }
 
-// GetPodCustomIfName looks up logical interface name that corresponds to the custom interface
+// GetPodCustomIfNames looks up logical interface name that corresponds to the custom interface
 // with specified name and type associated with the given local pod name + namespace.
-func (n *IPNet) GetPodCustomIfName(podNamespace, podName, customIfName string) (ifName string, exists bool) {
+func (n *IPNet) GetPodCustomIfNames(podNamespace, podName, customIfName string) (ifName string, linuxIfName string,
+	exists bool) {
 	// check that the pod is locally deployed
 	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 	pod, exists := n.PodManager.GetLocalPods()[podID]
 	if !exists {
-		return "", false
+		return "", "", false
 	}
 
 	customIf, exists := n.podCustomIf[pod.ID.String()+customIfName]
 	if !exists {
-		return "", false
+		return "", "", false
 	}
 
-	ifName, _, _ = n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
-	return ifName, true
+	ifName, linuxIfName, _ = n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
+	return ifName, linuxIfName, true
 }
 
 // GetExternalIfName returns logical name that corresponds to the specified external interface name and VLAN ID.
@@ -476,4 +479,39 @@ func (n *IPNet) GetOrAllocateVrfID(networkName string) (vrf uint32, err error) {
 // ReleaseVrfID releases the allocated VRF ID number for the given network.
 func (n *IPNet) ReleaseVrfID(networkName string) (err error) {
 	return n.IDAlloc.ReleaseID(vrfPoolName, networkName)
+}
+
+// GetPodCustomIfNetworkName returns the name of custom network which should contain given
+// pod custom interface or error otherwise. This supports both type of pods, remote and local
+func (n *IPNet) GetPodCustomIfNetworkName(podID podmodel.ID, ifName string) (string, error) {
+	for name, info := range n.customNetworks {
+		if pod, inPod := info.pods[podID.String()]; inPod {
+			for _, intf := range info.interfaces[pod.ID.String()] {
+				if ifName == intf {
+					return name, nil // in local Pod && in local interface of given network
+				}
+			}
+		}
+	}
+	return "", errors.Errorf("couldn't find any custom network that custom interface %v in pod %v "+
+		"belongs to (Custom networks: %v)", ifName, podID, n.customNetworks)
+}
+
+// GetExternalIfNetworkName returns the name of custom network which should contain given
+// external interface or error otherwise.
+func (n *IPNet) GetExternalIfNetworkName(ifName string) (string, error) {
+	for name, info := range n.customNetworks {
+		if extIf, exists := info.extInterfaces[ifName]; exists {
+			if ifName == extIf.Name { // match of external interface resource name
+				return name, nil
+			}
+			for _, intf := range info.interfaces[extIf.Name] {
+				if ifName == intf { // match of external interface vpp (DPDK) name
+					return name, nil
+				}
+			}
+		}
+	}
+	return "", errors.Errorf("couldn't find any custom network that external interface %v "+
+		"belongs to (Custom networks: %v)", ifName, n.customNetworks)
 }

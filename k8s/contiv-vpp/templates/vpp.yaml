@@ -572,7 +572,7 @@ data:
 {{- if .Values.http.enableServerCert }}
 {{- if not .Values.http.mountFromHost }}
 ---
-{{- end }} # end of if useExternalETCDinstance
+{{- end }}
 
 # The following contains k8s Secrets for use with a secured HTTP plugin.
 # For information on populating Secrets, see http://kubernetes.io/docs/user-guide/secrets/

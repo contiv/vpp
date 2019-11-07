@@ -41,29 +41,33 @@ checkReadiness() {
 }
 
 setupcnf1() {
-        kubectl exec ${cnf1} -- /usr/bin/vppctl -s :5002 set int ip address memif0/0 192.168.187.1/30
-        kubectl exec ${cnf1} -- /usr/bin/vppctl -s :5002 set int state memif0/0 up
+        kubectl exec ${cnf1} -- /usr/bin/vppctl -s :5002 set int ip address memif0/1 192.168.187.1/30
+        kubectl exec ${cnf1} -- /usr/bin/vppctl -s :5002 set int state memif0/1 up
         echo "Configured cnf1 with IP 192.168.187.1"
 }
 
 setupcnf2() {
-        kubectl exec ${cnf2} -- /usr/bin/vppctl -s :5002 set int l2 xconnect memif0/0 memif0/1
-        kubectl exec ${cnf2} -- /usr/bin/vppctl -s :5002 set int l2 xconnect memif0/1 memif0/0
-        kubectl exec ${cnf2} -- /usr/bin/vppctl -s :5002 set int state memif0/0 up
+        kubectl exec ${cnf2} -- /usr/bin/vppctl -s :5002 set int l2 xconnect memif0/1 memif0/2
+        kubectl exec ${cnf2} -- /usr/bin/vppctl -s :5002 set int l2 xconnect memif0/2 memif0/1
         kubectl exec ${cnf2} -- /usr/bin/vppctl -s :5002 set int state memif0/1 up
+        kubectl exec ${cnf2} -- /usr/bin/vppctl -s :5002 set int state memif0/2 up
 
         echo "Configured cnf2 with VPP xconnect."
 }
 
 setupcnf3() {
-        kubectl exec ${cnf3} -- /usr/bin/vppctl -s :5002 set int ip address memif0/0 192.168.187.2/30
-        kubectl exec ${cnf3} -- /usr/bin/vppctl -s :5002 set int state memif0/0 up
+        kubectl exec ${cnf3} -- /usr/bin/vppctl -s :5002 set int ip address memif0/1 192.168.187.2/30
+        kubectl exec ${cnf3} -- /usr/bin/vppctl -s :5002 set int state memif0/1 up
         echo "Configured cnf3 with IP 192.168.187.2"
 }
 
 testConnectivity() {
-        there=`kubectl exec ${cnf1} -- /usr/bin/vppctl -s :5002 ping 192.168.187.2 source memif0/0 repeat 5`
-        back=`kubectl exec ${cnf3} -- /usr/bin/vppctl -s :5002 ping 192.168.187.1 source memif0/0 repeat 5`
+        echo "Pinging from CNF1:"
+        there=`kubectl exec ${cnf1} -- /usr/bin/vppctl -s :5002 ping 192.168.187.2 source memif0/1 repeat 5`
+        echo $there
+        echo "Pinging from CNF3:"
+        back=`kubectl exec ${cnf3} -- /usr/bin/vppctl -s :5002 ping 192.168.187.1 source memif0/1 repeat 5`
+        echo $back
         loss_there=`echo ${there} | grep -oE "[[:digit:]]{1,3}% packet loss" | grep -oE "[[:digit:]]{1,3}"`
         loss_back=`echo ${back} | grep -oE "[[:digit:]]{1,3}% packet loss" | grep -oE "[[:digit:]]{1,3}"`
         if [ "${loss_there}" -gt "20" ] || [ "${loss_back}" -gt "20" ];then

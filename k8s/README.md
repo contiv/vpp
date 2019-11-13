@@ -59,6 +59,7 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
     - `useSRv6ForServices`: use SRv6(IPv6) for k8s service (this handles only packet from service client to backend, but 
     in case of response packet, other networking settings handle it because it is normal pod/host-to-pod/host connectivity)
     - `useDX6ForSrv6NodetoNodeTransport`: enable usage of DX6 instead of DT6 for node-to-node communication (only for pod-to-pod case with full IPv6 environment), default is false
+    - `useSRv6ForServiceFunctionChaining`: use SRv6(IPv6) for Service Function Chaining in k8s service
     - `useTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP and VPP-to-Host interconnection
     - `tAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
       for a faster, virtio-based, VPP TAPv2 interface (default);
@@ -93,14 +94,20 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
       - `nodeToNodeHostLocalSIDSubnetCIDR`: subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into main VRF table (DT6 end function of localsid)
       - `nodeToNodePodPolicySIDSubnetCIDR`: subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodePodLocalSIDSubnetCIDR`
       - `nodeToNodeHostPolicySIDSubnetCIDR`: subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodeHostLocalSIDSubnetCIDR`.
+      - `sfcPolicyBSIDSubnetCIDR`: subnet applied to SFC ID(trimmed hash of SFC name) to get unique binding sid for SRv6 policy used in SFC
+      - `sfcServiceFunctionSIDSubnetCIDR`: subnet applied to combination of SFC ID(trimmed hash of SFC name) and service function pod IP address to get unique sid for SRv6 Localsid referring to SFC service function
+      - `sfcEndLocalSIDSubnetCIDR`: subnet applied to the IP address of last link of SFC to get unique sid for last localsid in the segment routing path representing SFC chain
+      - `sfcIDLengthUsedInSidForServiceFunction`: length(in bits) of SFC ID(trimmed hash of SFC name) that should be used by computing SFC ServiceFunction localsid SID. A hash is computed from SFC name, trimmed by length (this setting) and used in computation of SFC ServiceFunction localsid SID (SID=prefix from sfcServiceFunctionSIDSubnetCIDR + trimmed hash of SFC name + service function pod IP address).
 
       Default config values for SRv6 SID/BSID subnets follow these rules to gain more clarity in debugging/maintaining/adding new functionality(adding new sids/bsids):
        - 8fff::/16 = service policy
+       - 8eee::/16 = sfc policy
        - 8\<XYZ\>::/16 = policy for node-to-node communication ending in locasid with SID 9\<XYZ\>::/16
        - 9000::/16 = localsid with end function End
        - 9100::/16 = localsid with end function End.DX2 (crossconnect target could be found out from non-prefix part of SID (target interface leads to target pod/node and sid is created from IP of that pod/node))
        - 9200::/16 = localsid with end function End.DX4 (crossconnect target is known as in DX2 case)
-       - 9300::/16 = localsid with end function End.DX6 (crossconnect target is known as in DX2 case)
+       - 9300::/16 = localsid with end function End.DX6 (crossconnect target is known as in DX2 case), no SFC usage
+       - 9310::/16 = localsid with end function End.DX6 (crossconnect target is known as in DX2 case), SFC usage
        - 94\<YZ\>::/16 = localsid with end function End.DT4 (\<YZ\> is id of target ipv4 VRF table)
        - 95\<YZ\>::/16 = localsid with end function End.DT6 (\<YZ\> is id of target ipv6 VRF table)
        - 9600::/16 = localsid with end function End.AD (crossconnect target is known as in DX2 case)

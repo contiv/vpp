@@ -51,7 +51,6 @@ setupcnf2() {
         kubectl exec ${cnf2} -- /usr/bin/vppctl -s :5002 set int l2 xconnect memif0/2 memif0/1
         kubectl exec ${cnf2} -- /usr/bin/vppctl -s :5002 set int state memif0/1 up
         kubectl exec ${cnf2} -- /usr/bin/vppctl -s :5002 set int state memif0/2 up
-
         echo "Configured cnf2 with VPP xconnect."
 }
 

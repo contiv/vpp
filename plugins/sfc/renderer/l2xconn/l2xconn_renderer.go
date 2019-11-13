@@ -265,9 +265,9 @@ func (rndr *Renderer) getSFInterface(sf *renderer.ServiceFunction, input bool) s
 			return ""
 		}
 		if input {
-			return pod.InputInterface
+			return pod.InputInterface.LogicalName
 		}
-		return pod.OutputInterface
+		return pod.OutputInterface.LogicalName
 
 	case renderer.ExternalInterface:
 		iface := rndr.getPreferredSFInterface(sf)

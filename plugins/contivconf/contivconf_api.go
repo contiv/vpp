@@ -137,22 +137,47 @@ type IPAMConfig struct {
 
 // SRv6Settings hold all SID/BSID managment settings (SID/BSID is basically IPv6 address)
 type SRv6Settings struct {
-	// ServicePolicyBSIDSubnetCIDR is subnet applied to lowest k8s service IP to get unique (per service,per node) binding sid for SRv6 policy
+	// ServicePolicyBSIDSubnetCIDR is subnet applied to lowest k8s service IP to get unique
+	// (per service,per node) binding sid for SRv6 policy
 	ServicePolicyBSIDSubnetCIDR *net.IPNet
-	// ServicePodLocalSIDSubnetCIDR is subnet applied to k8s service local pod backend IP to get unique sid for SRv6 Localsid referring to local pod beckend using DX6 end function
+	// ServicePodLocalSIDSubnetCIDR is subnet applied to k8s service local pod backend IP to get unique sid
+	// for SRv6 Localsid referring to local pod beckend using DX6 end function
 	ServicePodLocalSIDSubnetCIDR *net.IPNet
-	// ServiceHostLocalSIDSubnetCIDR is subnet applied to k8s service host pod backend IP to get unique sid for SRv6 Localsid referring to local host beckend using DX6 end function
+	// ServiceHostLocalSIDSubnetCIDR is subnet applied to k8s service host pod backend IP to get unique sid
+	// for SRv6 Localsid referring to local host beckend using DX6 end function
 	ServiceHostLocalSIDSubnetCIDR *net.IPNet
-	// ServiceNodeLocalSIDSubnetCIDR is subnet applied to node IP to get unique sid for SRv6 Localsid that is intermediate segment routing to other nodes in Srv6 segment list (used in k8s services)
+	// ServiceNodeLocalSIDSubnetCIDR is subnet applied to node IP to get unique sid for SRv6 Localsid that is
+	// intermediate segment routing to other nodes in Srv6 segment list (used in k8s services)
 	ServiceNodeLocalSIDSubnetCIDR *net.IPNet
-	// NodeToNodePodLocalSIDSubnetCIDR is subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into pod VRF table (DT6 end function of localsid)
+	// NodeToNodePodLocalSIDSubnetCIDR is subnet applied to node IP to get unique sid for SRv6 Localsid that is
+	// the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into
+	// pod VRF table (DT6 end function of localsid)
 	NodeToNodePodLocalSIDSubnetCIDR *net.IPNet
-	// NodeToNodeHostLocalSIDSubnetCIDR is subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into main VRF table (DT6 end function of localsid)
+	// NodeToNodeHostLocalSIDSubnetCIDR is subnet applied to node IP to get unique sid for SRv6 Localsid that
+	// is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into
+	// main VRF table (DT6 end function of localsid)
 	NodeToNodeHostLocalSIDSubnetCIDR *net.IPNet
-	// NodeToNodePodPolicySIDSubnetCIDR is subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodePodLocalSIDSubnetCIDR`
+	// NodeToNodePodPolicySIDSubnetCIDR is subnet applied to node IP to get unique bsid for SRv6 policy that
+	// defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodePodLocalSIDSubnetCIDR`
 	NodeToNodePodPolicySIDSubnetCIDR *net.IPNet
-	// NodeToNodeHostPolicySIDSubnetCIDR is subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodeHostLocalSIDSubnetCIDR`.
+	// NodeToNodeHostPolicySIDSubnetCIDR is subnet applied to node IP to get unique bsid for SRv6 policy that
+	// defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodeHostLocalSIDSubnetCIDR`.
 	NodeToNodeHostPolicySIDSubnetCIDR *net.IPNet
+	// SFCPolicyBSIDSubnetCIDR is subnet applied to SFC ID(trimmed hash of SFC name) to get unique binding
+	// sid for SRv6 policy used in SFC
+	SFCPolicyBSIDSubnetCIDR *net.IPNet
+	// SFCServiceFunctionSIDSubnetCIDR is subnet applied to combination of SFC ID(trimmed hash of SFC name) and
+	// service function pod IP address to get unique sid for SRv6 Localsid referring to SFC service function
+	SFCServiceFunctionSIDSubnetCIDR *net.IPNet
+	// SFCEndLocalSIDSubnetCIDR is subnet applied to the IP address of last link of SFC to get unique sid
+	// for last localsid in the segment routing path representing SFC chain
+	SFCEndLocalSIDSubnetCIDR *net.IPNet
+	// SFCIDLengthUsedInSidForServiceFunction is length(in bits) of SFC ID(trimmed hash of SFC name) that
+	// should be used by computing SFC ServiceFunction localsid SID. A hash is computed from SFC name,
+	// trimmed by length (this setting) and used in computation of SFC ServiceFunction localsid SID
+	// (SID=prefix from sfcServiceFunctionSIDSubnetCIDR + trimmed hash of SFC name + service function pod
+	// IP address).
+	SFCIDLengthUsedInSidForServiceFunction uint8
 }
 
 // CustomIPAMSubnets allows users to manually select individual subnets.

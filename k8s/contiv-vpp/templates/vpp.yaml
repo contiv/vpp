@@ -33,6 +33,7 @@ data:
   contiv.conf: |-
     nodeToNodeTransport: {{ .Values.contiv.nodeToNodeTransport }}
     useSRv6ForServices: {{ .Values.contiv.useSRv6ForServices }}
+    useSRv6ForServiceFunctionChaining: {{ .Values.contiv.useSRv6ForServiceFunctionChaining}}
     useDX6ForSrv6NodetoNodeTransport: {{ .Values.contiv.useDX6ForSrv6NodetoNodeTransport }}
     useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
@@ -98,6 +99,10 @@ data:
         nodeToNodeHostLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodeHostLocalSIDSubnetCIDR }}
         nodeToNodePodPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodePodPolicySIDSubnetCIDR }}
         nodeToNodeHostPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodeHostPolicySIDSubnetCIDR }}
+        sfcPolicyBSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcPolicyBSIDSubnetCIDR}}
+        sfcServiceFunctionSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcServiceFunctionSIDSubnetCIDR}}
+        sfcEndLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcEndLocalSIDSubnetCIDR}}
+        sfcIDLengthUsedInSidForServiceFunction: {{ .Values.contiv.ipamConfig.srv6.sfcIDLengthUsedInSidForServiceFunction}}
     {{- if .Values.contiv.nodeConfig }}
     nodeConfig:
     {{- range .Values.contiv.nodeConfig }}
@@ -177,13 +182,17 @@ data:
         level: info
       - name: vpp-rest
         level: info
+  # GRPC server used to accept CNI Add/Del Pod requests
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock
     force-socket-removal: true
     permission: 700
+  # GRCP server used to accept additional network configuration
+  grpc2.conf: |
+    endpoint: "{{ $any_addr }}:{{ .Values.vswitch.grpcPort }}"
   http.conf: |
-    endpoint: "{{ $any_addr }}:9999"
+    endpoint: "{{ $any_addr }}:{{ .Values.vswitch.httpPort }}"
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}
@@ -488,7 +497,7 @@ metadata:
   namespace: kube-system
 data:
   http.conf: |
-    endpoint: "{{ $any_addr }}:9191"
+    endpoint: "{{ $any_addr }}:{{ .Values.ksr.httpPort }}"
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}
@@ -819,12 +828,12 @@ spec:
             privileged: true
           ports:
             # readiness + liveness probe
-            - containerPort: 9999
+            - containerPort: {{ .Values.vswitch.httpPort }}
           {{- if .Values.vswitch.enableLivenessReadinessProbes }}
           readinessProbe:
             httpGet:
               path: /readiness
-              port: 9999
+              port: {{ .Values.vswitch.httpPort }}
               {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
@@ -840,7 +849,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /liveness
-              port: 9999
+              port: {{ .Values.vswitch.httpPort }}
               {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
@@ -897,6 +906,8 @@ spec:
               value: "/etc/vpp-agent/http.conf"
             - name: GRPC_CONFIG
               value: "/etc/vpp-agent/grpc.conf"
+            - name: GRPC2_CONFIG
+              value: "/etc/vpp-agent/grpc2.conf"
             - name: LINUX_IFPLUGIN_CONFIG
               value: "/etc/vpp-agent/linux-ifplugin.conf"
             - name: LINUX_L3PLUGIN_CONFIG
@@ -1222,7 +1233,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /readiness
-              port: 9191
+              port: {{ .Values.ksr.httpPort }}
               {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
@@ -1238,7 +1249,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /liveness
-              port: 9191
+              port: {{ .Values.ksr.httpPort }}
               {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
@@ -1528,7 +1539,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /readiness
-              port: 9090
+              port: {{ .Values.crd.httpPort }}
               {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
@@ -1544,7 +1555,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /liveness
-              port: 9090
+              port: {{ .Values.crd.httpPort }}
               {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
@@ -1685,7 +1696,7 @@ metadata:
   namespace: kube-system
 data:
   http.conf: |
-    endpoint: "{{ $any_addr }}:9090"
+    endpoint: "{{ $any_addr }}:{{ .Values.crd.httpPort }}"
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}

@@ -62,6 +62,7 @@ Parameter | Description | Default
 --------- | ----------- | -------
 `contiv.nodeToNodeTransport` | Transportation used for node-to-node communication | `vxlan`
 `contiv.useSRv6ForServices` | Enable usage of SRv6 for k8s service | `false`
+`contiv.useSRv6ForServiceFunctionChaining` | Enable use SRv6(IPv6) for Service Function Chaining in k8s service | `false`
 `contiv.useDX6ForSrv6NodetoNodeTransport` | Enable usage of DX6 instead of DT6 for node-to-node communication (only for pod-to-pod case with full IPv6 environment) | `false`
 `contiv.mtuSize` | MTU Size | 1450
 `contiv.useTAPInterfaces` | Enable TAP interfaces | `True`
@@ -88,6 +89,18 @@ Parameter | Description | Default
 `contiv.ipamConfig.nodeInterconnectCIDR` | Node interconnect CIDR, uses DHCP if empty | `""`
 `contiv.ipamConfig.serviceCIDR` | Service CIDR | `""`
 `contiv.ipamConfig.defaultGateway` | Default gateway for all nodes (can be overridden by a nodeconfig)| `""`
+`contiv.ipamConfig.srv6.servicePolicyBSIDSubnetCIDR` | Subnet applied to lowest k8s service IP to get unique (per service,per node) binding sid for SRv6 policy | `8fff::/16`
+`contiv.ipamConfig.srv6.servicePodLocalSIDSubnetCIDR` | Subnet applied to k8s service local pod backend IP to get unique sid for SRv6 Localsid referring to local pod beckend using DX6 end function | `9300::/16`
+`contiv.ipamConfig.srv6.serviceHostLocalSIDSubnetCIDR` | Subnet applied to k8s service host pod backend IP to get unique sid for SRv6 Localsid referring to local host beckend using DX6 end function | `9300::/16`
+`contiv.ipamConfig.srv6.serviceNodeLocalSIDSubnetCIDR` | Subnet applied to node IP to get unique sid for SRv6 Localsid that is intermediate segment routing to other nodes in Srv6 segment list (used in k8s services) | `9000::/16`
+`contiv.ipamConfig.srv6.nodeToNodePodLocalSIDSubnetCIDR` | Subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into pod VRF table (DT6 end function of localsid) | `9501::/16`
+`contiv.ipamConfig.srv6.nodeToNodeHostLocalSIDSubnetCIDR` | Subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into main VRF table (DT6 end function of localsid) | `9500::/16`
+`contiv.ipamConfig.srv6.nodeToNodePodPolicySIDSubnetCIDR` | Subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodePodLocalSIDSubnetCIDR` | `8501::/16`
+`contiv.ipamConfig.srv6.nodeToNodeHostPolicySIDSubnetCIDR` | Subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodeHostLocalSIDSubnetCIDR`. | `8500::/16`
+`contiv.ipamConfig.srv6.sfcPolicyBSIDSubnetCIDR` | Subnet applied to SFC ID(trimmed hash of SFC name) to get unique binding sid for SRv6 policy used in SFC | `8eee::/16`
+`contiv.ipamConfig.srv6.sfcServiceFunctionSIDSubnetCIDR` | Subnet applied to combination of SFC ID(trimmed hash of SFC name) and service function pod IP address to get unique sid for SRv6 Localsid referring to SFC service function | `9600::/16`
+`contiv.ipamConfig.srv6.sfcEndLocalSIDSubnetCIDR` | Subnet applied to the IP address of last link of SFC to get unique sid for last localsid in the segment routing path representing SFC chain | `9310::/16`
+`contiv.ipamConfig.srv6.sfcIDLengthUsedInSidForServiceFunction` | Length(in bits) of SFC ID(trimmed hash of SFC name) that should be used by computing SFC ServiceFunction localsid SID. A hash is computed from SFC name, trimmed by length (this setting) and used in computation of SFC ServiceFunction localsid SID (SID=prefix from sfcServiceFunctionSIDSubnetCIDR + trimmed hash of SFC name + service function pod IP address). | `16`
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
 `contiv.vswitch.useSocketVPPConnection` | use unix domain socket for connection to VPP | `false`
 `contiv.vswitch.defineMemoryLimits` | define memory requests & limits for vswitch container | `true`
@@ -97,6 +110,8 @@ Parameter | Description | Default
 `contiv.vswitch.enableCoreDumps` | enable core dumps of VPP into coreDumpsDir | `false`
 `contiv.vswitch.coreDumpsDir` | location of the VPP core dumps | `/var/contiv/dumps`
 `contiv.vswitch.enableInterfaceStats` | enable periodic interface statistic readout from VPP  | `false`
+`contiv.vswitch.httpPort` | The port on which the REST API of vswitch will be exposed | `9999`
+`contiv.vswitch.grpcPort` | The port on which the gRPC server accepting additional network configuration will listen | `9111`
 `controller.enableRetry` | Enable retry of failed CRUD operations | `true`
 `controller.delayRetry` | Delay retry of failed CRUD operations by the given time interval in nanoseconds | `1000000000`
 `controller.maxRetryAttempts` | Maximum number of retries to be performed for failed CRUD operations | `3`
@@ -116,6 +131,7 @@ Parameter | Description | Default
 `ksr.image.repository` | ksr container image repository | `contivvpp/ksr`
 `ksr.image.tag`| ksr container image tag | `latest`
 `ksr.image.pullPolicy` | ksr container image pull policy | `IfNotPresent`
+`ksr.httpPort` | The port on which the REST API of KSR will be exposed | `9191`
 `etcd.useExternalInstance` | do not deploy etcd as a part of contiv, options except `externalInstance` block are ignored if set to `true` | `false`
 `etcd.externalInstance.secretName` | name of secret containing etcd certificates | `false`
 `etcd.externalInstance.endpoints` | endpoints of external etcd instance | `false`
@@ -158,3 +174,4 @@ Parameter | Description | Default
 `crd.validateInterval` | Interval in minutes between Contiv configuration validations for TelemetryReport CRD | `1`
 `crd.validateState` | Which state of the Contiv configuration to validate for TelemetryReport CRD (options: "SB", "internal", "NB") | `SB`
 `crd.disableNetctlREST` | Disable exposing of contiv-netctl via REST | `false`
+`crd.httpPort` | The port on which the REST API of Contiv-CRD will be exposed | `9090`

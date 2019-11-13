@@ -24,6 +24,7 @@ data:
   contiv.conf: |-
     nodeToNodeTransport: vxlan
     useSRv6ForServices: false
+    useSRv6ForServiceFunctionChaining: false
     useDX6ForSrv6NodetoNodeTransport: false
     useTAPInterfaces: true
     tapInterfaceVersion: 2
@@ -57,6 +58,10 @@ data:
         nodeToNodeHostLocalSIDSubnetCIDR: 9500::/16
         nodeToNodePodPolicySIDSubnetCIDR: 8501::/16
         nodeToNodeHostPolicySIDSubnetCIDR: 8500::/16
+        sfcPolicyBSIDSubnetCIDR: 8eee::/16
+        sfcServiceFunctionSIDSubnetCIDR: 9600::/16
+        sfcEndLocalSIDSubnetCIDR: 9310::/16
+        sfcIDLengthUsedInSidForServiceFunction: 16
   controller.conf: |
     enableRetry: true
     delayRetry: 1000000000
@@ -102,11 +107,15 @@ data:
         level: info
       - name: vpp-rest
         level: info
+  # GRPC server used to accept CNI Add/Del Pod requests
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock
     force-socket-removal: true
     permission: 700
+  # GRCP server used to accept additional network configuration
+  grpc2.conf: |
+    endpoint: "0.0.0.0:9111"
   http.conf: |
     endpoint: "0.0.0.0:9999"
   bolt.conf: |
@@ -492,6 +501,8 @@ spec:
               value: "/etc/vpp-agent/http.conf"
             - name: GRPC_CONFIG
               value: "/etc/vpp-agent/grpc.conf"
+            - name: GRPC2_CONFIG
+              value: "/etc/vpp-agent/grpc2.conf"
             - name: LINUX_IFPLUGIN_CONFIG
               value: "/etc/vpp-agent/linux-ifplugin.conf"
             - name: LINUX_L3PLUGIN_CONFIG

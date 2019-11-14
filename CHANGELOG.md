@@ -1,3 +1,19 @@
+# Release v3.3.3 (2019-11-14)
+
+### VPP
+ - version **v19.08.1** (latest stable/1908)
+
+### New Features & Enhancements
+ - [SRv6 Renderer](docs/dev-guide/SFC.md#srv6-renderer) for Service Function Chaining
+
+### Bugfixes
+ - fixed an issue in helm chart
+
+### Known Issues
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
 # Release v3.3.2 (2019-10-16)
 
 ### VPP

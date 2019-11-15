@@ -1,7 +1,8 @@
 /*
  * // Copyright (c) 2019 Cisco and/or its affiliates.
- * // Other Contributors: 1. Adel Bouridah Centre Universitaire Abdelhafid Boussouf Mila - Algerie a.bouridah@centre-univ-mila.dz
- * // 2. Nadjib Aitsaadi Universite Paris Est Creteil, nadjib.aitsaadi@u-pec.fr
+ * // Other Contributors:
+ * //    1. Adel Bouridah Centre Universitaire Abdelhafid Boussouf Mila - Algerie a.bouridah@centre-univ-mila.dz
+ * //    2. Nadjib Aitsaadi Universite Paris Est Creteil, nadjib.aitsaadi@u-pec.fr
  * // Licensed under the Apache License, Version 2.0 (the "License");
  * // you may not use this file except in compliance with the License.
  * // You may obtain a copy of the License at:
@@ -161,26 +162,27 @@ func (pod PodSF) String() string {
 		pod.ID, pod.NodeID, pod.Local, pod.InputInterface, pod.OutputInterface)
 }
 
-// InterfaceNames is container for multiple names for one interface
+// InterfaceNames is container for multiple logical names assigned to one interface (k8s vs. vpp-agent namespace).
 type InterfaceNames struct {
-	// LogicalName for local pods, LogicalName contain actual pod interface name which can be used for configuration
-	// without further processing. LogicalName for non-local pods contain name from CRD.
-	LogicalName string
-	// CRDName is name of the interface as it came from CRD
+	// ConfigName contains the logical interface name used in the namespace of the configuration for
+	// the underlying vpp-agent.
+	//
+	// For non-local pods, it contains the name from CRD.  (TODO: is this special case really needed?)
+	ConfigName string
+	// CRDName is name of the interface as it came from CRD.
 	CRDName string
 }
 
 // String converts InterfaceNames into a human-readable string.
 func (in InterfaceNames) String() string {
-	return fmt.Sprintf("<LogicalName: %s, CRDName: %s>", in.LogicalName, in.CRDName)
+	return fmt.Sprintf("<ConfigName: %s, CRDName: %s>", in.ConfigName, in.CRDName)
 }
 
 // InterfaceSF represents an interface-type service function.
 type InterfaceSF struct {
-	// InterfaceName contains name of the interface to/from which the traffic flows
-	// (can be used for the configuration without further processing).
-	InterfaceName    string // name of the vpp interface attached to this external interface
-	VppInterfaceName string // true if this is a node-local interface
+	// External Interface name as defined in CRD vs. the actual interface name used inside the configuration
+	// for the vpp-agent.
+	InterfaceNames
 
 	NodeID uint32 // ID of the node where the interface resides
 	Local  bool   // true if this is a node-local interface
@@ -188,8 +190,8 @@ type InterfaceSF struct {
 
 // String converts InterfaceSF into a human-readable string.
 func (iface InterfaceSF) String() string {
-	return fmt.Sprintf("{InterfaceName: %s, NodeID: %d, Local:%v}",
-		iface.InterfaceName, iface.NodeID, iface.Local)
+	return fmt.Sprintf("{CRDName: %s, ConfigName: %s, NodeID: %d, Local:%v}",
+		iface.CRDName, iface.ConfigName, iface.NodeID, iface.Local)
 }
 
 // ResyncEventData wraps an entire state of K8s services as provided by the Processor.

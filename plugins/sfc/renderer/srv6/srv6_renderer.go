@@ -353,7 +353,7 @@ func (rndr *Renderer) checkCustomNetworkIntegrity(paths [][]ServiceFunctionSelec
 					return "", err
 				}
 			case *renderer.InterfaceSF:
-				customNetwork, err = rndr.checkNetworkForExternalInterface(selectable.InterfaceName,
+				customNetwork, err = rndr.checkNetworkForExternalInterface(selectable.CRDName,
 					customNetwork)
 				if err != nil {
 					return "", err
@@ -477,9 +477,9 @@ func (rndr *Renderer) sortPodsAndInterfaces(chain []*renderer.ServiceFunction) {
 		if len(link.ExternalInterfaces) > 1 {
 			sort.Slice(link.ExternalInterfaces, func(i, j int) bool {
 				id1 := fmt.Sprintf("%v # %v", link.ExternalInterfaces[i].NodeID,
-					link.ExternalInterfaces[i].InterfaceName)
+					link.ExternalInterfaces[i].CRDName)
 				id2 := fmt.Sprintf("%v # %v", link.ExternalInterfaces[j].NodeID,
-					link.ExternalInterfaces[j].InterfaceName)
+					link.ExternalInterfaces[j].CRDName)
 				return id1 < id2
 			})
 		}
@@ -548,18 +548,18 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 	case l2DX2Endpoint:
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L2 service
 			// outgoing interface for SR-proxy is input interface for service
-			OutgoingInterface: pod.InputInterface.LogicalName,
+			OutgoingInterface: pod.InputInterface.ConfigName,
 			// incoming interface for SR-proxy is output interface for service
-			IncomingInterface: pod.OutputInterface.LogicalName,
+			IncomingInterface: pod.OutputInterface.ConfigName,
 		}}
 	case l3Dx4Endpoint, l3Dx6Endpoint:
 		podInputIfIPNet := rndr.IPAM.GetPodCustomIfIP(pod.ID, pod.InputInterface.CRDName, customNetworkName)
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L3 service
 			L3ServiceAddress: podInputIfIPNet.IP.String(),
 			// outgoing interface for SR-proxy is input interface for service
-			OutgoingInterface: pod.InputInterface.LogicalName,
+			OutgoingInterface: pod.InputInterface.ConfigName,
 			// incoming interface for SR-proxy is output interface for service
-			IncomingInterface: pod.OutputInterface.LogicalName,
+			IncomingInterface: pod.OutputInterface.ConfigName,
 		}}
 
 		if err := rndr.setARPForInputInterface(podInputIfIPNet, config, pod); err != nil {
@@ -604,13 +604,13 @@ func (rndr *Renderer) setARPForInputInterface(ipNet *net.IPNet, config controlle
 
 // extIfPhysAddress retrieves physical(MAC) address of given external interface
 func (rndr *Renderer) extIfPhysAddress(extIf *renderer.InterfaceSF) (string, error) {
-	val := rndr.ConfigRetriever.GetConfig(vpp_interfaces.InterfaceKey(extIf.VppInterfaceName))
+	val := rndr.ConfigRetriever.GetConfig(vpp_interfaces.InterfaceKey(extIf.ConfigName))
 	if val == nil {
-		return "", errors.Errorf("Unable to get data for interface %v", extIf.InterfaceName)
+		return "", errors.Errorf("Unable to get data for interface %v", extIf.CRDName)
 	}
 	vppInterface, ok := val.(*vpp_interfaces.Interface)
 	if !ok {
-		return "", errors.Errorf("Retrieved data for interface %v have bad type (%+v)", extIf.InterfaceName, val)
+		return "", errors.Errorf("Retrieved data for interface %v have bad type (%+v)", extIf.CRDName, val)
 	}
 	//if vppInterface.PhysAddress == "" {
 	//	return "", errors.Errorf("Interface %v has no physical address", vppInterface.Name)
@@ -852,7 +852,7 @@ func identifier(sfSelectable ServiceFunctionSelectable) string {
 		return pod.ID.String()
 	case *renderer.InterfaceSF:
 		iface := selectable
-		return iface.InterfaceName
+		return iface.CRDName
 	default:
 		return ""
 	}
@@ -892,7 +892,7 @@ func ipNet(sfSelectable ServiceFunctionSelectable, i ipam.API) *net.IPNet {
 		return i.GetPodIP(pod.ID)
 	case *renderer.InterfaceSF:
 		iface := selectable
-		return i.GetExternalInterfaceIP(iface.VppInterfaceName, iface.NodeID)
+		return i.GetExternalInterfaceIP(iface.ConfigName, iface.NodeID)
 	default:
 		return nil
 	}
@@ -903,10 +903,10 @@ func inInterface(sfSelectable ServiceFunctionSelectable) string {
 	switch selectable := sfSelectable.(type) {
 	case *renderer.PodSF:
 		pod := selectable
-		return pod.InputInterface.LogicalName
+		return pod.InputInterface.ConfigName
 	case *renderer.InterfaceSF:
 		iface := selectable
-		return iface.VppInterfaceName
+		return iface.ConfigName
 	default:
 		return ""
 	}
@@ -917,10 +917,10 @@ func outInterface(sfSelectable ServiceFunctionSelectable) string {
 	switch selectable := sfSelectable.(type) {
 	case *renderer.PodSF:
 		pod := selectable
-		return pod.OutputInterface.LogicalName
+		return pod.OutputInterface.ConfigName
 	case *renderer.InterfaceSF:
 		iface := selectable
-		return iface.VppInterfaceName
+		return iface.ConfigName
 	default:
 		return ""
 	}
@@ -935,10 +935,10 @@ func sidEndLocalSid(sfSelectable ServiceFunctionSelectable, i ipam.API, podVRF, 
 		return i.SidForSFCEndLocalsid(address), podVRF
 	case *renderer.InterfaceSF:
 		iface := selectable
-		if ipNet := i.GetExternalInterfaceIP(iface.VppInterfaceName, iface.NodeID); ipNet != nil {
-			return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, ipNet.IP), podVRF
+		if ipNet := i.GetExternalInterfaceIP(iface.ConfigName, iface.NodeID); ipNet != nil {
+			return i.SidForSFCExternalIfLocalsid(iface.CRDName, ipNet.IP), podVRF
 		}
-		return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, nil), podVRF
+		return i.SidForSFCExternalIfLocalsid(iface.CRDName, nil), podVRF
 	default:
 		return nil, 0
 	}

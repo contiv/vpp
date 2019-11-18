@@ -451,7 +451,7 @@ func sfcModel(sfc *renderer.ContivSFC) *sfcmodel.ServiceFunctionChain {
 			newSF.OutputInterface = link.Pods[0].OutputInterface.CRDName
 		case renderer.ExternalInterface:
 			newSF.Type = sfcmodel.ServiceFunctionChain_ServiceFunction_ExternalInterface
-			newSF.Interface = link.ExternalInterfaces[0].InterfaceName
+			newSF.Interface = link.ExternalInterfaces[0].CRDName
 		}
 		sfcModel.Chain = append(sfcModel.Chain, newSF)
 	}
@@ -822,9 +822,11 @@ func getPodToInterfaceChain(node Node) (sfc *renderer.ContivSFC) {
 	}
 
 	endExtIf := &renderer.InterfaceSF{
-		InterfaceName:    endExtIfName,
-		VppInterfaceName: endExtIfName,
-		NodeID:           WorkerID,
+		InterfaceNames: renderer.InterfaceNames{
+			ConfigName: endExtIfName,
+			CRDName:    endExtIfName,
+		},
+		NodeID: WorkerID,
 	}
 	sf4 := &renderer.ServiceFunction{
 		Type:               renderer.ExternalInterface,

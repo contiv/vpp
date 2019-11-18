@@ -472,8 +472,8 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 
 	// look for matching pods
 	for podID, pod := range sp.PodManager.GetPods() {
-		inputIfLogicalName := inputIfCRDName   // interface name that will be use in VPP
-		outputIfLogicalName := outputIfCRDName // interface name that will be use in VPP
+		inputIfConfigName := inputIfCRDName   // interface name that will be used in VPP
+		outputIfConfigName := outputIfCRDName // interface name that will be used in VPP
 		if sp.podMatchesSelector(pod, f.PodSelector) {
 			if deletedPod != nil && deletedPod.ID == podID {
 				continue
@@ -488,14 +488,14 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 				// process interface names to actual pod interface names
 				exists := false
 				if inputIfCRDName != "" {
-					inputIfLogicalName, _, exists = sp.IPNet.GetPodCustomIfNames(
+					inputIfConfigName, _, exists = sp.IPNet.GetPodCustomIfNames(
 						pod.ID.Namespace, pod.ID.Name, inputIfCRDName)
 					if !exists {
 						continue
 					}
 				}
 				if outputIfCRDName != "" {
-					outputIfLogicalName, _, exists = sp.IPNet.GetPodCustomIfNames(
+					outputIfConfigName, _, exists = sp.IPNet.GetPodCustomIfNames(
 						pod.ID.Namespace, pod.ID.Name, outputIfCRDName)
 					if !exists {
 						continue
@@ -508,12 +508,12 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 				NodeID: nodeID,
 				Local:  isLocal,
 				InputInterface: &renderer.InterfaceNames{
-					LogicalName: inputIfLogicalName,
-					CRDName:     inputIfCRDName,
+					ConfigName: inputIfConfigName,
+					CRDName:    inputIfCRDName,
 				},
 				OutputInterface: &renderer.InterfaceNames{
-					LogicalName: outputIfLogicalName,
-					CRDName:     outputIfCRDName,
+					ConfigName: outputIfConfigName,
+					CRDName:    outputIfCRDName,
 				},
 			})
 		}
@@ -568,10 +568,12 @@ func (sp *SFCProcessor) renderServiceFunctionInterface(f *sfcmodel.ServiceFuncti
 			nodeID = node.ID
 		}
 		sfIfs = append(sfIfs, &renderer.InterfaceSF{
-			InterfaceName:    sp.IPNet.GetExternalIfName(extIf.Name, nodeIf.Vlan),
-			VppInterfaceName: nodeIf.VppInterfaceName,
-			NodeID:           nodeID,
-			Local:            local,
+			InterfaceNames: renderer.InterfaceNames{
+				CRDName:    extIf.Name,
+				ConfigName: sp.IPNet.GetExternalIfName(nodeIf.VppInterfaceName, nodeIf.Vlan),
+			},
+			NodeID: nodeID,
+			Local:  local,
 		})
 	}
 

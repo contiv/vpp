@@ -11,8 +11,5 @@ documentation (Contiv-VPP adopted the coding style used in the
 [Ligato](https://github.com/ligato) project). Upon submission, each patch is run through
 the `go fmt` and `golint` tools.
 
-The tool used for managing third-party dependencies is [Dep](https://github.com/golang/dep).
-After adding or updating a dependency in `Gopkg.toml` run `make install-dep` to
-download the specified dependencies into the vendor folder. Please make sure
-that each dependency in the `Gopkg.toml` has a specific `version` defined
-(a specific commit ID or a git tag).
+Dependencies are managed using [go modules](https://blog.golang.org/using-go-modules).
+To download dependencies, run `make dep-install`.

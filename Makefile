@@ -2,7 +2,7 @@ VERSION := $(shell git describe --always --tags --dirty)
 COMMIT  := $(shell git rev-parse HEAD)
 DATE    := $(shell date +'%Y-%m-%dT%H:%M%:z')
 
-CNINFRA_AGENT := github.com/contiv/vpp/vendor/github.com/ligato/cn-infra/agent
+CNINFRA_AGENT := github.com/ligato/cn-infra/agent
 LDFLAGS = -s -w -X $(CNINFRA_AGENT).BuildVersion=$(VERSION) -X $(CNINFRA_AGENT).CommitHash=$(COMMIT) -X $(CNINFRA_AGENT).BuildDate=$(DATE)
 
 COVER_DIR ?= /tmp/
@@ -126,8 +126,8 @@ test-race:
 
 # Get coverage report tools
 get-covtools:
-	go get -v github.com/mattn/goveralls
-	go install -v ./vendor/github.com/wadey/gocovmerge
+	go get github.com/wadey/gocovmerge
+	go install -v github.com/wadey/gocovmerge
 
 # Run coverage report
 test-cover: get-covtools
@@ -185,7 +185,8 @@ test-cover-xml: test-cover
 
 # Get generator tools
 get-generators:
-	go install -v ./vendor/github.com/gogo/protobuf/protoc-gen-gogo
+	go get github.com/gogo/protobuf/protoc-gen-gogo
+	go install -v github.com/gogo/protobuf/protoc-gen-gogo
 
 # Generate sources
 generate: get-generators

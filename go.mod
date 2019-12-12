@@ -26,7 +26,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-errors/errors v1.0.1
 	github.com/gogo/googleapis v1.2.0 // indirect
-	github.com/gogo/protobuf v1.2.2-0.20190723190241-65acae22fc9d
+	github.com/gogo/protobuf v1.3.1
 	github.com/gogo/status v1.1.0 // indirect
 	github.com/google/go-cmp v0.3.1 // indirect
 	github.com/googleapis/gnostic v0.2.0 // indirect
@@ -54,6 +54,8 @@ require (
 	github.com/unrolled/render v1.0.1-0.20190325150441-1ac792296fd4
 	github.com/vishvananda/netlink v1.0.1-0.20190319163122-f504738125a5
 	github.com/vishvananda/netns v0.0.0-20180720170159-13995c7128cc // indirect
+	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad // indirect
+	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
 	golang.org/x/net v0.0.0-20190918130420-a8b05e9114ab
 	golang.org/x/sys v0.0.0-20190616124812-15dcb6c0061f
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect

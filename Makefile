@@ -126,8 +126,7 @@ test-race:
 
 # Get coverage report tools
 get-covtools:
-	go get github.com/wadey/gocovmerge
-	go install -v github.com/wadey/gocovmerge
+	go install github.com/wadey/gocovmerge
 
 # Run coverage report
 test-cover: get-covtools
@@ -185,8 +184,7 @@ test-cover-xml: test-cover
 
 # Get generator tools
 get-generators:
-	go get github.com/gogo/protobuf/protoc-gen-gogo
-	go install -v github.com/gogo/protobuf/protoc-gen-gogo
+	go install -mod=readonly github.com/gogo/protobuf/protoc-gen-gogo
 
 # Generate sources
 generate: get-generators

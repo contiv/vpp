@@ -257,3 +257,8 @@ func (mg *mockGauge) Add(float64) {
 func (mg *mockGauge) Sub(float64) {
 
 }
+
+// SetToCurrentTime sets the Gauge to the current Unix time in seconds.
+func (mg *mockGauge) SetToCurrentTime() {
+
+}

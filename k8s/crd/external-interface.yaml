@@ -1,0 +1,35 @@
+---
+apiVersion: contivpp.io/v1
+kind: ExternalInterface
+metadata:
+  name: vlan200-if
+spec:
+  type: L2  # L2 / L3
+  network: ""  # empty means no custom network
+  nodes:
+    - node: node-name-1
+      vppInterfaceName: GigabitEthernet0/5/0
+      # ip: 10.99.0.100/16
+      vlan: 200
+    - node: node-name-2
+      vppInterfaceName: GigabitEthernet0/5/0
+      # ip: 10.99.0.101/16
+      vlan: 200
+
+---
+apiVersion: contivpp.io/v1
+kind: ExternalInterface
+metadata:
+  name: vlan300-if
+spec:
+  type: L2  # L2 / L3
+  network: ""  # empty means no custom network
+  nodes:
+    - node: node-name-1
+      vppInterfaceName: GigabitEthernet0/5/0
+      # ip: 10.99.0.100/16
+      vlan: 300
+    - node: node-name-2
+      vppInterfaceName: GigabitEthernet0/5/0
+      # ip: 10.99.0.101/16
+      vlan: 300

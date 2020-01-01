@@ -25,6 +25,7 @@ import (
 	vpp_ipsec "github.com/ligato/vpp-agent/api/models/vpp/ipsec"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/bond"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/dhcp"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/gre"
 	binapi_interface "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/interfaces"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/ip"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/ipsec"
@@ -32,6 +33,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/tapv2"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/vmxnet3"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/vxlan"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1904/vxlan_gpe"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
 )
 
@@ -91,17 +93,18 @@ func (h *InterfaceVppHandler) dumpInterfaces() (map[uint32]*vppcalls.InterfaceDe
 				Mtu:         getMtu(ifDetails.LinkMtu),
 			},
 			Meta: &vppcalls.InterfaceMeta{
-				SwIfIndex:    ifDetails.SwIfIndex,
-				SupSwIfIndex: ifDetails.SupSwIfIndex,
-				L2Address:    l2addr,
-				InternalName: ifaceName,
-				AdminState:   ifDetails.AdminUpDown,
-				LinkState:    ifDetails.LinkUpDown,
-				LinkDuplex:   ifDetails.LinkDuplex,
-				LinkMTU:      ifDetails.LinkMtu,
-				LinkSpeed:    ifDetails.LinkSpeed,
-				SubID:        ifDetails.SubID,
-				Tag:          cleanString(ifDetails.Tag),
+				SwIfIndex:      ifDetails.SwIfIndex,
+				SupSwIfIndex:   ifDetails.SupSwIfIndex,
+				L2Address:      l2addr,
+				InternalName:   ifaceName,
+				IsAdminStateUp: uintToBool(ifDetails.AdminUpDown),
+				IsLinkStateUp:  uintToBool(ifDetails.LinkUpDown),
+				LinkDuplex:     uint32(ifDetails.LinkDuplex),
+				LinkMTU:        ifDetails.LinkMtu,
+				MTU:            ifDetails.Mtu,
+				LinkSpeed:      ifDetails.LinkSpeed,
+				SubID:          ifDetails.SubID,
+				Tag:            cleanString(ifDetails.Tag),
 			},
 		}
 
@@ -170,6 +173,10 @@ func (h *InterfaceVppHandler) DumpInterfaces() (map[uint32]*vppcalls.InterfaceDe
 	if err != nil {
 		return nil, err
 	}
+	err = h.dumpVxLanGpeDetails(ifs)
+	if err != nil {
+		return nil, err
+	}
 
 	// Get interface VRF for every IP family, fill DHCP if set and resolve unnumbered interface setup
 	for _, ifData := range ifs {
@@ -187,7 +194,7 @@ func (h *InterfaceVppHandler) DumpInterfaces() (map[uint32]*vppcalls.InterfaceDe
 				ifData.Meta.SwIfIndex, err)
 		}
 		ifData.Meta.VrfIPv6 = ipv6Vrf
-		if isIPv6If, err := h.isIpv6Interface(ifData.Interface); err != nil {
+		if isIPv6If, err := isIpv6Interface(ifData.Interface); err != nil {
 			return ifs, err
 		} else if isIPv6If {
 			ifData.Interface.Vrf = ipv6Vrf
@@ -240,6 +247,11 @@ func (h *InterfaceVppHandler) DumpInterfaces() (map[uint32]*vppcalls.InterfaceDe
 	}
 
 	err = h.dumpBondDetails(ifs)
+	if err != nil {
+		return nil, err
+	}
+
+	err = h.dumpGreDetails(ifs)
 	if err != nil {
 		return nil, err
 	}
@@ -335,9 +347,100 @@ func (h *InterfaceVppHandler) DumpDhcpClients() (map[uint32]*vppcalls.Dhcp, erro
 	return dhcpData, nil
 }
 
+// DumpInterfaceStates dumps link and administrative state of every interface.
+func (h *InterfaceVppHandler) DumpInterfaceStates(ifIdxs ...uint32) (map[uint32]*vppcalls.InterfaceState, error) {
+	ifs := make(map[uint32]*vppcalls.InterfaceState)
+
+	// initialize the requested interface indexes to nil
+	for _, ifIdx := range ifIdxs {
+		ifs[ifIdx] = nil
+	}
+
+	reqCtx := h.callsChannel.SendMultiRequest(&binapi_interface.SwInterfaceDump{})
+	for {
+		ifDetails := &binapi_interface.SwInterfaceDetails{}
+		stop, err := reqCtx.ReceiveReply(ifDetails)
+		if stop {
+			break // Break from the loop.
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to dump interface: %v", err)
+		}
+
+		// when dumping specific list of interfaces..
+		if len(ifIdxs) != 0 {
+			// and current ifIdx was not initialized..
+			if _, ok := ifs[ifDetails.SwIfIndex]; !ok {
+				// then skip processing it to omit it from results
+				continue
+			}
+		}
+
+		physAddr := make(net.HardwareAddr, ifDetails.L2AddressLength)
+		copy(physAddr, ifDetails.L2Address[:])
+
+		ifaceState := vppcalls.InterfaceState{
+			SwIfIndex:    ifDetails.SwIfIndex,
+			InternalName: cleanString(ifDetails.InterfaceName),
+			PhysAddress:  physAddr,
+			AdminState:   toInterfaceStatus(ifDetails.AdminUpDown),
+			LinkState:    toInterfaceStatus(ifDetails.LinkUpDown),
+			LinkDuplex:   toLinkDuplex(ifDetails.LinkDuplex),
+			LinkSpeed:    toLinkSpeed(ifDetails.LinkSpeed),
+			LinkMTU:      ifDetails.LinkMtu,
+		}
+		ifs[ifDetails.SwIfIndex] = &ifaceState
+	}
+
+	return ifs, nil
+}
+
+func toInterfaceStatus(upDown uint8) interfaces.InterfaceState_Status {
+	switch upDown {
+	case 0:
+		return interfaces.InterfaceState_DOWN
+	case 1:
+		return interfaces.InterfaceState_UP
+	default:
+		return interfaces.InterfaceState_UNKNOWN_STATUS
+	}
+}
+
+func toLinkDuplex(duplex uint8) interfaces.InterfaceState_Duplex {
+	switch duplex {
+	case 1:
+		return interfaces.InterfaceState_HALF
+	case 2:
+		return interfaces.InterfaceState_FULL
+	default:
+		return interfaces.InterfaceState_UNKNOWN_DUPLEX
+	}
+}
+
+const megabit = 1000000 // one megabit in bytes
+
+func toLinkSpeed(speed uint32) uint64 {
+	switch speed {
+	case 1:
+		return 10 * megabit // 10M
+	case 2:
+		return 100 * megabit // 100M
+	case 4:
+		return 1000 * megabit // 1G
+	case 8:
+		return 10000 * megabit // 10G
+	case 16:
+		return 40000 * megabit // 40G
+	case 32:
+		return 100000 * megabit // 100G
+	default:
+		return 0
+	}
+}
+
 // Returns true if given interface contains at least one IPv6 address. For VxLAN, source and destination
 // addresses are also checked
-func (h *InterfaceVppHandler) isIpv6Interface(iface *interfaces.Interface) (bool, error) {
+func isIpv6Interface(iface *interfaces.Interface) (bool, error) {
 	if iface.Type == interfaces.Interface_VXLAN_TUNNEL && iface.GetVxlan() != nil {
 		if ipAddress := net.ParseIP(iface.GetVxlan().SrcAddress); ipAddress.To4() == nil {
 			return true, nil
@@ -537,6 +640,53 @@ func (h *InterfaceVppHandler) dumpVxlanDetails(ifs map[uint32]*vppcalls.Interfac
 	return nil
 }
 
+// dumpVxlanDetails dumps VXLAN-GPE interface details from VPP and fills them into the provided interface map.
+func (h *InterfaceVppHandler) dumpVxLanGpeDetails(ifs map[uint32]*vppcalls.InterfaceDetails) error {
+	reqCtx := h.callsChannel.SendMultiRequest(&vxlan_gpe.VxlanGpeTunnelDump{SwIfIndex: ^uint32(0)})
+	for {
+		vxlanGpeDetails := &vxlan_gpe.VxlanGpeTunnelDetails{}
+		stop, err := reqCtx.ReceiveReply(vxlanGpeDetails)
+		if stop {
+			break // Break from the loop.
+		}
+		if err != nil {
+			return fmt.Errorf("failed to dump VxLAN-GPE tunnel interface details: %v", err)
+		}
+		_, ifIdxExists := ifs[vxlanGpeDetails.SwIfIndex]
+		if !ifIdxExists {
+			continue
+		}
+		// Multicast interface
+		var multicastIfName string
+		_, exists := ifs[vxlanGpeDetails.McastSwIfIndex]
+		if exists {
+			multicastIfName = ifs[vxlanGpeDetails.McastSwIfIndex].Interface.Name
+		}
+
+		vxLan := &interfaces.VxlanLink{
+			Multicast: multicastIfName,
+			Vni:       vxlanGpeDetails.Vni,
+			Gpe: &interfaces.VxlanLink_Gpe{
+				DecapVrfId: vxlanGpeDetails.DecapVrfID,
+				Protocol:   getVxLanGpeProtocol(vxlanGpeDetails.Protocol),
+			},
+		}
+
+		if vxlanGpeDetails.IsIPv6 == 1 {
+			vxLan.SrcAddress = net.IP(vxlanGpeDetails.Local).To16().String()
+			vxLan.DstAddress = net.IP(vxlanGpeDetails.Remote).To16().String()
+		} else {
+			vxLan.SrcAddress = net.IP(vxlanGpeDetails.Local[:4]).To4().String()
+			vxLan.DstAddress = net.IP(vxlanGpeDetails.Remote[:4]).To4().String()
+		}
+
+		ifs[vxlanGpeDetails.SwIfIndex].Interface.Link = &interfaces.Interface_Vxlan{Vxlan: vxLan}
+		ifs[vxlanGpeDetails.SwIfIndex].Interface.Type = interfaces.Interface_VXLAN_TUNNEL
+	}
+
+	return nil
+}
+
 // dumpIPSecTunnelDetails dumps IPSec tunnel interfaces from the VPP and fills them into the provided interface map.
 func (h *InterfaceVppHandler) dumpIPSecTunnelDetails(ifs map[uint32]*vppcalls.InterfaceDetails) error {
 	// tunnel interfaces are a part of security association dump
@@ -632,8 +782,8 @@ func verifyIPSecTunnelDetails(local, remote *ipsec.IpsecSaDetails) error {
 			localIsTunnel, remoteIsTunnel)
 	}
 
-	localSrc, localDst := local.Entry.TunnelSrc.Un.Union_data, local.Entry.TunnelDst.Un.Union_data
-	remoteSrc, remoteDst := remote.Entry.TunnelSrc.Un.Union_data, remote.Entry.TunnelDst.Un.Union_data
+	localSrc, localDst := local.Entry.TunnelSrc.Un.XXX_UnionData, local.Entry.TunnelDst.Un.XXX_UnionData
+	remoteSrc, remoteDst := remote.Entry.TunnelSrc.Un.XXX_UnionData, remote.Entry.TunnelDst.Un.XXX_UnionData
 	if (local.Entry.Flags&ipsec.IPSEC_API_SAD_FLAG_IS_TUNNEL_V6) != (remote.Entry.Flags&ipsec.IPSEC_API_SAD_FLAG_IS_TUNNEL_V6) ||
 		!bytes.Equal(localSrc[:], remoteDst[:]) ||
 		!bytes.Equal(localDst[:], remoteSrc[:]) {
@@ -729,6 +879,41 @@ func (h *InterfaceVppHandler) dumpBondDetails(ifs map[uint32]*vppcalls.Interface
 	return nil
 }
 
+func (h *InterfaceVppHandler) dumpGreDetails(ifs map[uint32]*vppcalls.InterfaceDetails) error {
+	reqCtx := h.callsChannel.SendMultiRequest(&gre.GreTunnelDump{SwIfIndex: ^uint32(0)})
+	for {
+		greDetails := &gre.GreTunnelDetails{}
+		stop, err := reqCtx.ReceiveReply(greDetails)
+		if stop {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to dump span: %v", err)
+		}
+
+		var srcAddr, dstAddr net.IP
+		if greDetails.IsIPv6 == 1 {
+			srcAddr = net.IP(greDetails.SrcAddress)
+			dstAddr = net.IP(greDetails.DstAddress)
+		} else {
+			srcAddr = net.IP(greDetails.SrcAddress[:4])
+			dstAddr = net.IP(greDetails.DstAddress[:4])
+		}
+
+		ifs[greDetails.SwIfIndex].Interface.Link = &interfaces.Interface_Gre{
+			Gre: &interfaces.GreLink{
+				TunnelType: getGreTunnelType(greDetails.TunnelType),
+				SrcAddr:    srcAddr.String(),
+				DstAddr:    dstAddr.String(),
+				OuterFibId: greDetails.OuterFibID,
+				SessionId:  uint32(greDetails.SessionID),
+			},
+		}
+		ifs[greDetails.SwIfIndex].Interface.Type = interfaces.Interface_GRE_TUNNEL
+	}
+	return nil
+}
+
 // dumpUnnumberedDetails returns a map of unnumbered interface indexes, every with interface index of element with IP
 func (h *InterfaceVppHandler) dumpUnnumberedDetails() (map[uint32]uint32, error) {
 	unIfMap := make(map[uint32]uint32) // unnumbered/ip-interface
@@ -765,19 +950,29 @@ func (h *InterfaceVppHandler) dumpRxPlacement(ifs map[uint32]*vppcalls.Interface
 		if stop {
 			break
 		}
+
 		ifData, ok := ifs[rxDetails.SwIfIndex]
 		if !ok {
 			h.log.Warnf("Received rx-placement data for unknown interface with index %d", rxDetails.SwIfIndex)
 			continue
 		}
-		ifData.Interface.RxModeSettings = &interfaces.Interface_RxModeSettings{
-			RxMode:  getRxModeType(rxDetails.Mode),
-			QueueId: rxDetails.QueueID,
+
+		ifData.Interface.RxModes = append(ifData.Interface.RxModes,
+			&interfaces.Interface_RxMode{
+				Queue: rxDetails.QueueID,
+				Mode:  getRxModeType(rxDetails.Mode),
+			})
+
+		var worker uint32
+		if rxDetails.WorkerID > 0 {
+			worker = rxDetails.WorkerID - 1
 		}
-		ifData.Interface.RxPlacementSettings = &interfaces.Interface_RxPlacementSettings{
-			Queue:  rxDetails.QueueID,
-			Worker: rxDetails.WorkerID,
-		}
+		ifData.Interface.RxPlacements = append(ifData.Interface.RxPlacements,
+			&interfaces.Interface_RxPlacement{
+				Queue:      rxDetails.QueueID,
+				Worker:     worker,
+				MainThread: rxDetails.WorkerID == 0,
+			})
 	}
 	return nil
 }
@@ -812,6 +1007,9 @@ func guessInterfaceType(ifName string) interfaces.Interface_Type {
 	case strings.HasPrefix(ifName, "Bond"):
 		return interfaces.Interface_BOND_INTERFACE
 
+	case strings.HasPrefix(ifName, "gre"):
+		return interfaces.Interface_GRE_TUNNEL
+
 	default:
 		return interfaces.Interface_DPDK
 	}
@@ -832,18 +1030,18 @@ func memifModetoNB(mode uint8) interfaces.MemifLink_MemifMode {
 }
 
 // Convert binary API rx-mode to northbound representation
-func getRxModeType(mode uint8) interfaces.Interface_RxModeSettings_RxModeType {
+func getRxModeType(mode uint8) interfaces.Interface_RxMode_Type {
 	switch mode {
 	case 1:
-		return interfaces.Interface_RxModeSettings_POLLING
+		return interfaces.Interface_RxMode_POLLING
 	case 2:
-		return interfaces.Interface_RxModeSettings_INTERRUPT
+		return interfaces.Interface_RxMode_INTERRUPT
 	case 3:
-		return interfaces.Interface_RxModeSettings_ADAPTIVE
+		return interfaces.Interface_RxMode_ADAPTIVE
 	case 4:
-		return interfaces.Interface_RxModeSettings_DEFAULT
+		return interfaces.Interface_RxMode_DEFAULT
 	default:
-		return interfaces.Interface_RxModeSettings_UNKNOWN
+		return interfaces.Interface_RxMode_UNKNOWN
 	}
 }
 
@@ -896,6 +1094,34 @@ func getTagRwOption(op uint32) interfaces.SubInterface_TagRewriteOptions {
 		return interfaces.SubInterface_TRANSLATE22
 	default: // disabled
 		return interfaces.SubInterface_DISABLED
+	}
+}
+
+func getGreTunnelType(tt uint8) interfaces.GreLink_Type {
+	switch tt {
+	case 0:
+		return interfaces.GreLink_L3
+	case 1:
+		return interfaces.GreLink_TEB
+	case 2:
+		return interfaces.GreLink_ERSPAN
+	default:
+		return interfaces.GreLink_UNKNOWN
+	}
+}
+
+func getVxLanGpeProtocol(p uint8) interfaces.VxlanLink_Gpe_Protocol {
+	switch p {
+	case 1:
+		return interfaces.VxlanLink_Gpe_IP4
+	case 2:
+		return interfaces.VxlanLink_Gpe_IP6
+	case 3:
+		return interfaces.VxlanLink_Gpe_ETHERNET
+	case 4:
+		return interfaces.VxlanLink_Gpe_NSH
+	default:
+		return interfaces.VxlanLink_Gpe_UNKNOWN
 	}
 }
 

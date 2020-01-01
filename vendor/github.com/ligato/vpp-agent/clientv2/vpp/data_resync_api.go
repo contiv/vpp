@@ -35,6 +35,8 @@ import (
 type DataResyncDSL interface {
 	// Interface adds interface to the RESYNC request.
 	Interface(intf *interfaces.Interface) DataResyncDSL
+	// Span adds span to the RESYNC request.
+	Span(intf *interfaces.Span) DataResyncDSL
 	// ACL adds Access Control List to the RESYNC request.
 	ACL(acl *acl.ACL) DataResyncDSL
 	// ABF adds ACL-based forwarding to the RESYNC request.
@@ -69,6 +71,8 @@ type DataResyncDSL interface {
 	PuntIPRedirect(val *punt.IPRedirect) DataResyncDSL
 	// PuntToHost adds request to RESYNC a rule used to punt L4 traffic to a host.
 	PuntToHost(val *punt.ToHost) DataResyncDSL
+	// PuntException adds request to create or update exception to punt specific packets.
+	PuntException(val *punt.Exception) DataResyncDSL
 
 	// Send propagates the RESYNC request to the plugins.
 	Send() Reply

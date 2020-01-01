@@ -31,13 +31,16 @@ metadata:
   namespace: kube-system
 data:
   contiv.conf: |-
-    useNoOverlay: {{ .Values.contiv.useNoOverlay }}
-    useSRv6Interconnect: {{ .Values.contiv.useSRv6Interconnect }}
+    nodeToNodeTransport: {{ .Values.contiv.nodeToNodeTransport }}
+    useSRv6ForServices: {{ .Values.contiv.useSRv6ForServices }}
+    useSRv6ForServiceFunctionChaining: {{ .Values.contiv.useSRv6ForServiceFunctionChaining}}
+    useDX6ForSrv6NodetoNodeTransport: {{ .Values.contiv.useDX6ForSrv6NodetoNodeTransport }}
     useTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     tapInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}
     tapv2RxRingSize: {{ .Values.contiv.tapv2RxRingSize }}
     tapv2TxRingSize: {{ .Values.contiv.tapv2TxRingSize }}
+    enableGSO: {{ .Values.contiv.enableGSO }}
     {{- end }}
     {{- if ne (.Values.contiv.vmxnet3RxRingSize | int) 1024 }}
     vmxnet3RxRingSize: {{ .Values.contiv.vmxnet3RxRingSize }}
@@ -96,6 +99,10 @@ data:
         nodeToNodeHostLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodeHostLocalSIDSubnetCIDR }}
         nodeToNodePodPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodePodPolicySIDSubnetCIDR }}
         nodeToNodeHostPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodeHostPolicySIDSubnetCIDR }}
+        sfcPolicyBSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcPolicyBSIDSubnetCIDR}}
+        sfcServiceFunctionSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcServiceFunctionSIDSubnetCIDR}}
+        sfcEndLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcEndLocalSIDSubnetCIDR}}
+        sfcIDLengthUsedInSidForServiceFunction: {{ .Values.contiv.ipamConfig.srv6.sfcIDLengthUsedInSidForServiceFunction}}
     {{- if .Values.contiv.nodeConfig }}
     nodeConfig:
     {{- range .Values.contiv.nodeConfig }}
@@ -175,13 +182,17 @@ data:
         level: info
       - name: vpp-rest
         level: info
+  # GRPC server used to accept CNI Add/Del Pod requests
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock
     force-socket-removal: true
     permission: 700
+  # GRCP server used to accept additional network configuration
+  grpc2.conf: |
+    endpoint: "{{ $any_addr }}:{{ .Values.vswitch.grpcPort }}"
   http.conf: |
-    endpoint: "{{ $any_addr }}:9999"
+    endpoint: "{{ $any_addr }}:{{ .Values.vswitch.httpPort }}"
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}
@@ -263,7 +274,11 @@ data:
 {{- range $k, $v := . -}}{{- if not $local.first -}},{{- end -}}{{- $v -}}{{- $_ := set $local "first" false -}}{{- end -}}
 {{- end }}
 {{- if not .Values.etcd.useExternalInstance }}
+{{- if .Values.k8sVersion.post_1_9 }}
+apiVersion: apps/v1
+{{- else }}
 apiVersion: apps/v1beta2
+{{- end }}
 kind: StatefulSet
 metadata:
   name: contiv-etcd
@@ -482,7 +497,7 @@ metadata:
   namespace: kube-system
 data:
   http.conf: |
-    endpoint: "{{ $any_addr }}:9191"
+    endpoint: "{{ $any_addr }}:{{ .Values.ksr.httpPort }}"
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}
@@ -566,7 +581,7 @@ data:
 {{- if .Values.http.enableServerCert }}
 {{- if not .Values.http.mountFromHost }}
 ---
-{{- end }} # end of if useExternalETCDinstance
+{{- end }}
 
 # The following contains k8s Secrets for use with a secured HTTP plugin.
 # For information on populating Secrets, see http://kubernetes.io/docs/user-guide/secrets/
@@ -590,7 +605,11 @@ data:
 # It consists of the following containers:
 #   - contiv-vswitch container: contains VPP and its management agent
 #   - contiv-cni container: installs CNI on the host
+{{- if .Values.k8sVersion.post_1_9 }}
+apiVersion: apps/v1
+{{- else }}
 apiVersion: extensions/v1beta1
+{{- end }}
 kind: DaemonSet
 metadata:
   name: contiv-vswitch
@@ -809,12 +828,12 @@ spec:
             privileged: true
           ports:
             # readiness + liveness probe
-            - containerPort: 9999
+            - containerPort: {{ .Values.vswitch.httpPort }}
           {{- if .Values.vswitch.enableLivenessReadinessProbes }}
           readinessProbe:
             httpGet:
               path: /readiness
-              port: 9999
+              port: {{ .Values.vswitch.httpPort }}
               {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
@@ -830,7 +849,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /liveness
-              port: 9999
+              port: {{ .Values.vswitch.httpPort }}
               {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
@@ -887,12 +906,18 @@ spec:
               value: "/etc/vpp-agent/http.conf"
             - name: GRPC_CONFIG
               value: "/etc/vpp-agent/grpc.conf"
+            - name: GRPC2_CONFIG
+              value: "/etc/vpp-agent/grpc2.conf"
             - name: LINUX_IFPLUGIN_CONFIG
               value: "/etc/vpp-agent/linux-ifplugin.conf"
             - name: LINUX_L3PLUGIN_CONFIG
               value: "/etc/vpp-agent/linux-l3plugin.conf"
             - name: KVSCHEDULER_CONFIG
               value: "/etc/vpp-agent/kvscheduler.conf"
+            {{- if eq .Values.vswitch.enableInterfaceStats false }}
+            - name: DISABLE_INTERFACE_STATS
+              value: "y"
+            {{- end}}
           volumeMounts:
             - name: var-bolt
               mountPath: /var/bolt
@@ -1083,7 +1108,11 @@ spec:
 ---
 
 # This installs the contiv-ksr (Kubernetes State Reflector) on the master node in a Kubernetes cluster.
+{{- if .Values.k8sVersion.post_1_9 }}
+apiVersion: apps/v1
+{{- else }}
 apiVersion: extensions/v1beta1
+{{- end }}
 kind: DaemonSet
 metadata:
   name: contiv-ksr
@@ -1091,6 +1120,9 @@ metadata:
   labels:
     k8s-app: contiv-ksr
 spec:
+  selector:
+    matchLabels:
+      k8s-app: contiv-ksr
   updateStrategy:
     type: {{ .Values.ksr.updateStrategy }}
   template:
@@ -1201,7 +1233,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /readiness
-              port: 9191
+              port: {{ .Values.ksr.httpPort }}
               {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
@@ -1217,7 +1249,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /liveness
-              port: 9191
+              port: {{ .Values.ksr.httpPort }}
               {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
@@ -1311,7 +1343,7 @@ metadata:
 rules:
   - apiGroups:
       - ""
-      - extensions
+      - networking.k8s.io
     resources:
       - pods
       - namespaces
@@ -1351,7 +1383,11 @@ subjects:
 ---
 
 # This installs the contiv-crd on the master node in a Kubernetes cluster.
+{{- if .Values.k8sVersion.post_1_9 }}
+apiVersion: apps/v1
+{{- else }}
 apiVersion: extensions/v1beta1
+{{- end }}
 kind: DaemonSet
 metadata:
   name: contiv-crd
@@ -1359,6 +1395,9 @@ metadata:
   labels:
     k8s-app: contiv-crd
 spec:
+  selector:
+    matchLabels:
+      k8s-app: contiv-crd
   updateStrategy:
     type: {{ .Values.crd.updateStrategy }}
   template:
@@ -1480,10 +1519,16 @@ spec:
               mountPath: /tmp/cfg
             - name: http-cfg
               mountPath: /etc/http
+            {{- if and .Values.etcd.useExternalInstance .Values.etcd.externalInstance.secretName }}
+            - name: etcd-secrets
+              mountPath: /var/contiv/etcd-secrets
+              readOnly: true
+            {{- else }}
             {{- if .Values.etcd.secureTransport }}
             - name: etcd-secrets
               mountPath: /var/contiv/etcd-secrets
               readOnly: true
+            {{- end }}
             {{- end }}
             {{- if .Values.http.enableServerCert }}
             - name: http-secrets
@@ -1494,7 +1539,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /readiness
-              port: 9090
+              port: {{ .Values.crd.httpPort }}
               {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
@@ -1510,7 +1555,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /liveness
-              port: 9090
+              port: {{ .Values.crd.httpPort }}
               {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
@@ -1610,8 +1655,10 @@ rules:
       - customresourcedefinitions
       - telemetryreports
       - nodeconfigs
+      - externalinterfaces
       - customnetworks
       - servicefunctionchains
+      - customconfigurations
     verbs:
       - "*"
 
@@ -1649,7 +1696,7 @@ metadata:
   namespace: kube-system
 data:
   http.conf: |
-    endpoint: "{{ $any_addr }}:9090"
+    endpoint: "{{ $any_addr }}:{{ .Values.crd.httpPort }}"
     {{- if .Values.http.enableServerCert }}
     server-cert-file: /var/http/{{ .Values.http.serverCert }}
     server-key-file: /var/http/{{ .Values.http.serverKey }}

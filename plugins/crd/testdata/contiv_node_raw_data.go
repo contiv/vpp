@@ -106,10 +106,6 @@ func getRawNodeTestData() rawNodeTestData {
 						"mtu": 9202,
 						"name": "GigabitEthernet0/8/0",
 						"physAddress": "08:00:27:27:02:e2",
-						"rxModeSettings": {
-							"rxMode": "POLLING"
-						},
-						"rxPlacementSettings": {},
 						"type": "DPDK"
 					}
 				},
@@ -152,10 +148,6 @@ func getRawNodeTestData() rawNodeTestData {
 						"mtu": 1450,
 						"name": "tap-vpp2",
 						"physAddress": "34:3c:00:00:00:02",
-						"rxModeSettings": {
-							"rxMode": "POLLING"
-						},
-						"rxPlacementSettings": {},
 						"tap": {
 							"rxRingSize": 1024,
 							"txRingSize": 1024,
@@ -977,10 +969,6 @@ func getRawNodeTestData() rawNodeTestData {
 						"mtu": 9202,
 						"name": "GigabitEthernet0/8/0",
 						"physAddress": "08:00:27:37:3b:62",
-						"rxModeSettings": {
-							"rxMode": "POLLING"
-						},
-						"rxPlacementSettings": {},
 						"type": "DPDK"
 					}
 				},
@@ -1023,10 +1011,6 @@ func getRawNodeTestData() rawNodeTestData {
 						"mtu": 1450,
 						"name": "tap-vpp2",
 						"physAddress": "34:3c:00:00:00:03",
-						"rxModeSettings": {
-							"rxMode": "POLLING"
-						},
-						"rxPlacementSettings": {},
 						"tap": {
 							"rxRingSize": 1024,
 							"txRingSize": 1024,
@@ -1822,10 +1806,6 @@ func getRawNodeTestData() rawNodeTestData {
 						"mtu": 9202,
 						"name": "GigabitEthernet0/8/0",
 						"physAddress": "08:00:27:16:92:22",
-						"rxModeSettings": {
-							"rxMode": "POLLING"
-						},
-						"rxPlacementSettings": {},
 						"type": "DPDK"
 					}
 				},
@@ -1842,10 +1822,6 @@ func getRawNodeTestData() rawNodeTestData {
 						"mtu": 1450,
 						"name": "vpp-tap-1a1e158e04ecae8591b9b70d45270727b717f783c63e917c6061b06",
 						"physAddress": "02:fe:c3:0e:c4:d7",
-						"rxModeSettings": {
-							"rxMode": "POLLING"
-						},
-						"rxPlacementSettings": {},
 						"tap": {
 							"rxRingSize": 1024,
 							"txRingSize": 1024,
@@ -1889,10 +1865,6 @@ func getRawNodeTestData() rawNodeTestData {
 						"mtu": 1450,
 						"name": "vpp-tap-e93fc86efa6106e7ac34b9e6b501a3dd7a1086b40360b1f81582bf4",
 						"physAddress": "02:fe:d1:99:31:0b",
-						"rxModeSettings": {
-							"rxMode": "POLLING"
-						},
-						"rxPlacementSettings": {},
 						"tap": {
 							"rxRingSize": 1024,
 							"txRingSize": 1024,
@@ -1975,10 +1947,6 @@ func getRawNodeTestData() rawNodeTestData {
 						"mtu": 1450,
 						"name": "tap-vpp2",
 						"physAddress": "34:3c:00:00:00:01",
-						"rxModeSettings": {
-							"rxMode": "POLLING"
-						},
-						"rxPlacementSettings": {},
 						"tap": {
 							"rxRingSize": 1024,
 							"txRingSize": 1024,

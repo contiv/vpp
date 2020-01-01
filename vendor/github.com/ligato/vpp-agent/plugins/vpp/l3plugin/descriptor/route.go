@@ -20,16 +20,21 @@ import (
 	"net"
 	"strings"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/utils/addrs"
+	netalloc_api "github.com/ligato/vpp-agent/api/models/netalloc"
 	interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"github.com/ligato/vpp-agent/pkg/models"
 	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	"github.com/ligato/vpp-agent/plugins/netalloc"
+	netalloc_descr "github.com/ligato/vpp-agent/plugins/netalloc/descriptor"
 	ifdescriptor "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor"
 	"github.com/ligato/vpp-agent/plugins/vpp/l3plugin/descriptor/adapter"
 	"github.com/ligato/vpp-agent/plugins/vpp/l3plugin/vppcalls"
-	"github.com/ligato/cn-infra/utils/addrs"
 )
 
 const (
@@ -38,8 +43,8 @@ const (
 
 	// dependency labels
 	routeOutInterfaceDep = "interface-exists"
-	vrfTableDep = "vrf-table-exists"
-	viaVrfTableDep = "via-vrf-table-exists"
+	vrfTableDep          = "vrf-table-exists"
+	viaVrfTableDep       = "via-vrf-table-exists"
 
 	// static route weight by default
 	defaultWeight = 1
@@ -49,29 +54,35 @@ const (
 type RouteDescriptor struct {
 	log          logging.Logger
 	routeHandler vppcalls.RouteVppAPI
+	addrAlloc    netalloc.AddressAllocator
 }
 
 // NewRouteDescriptor creates a new instance of the Route descriptor.
 func NewRouteDescriptor(
-	routeHandler vppcalls.RouteVppAPI, log logging.PluginLogger) *kvs.KVDescriptor {
+	routeHandler vppcalls.RouteVppAPI, addrAlloc netalloc.AddressAllocator,
+	log logging.PluginLogger) *kvs.KVDescriptor {
 
 	ctx := &RouteDescriptor{
 		routeHandler: routeHandler,
+		addrAlloc:    addrAlloc,
 		log:          log.NewLogger("static-route-descriptor"),
 	}
 
 	typedDescr := &adapter.RouteDescriptor{
-		Name:                 RouteDescriptorName,
-		NBKeyPrefix:          l3.ModelRoute.KeyPrefix(),
-		ValueTypeName:        l3.ModelRoute.ProtoName(),
-		KeySelector:          l3.ModelRoute.IsKeyValid,
-		ValueComparator:      ctx.EquivalentRoutes,
-		Validate:             ctx.Validate,
-		Create:               ctx.Create,
-		Delete:               ctx.Delete,
-		Retrieve:             ctx.Retrieve,
-		Dependencies:         ctx.Dependencies,
-		RetrieveDependencies: []string{ifdescriptor.InterfaceDescriptorName},
+		Name:            RouteDescriptorName,
+		NBKeyPrefix:     l3.ModelRoute.KeyPrefix(),
+		ValueTypeName:   l3.ModelRoute.ProtoName(),
+		KeySelector:     l3.ModelRoute.IsKeyValid,
+		ValueComparator: ctx.EquivalentRoutes,
+		Validate:        ctx.Validate,
+		Create:          ctx.Create,
+		Delete:          ctx.Delete,
+		Retrieve:        ctx.Retrieve,
+		Dependencies:    ctx.Dependencies,
+		RetrieveDependencies: []string{
+			netalloc_descr.IPAllocDescriptorName,
+			ifdescriptor.InterfaceDescriptorName,
+			VrfTableDescriptorName},
 	}
 	return adapter.NewRouteDescriptor(typedDescr)
 }
@@ -102,18 +113,34 @@ func (d *RouteDescriptor) EquivalentRoutes(key string, oldRoute, newRoute *l3.Ro
 
 // Validate validates VPP static route configuration.
 func (d *RouteDescriptor) Validate(key string, route *l3.Route) (err error) {
-	_, ipNet, err := net.ParseCIDR(route.DstNetwork)
+	// validate destination network
+	err = d.addrAlloc.ValidateIPAddress(route.DstNetwork, "", "dst_network",
+		netalloc.GWRefAllowed)
 	if err != nil {
-		return kvs.NewInvalidValueError(err, "dst_network")
+		return err
 	}
-	if strings.ToLower(ipNet.String()) != strings.ToLower(route.DstNetwork) {
-		return kvs.NewInvalidValueError(
-			fmt.Errorf("DstNetwork (%s) must represent IP network (%s)", route.DstNetwork, ipNet.String()),
-			"dst_network")
+
+	// validate next hop address (GW)
+	err = d.addrAlloc.ValidateIPAddress(getGwAddr(route), route.OutgoingInterface,
+		"gw_addr", netalloc.GWRefRequired)
+	if err != nil {
+		return err
 	}
+
+	// validate IP network implied by the IP and prefix length
+	if !strings.HasPrefix(route.DstNetwork, netalloc_api.AllocRefPrefix) {
+		_, ipNet, _ := net.ParseCIDR(route.DstNetwork)
+		if strings.ToLower(ipNet.String()) != strings.ToLower(route.DstNetwork) {
+			e := fmt.Errorf("DstNetwork (%s) must represent IP network (%s)",
+				route.DstNetwork, ipNet.String())
+			return kvs.NewInvalidValueError(e, "dst_network")
+		}
+	}
+
+	// TODO: validate mix of IP versions?
+
 	return nil
 }
-
 
 // Create adds VPP static route.
 func (d *RouteDescriptor) Create(key string, route *l3.Route) (metadata interface{}, err error) {
@@ -139,17 +166,55 @@ func (d *RouteDescriptor) Delete(key string, route *l3.Route, metadata interface
 func (d *RouteDescriptor) Retrieve(correlate []adapter.RouteKVWithMetadata) (
 	retrieved []adapter.RouteKVWithMetadata, err error,
 ) {
+	// prepare expected configuration with de-referenced netalloc links
+	nbCfg := make(map[string]*l3.Route)
+	expCfg := make(map[string]*l3.Route)
+	for _, kv := range correlate {
+		dstNetwork := kv.Value.DstNetwork
+		parsed, err := d.addrAlloc.GetOrParseIPAddress(kv.Value.DstNetwork,
+			"", netalloc_api.IPAddressForm_ADDR_NET)
+		if err == nil {
+			dstNetwork = parsed.String()
+		}
+		nextHop := kv.Value.NextHopAddr
+		parsed, err = d.addrAlloc.GetOrParseIPAddress(getGwAddr(kv.Value),
+			kv.Value.OutgoingInterface, netalloc_api.IPAddressForm_ADDR_ONLY)
+		if err == nil {
+			nextHop = parsed.IP.String()
+		}
+		route := proto.Clone(kv.Value).(*l3.Route)
+		route.DstNetwork = dstNetwork
+		route.NextHopAddr = nextHop
+		key := models.Key(route)
+		expCfg[key] = route
+		nbCfg[key] = kv.Value
+	}
+
 	// Retrieve VPP route configuration
-	Routes, err := d.routeHandler.DumpRoutes()
+	routes, err := d.routeHandler.DumpRoutes()
 	if err != nil {
 		return nil, errors.Errorf("failed to dump VPP routes: %v", err)
 	}
 
-	for _, Route := range Routes {
+	for _, route := range routes {
+		key := models.Key(route.Route)
+		value := route.Route
+		origin := kvs.UnknownOrigin
+
+		// correlate with the expected configuration
+		if expCfg, hasExpCfg := expCfg[key]; hasExpCfg {
+			if d.EquivalentRoutes(key, value, expCfg) {
+				value = nbCfg[key]
+				// recreate the key in case the dest. IP or GW IP were replaced with netalloc link
+				key = models.Key(value)
+				origin = kvs.FromNB
+			}
+		}
+
 		retrieved = append(retrieved, adapter.RouteKVWithMetadata{
-			Key:    l3.RouteKey(Route.Route.VrfId, Route.Route.DstNetwork, Route.Route.NextHopAddr),
-			Value:  Route.Route,
-			Origin: kvs.UnknownOrigin,
+			Key:    key,
+			Value:  value,
+			Origin: origin,
 		})
 	}
 
@@ -186,12 +251,29 @@ func (d *RouteDescriptor) Dependencies(key string, route *l3.Route) []kvs.Depend
 		})
 	}
 
+	// if destination network is netalloc reference, then the address must be allocated first
+	allocDep, hasAllocDep := d.addrAlloc.GetAddressAllocDep(route.DstNetwork,
+		"", "dst_network-")
+	if hasAllocDep {
+		dependencies = append(dependencies, allocDep)
+	}
+	// if GW is netalloc reference, then the address must be allocated first
+	allocDep, hasAllocDep = d.addrAlloc.GetAddressAllocDep(route.NextHopAddr,
+		route.OutgoingInterface, "gw_addr-")
+	if hasAllocDep {
+		dependencies = append(dependencies, allocDep)
+	}
+
 	// TODO: perhaps check GW routability
 	return dependencies
 }
 
 // equalAddrs compares two IP addresses for equality.
 func equalAddrs(addr1, addr2 string) bool {
+	if strings.HasPrefix(addr1, netalloc_api.AllocRefPrefix) ||
+		strings.HasPrefix(addr1, netalloc_api.AllocRefPrefix) {
+		return addr1 == addr2
+	}
 	a1 := net.ParseIP(addr1)
 	a2 := net.ParseIP(addr2)
 	if a1 == nil || a2 == nil {
@@ -208,12 +290,15 @@ func getGwAddr(route *l3.Route) string {
 		return route.GetNextHopAddr()
 	}
 	// return zero address
-	_, dstIPNet, err := net.ParseCIDR(route.GetDstNetwork())
-	if err != nil {
-		return ""
-	}
-	if dstIPNet.IP.To4() == nil {
-		return net.IPv6zero.String()
+	// - with netalloc'd destination network, just assume it is for IPv4
+	if !strings.HasPrefix(route.GetDstNetwork(), netalloc_api.AllocRefPrefix) {
+		_, dstIPNet, err := net.ParseCIDR(route.GetDstNetwork())
+		if err != nil {
+			return ""
+		}
+		if dstIPNet.IP.To4() == nil {
+			return net.IPv6zero.String()
+		}
 	}
 	return net.IPv4zero.String()
 }
@@ -228,6 +313,10 @@ func getWeight(route *l3.Route) uint32 {
 
 // equalNetworks compares two IP networks for equality.
 func equalNetworks(net1, net2 string) bool {
+	if strings.HasPrefix(net1, netalloc_api.AllocRefPrefix) ||
+		strings.HasPrefix(net2, netalloc_api.AllocRefPrefix) {
+		return net1 == net2
+	}
 	_, n1, err1 := net.ParseCIDR(net1)
 	_, n2, err2 := net.ParseCIDR(net2)
 	if err1 != nil || err2 != nil {

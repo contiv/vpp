@@ -264,3 +264,22 @@ $ cd vagrant
 $ vagrant status
 $ vagrant ssh k8s-worker1
 ```
+
+### Using Windows 10 host machine
+These Vagrant files and scripts work on Windows machine too. Windows Subsystem
+for Linux (WSL) used in this case. Windows 10 and 16 GB of RAM is required.
+
+1) Install VirtualBox on Windows
+2) Make Windows Subsystem for Linux (WSL) working and install preferably
+Ubuntu 18.04 (you can follow https://docs.microsoft.com/en-us/windows/wsl/install-win10
+or https://www.windowscentral.com/how-install-bash-shell-command-line-windows-10 or similar guides)
+3) Install Vagrant inside WSL (https://www.vagrantup.com/docs/other/wsl.html)
+
+The idea is to have VirtualBox in Windows and Vagrant in Linux. To make it work you should
+enable vagrant to access host Windows (export VAGRANT_WSL_ENABLE_WINDOWS_ACCESS="1").
+You may have problems with paths (see, e.g. https://github.com/mitchellh/vagrant-aws/issues/363
+for inspiration; or you can create symlinks in windows if needed "mklink VirtualBox VirtualBox.exe"
+to make Linux command working).
+
+Once done, you can follow the steps above inside WSL. You can also run robot tests from WSL
+if the cognitive/vpp environment is set up using vagrant.

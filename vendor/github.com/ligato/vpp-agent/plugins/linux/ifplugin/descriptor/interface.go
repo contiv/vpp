@@ -15,14 +15,11 @@
 package descriptor
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/gogo/protobuf/proto"
 	prototypes "github.com/gogo/protobuf/types"
@@ -34,10 +31,10 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/cn-infra/utils/addrs"
 
 	interfaces "github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	namespace "github.com/ligato/vpp-agent/api/models/linux/namespace"
+	netalloc_api "github.com/ligato/vpp-agent/api/models/netalloc"
 	vpp_intf "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/ligato/vpp-agent/pkg/models"
 	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
@@ -47,6 +44,8 @@ import (
 	"github.com/ligato/vpp-agent/plugins/linux/nsplugin"
 	nsdescriptor "github.com/ligato/vpp-agent/plugins/linux/nsplugin/descriptor"
 	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linux/nsplugin/linuxcalls"
+	"github.com/ligato/vpp-agent/plugins/netalloc"
+	netalloc_descr "github.com/ligato/vpp-agent/plugins/netalloc/descriptor"
 	vpp_ifaceidx "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
 )
 
@@ -63,9 +62,10 @@ const (
 	defaultLoopbackMTU = 65536
 
 	// dependency labels
-	tapInterfaceDep = "vpp-tap-interface-exists"
-	vethPeerDep     = "veth-peer-exists"
-	microserviceDep = "microservice-available"
+	existingHostInterfaceDep = "host-interface-exists"
+	tapInterfaceDep          = "vpp-tap-interface-exists"
+	vethPeerDep              = "veth-peer-exists"
+	microserviceDep          = "microservice-available"
 
 	// suffix attached to logical names of duplicate VETH interfaces
 	vethDuplicateSuffix = "-DUPLICATE"
@@ -108,6 +108,10 @@ var (
 	// ErrNamespaceWithoutReference is returned when namespace is missing reference.
 	ErrNamespaceWithoutReference = errors.New("namespace defined without name")
 
+	// ErrExistingWithNamespace is returned when namespace is specified for
+	// EXISTING interface.
+	ErrExistingWithNamespace = errors.New("EXISTING interface defined with namespace")
+
 	// ErrInvalidIPWithMask is returned when address is invalid or mask is missing
 	ErrInvalidIPWithMask = errors.New("IP with mask is not valid")
 
@@ -126,6 +130,7 @@ type InterfaceDescriptor struct {
 	nsPlugin     nsplugin.API
 	vppIfPlugin  VPPIfPluginAPI
 	scheduler    kvs.KVScheduler
+	addrAlloc    netalloc.AddressAllocator
 
 	// runtime
 	intfIndex ifaceidx.LinuxIfMetadataIndex
@@ -144,42 +149,46 @@ type VPPIfPluginAPI interface {
 // NewInterfaceDescriptor creates a new instance of the Interface descriptor.
 func NewInterfaceDescriptor(
 	scheduler kvs.KVScheduler, serviceLabel servicelabel.ReaderAPI, nsPlugin nsplugin.API,
-	vppIfPlugin VPPIfPluginAPI, ifHandler iflinuxcalls.NetlinkAPI, log logging.PluginLogger, goRoutinesCnt int) *InterfaceDescriptor {
+	vppIfPlugin VPPIfPluginAPI, addrAlloc netalloc.AddressAllocator, ifHandler iflinuxcalls.NetlinkAPI,
+	log logging.PluginLogger, goRoutinesCnt int) (descr *kvs.KVDescriptor, ctx *InterfaceDescriptor) {
 
-	return &InterfaceDescriptor{
+	// descriptor context
+	ctx = &InterfaceDescriptor{
 		scheduler:     scheduler,
 		ifHandler:     ifHandler,
 		nsPlugin:      nsPlugin,
 		vppIfPlugin:   vppIfPlugin,
+		addrAlloc:     addrAlloc,
 		serviceLabel:  serviceLabel,
 		goRoutinesCnt: goRoutinesCnt,
 		log:           log.NewLogger("if-descriptor"),
 	}
-}
 
-// GetDescriptor returns descriptor suitable for registration (via adapter) with
-// the KVScheduler.
-func (d *InterfaceDescriptor) GetDescriptor() *adapter.InterfaceDescriptor {
-	return &adapter.InterfaceDescriptor{
-		Name:                 InterfaceDescriptorName,
-		NBKeyPrefix:          interfaces.ModelInterface.KeyPrefix(),
-		ValueTypeName:        interfaces.ModelInterface.ProtoName(),
-		KeySelector:          interfaces.ModelInterface.IsKeyValid,
-		KeyLabel:             interfaces.ModelInterface.StripKeyPrefix,
-		ValueComparator:      d.EquivalentInterfaces,
-		WithMetadata:         true,
-		MetadataMapFactory:   d.MetadataFactory,
-		Validate:             d.Validate,
-		Create:               d.Create,
-		Delete:               d.Delete,
-		Update:               d.Update,
-		UpdateWithRecreate:   d.UpdateWithRecreate,
-		Retrieve:             d.Retrieve,
-		IsRetriableFailure:   d.IsRetriableFailure,
-		DerivedValues:        d.DerivedValues,
-		Dependencies:         d.Dependencies,
-		RetrieveDependencies: []string{nsdescriptor.MicroserviceDescriptorName},
+	typedDescr := &adapter.InterfaceDescriptor{
+		Name:               InterfaceDescriptorName,
+		NBKeyPrefix:        interfaces.ModelInterface.KeyPrefix(),
+		ValueTypeName:      interfaces.ModelInterface.ProtoName(),
+		KeySelector:        interfaces.ModelInterface.IsKeyValid,
+		KeyLabel:           interfaces.ModelInterface.StripKeyPrefix,
+		ValueComparator:    ctx.EquivalentInterfaces,
+		WithMetadata:       true,
+		MetadataMapFactory: ctx.MetadataFactory,
+		Validate:           ctx.Validate,
+		Create:             ctx.Create,
+		Delete:             ctx.Delete,
+		Update:             ctx.Update,
+		UpdateWithRecreate: ctx.UpdateWithRecreate,
+		Retrieve:           ctx.Retrieve,
+		IsRetriableFailure: ctx.IsRetriableFailure,
+		DerivedValues:      ctx.DerivedValues,
+		Dependencies:       ctx.Dependencies,
+		RetrieveDependencies: []string{
+			// refresh the pool of allocated IP addresses first
+			netalloc_descr.IPAllocDescriptorName,
+			nsdescriptor.MicroserviceDescriptorName},
 	}
+	descr = adapter.NewInterfaceDescriptor(typedDescr)
+	return
 }
 
 // SetInterfaceIndex should be used to provide interface index immediately after
@@ -195,6 +204,7 @@ func (d *InterfaceDescriptor) EquivalentInterfaces(key string, oldIntf, newIntf 
 	if oldIntf.Name != newIntf.Name ||
 		oldIntf.Type != newIntf.Type ||
 		oldIntf.Enabled != newIntf.Enabled ||
+		oldIntf.LinkOnly != newIntf.LinkOnly ||
 		getHostIfName(oldIntf) != getHostIfName(newIntf) {
 		return false
 	}
@@ -221,21 +231,14 @@ func (d *InterfaceDescriptor) EquivalentInterfaces(key string, oldIntf, newIntf 
 		return false
 	}
 
+	// for link-only everything else is ignored
+	if oldIntf.LinkOnly {
+		return true
+	}
+
 	// compare MAC addresses case-insensitively (also handle unspecified MAC address)
 	if newIntf.PhysAddress != "" &&
 		strings.ToLower(oldIntf.PhysAddress) != strings.ToLower(newIntf.PhysAddress) {
-		return false
-	}
-
-	// order-irrelevant comparison of IP addresses
-	oldIntfAddrs, err1 := addrs.StrAddrsToStruct(oldIntf.IpAddresses)
-	newIntfAddrs, err2 := addrs.StrAddrsToStruct(newIntf.IpAddresses)
-	if err1 != nil || err2 != nil {
-		// one or both of the configurations are invalid, compare lazily
-		return reflect.DeepEqual(oldIntf.IpAddresses, newIntf.IpAddresses)
-	}
-	obsolete, new := addrs.DiffAddr(oldIntfAddrs, newIntfAddrs)
-	if len(obsolete) != 0 || len(new) != 0 {
 		return false
 	}
 
@@ -249,28 +252,42 @@ func (d *InterfaceDescriptor) MetadataFactory() idxmap.NamedMappingRW {
 
 // Validate validates Linux interface configuration.
 func (d *InterfaceDescriptor) Validate(key string, linuxIf *interfaces.Interface) error {
+	// validate name (this should never happen, since key is derived from name)
 	if linuxIf.GetName() == "" {
 		return kvs.NewInvalidValueError(ErrInterfaceWithoutName, "name")
 	}
-	addrs := linuxIf.GetIpAddresses()
-	for _, a := range addrs {
-		if _, _, err := net.ParseCIDR(a); err != nil {
-			return kvs.NewInvalidValueError(ErrInvalidIPWithMask, "ip_addresses")
+
+	// validate namespace
+	if ns := linuxIf.GetNamespace(); ns != nil {
+		if ns.GetType() == namespace.NetNamespace_UNDEFINED || ns.GetReference() == "" {
+			return kvs.NewInvalidValueError(ErrNamespaceWithoutReference, "namespace")
 		}
 	}
 
-	if linuxIf.GetType() == interfaces.Interface_UNDEFINED {
+	// validate type
+	switch linuxIf.GetType() {
+	case interfaces.Interface_EXISTING:
+		if linuxIf.GetLink() != nil {
+			return kvs.NewInvalidValueError(ErrInterfaceReferenceMismatch, "link")
+		}
+		// For now support only the same namespace as the agent.
+		if linuxIf.GetNamespace() != nil {
+			return kvs.NewInvalidValueError(ErrExistingWithNamespace, "namespace")
+		}
+	case interfaces.Interface_LOOPBACK:
+		if linuxIf.GetLink() != nil {
+			return kvs.NewInvalidValueError(ErrInterfaceReferenceMismatch, "link")
+		}
+	case interfaces.Interface_TAP_TO_VPP:
+		if d.vppIfPlugin == nil {
+			return ErrTAPRequiresVPPIfPlugin
+		}
+	case interfaces.Interface_UNDEFINED:
 		return kvs.NewInvalidValueError(ErrInterfaceWithoutType, "type")
 	}
-	if linuxIf.GetType() == interfaces.Interface_TAP_TO_VPP && d.vppIfPlugin == nil {
-		return ErrTAPRequiresVPPIfPlugin
-	}
-	if linuxIf.GetNamespace() != nil &&
-		(linuxIf.GetNamespace().GetType() == namespace.NetNamespace_UNDEFINED ||
-			linuxIf.GetNamespace().GetReference() == "") {
-		return kvs.NewInvalidValueError(ErrNamespaceWithoutReference, "namespace")
-	}
-	switch linuxIf.Link.(type) {
+
+	// validate link
+	switch linuxIf.GetLink().(type) {
 	case *interfaces.Interface_Tap:
 		if linuxIf.GetType() != interfaces.Interface_TAP_TO_VPP {
 			return kvs.NewInvalidValueError(ErrInterfaceReferenceMismatch, "link")
@@ -309,6 +326,21 @@ func (d *InterfaceDescriptor) Create(key string, linuxIf *interfaces.Interface) 
 		metadata, err = d.createTAPToVPP(nsCtx, key, linuxIf)
 	case interfaces.Interface_LOOPBACK:
 		metadata, err = d.createLoopback(nsCtx, linuxIf)
+	case interfaces.Interface_EXISTING:
+		// We expect that the interface already exists, therefore nothing needs to be done.
+		// We just get the metadata for the interface.
+		getMetadata := func(linuxIf *interfaces.Interface) (*ifaceidx.LinuxIfMetadata, error) {
+			link, err := d.ifHandler.GetLinkByName(getHostIfName(linuxIf))
+			if err != nil {
+				d.log.Error(err)
+				return nil, err
+			}
+			return &ifaceidx.LinuxIfMetadata{
+				Namespace:    linuxIf.Namespace,
+				LinuxIfIndex: link.Attrs().Index,
+			}, nil
+		}
+		metadata, err = getMetadata(linuxIf)
 	default:
 		return nil, ErrUnsupportedLinuxInterfaceType
 	}
@@ -316,6 +348,7 @@ func (d *InterfaceDescriptor) Create(key string, linuxIf *interfaces.Interface) 
 	if err != nil {
 		return nil, err
 	}
+	metadata.HostIfName = getHostIfName(linuxIf)
 
 	// move to the namespace with the interface
 	revert2, err := d.nsPlugin.SwitchToNamespace(nsCtx, linuxIf.Namespace)
@@ -336,62 +369,14 @@ func (d *InterfaceDescriptor) Create(key string, linuxIf *interfaces.Interface) 
 		}
 	}
 
-	// set interface MAC address
-	if linuxIf.PhysAddress != "" {
-		err = d.ifHandler.SetInterfaceMac(hostName, linuxIf.PhysAddress)
+	// set checksum offloading
+	if linuxIf.Type == interfaces.Interface_VETH {
+		rxOn := getRxChksmOffloading(linuxIf)
+		txOn := getTxChksmOffloading(linuxIf)
+		err = d.ifHandler.SetChecksumOffloading(hostName, rxOn, txOn)
 		if err != nil {
-			err = errors.Errorf("failed to set MAC address %s to linux interface %s: %v",
-				linuxIf.PhysAddress, linuxIf.Name, err)
-			d.log.Error(err)
-			return nil, err
-		}
-	}
-
-	// set interface IP addresses
-	ipAddresses, err := addrs.StrAddrsToStruct(linuxIf.IpAddresses)
-	if err != nil {
-		err = errors.Errorf("failed to convert IP addresses %v for interface %s: %v",
-			linuxIf.IpAddresses, linuxIf.Name, err)
-		d.log.Error(err)
-		return nil, err
-	}
-
-	const (
-		DisableIPv6SysctlTemplate = "net.ipv6.conf.%s.disable_ipv6"
-	)
-	var hasEnabledIPv6 bool
-	for _, ipAddress := range ipAddresses {
-		// Make sure sysctl "disable_ipv6" is 0 if we are about to add
-		// an IPv6 address to the interface
-		if !hasEnabledIPv6 && ipAddress.IP.To16() != nil {
-			// Enabled IPv6 for loopback "lo" and the interface
-			// being configured
-			for _, iface := range [2]string{"lo", hostName} {
-				ipv6SysctlValueName := fmt.Sprintf(DisableIPv6SysctlTemplate, iface)
-
-				// Read current sysctl value
-				value, err := getSysctl(ipv6SysctlValueName)
-				if err != nil || value == "0" {
-					if err != nil {
-						d.log.Warnf("could not read sysctl value for %v: %v", hostName, err)
-					}
-					continue
-				}
-
-				// Write sysctl to enable IPv6
-				_, err = setSysctl(ipv6SysctlValueName, "0")
-				if err != nil {
-					return nil, fmt.Errorf("failed to enable IPv6 for interface %q (%s=%s): %v", iface, ipv6SysctlValueName, value, err)
-				}
-			}
-			hasEnabledIPv6 = true
-		}
-
-		err = d.ifHandler.AddInterfaceIP(hostName, ipAddress)
-		// an attempt to add already assign IP is not considered as error
-		if err != nil && syscall.EEXIST != err {
-			err = errors.Errorf("failed to add IP address %v to linux interface %s: %v",
-				ipAddress, linuxIf.Name, err)
+			err = errors.Errorf("failed to configure checksum offloading (rx=%t,tx=%t) for linux interface %s: %v",
+				rxOn, txOn, linuxIf.Name, err)
 			d.log.Error(err)
 			return nil, err
 		}
@@ -409,14 +394,17 @@ func (d *InterfaceDescriptor) Create(key string, linuxIf *interfaces.Interface) 
 		}
 	}
 
-	// set checksum offloading
-	if linuxIf.Type == interfaces.Interface_VETH {
-		rxOn := getRxChksmOffloading(linuxIf)
-		txOn := getTxChksmOffloading(linuxIf)
-		err = d.ifHandler.SetChecksumOffloading(hostName, rxOn, txOn)
+	if linuxIf.GetLinkOnly() {
+		// addresses are configured externally
+		return metadata, nil
+	}
+
+	// set interface MAC address
+	if linuxIf.PhysAddress != "" {
+		err = d.ifHandler.SetInterfaceMac(hostName, linuxIf.PhysAddress)
 		if err != nil {
-			err = errors.Errorf("failed to configure checksum offloading (rx=%t,tx=%t) for linux interface %s: %v",
-				rxOn, txOn, linuxIf.Name, err)
+			err = errors.Errorf("failed to set MAC address %s to linux interface %s: %v",
+				linuxIf.PhysAddress, linuxIf.Name, err)
 			d.log.Error(err)
 			return nil, err
 		}
@@ -431,28 +419,10 @@ func (d *InterfaceDescriptor) Delete(key string, linuxIf *interfaces.Interface, 
 	nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
 	revert, err := d.nsPlugin.SwitchToNamespace(nsCtx, linuxIf.Namespace)
 	if err != nil {
-		d.log.Error(err)
+		d.log.Error("switch to namespace failed:", err)
 		return err
 	}
 	defer revert()
-
-	// unassign IP addresses
-	ipAddresses, err := addrs.StrAddrsToStruct(linuxIf.IpAddresses)
-	if err != nil {
-		err = errors.Errorf("failed to convert IP addresses %v for interface %s: %v",
-			linuxIf.IpAddresses, linuxIf.Name, err)
-		d.log.Error(err)
-		return err
-	}
-	for _, ipAddress := range ipAddresses {
-		err = d.ifHandler.DelInterfaceIP(getHostIfName(linuxIf), ipAddress)
-		if err != nil {
-			err = errors.Errorf("failed to remove IP address %v from linux interface %s: %v",
-				ipAddress, linuxIf.Name, err)
-			d.log.Error(err)
-			return err
-		}
-	}
 
 	switch linuxIf.Type {
 	case interfaces.Interface_VETH:
@@ -461,6 +431,10 @@ func (d *InterfaceDescriptor) Delete(key string, linuxIf *interfaces.Interface, 
 		return d.deleteAutoTAP(nsCtx, key, linuxIf, metadata)
 	case interfaces.Interface_LOOPBACK:
 		return d.deleteLoopback(nsCtx, linuxIf)
+	case interfaces.Interface_EXISTING:
+		// We only need to unconfigure the interface.
+		// Nothing else needs to be done.
+		return nil
 	}
 
 	err = ErrUnsupportedLinuxInterfaceType
@@ -484,9 +458,8 @@ func (d *InterfaceDescriptor) Update(key string, oldLinuxIf, newLinuxIf *interfa
 
 	// update host name
 	if oldHostName != newHostName {
-		d.ifHandler.RenameInterface(oldHostName, newHostName)
-		if err != nil {
-			d.log.Error(err)
+		if err := d.ifHandler.RenameInterface(oldHostName, newHostName); err != nil {
+			d.log.Error("renaming interface failed:", err)
 			return nil, err
 		}
 	}
@@ -511,51 +484,15 @@ func (d *InterfaceDescriptor) Update(key string, oldLinuxIf, newLinuxIf *interfa
 	}
 
 	// update MAC address
-	if newLinuxIf.PhysAddress != "" && newLinuxIf.PhysAddress != oldLinuxIf.PhysAddress {
-		err := d.ifHandler.SetInterfaceMac(newHostName, newLinuxIf.PhysAddress)
-		if err != nil {
-			err = errors.Errorf("failed to reconfigure MAC address for linux interface %s: %v",
-				newLinuxIf.Name, err)
-			d.log.Error(err)
-			return nil, err
-		}
-	}
-
-	// IP addresses
-	newAddrs, err := addrs.StrAddrsToStruct(newLinuxIf.IpAddresses)
-	if err != nil {
-		err = errors.Errorf("linux interface modify: failed to convert IP addresses for %s: %v",
-			newLinuxIf.Name, err)
-		d.log.Error(err)
-		return nil, err
-	}
-	oldAddrs, err := addrs.StrAddrsToStruct(oldLinuxIf.IpAddresses)
-	if err != nil {
-		err = errors.Errorf("linux interface modify: failed to convert IP addresses for %s: %v",
-			newLinuxIf.Name, err)
-		d.log.Error(err)
-		return nil, err
-	}
-	del, add := addrs.DiffAddr(newAddrs, oldAddrs)
-
-	for i := range del {
-		err := d.ifHandler.DelInterfaceIP(newHostName, del[i])
-		if nil != err {
-			err = errors.Errorf("failed to remove IPv4 address from a Linux interface %s: %v",
-				newLinuxIf.Name, err)
-			d.log.Error(err)
-			return nil, err
-		}
-	}
-
-	for i := range add {
-		err := d.ifHandler.AddInterfaceIP(newHostName, add[i])
-		// an attempt to add already assign IP is not considered as error
-		if nil != err && syscall.EEXIST != err {
-			err = errors.Errorf("linux interface modify: failed to add IP addresses %s to %s: %v",
-				add[i], newLinuxIf.Name, err)
-			d.log.Error(err)
-			return nil, err
+	if !newLinuxIf.GetLinkOnly() {
+		if newLinuxIf.PhysAddress != "" && newLinuxIf.PhysAddress != oldLinuxIf.PhysAddress {
+			err := d.ifHandler.SetInterfaceMac(newHostName, newLinuxIf.PhysAddress)
+			if err != nil {
+				err = errors.Errorf("failed to reconfigure MAC address for linux interface %s: %v",
+					newLinuxIf.Name, err)
+				d.log.Error(err)
+				return nil, err
+			}
 		}
 	}
 
@@ -593,12 +530,16 @@ func (d *InterfaceDescriptor) Update(key string, oldLinuxIf, newLinuxIf *interfa
 		return nil, err
 	}
 	oldMetadata.LinuxIfIndex = link.Attrs().Index
+	oldMetadata.HostIfName = newHostName
 	return oldMetadata, nil
 }
 
 // UpdateWithRecreate returns true if Type or Type-specific attributes are different.
 func (d *InterfaceDescriptor) UpdateWithRecreate(key string, oldLinuxIf, newLinuxIf *interfaces.Interface, metadata *ifaceidx.LinuxIfMetadata) bool {
 	if oldLinuxIf.Type != newLinuxIf.Type {
+		return true
+	}
+	if oldLinuxIf.LinkOnly != newLinuxIf.LinkOnly {
 		return true
 	}
 	if !proto.Equal(oldLinuxIf.Namespace, newLinuxIf.Namespace) {
@@ -617,6 +558,14 @@ func (d *InterfaceDescriptor) UpdateWithRecreate(key string, oldLinuxIf, newLinu
 // Dependencies lists dependencies for a Linux interface.
 func (d *InterfaceDescriptor) Dependencies(key string, linuxIf *interfaces.Interface) []kvs.Dependency {
 	var dependencies []kvs.Dependency
+
+	// EXISTING depends on a referenced Linux interface in the default namespace
+	if linuxIf.Type == interfaces.Interface_EXISTING {
+		dependencies = append(dependencies, kvs.Dependency{
+			Label: existingHostInterfaceDep,
+			Key:   interfaces.InterfaceHostNameKey(getHostIfName(linuxIf)),
+		})
+	}
 
 	if linuxIf.Type == interfaces.Interface_TAP_TO_VPP {
 		// dependency on VPP TAP
@@ -655,12 +604,14 @@ func (d *InterfaceDescriptor) DerivedValues(key string, linuxIf *interfaces.Inte
 		Key:   interfaces.InterfaceStateKey(linuxIf.Name, linuxIf.Enabled),
 		Value: &prototypes.Empty{},
 	})
-	// IP addresses
-	for _, ipAddr := range linuxIf.IpAddresses {
-		derValues = append(derValues, kvs.KeyValuePair{
-			Key:   interfaces.InterfaceAddressKey(linuxIf.Name, ipAddr),
-			Value: &prototypes.Empty{},
-		})
+	if !linuxIf.GetLinkOnly() {
+		// IP addresses
+		for _, ipAddr := range linuxIf.IpAddresses {
+			derValues = append(derValues, kvs.KeyValuePair{
+				Key:   interfaces.InterfaceAddressKey(linuxIf.Name, ipAddr, netalloc_api.IPAddressSource_STATIC),
+				Value: &prototypes.Empty{},
+			})
+		}
 	}
 	return derValues
 }
@@ -681,8 +632,9 @@ func (d *InterfaceDescriptor) IsRetriableFailure(err error) bool {
 // Retrieve returns all Linux interfaces managed by this agent, attached to the default namespace
 // or to one of the configured non-default namespaces.
 func (d *InterfaceDescriptor) Retrieve(correlate []adapter.InterfaceKVWithMetadata) ([]adapter.InterfaceKVWithMetadata, error) {
-	nsList := []*namespace.NetNamespace{nil}        // nil = default namespace, which always should be listed for interfaces
-	ifCfg := make(map[string]*interfaces.Interface) // interface logical name -> interface config (as expected by correlate)
+	nsList := []*namespace.NetNamespace{nil}              // nil = default namespace, which always should be listed for interfaces
+	ifCfg := make(map[string]*interfaces.Interface)       // interface logical name -> interface config (as expected by correlate)
+	expExisting := make(map[string]*interfaces.Interface) // EXISTING interface host name -> expected interface config
 
 	// process interfaces for correlation to get:
 	//  - the set of namespaces to list for interfaces
@@ -700,6 +652,9 @@ func (d *InterfaceDescriptor) Retrieve(correlate []adapter.InterfaceKVWithMetada
 			nsList = append(nsList, kv.Value.Namespace)
 		}
 		ifCfg[kv.Value.Name] = kv.Value
+		if kv.Value.Type == interfaces.Interface_EXISTING {
+			expExisting[getHostIfName(kv.Value)] = kv.Value
+		}
 	}
 
 	// determine the number of go routines to invoke
@@ -724,6 +679,7 @@ func (d *InterfaceDescriptor) Retrieve(correlate []adapter.InterfaceKVWithMetada
 	// receive results from the go routines
 	ifaces := make(map[string]adapter.InterfaceKVWithMetadata) // interface logical name -> interface data
 	indexes := make(map[int]struct{})                          // already retrieved interfaces by their Linux indexes
+
 	for idx := 0; idx < goRoutinesCnt; idx++ {
 		retrieved := <-ch
 		if retrieved.err != nil {
@@ -733,7 +689,7 @@ func (d *InterfaceDescriptor) Retrieve(correlate []adapter.InterfaceKVWithMetada
 			// skip if this interface was already retrieved and this is not the expected
 			// namespace from correlation - remember, the same namespace may have
 			// multiple different references
-			rewrite := false
+			var rewrite bool
 			if _, alreadyRetrieved := indexes[kv.Metadata.LinuxIfIndex]; alreadyRetrieved {
 				if expCfg, hasExpCfg := ifCfg[kv.Value.Name]; hasExpCfg {
 					if proto.Equal(expCfg.Namespace, kv.Value.Namespace) {
@@ -760,6 +716,10 @@ func (d *InterfaceDescriptor) Retrieve(correlate []adapter.InterfaceKVWithMetada
 					kv.Value.Name = kv.Value.Name + vethDuplicateSuffix + strconv.Itoa(dupIndex)
 					kv.Key = interfaces.InterfaceKey(kv.Value.Name)
 				}
+			}
+			// correlate link_only attribute
+			if expCfg, hasExpCfg := ifCfg[kv.Value.Name]; hasExpCfg {
+				kv.Value.LinkOnly = expCfg.GetLinkOnly()
 			}
 			ifaces[kv.Value.Name] = kv
 		}
@@ -805,9 +765,27 @@ func (d *InterfaceDescriptor) Retrieve(correlate []adapter.InterfaceKVWithMetada
 		}
 	}
 
-	// finally collect AUTO-TAPs and valid VETHs
+	// collect AUTO-TAPs and valid VETHs
 	for _, kv := range ifaces {
 		values = append(values, kv)
+	}
+
+	// retrieve EXISTING interfaces
+	existingIfaces, err := d.retrieveExistingInterfaces(expExisting)
+	if err != nil {
+		return nil, err
+	}
+	for _, kv := range existingIfaces {
+		values = append(values, kv)
+	}
+
+	// correlate IP addresses with netalloc references from the expected config
+	for _, kv := range values {
+		if expCfg, hasExpCfg := ifCfg[kv.Value.Name]; hasExpCfg {
+			kv.Value.IpAddresses = d.addrAlloc.CorrelateRetrievedIPs(
+				expCfg.IpAddresses, kv.Value.IpAddresses,
+				kv.Value.Name, netalloc_api.IPAddressForm_ADDR_WITH_MASK)
+		}
 	}
 
 	return values, nil
@@ -817,6 +795,7 @@ func (d *InterfaceDescriptor) Retrieve(correlate []adapter.InterfaceKVWithMetada
 // present in every <goRoutineIdx>-th network namespace from the list.
 func (d *InterfaceDescriptor) retrieveInterfaces(nsList []*namespace.NetNamespace, goRoutineIdx, goRoutinesCnt int, ch chan<- retrievedIfaces) {
 	var retrieved retrievedIfaces
+
 	agentPrefix := d.serviceLabel.GetAgentPrefix()
 	nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
 
@@ -825,26 +804,24 @@ func (d *InterfaceDescriptor) retrieveInterfaces(nsList []*namespace.NetNamespac
 		// switch to the namespace
 		revert, err := d.nsPlugin.SwitchToNamespace(nsCtx, nsRef)
 		if err != nil {
-			d.log.WithFields(logging.Fields{
-				"err":       err,
-				"namespace": nsRef,
-			}).Warn("Failed to retrieve interfaces from the namespace")
+			d.log.WithField("namespace", nsRef).
+				Warn("Failed to switch namespace:", err)
 			continue // continue with the next namespace
 		}
 
 		// get all links in the namespace
 		links, err := d.ifHandler.GetLinkList()
 		if err != nil {
+			d.log.Error("Failed to get link list:", err)
 			// switch back to the default namespace before returning error
 			revert()
 			retrieved.err = err
-			d.log.Error(retrieved.err)
 			break
 		}
 
 		// retrieve every interface managed by this agent
 		for _, link := range links {
-			intf := &interfaces.Interface{
+			iface := &interfaces.Interface{
 				Namespace:   nsRef,
 				HostIfName:  link.Attrs().Name,
 				PhysAddress: link.Attrs().HardwareAddr.String(),
@@ -859,94 +836,54 @@ func (d *InterfaceDescriptor) retrieveInterfaces(nsList []*namespace.NetNamespac
 			alias = strings.TrimPrefix(alias, agentPrefix)
 
 			// parse alias to obtain logical references
-			var vppTapIfName string
-			if link.Type() == (&netlink.Veth{}).Type() {
+			if link.Type() == "veth" {
+				iface.Type = interfaces.Interface_VETH
 				var vethPeerIfName string
-				intf.Type = interfaces.Interface_VETH
-				intf.Name, vethPeerIfName = parseVethAlias(alias)
-				intf.Link = &interfaces.Interface_Veth{
-					Veth: &interfaces.VethLink{PeerIfName: vethPeerIfName}}
-			} else if link.Type() == (&netlink.Tuntap{}).Type() || link.Type() == "tun" /* not defined in vishvananda */ {
-				intf.Type = interfaces.Interface_TAP_TO_VPP
-				intf.Name, vppTapIfName, _ = parseTapAlias(alias)
-				intf.Link = &interfaces.Interface_Tap{
-					Tap: &interfaces.TapLink{VppTapIfName: vppTapIfName}}
+				iface.Name, vethPeerIfName = parseVethAlias(alias)
+				iface.Link = &interfaces.Interface_Veth{
+					Veth: &interfaces.VethLink{
+						PeerIfName: vethPeerIfName,
+					},
+				}
+			} else if link.Type() == "tuntap" || link.Type() == "tun" /* not defined in vishvananda */ {
+				iface.Type = interfaces.Interface_TAP_TO_VPP
+				var vppTapIfName string
+				iface.Name, vppTapIfName, _ = parseTapAlias(alias)
+				iface.Link = &interfaces.Interface_Tap{
+					Tap: &interfaces.TapLink{
+						VppTapIfName: vppTapIfName,
+					},
+				}
 			} else if link.Attrs().Name == defaultLoopbackName {
-				intf.Type = interfaces.Interface_LOOPBACK
-				intf.Name = alias
+				iface.Type = interfaces.Interface_LOOPBACK
+				iface.Name = alias
 			} else {
 				// unsupported interface type supposedly configured by agent => print warning
 				d.log.WithFields(logging.Fields{
 					"if-host-name": link.Attrs().Name,
-					"if-type":      link.Type(),
 					"namespace":    nsRef,
-				}).Warn("Managed interface of unsupported type")
+				}).Warnf("Managed interface of unsupported type: %s", link.Type())
 				continue
 			}
 
 			// skip interfaces with invalid aliases
-			if intf.Name == "" {
+			if iface.Name == "" {
 				continue
 			}
 
-			// read interface status
-			intf.Enabled, err = d.ifHandler.IsInterfaceUp(link.Attrs().Name)
-			if err != nil {
-				d.log.WithFields(logging.Fields{
-					"if-host-name": link.Attrs().Name,
-					"namespace":    nsRef,
-					"err":          err,
-				}).Warn("Failed to read interface status")
-			}
-
-			// read assigned IP addresses
-			addressList, err := d.ifHandler.GetAddressList(link.Attrs().Name)
-			if err != nil {
-				d.log.WithFields(logging.Fields{
-					"if-host-name": link.Attrs().Name,
-					"namespace":    nsRef,
-					"err":          err,
-				}).Warn("Failed to read IP addresses")
-			}
-			for _, address := range addressList {
-				if address.Scope == unix.RT_SCOPE_LINK {
-					// ignore link-local IPv6 addresses
-					continue
-				}
-				mask, _ := address.Mask.Size()
-				addrStr := address.IP.String() + "/" + strconv.Itoa(mask)
-				intf.IpAddresses = append(intf.IpAddresses, addrStr)
-			}
-
-			// read checksum offloading
-			if intf.Type == interfaces.Interface_VETH {
-				rxOn, txOn, err := d.ifHandler.GetChecksumOffloading(link.Attrs().Name)
-				if err != nil {
-					d.log.WithFields(logging.Fields{
-						"if-host-name": link.Attrs().Name,
-						"namespace":    nsRef,
-						"err":          err,
-					}).Warn("Failed to read checksum offloading")
-				} else {
-					if !rxOn {
-						intf.GetVeth().RxChecksumOffloading = interfaces.VethLink_CHKSM_OFFLOAD_DISABLED
-					}
-					if !txOn {
-						intf.GetVeth().TxChecksumOffloading = interfaces.VethLink_CHKSM_OFFLOAD_DISABLED
-					}
-				}
-			}
+			// retrieve addresses, MTU, etc.
+			d.retrieveLinkDetails(link, iface, nsRef)
 
 			// build key-value pair for the retrieved interface
 			retrieved.interfaces = append(retrieved.interfaces, adapter.InterfaceKVWithMetadata{
-				//Key:    interfaces.InterfaceKey(intf.Name),
-				Key:    models.Key(intf),
-				Value:  intf,
+				Key:    models.Key(iface),
+				Value:  iface,
 				Origin: kvs.FromNB,
 				Metadata: &ifaceidx.LinuxIfMetadata{
 					LinuxIfIndex: link.Attrs().Index,
-					VPPTapName:   vppTapIfName,
+					VPPTapName:   iface.GetTap().GetVppTapIfName(),
 					Namespace:    nsRef,
+					HostIfName:   link.Attrs().Name,
 				},
 			})
 		}
@@ -956,6 +893,99 @@ func (d *InterfaceDescriptor) retrieveInterfaces(nsList []*namespace.NetNamespac
 	}
 
 	ch <- retrieved
+}
+
+// retrieveExistingInterfaces retrieves already created Linux interface - i.e. not created
+// by this agent = type EXISTING.
+func (d *InterfaceDescriptor) retrieveExistingInterfaces(expected map[string]*interfaces.Interface) ([]adapter.InterfaceKVWithMetadata, error) {
+	var retrieved []adapter.InterfaceKVWithMetadata
+
+	// get all links in the default namespace
+	links, err := d.ifHandler.GetLinkList()
+	if err != nil {
+		d.log.Error("Failed to get link list:", err)
+		return nil, err
+	}
+	for _, link := range links {
+		expCfg, isExp := expected[link.Attrs().Name]
+		if !isExp {
+			// do not touch existing interfaces which are not configured by the agent
+			continue
+		}
+		iface := &interfaces.Interface{
+			Name:        expCfg.GetName(),
+			Type:        interfaces.Interface_EXISTING,
+			HostIfName:  link.Attrs().Name,
+			PhysAddress: link.Attrs().HardwareAddr.String(),
+			Mtu:         uint32(link.Attrs().MTU),
+			LinkOnly:    expCfg.LinkOnly,
+		}
+
+		// retrieve addresses, MTU, etc.
+		d.retrieveLinkDetails(link, iface, nil)
+
+		// build key-value pair for the retrieved interface
+		retrieved = append(retrieved, adapter.InterfaceKVWithMetadata{
+			Key:    models.Key(iface),
+			Value:  iface,
+			Origin: kvs.FromNB,
+			Metadata: &ifaceidx.LinuxIfMetadata{
+				LinuxIfIndex: link.Attrs().Index,
+				HostIfName:   link.Attrs().Name,
+			},
+		})
+	}
+
+	return retrieved, nil
+}
+
+// retrieveLinkDetails retrieves link details common to all interface types (e.g. addresses).
+func (d *InterfaceDescriptor) retrieveLinkDetails(link netlink.Link, iface *interfaces.Interface, nsRef *namespace.NetNamespace) {
+	var err error
+	// read interface status
+	iface.Enabled, err = d.ifHandler.IsInterfaceUp(link.Attrs().Name)
+	if err != nil {
+		d.log.WithFields(logging.Fields{
+			"if-host-name": link.Attrs().Name,
+			"namespace":    nsRef,
+		}).Warn("Failed to read interface status:", err)
+	}
+
+	// read assigned IP addresses
+	addressList, err := d.ifHandler.GetAddressList(link.Attrs().Name)
+	if err != nil {
+		d.log.WithFields(logging.Fields{
+			"if-host-name": link.Attrs().Name,
+			"namespace":    nsRef,
+		}).Warn("Failed to read address list:", err)
+	}
+	for _, address := range addressList {
+		if address.Scope == unix.RT_SCOPE_LINK {
+			// ignore link-local IPv6 addresses
+			continue
+		}
+		mask, _ := address.Mask.Size()
+		addrStr := address.IP.String() + "/" + strconv.Itoa(mask)
+		iface.IpAddresses = append(iface.IpAddresses, addrStr)
+	}
+
+	// read checksum offloading
+	if iface.Type == interfaces.Interface_VETH {
+		rxOn, txOn, err := d.ifHandler.GetChecksumOffloading(link.Attrs().Name)
+		if err != nil {
+			d.log.WithFields(logging.Fields{
+				"if-host-name": link.Attrs().Name,
+				"namespace":    nsRef,
+			}).Warn("Failed to read checksum offloading:", err)
+		} else {
+			if !rxOn {
+				iface.GetVeth().RxChecksumOffloading = interfaces.VethLink_CHKSM_OFFLOAD_DISABLED
+			}
+			if !txOn {
+				iface.GetVeth().TxChecksumOffloading = interfaces.VethLink_CHKSM_OFFLOAD_DISABLED
+			}
+		}
+	}
 }
 
 // setInterfaceNamespace moves linux interface from the current to the desired
@@ -987,8 +1017,7 @@ func (d *InterfaceDescriptor) setInterfaceNamespace(ctx nslinuxcalls.NamespaceMg
 	}
 
 	// Move the interface into the namespace.
-	err = d.ifHandler.SetLinkNamespace(link, ns)
-	if err != nil {
+	if err := d.ifHandler.SetLinkNamespace(link, ns); err != nil {
 		return errors.Errorf("failed to set interface %s file descriptor: %v", link.Attrs().Name, err)
 	}
 
@@ -1013,8 +1042,7 @@ func (d *InterfaceDescriptor) setInterfaceNamespace(ctx nslinuxcalls.NamespaceMg
 		if !isIPv6 && address.IP.IsLinkLocalUnicast() {
 			continue
 		}
-		err = d.ifHandler.AddInterfaceIP(ifName, address)
-		if err != nil {
+		if err := d.ifHandler.AddInterfaceIP(ifName, address); err != nil {
 			if err.Error() == "file exists" {
 				continue
 			}
@@ -1102,7 +1130,6 @@ func getSysctl(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	return string(data[:len(data)-1]), nil
 }
 
@@ -1112,6 +1139,5 @@ func setSysctl(name, value string) (string, error) {
 	if err := ioutil.WriteFile(fullName, []byte(value), 0644); err != nil {
 		return "", err
 	}
-
 	return getSysctl(name)
 }

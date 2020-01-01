@@ -52,43 +52,48 @@ type API interface {
 	// identified by nodeID.
 	HostInterconnectSubnetOtherNode(nodeID uint32) (*net.IPNet, error)
 
-	// NodeIDFromPodIP returns node ID from provided POD IP address.
-	NodeIDFromPodIP(podIP net.IP) (uint32, error)
-
 	// PodSubnetAllNodes returns POD subnet that is a base subnet for all PODs
-	// of all nodes.
-	PodSubnetAllNodes() *net.IPNet
+	// of all nodes for given pod network.
+	PodSubnetAllNodes(network string) *net.IPNet
 
 	// PodSubnetThisNode returns POD network for the current node
-	// (given by nodeID allocated for this node).
-	PodSubnetThisNode() *net.IPNet
+	// (given by network name and nodeID allocated for this node).
+	PodSubnetThisNode(network string) *net.IPNet
 
-	// PodSubnetOtherNode returns the POD network of another node identified by nodeID.
-	PodSubnetOtherNode(nodeID uint32) (*net.IPNet, error)
-
-	// ServiceNetwork returns range allocated for services.
-	ServiceNetwork() *net.IPNet
+	// PodSubnetOtherNode returns the POD network of another node identified by network name and nodeID.
+	PodSubnetOtherNode(network string, nodeID uint32) (*net.IPNet, error)
 
 	// PodGatewayIP returns gateway IP address of the POD subnet of this node.
-	PodGatewayIP() net.IP
+	PodGatewayIP(network string) net.IP
+
+	// NodeIDFromPodIP returns node ID from provided main POD IP address.
+	NodeIDFromPodIP(podIP net.IP) (uint32, error)
 
 	// NatLoopbackIP returns the IP address of a virtual loopback, used to route
 	// traffic between clients and services via VPP even if the source and destination
 	// are the same IP addresses and would otherwise be routed locally.
 	NatLoopbackIP() net.IP
 
+	// ServiceNetwork returns range allocated for services.
+	ServiceNetwork() *net.IPNet
+
 	// AllocatePodIP tries to allocate IP address for the given pod.
 	AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string) (net.IP, error)
 
-	// GetPodIP returns the allocated pod IP, together with the mask.
-	// Returns nil if the pod does not have allocated IP address.
+	// GetPodIP returns the allocated (main) pod IP, together with the mask. Searches for
+	// both local and remote pods. Returns nil if the pod does not have allocated IP address.
 	GetPodIP(podID podmodel.ID) *net.IPNet
 
+	// GetExternalInterfaceIP returns the allocated external interface IP.
+	// Returns nil if the interface does not have allocated IP address.
+	GetExternalInterfaceIP(vppInterface string, nodeID uint32) *net.IPNet
+
 	// AllocatePodCustomIfIP tries to allocate custom IP address for the given interface of a given pod.
-	AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string) (net.IP, error)
+	AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string, isServiceEndpoint bool) (net.IP, error)
 
 	// GetPodCustomIfIP returns the allocated custom interface pod IP, together with the mask.
-	// Returns nil if the pod does not have allocated custom interface IP address.
+	// Searches for both local and remote pods. Returns nil if the pod does not have allocated
+	// custom interface IP address.
 	GetPodCustomIfIP(podID podmodel.ID, ifName, network string) *net.IPNet
 
 	// GetPodFromIP returns the pod information related to the allocated pod IP.
@@ -98,35 +103,51 @@ type API interface {
 	// ReleasePodIPs releases all pod IP addresses making them available for new PODs.
 	ReleasePodIPs(podID podmodel.ID) error
 
-	// BsidForServicePolicy creates a valid SRv6 binding SID for given k8s service IP addresses <serviceIPs>. This sid
-	// should be used only for k8s service policy
+	// BsidForServicePolicy creates a valid SRv6 binding SID for given k8s service IP addresses <serviceIPs>.
+	// This sid should be used only for k8s service policy
 	BsidForServicePolicy(serviceIPs []net.IP) net.IP
 
-	// SidForServiceHostLocalsid creates a valid SRv6 SID for service locasid leading to host on the current node. Created SID
-	// doesn't depend on anything and is the same for each node, because there is only one way how to get to host in each
-	// node and localsid have local significance (their sid don't have to be globally unique)
+	// SidForServiceHostLocalsid creates a valid SRv6 SID for service locasid leading to host on the current node.
+	// Created SID doesn't depend on anything and is the same for each node, because there is only one way how
+	// to get to host in each node and localsid have local significance (their sid don't have to be globally unique)
 	SidForServiceHostLocalsid() net.IP
 
-	// SidForServicePodLocalsid creates a valid SRv6 SID for service locasid leading to pod backend. The SID creation is
-	// based on backend IP <backendIP>.
+	// SidForServicePodLocalsid creates a valid SRv6 SID for service locasid leading to pod backend.
+	// The SID creation is based on backend IP <backendIP>.
 	SidForServicePodLocalsid(backendIP net.IP) net.IP
 
-	// SidForNodeToNodePodLocalsid creates a valid SRv6 SID for locasid that is part of node-to-node Srv6 tunnel and
-	// outputs packets to pod VRF table.
+	// SidForNodeToNodePodLocalsid creates a valid SRv6 SID for locasid that is part of node-to-node Srv6
+	// tunnel and outputs packets to pod VRF table.
 	SidForNodeToNodePodLocalsid(nodeIP net.IP) net.IP
 
-	// SidForNodeToNodeHostLocalsid creates a valid SRv6 SID for locasid that is part of node-to-node Srv6 tunnel and
-	// outputs packets to main VRF table.
+	// SidForNodeToNodeHostLocalsid creates a valid SRv6 SID for locasid that is part of node-to-node Srv6
+	// tunnel and outputs packets to main VRF table.
 	SidForNodeToNodeHostLocalsid(nodeIP net.IP) net.IP
 
-	// SidForServiceNodeLocalsid creates a valid SRv6 SID for service locasid serving as intermediate step in policy segment list.
+	// SidForServiceNodeLocalsid creates a valid SRv6 SID for service locasid serving as intermediate step
+	// in policy segment list.
 	SidForServiceNodeLocalsid(nodeIP net.IP) net.IP
 
-	// BsidForNodeToNodePodPolicy creates a valid SRv6 SID for policy that is part of node-to-node Srv6 tunnel and routes traffic to pod VRF table
+	// BsidForNodeToNodePodPolicy creates a valid SRv6 SID for policy that is part of node-to-node Srv6
+	// tunnel and routes traffic to pod VRF table
 	BsidForNodeToNodePodPolicy(nodeIP net.IP) net.IP
 
-	// BsidForNodeToNodeHostPolicy creates a valid SRv6 SID for policy that is part of node-to-node Srv6 tunnel and routes traffic to main VRF table
+	// BsidForNodeToNodeHostPolicy creates a valid SRv6 SID for policy that is part of node-to-node Srv6
+	// tunnel and routes traffic to main VRF table
 	BsidForNodeToNodeHostPolicy(nodeIP net.IP) net.IP
+
+	// BsidForSFCPolicy creates a valid SRv6 SID for policy used for SFC
+	BsidForSFCPolicy(sfcName string) net.IP
+
+	// SidForSFCServiceFunctionLocalsid creates a valid SRv6 SID for locasid leading to pod of service function given by
+	// <serviceFunctionPodIP> IP address.
+	SidForSFCServiceFunctionLocalsid(sfcName string, serviceFunctionPodIP net.IP) net.IP
+
+	// SidForSFCExternalIfLocalsid creates a valid SRv6 SID for external interface
+	SidForSFCExternalIfLocalsid(externalIf string, externalIfIP net.IP) net.IP
+
+	// SidForSFCEndLocalsid creates a valid SRv6 SID for locasid of segment that is the last link of SFC chain
+	SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP
 
 	// GetIPAMConfigForJSON returns IPAM configuration in format suitable
 	// for marshalling to JSON (subnets not converted to net.IPNet + defined

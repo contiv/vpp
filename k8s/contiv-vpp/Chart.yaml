@@ -1,6 +1,7 @@
 ---
+apiVersion: v1
 name: contiv-vpp
 description: Deploys Contiv VPP networking
 icon: https://contivpp.io/img/logo.png
 home: https://contivpp.io/
-version: v3.1.0
+version: v3.3.3

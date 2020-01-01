@@ -45,6 +45,8 @@ import { CodeModalComponent } from './shared/modals/code-modal/code-modal.compon
 import { BridgeDomainService } from './bridge-domain/bridge-domain.service';
 import { ContainersModalComponent } from './shared/modals/containers-modal/containers-modal.component';
 import { ServicesTopologyService } from './shared/sidepanel/services/services-topology.service';
+import { SettingsModalComponent } from './shared/modals/settings-modal/settings-modal.component';
+import { SettingsService } from './shared/services/settings.service';
 
 @NgModule({
   declarations: [
@@ -72,7 +74,8 @@ import { ServicesTopologyService } from './shared/sidepanel/services/services-to
     NodeDetailModalComponent,
     BridgeDomainControlComponent,
     CodeModalComponent,
-    ContainersModalComponent
+    ContainersModalComponent,
+    SettingsModalComponent
   ],
   imports: [
     BrowserModule,
@@ -93,7 +96,8 @@ import { ServicesTopologyService } from './shared/sidepanel/services/services-to
     LayoutService,
     ModalService,
     BridgeDomainService,
-    ServicesTopologyService
+    ServicesTopologyService,
+    SettingsService
   ],
   bootstrap: [AppComponent]
 })

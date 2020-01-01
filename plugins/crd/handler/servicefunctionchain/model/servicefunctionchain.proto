@@ -16,30 +16,50 @@ syntax = "proto3";
 
 package model;
 
-// ServiceFunctionChain is used to store definition of service function chain defined via CRD.
+// ServiceFunctionChain is used to store definition of a service function chain as a k8s CRD resource.
 message ServiceFunctionChain {
-    enum Type {
-        ServiceFunctionPod = 0;
-        InterfaceInput = 1;
-        InterfaceOutput = 2;
-        PodInput = 3;
-        PodOutput = 4;
-    }
+
+    // Name of the chain.
+    string name = 1;
+
+    // true if the service chain should be unidirectional (the traffic should pass in one way only).
+    // Otherwise the chain is bidirectional (the traffic can pass both ways).
+    bool unidirectional = 2;
+
+    // Name of the custom pod network where the chain resides
+    // (if applicable, can be left blank for the default pod network).
+    string network = 3;
 
     message ServiceFunction {
+        enum Type {
+            Pod = 0;
+            ExternalInterface = 1;
+        }
+        // Name of the service function (optional).
         string name = 1;
+
+        // Type of the service function.
         Type type = 2;
+
+        // Pod selector (k8s labels) identifying the pod(s)
+        // (applicable for pod service function type).
         map<string, string> pod_selector = 3;
+
+        // Interface trough which the traffic enters or leaves the pod / external interface. Applicable for:
+        // - pods that use only a single interface for SFC (first/last pod in the chain
+        //   or pods using the same interface for SFC input and output).
+        // - external interfaces
+        string interface = 6;
+
+        // Interface trough which the traffic enters the service function. Applicable for:
+        // - pods using different interfaces for SFC input and output
         string input_interface = 4;
+
+        // Interface trough which the traffic leaves the service function. Applicable for:
+        // - pods using different interfaces for SFC input and output
         string output_interface = 5;
     }
 
-    // name of the custom network
-    string name = 1;
-
-    // type of the custom network
-    string network = 2;
-
-    repeated ServiceFunction chain = 3;
-
+    // List of service functions (chain elements) in the chain.
+    repeated ServiceFunction chain = 4;
 }

@@ -31,17 +31,18 @@ type InterfaceDetails struct {
 
 // InterfaceMeta is combination of proto-modelled Interface data and VPP provided metadata
 type InterfaceMeta struct {
-	SwIfIndex    uint32           `json:"sw_if_index"`
-	SupSwIfIndex uint32           `json:"sub_sw_if_index"`
-	L2Address    net.HardwareAddr `json:"l2_address"`
-	InternalName string           `json:"internal_name"`
-	AdminState   uint8            `json:"admin_state"`
-	LinkState    uint8            `json:"link_state"`
-	LinkDuplex   uint8            `json:"link_duplex"`
-	LinkMTU      uint16           `json:"link_mtu"`
-	LinkSpeed    uint32           `json:"link_speed"`
-	SubID        uint32           `json:"sub_id"`
-	Tag          string           `json:"tag"`
+	SwIfIndex      uint32           `json:"sw_if_index"`
+	SupSwIfIndex   uint32           `json:"sub_sw_if_index"`
+	L2Address      net.HardwareAddr `json:"l2_address"`
+	InternalName   string           `json:"internal_name"`
+	IsAdminStateUp bool             `json:"is_admin_state_up"`
+	IsLinkStateUp  bool             `json:"is_link_state_up"`
+	LinkDuplex     uint32           `json:"link_duplex"`
+	LinkMTU        uint16           `json:"link_mtu"`
+	MTU            []uint32         `json:"mtu"`
+	LinkSpeed      uint32           `json:"link_speed"`
+	SubID          uint32           `json:"sub_id"`
+	Tag            string           `json:"tag"`
 	// dhcp
 	Dhcp *Dhcp `json:"dhcp"`
 	// vrf
@@ -87,6 +88,27 @@ type Lease struct {
 	HostMac       string
 }
 
+// InterfaceState is a helper function grouping interface state data.
+type InterfaceState struct {
+	SwIfIndex    uint32
+	InternalName string
+	PhysAddress  net.HardwareAddr
+
+	AdminState interfaces.InterfaceState_Status
+	LinkState  interfaces.InterfaceState_Status
+	LinkDuplex interfaces.InterfaceState_Duplex
+	LinkSpeed  uint64
+	LinkMTU    uint16
+}
+
+// InterfaceSpanDetails is a helper struct grouping SPAN data.
+type InterfaceSpanDetails struct {
+	SwIfIndexFrom uint32
+	SwIfIndexTo   uint32
+	Direction     uint8
+	IsL2          uint8
+}
+
 // InterfaceVppAPI provides methods for creating and managing interface plugin
 type InterfaceVppAPI interface {
 	InterfaceVppRead
@@ -111,6 +133,10 @@ type InterfaceVppAPI interface {
 	AddVxLanTunnel(ifName string, vrf, multicastIf uint32, vxLan *interfaces.VxlanLink) (swIndex uint32, err error)
 	// DeleteVxLanTunnel calls AddDelVxLanTunnelReq with flag add=0.
 	DeleteVxLanTunnel(ifName string, idx, vrf uint32, vxLan *interfaces.VxlanLink) error
+	// AddVxLanGpeTunnel creates VxLAN-GPE tunnel.
+	AddVxLanGpeTunnel(ifName string, vrf, multicastIf uint32, vxLan *interfaces.VxlanLink) (uint32, error)
+	// DeleteVxLanGpeTunnel removes VxLAN-GPE tunnel.
+	DeleteVxLanGpeTunnel(ifName string, vxLan *interfaces.VxlanLink) error
 	// AddIPSecTunnelInterface adds a new IPSec tunnel interface
 	AddIPSecTunnelInterface(ifName string, ipSecLink *interfaces.IPSecLink) (uint32, error)
 	// DeleteIPSecTunnelInterface removes existing IPSec tunnel interface
@@ -153,10 +179,10 @@ type InterfaceVppAPI interface {
 	RegisterMemifSocketFilename(filename []byte, id uint32) error
 	// SetInterfaceMtu calls HwInterfaceSetMtu bin API with desired MTU value.
 	SetInterfaceMtu(ifIdx uint32, mtu uint32) error
-	// SetRxMode calls SwInterfaceSetRxMode bin
-	SetRxMode(ifIdx uint32, rxModeSettings *interfaces.Interface_RxModeSettings) error
+	// SetRxMode calls SwInterfaceSetRxMode bin API
+	SetRxMode(ifIdx uint32, rxMode *interfaces.Interface_RxMode) error
 	// SetRxPlacement configures rx-placement for interface
-	SetRxPlacement(ifIdx uint32, rxPlacement *interfaces.Interface_RxPlacementSettings) error
+	SetRxPlacement(ifIdx uint32, rxPlacement *interfaces.Interface_RxPlacement) error
 	// SetInterfaceVrf sets VRF table for the interface
 	SetInterfaceVrf(ifaceIndex, vrfID uint32) error
 	// SetInterfaceVrfIPv6 sets IPV6 VRF table for the interface
@@ -169,8 +195,16 @@ type InterfaceVppAPI interface {
 	AttachInterfaceToBond(ifIdx, bondIfIdx uint32, isPassive, isLongTimeout bool) error
 	// DetachInterfaceFromBond removes interface slave status from any bond interfaces.
 	DetachInterfaceFromBond(ifIdx uint32) error
-    // SetVLanTagRewrite sets VLan tag rewrite rule for given sub-interface
+	// SetVLanTagRewrite sets VLan tag rewrite rule for given sub-interface
 	SetVLanTagRewrite(ifIdx uint32, subIf *interfaces.SubInterface) error
+	// AddSpan creates new span record
+	AddSpan(ifIdxFrom, ifIdxTo uint32, direction uint8, isL2 uint8) error
+	// DelSpan removes new span record
+	DelSpan(ifIdxFrom, ifIdxTo uint32, isL2 uint8) error
+	// AddGreTunnel adds new GRE interface.
+	AddGreTunnel(ifName string, greLink *interfaces.GreLink) (uint32, error)
+	// DelGreTunnel removes GRE interface.
+	DelGreTunnel(ifName string, greLink *interfaces.GreLink) (uint32, error)
 }
 
 // InterfaceVppRead provides read methods for interface plugin
@@ -183,6 +217,10 @@ type InterfaceVppRead interface {
 	DumpInterfaces() (map[uint32]*InterfaceDetails, error)
 	// DumpInterfacesByType returns all VPP interfaces of the specified type
 	DumpInterfacesByType(reqType interfaces.Interface_Type) (map[uint32]*InterfaceDetails, error)
+	// DumpInterfaceStates dumps link and administrative state of every interface.
+	DumpInterfaceStates(ifIdxs ...uint32) (map[uint32]*InterfaceState, error)
+	// DumpSpan returns all records from span table.
+	DumpSpan() ([]*InterfaceSpanDetails, error)
 	// GetInterfaceVrf reads VRF table to interface
 	GetInterfaceVrf(ifIdx uint32) (vrfID uint32, err error)
 	// GetInterfaceVrfIPv6 reads IPv6 VRF table to interface

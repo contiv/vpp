@@ -1,0 +1,22 @@
+<clr-modal [clrModalSize]="'lg'" [(clrModalOpen)]="isModalOpened" [clrModalClosable]="false">
+  <h3 class="modal-title">Settings</h3>
+  <div class="modal-body">
+    <form clrForm>
+      <span>Enable data refresh</span>
+      <clr-toggle-wrapper>
+        <input type="checkbox" clrToggle [(ngModel)]="settings.pollingEnabled" name="enabled">
+      </clr-toggle-wrapper>
+      <div class="slider-wrap">
+        <div>Frequency: {{settings.pollingFrequency}} s</div>
+        <input class="slider" type="range" min="10" max="300" name="frequency"
+               [(ngModel)]="settings.pollingFrequency"
+               [disabled]="!settings.pollingEnabled"
+               [ngClass]="{'disabled': !settings.pollingEnabled}">
+      </div>
+    </form>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-primary" (click)="save()">Save</button>
+    <button type="button" class="btn btn-secondary" (click)="close()">Close</button>
+  </div>
+</clr-modal>

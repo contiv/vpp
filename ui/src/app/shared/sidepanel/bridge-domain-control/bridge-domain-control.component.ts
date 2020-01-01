@@ -65,9 +65,7 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges, OnDestro
   ) { }
 
   ngOnInit() {
-    this.summaryObj = [];
-    this.podsObj = [];
-    this.tunnelsObj = [];
+    this.init();
 
     this.isSummary = false;
     this.isPods = false;
@@ -77,6 +75,8 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges, OnDestro
 
     this.dataSubscription = this.dataService.isContivDataLoaded.subscribe(isLoaded => {
       if (isLoaded) {
+        this.init();
+
         this.bd = this.dataService.contivData.contivData[0].bd[0];
         this.domains = this.dataService.contivData.contivData;
         this.summaryObj = this.domains.map(d => {
@@ -131,10 +131,6 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges, OnDestro
             this.tunnelsObj.push(row);
           });
         });
-      } else {
-        this.summaryObj = [];
-        this.podsObj = [];
-        this.tunnelsObj = [];
       }
     });
   }
@@ -160,6 +156,12 @@ export class BridgeDomainControlComponent implements OnInit, OnChanges, OnDestro
 
   public highlightTunnel(srcId: string, dstId: string) {
     this.topologyHighlightService.highlightLinkBetweenNodes(srcId, dstId);
+  }
+
+  private init() {
+    this.summaryObj = [];
+    this.podsObj = [];
+    this.tunnelsObj = [];
   }
 
   ngOnChanges(changes: SimpleChanges) {

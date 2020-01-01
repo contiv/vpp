@@ -36,12 +36,14 @@ import (
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/devicemanager"
 	contivgrpc "github.com/contiv/vpp/plugins/grpc"
+	"github.com/contiv/vpp/plugins/idalloc"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipnet"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/contiv/vpp/plugins/service"
+	"github.com/contiv/vpp/plugins/sfc"
 	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/ligato/vpp-agent/plugins/kvscheduler"
@@ -64,8 +66,7 @@ import (
 const (
 	defaultStartupTimeout = 45 * time.Second
 
-	grpcDBPath   = "/var/bolt/grpc.db"
-	grpcEndpoint = "localhost:9111"
+	grpcDBPath = "/var/bolt/grpc.db"
 )
 
 // ContivAgent manages vswitch in contiv/vpp solution
@@ -100,10 +101,12 @@ type ContivAgent struct {
 	ContivGRPC    *contivgrpc.Plugin
 	NodeSync      *nodesync.NodeSync
 	PodManager    *podmanager.PodManager
+	IDAlloc       *idalloc.API
 	IPAM          ipam.API
 	IPNet         *ipnet.IPNet
 	Policy        *policy.Plugin
 	Service       *service.Plugin
+	SFC           *sfc.Plugin
 	DeviceManager *devicemanager.DeviceManager
 	BGPReflector  *bgpreflector.BGPReflector
 }
@@ -158,9 +161,6 @@ func main() {
 		})
 		deps.GRPCServer = grpc.NewPlugin(func(plugin *grpc.Plugin) {
 			plugin.PluginName = "grpc2"
-			plugin.Config = &grpc.Config{
-				Endpoint: grpcEndpoint,
-			}
 		})
 	}))
 
@@ -172,7 +172,13 @@ func main() {
 		deps.ContivConf = contivConf
 	}))
 
+	idAllocPlugin := idalloc.NewPlugin(idalloc.UseDeps(func(deps *idalloc.Deps) {
+		deps.RemoteDB = &etcd.DefaultPlugin
+		deps.ContivConf = contivConf
+	}))
+
 	ipamPlugin := ipam.NewPlugin(ipam.UseDeps(func(deps *ipam.Deps) {
+		deps.RemoteDB = &etcd.DefaultPlugin
 		deps.ContivConf = contivConf
 		deps.NodeSync = nodeSyncPlugin
 	}))
@@ -183,6 +189,7 @@ func main() {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.LinuxNsPlugin = &linux_nsplugin.DefaultPlugin
 		deps.ContivConf = contivConf
+		deps.IDAlloc = idAllocPlugin
 		deps.IPAM = ipamPlugin
 		deps.NodeSync = nodeSyncPlugin
 		deps.PodManager = podManager
@@ -207,6 +214,15 @@ func main() {
 		deps.PodManager = podManager
 	}))
 
+	sfcPlugin := sfc.NewPlugin(sfc.UseDeps(func(deps *sfc.Deps) {
+		deps.ContivConf = contivConf
+		deps.IDAlloc = idAllocPlugin
+		deps.IPAM = ipamPlugin
+		deps.IPNet = ipNetPlugin
+		deps.NodeSync = nodeSyncPlugin
+		deps.PodManager = podManager
+	}))
+
 	bgpReflector := bgpreflector.NewPlugin(bgpreflector.UseDeps(func(deps *bgpreflector.Deps) {
 		deps.ContivConf = contivConf
 	}))
@@ -219,9 +235,11 @@ func main() {
 			nodeSyncPlugin,
 			podManager,
 			deviceManager,
+			idAllocPlugin,
 			ipamPlugin,
 			ipNetPlugin,
 			servicePlugin,
+			sfcPlugin,
 			policyPlugin,
 			bgpReflector,
 			statsCollector,
@@ -242,6 +260,7 @@ func main() {
 	deviceManager.EventLoop = controller
 	bgpReflector.EventLoop = controller
 	servicePlugin.ConfigRetriever = controller
+	sfcPlugin.ConfigRetriever = controller
 
 	// initialize the agent
 	contivAgent := &ContivAgent{
@@ -275,6 +294,7 @@ func main() {
 		IPNet:               ipNetPlugin,
 		Policy:              policyPlugin,
 		Service:             servicePlugin,
+		SFC:                 sfcPlugin,
 		BGPReflector:        bgpReflector,
 	}
 

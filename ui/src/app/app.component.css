@@ -29,3 +29,11 @@
   width: 100%;
   height: 67vh;
 }
+
+#controls {
+  margin-right: 10px;
+}
+
+#controls clr-icon {
+  cursor: pointer;
+}

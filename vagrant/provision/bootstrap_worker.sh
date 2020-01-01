@@ -29,22 +29,15 @@ if [ "${dep_scenario}" != 'nostn' ]; then
   sudo /tmp/contiv-stn.sh
 fi
 
-# Based on kubernetes version, disable hugepages in Kubelet
 # Join the kubernetes cluster
 split_k8s_version="$(cut -d "." -f 2 <<< "${k8s_version}")"
-if [ $split_k8s_version -gt 10 ] ; then
-  if [ "${node_os_release}" == "16.04" ] ; then
-    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
-  else
-    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--resolv-conf=\/run\/systemd\/resolve\/resolv.conf --node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
-  fi
-  systemctl daemon-reload
-  systemctl restart kubelet
+if [ "${node_os_release}" == "16.04" ] ; then
+  echo "KUBELET_EXTRA_ARGS=--node-ip=$KUBE_WORKER_IP" > /etc/default/kubelet
 else
-  sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
-  systemctl daemon-reload
-  systemctl restart kubelet
+  echo "KUBELET_EXTRA_ARGS=--resolv-conf=\/run\/systemd\/resolve\/resolv.conf --node-ip=$KUBE_WORKER_IP" > /etc/default/kubelet
 fi
+systemctl daemon-reload
+systemctl restart kubelet
 
 hash=$(awk 'END {print $NF}' /vagrant/config/cert)
 

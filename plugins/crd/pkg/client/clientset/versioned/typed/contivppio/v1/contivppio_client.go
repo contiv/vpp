@@ -19,13 +19,14 @@ package v1
 import (
 	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	"github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/scheme"
-	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"
 )
 
 type ContivppV1Interface interface {
 	RESTClient() rest.Interface
+	CustomConfigurationsGetter
 	CustomNetworksGetter
+	ExternalInterfacesGetter
 	ServiceFunctionChainsGetter
 }
 
@@ -34,8 +35,16 @@ type ContivppV1Client struct {
 	restClient rest.Interface
 }
 
+func (c *ContivppV1Client) CustomConfigurations(namespace string) CustomConfigurationInterface {
+	return newCustomConfigurations(c, namespace)
+}
+
 func (c *ContivppV1Client) CustomNetworks(namespace string) CustomNetworkInterface {
 	return newCustomNetworks(c, namespace)
+}
+
+func (c *ContivppV1Client) ExternalInterfaces(namespace string) ExternalInterfaceInterface {
+	return newExternalInterfaces(c, namespace)
 }
 
 func (c *ContivppV1Client) ServiceFunctionChains(namespace string) ServiceFunctionChainInterface {
@@ -74,7 +83,7 @@ func setConfigDefaults(config *rest.Config) error {
 	gv := v1.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
+	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()

@@ -19,9 +19,10 @@ import (
 	"net"
 	"strings"
 
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linux/nsplugin/linuxcalls"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/vpe"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/vpe"
 	"github.com/vishvananda/netlink"
 )
 
@@ -36,9 +37,13 @@ const (
 	ipv6AddrAny = "::"
 	ipv6NetAny  = ipv6AddrAny + "/0"
 
+	// full prefixes for different IP address families
+	ipv4FullPrefix = "/32"
+	ipv6FullPrefix = "/128"
+
 	// host prefixes
-	ipv4HostPrefix = "/32"
-	ipv6HostPrefix = "/128"
+	ipv4HostPrefix = ipv4FullPrefix
+	ipv6HostPrefix = ipv6FullPrefix
 )
 
 // getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
@@ -140,16 +145,16 @@ func ipNetToString(ipNet *net.IPNet) string {
 }
 
 // interfaceRxModeType returns interface rx-mode type from provided string.
-func interfaceRxModeType(rxMode string) vpp_interfaces.Interface_RxModeSettings_RxModeType {
+func interfaceRxModeType(rxMode string) vpp_interfaces.Interface_RxMode_Type {
 	switch rxMode {
 	case "polling":
-		return vpp_interfaces.Interface_RxModeSettings_POLLING
+		return vpp_interfaces.Interface_RxMode_POLLING
 	case "interrupt":
-		return vpp_interfaces.Interface_RxModeSettings_INTERRUPT
+		return vpp_interfaces.Interface_RxMode_INTERRUPT
 	case "adaptive":
-		return vpp_interfaces.Interface_RxModeSettings_ADAPTIVE
+		return vpp_interfaces.Interface_RxMode_ADAPTIVE
 	default:
-		return vpp_interfaces.Interface_RxModeSettings_DEFAULT
+		return vpp_interfaces.Interface_RxMode_DEFAULT
 	}
 }
 
@@ -161,6 +166,14 @@ func isIPv6(ip net.IP) bool {
 	return strings.Contains(ip.String(), ipv6AddrDelimiter)
 }
 
+// isIPv6Str returns true if the string contains IPv6 address, false otherwise.
+func isIPv6Str(ip string) bool {
+	if ip == "" {
+		return false
+	}
+	return strings.Contains(ip, ipv6AddrDelimiter)
+}
+
 // hostPrefixForAF returns prefix length string to address a host
 // for address family determined from given IP address.
 func hostPrefixForAF(ip net.IP) string {
@@ -168,6 +181,15 @@ func hostPrefixForAF(ip net.IP) string {
 		return ipv6HostPrefix
 	}
 	return ipv4HostPrefix
+}
+
+// fullPrefixForAF returns prefix length string to address fully prefixed
+// IP address for address family determined from given IP address.
+func fullPrefixForAF(ip net.IP) string {
+	if isIPv6(ip) {
+		return ipv6FullPrefix
+	}
+	return ipv4FullPrefix
 }
 
 // anyAddrForAF returns IP address identifying "any" node
@@ -186,4 +208,49 @@ func anyNetAddrForAF(ip net.IP) string {
 		return ipv6NetAny
 	}
 	return ipv4NetAny
+}
+
+// addFullPrefixToIP creates from given IP address IPNet by applying full IP prefix.
+// The full IP prefix used is determined from address family of given IP address.
+func addFullPrefixToIP(ip net.IP) (*net.IPNet, error) {
+	_, ipnet, err := net.ParseCIDR(ip.String() + fullPrefixForAF(ip))
+	return ipnet, err
+}
+
+// mergeConfiguration merges configuration from sourceConf to destConf.
+func mergeConfiguration(destConf, sourceConf controller.KeyValuePairs) {
+	if destConf == nil {
+		return
+	}
+	for k, v := range sourceConf {
+		destConf[k] = v
+	}
+}
+
+// sliceContains returns true if provided slice contains provided value, false otherwise.
+func sliceContains(slice []string, value string) bool {
+	for _, i := range slice {
+		if i == value {
+			return true
+		}
+	}
+	return false
+}
+
+// sliceAppendIfNotExists adds an item into the provided slice (if it does not already exists in the slice).
+func sliceAppendIfNotExists(slice []string, value string) []string {
+	if !sliceContains(slice, value) {
+		slice = append(slice, value)
+	}
+	return slice
+}
+
+// sliceRemove removes an item from provided slice (if it exists in the slice).
+func sliceRemove(slice []string, value string) []string {
+	for i, val := range slice {
+		if val == value {
+			return append(slice[:i], slice[i+1:]...)
+		}
+	}
+	return slice
 }

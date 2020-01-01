@@ -14,53 +14,12 @@
 
 package handler
 
-import (
-	"github.com/contiv/vpp/plugins/crd/handler/customnetwork"
-	"github.com/contiv/vpp/plugins/crd/handler/nodeconfig"
-	"github.com/contiv/vpp/plugins/crd/handler/servicefunctionchain"
-	"github.com/contiv/vpp/plugins/crd/handler/telemetry"
-)
-
 // Handler is implemented by any handler.
 // The Handle method is used to process an event
 type Handler interface {
-	//
 	Init() error
-	//
-	ObjectCreated(obj interface{})
-	//
-	ObjectDeleted(obj interface{})
-	//
-	ObjectUpdated(oldObj, newObj interface{})
-}
-
-// Map maps each event handler function to a name for easily lookup
-var Map = map[string]interface{}{
-	"default":              &Default{},
-	"telemetry":            &telemetry.Handler{},
-	"nodeConfig":           &nodeconfig.Handler{},
-	"customNetwork":        &customnetwork.Handler{},
-	"serviceFunctionChain": &servicefunctionchain.Handler{},
-}
-
-// Default handler implements Handler interface
-type Default struct {
-}
-
-// Init initializes handler configuration
-// Do nothing for default handler
-func (d *Default) Init() error {
-	return nil
-}
-
-// ObjectCreated is called when a CRD object is created
-func (d *Default) ObjectCreated(obj interface{}) {
-}
-
-// ObjectDeleted is called when a CRD object is deleted
-func (d *Default) ObjectDeleted(obj interface{}) {
-}
-
-// ObjectUpdated is called when a CRD object is updated
-func (d *Default) ObjectUpdated(oldObj, newObj interface{}) {
+	ObjectCreated(obj interface{}) error
+	ObjectDeleted(obj interface{}) error
+	ObjectUpdated(oldObj, newObj interface{}) error
+	PublishStatus(obj interface{}, opRetval error) error
 }

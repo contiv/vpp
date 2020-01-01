@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: alpine1
+spec:
+  containers:
+  - name: alpine
+    image: alpine
+    imagePullPolicy: IfNotPresent
+    command: [ "sh", "-c", "--" ]
+    args: [ "while true; do sleep 3; done;" ]
+    # this is to be replaces by envsubst: NODE_SELECTOR=k8s-worker1 envsubst < this.yaml | kubectl create -f -
+  nodeName: ${NODE_SELECTOR}

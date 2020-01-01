@@ -1,0 +1,29 @@
+---
+apiVersion: contivpp.io/v1
+kind: ServiceFunctionChain
+metadata:
+  name: example-chain
+spec:
+  network: example-network
+  chain:
+    - name: interface input of the chain
+      type: ExternalInterface
+      interface: vlan200-if
+
+    - name: firewall CNF
+      type: Pod
+      podSelector:
+        cnf: firewall
+      inputInterface: memif1
+      outputInterface: memif2
+
+    - name: NAT CNF
+      type: Pod
+      podSelector:
+        cnf: nat
+      inputInterface: memif1
+      outputInterface: memif2
+
+    - name: interface output of the chain
+      type: ExternalInterface
+      interface: vlan300-if

@@ -129,7 +129,7 @@ func (c *FakeNodeConfigs) DeleteCollection(options *v1.DeleteOptions, listOption
 // Patch applies the patch and returns the patched nodeConfig.
 func (c *FakeNodeConfigs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *nodeconfigv1.NodeConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(nodeconfigsResource, c.ns, name, data, subresources...), &nodeconfigv1.NodeConfig{})
+		Invokes(testing.NewPatchSubresourceAction(nodeconfigsResource, c.ns, name, pt, data, subresources...), &nodeconfigv1.NodeConfig{})
 
 	if obj == nil {
 		return nil, err

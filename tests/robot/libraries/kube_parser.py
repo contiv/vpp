@@ -23,7 +23,7 @@ def parse_kubectl_get_pods(stdout):
     """Parse kubectl get pods output"""
     lines = stdout.splitlines()
     result = {}
-    if "No resources found." in stdout:
+    if "No resources found." in stdout or len(lines) == 0:
         return result
     kws = lines[0].split()
     for line in lines[1:]:
@@ -55,7 +55,7 @@ def parse_kubectl_describe_pod(stdout):
     for line in lines:
         for item in info:
             if line.startswith("{}: ".format(item)):
-                result[item] = line.split(":")[-1].strip()
+                result[item] = line.split(": ")[-1].strip()
     name = result.pop("Name")
     return {name: result}
 

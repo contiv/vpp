@@ -17,6 +17,8 @@
 package versioned
 
 import (
+	"fmt"
+
 	contivppv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivppio/v1"
 	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1"
 	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/telemetry/v1"
@@ -28,14 +30,8 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	ContivppV1() contivppv1.ContivppV1Interface
-	// Deprecated: please explicitly pick a version if possible.
-	Contivpp() contivppv1.ContivppV1Interface
 	NodeconfigV1() nodeconfigv1.NodeconfigV1Interface
-	// Deprecated: please explicitly pick a version if possible.
-	Nodeconfig() nodeconfigv1.NodeconfigV1Interface
 	TelemetryV1() telemetryv1.TelemetryV1Interface
-	// Deprecated: please explicitly pick a version if possible.
-	Telemetry() telemetryv1.TelemetryV1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -52,31 +48,13 @@ func (c *Clientset) ContivppV1() contivppv1.ContivppV1Interface {
 	return c.contivppV1
 }
 
-// Deprecated: Contivpp retrieves the default version of ContivppClient.
-// Please explicitly pick a version.
-func (c *Clientset) Contivpp() contivppv1.ContivppV1Interface {
-	return c.contivppV1
-}
-
 // NodeconfigV1 retrieves the NodeconfigV1Client
 func (c *Clientset) NodeconfigV1() nodeconfigv1.NodeconfigV1Interface {
 	return c.nodeconfigV1
 }
 
-// Deprecated: Nodeconfig retrieves the default version of NodeconfigClient.
-// Please explicitly pick a version.
-func (c *Clientset) Nodeconfig() nodeconfigv1.NodeconfigV1Interface {
-	return c.nodeconfigV1
-}
-
 // TelemetryV1 retrieves the TelemetryV1Client
 func (c *Clientset) TelemetryV1() telemetryv1.TelemetryV1Interface {
-	return c.telemetryV1
-}
-
-// Deprecated: Telemetry retrieves the default version of TelemetryClient.
-// Please explicitly pick a version.
-func (c *Clientset) Telemetry() telemetryv1.TelemetryV1Interface {
 	return c.telemetryV1
 }
 
@@ -89,9 +67,14 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 }
 
 // NewForConfig creates a new Clientset for the given config.
+// If config's RateLimiter is not set and QPS and Burst are acceptable,
+// NewForConfig will generate a rate-limiter in configShallowCopy.
 func NewForConfig(c *rest.Config) (*Clientset, error) {
 	configShallowCopy := *c
 	if configShallowCopy.RateLimiter == nil && configShallowCopy.QPS > 0 {
+		if configShallowCopy.Burst <= 0 {
+			return nil, fmt.Errorf("Burst is required to be greater than 0 when RateLimiter is not set and QPS is set to greater than 0")
+		}
 		configShallowCopy.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(configShallowCopy.QPS, configShallowCopy.Burst)
 	}
 	var cs Clientset

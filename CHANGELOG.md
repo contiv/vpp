@@ -1,3 +1,102 @@
+# Release v3.3.3 (2019-11-14)
+
+### VPP
+ - version **v19.08.1** (latest stable/1908)
+
+### New Features & Enhancements
+ - [SRv6 Renderer](docs/dev-guide/SFC.md#srv6-renderer) for Service Function Chaining
+
+### Bugfixes
+ - fixed an issue in helm chart
+
+### Known Issues
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
+# Release v3.3.2 (2019-10-16)
+
+### VPP
+ - version **v19.08.1**
+
+### New Features & Enhancements
+ - k8s 1.16 support
+ - support for [L3 custom networks](k8s/examples/custom-network) defined in CRDs
+
+### Bugfixes
+ - fixed crash issue of vmxnet3 interfaces
+
+### Known Issues
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
+# Release v3.3.1 (2019-09-20)
+
+### VPP
+ - version **v19.08** (latest stable/1908)
+
+### Bugfixes
+ - address CVE-2019-9512 and CVE-2019-9514 issues
+ - fix SplitHorizonGroup for [L2 custom networks](k8s/examples/custom-network)
+
+### Known Issues
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
+# Release v3.3.0 (2019-09-06)
+
+### VPP
+ - version **v19.08** (latest stable/1908)
+
+### New Features & Enhancements
+ - support for cluster-wide L2 cross-connect based [service chaining between pods](k8s/examples/sfc/README.md)
+ - support for [custom networks](k8s/examples/custom-network) defined in CRDs
+ - support for [external interfaces](k8s/examples/custom-network) defined in CRDs
+
+### Bugfixes
+ - fixed VPP NAT in multi-worker setup
+
+### Known Issues
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
+# Release v3.2.1 (2019-07-24)
+
+### VPP
+ - version **v19.04** (latest stable/1904)
+
+### Bugfixes
+ - fixed GSO (Generic Segmentation Offload) issue on VPP
+ - fixed an SRv6 k8s service implementation issue
+
+### Known Issues
+ - GSO does not work correctly with SRv6
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
+# Release v3.2.0 (2019-07-02)
+
+### VPP
+ - version **v19.04** (latest stable/1904)
+
+### New Features & Enhancements
+ - GSO (Generic Segmentation Offload) is enabled on VPP by default, which brings better performance
+ for pod-to-pod communication via TAP interfaces
+ - SRv6 as a new node-to-node transport option
+ - new helm option `contiv.nodeToNodeTransport` with possible values: `vxlan` (default), `srv6`, or `nooverlay`
+ - experimental (PoC) support for [service chaining between pods](k8s/examples/sfc/README.md)
+
+### Known Issues
+ - (IPv6 only): service load-balancing in IPv6 setup is not equal, node-local backend pods are always
+   preferred and a request is never load-balanced to a remote node's pod if there is a local backend
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
 # Release v3.1.0 (2019-05-17)
 
 ### VPP

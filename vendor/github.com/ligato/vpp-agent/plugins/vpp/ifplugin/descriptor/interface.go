@@ -28,12 +28,15 @@ import (
 
 	linux_intf "github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	linux_ns "github.com/ligato/vpp-agent/api/models/linux/namespace"
+	netalloc_api "github.com/ligato/vpp-agent/api/models/netalloc"
 	interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
 	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	linux_ifdescriptor "github.com/ligato/vpp-agent/plugins/linux/ifplugin/descriptor"
 	linux_ifaceidx "github.com/ligato/vpp-agent/plugins/linux/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/linux/nsplugin"
+	"github.com/ligato/vpp-agent/plugins/netalloc"
+	netalloc_descr "github.com/ligato/vpp-agent/plugins/netalloc/descriptor"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor/adapter"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
@@ -47,6 +50,7 @@ const (
 	afPacketHostInterfaceDep = "afpacket-host-interface-exists"
 	vxlanMulticastDep        = "vxlan-multicast-interface-exists"
 	vxlanVrfTableDep         = "vrf-table-for-vxlan-exists"
+	vxlanGpeVrfTableDep      = "vrf-table-for-vxlan-gpe-exists"
 	microserviceDep          = "microservice-available"
 	parentInterfaceDep       = "parent-interface-exists"
 
@@ -98,9 +102,8 @@ var (
 	// ErrInterfaceLinkMismatch is returned when interface type does not match the link configuration.
 	ErrInterfaceLinkMismatch = errors.New("VPP interface type and link configuration do not match")
 
-	// ErrUnsupportedRxMode is returned when the given interface type does not support the chosen
-	// RX mode.
-	ErrUnsupportedRxMode = errors.New("unsupported RX Mode")
+	// ErrRedefinedRxPlacement is returned when Rx placement has multiple definitions for the same queue.
+	ErrRedefinedRxPlacement = errors.New("redefined RX Placement")
 
 	// ErrSubInterfaceWithoutParent is returned when interface of type sub-interface is defined without parent.
 	ErrSubInterfaceWithoutParent = errors.Errorf("subinterface with no parent interface defined")
@@ -110,6 +113,33 @@ var (
 
 	// ErrBondInterfaceIDExists is returned when the bond interface uses existing ID value
 	ErrBondInterfaceIDExists = errors.Errorf("Bond interface ID already exists")
+
+	// ErrGreBadTunnelType is returned when tunnel type for GRE was not set or set to UNKNOWN
+	ErrGreBadTunnelType = errors.Errorf("bad tunnel type for GRE")
+
+	// ErrGreSrcAddrMissing is returned when source address was not set or set to an empty string.
+	ErrGreSrcAddrMissing = errors.Errorf("missing source address for GRE tunnel")
+
+	// ErrGreDstAddrMissing is returned when destination address was not set or set to an empty string.
+	ErrGreDstAddrMissing = errors.Errorf("missing destination address for GRE tunnel")
+
+	// ErrVxLanGpeBadProtocol is returned when protocol for VxLAN-GPE was not set or set to UNKNOWN.
+	ErrVxLanGpeBadProtocol = errors.Errorf("bad protocol for VxLAN-GPE")
+
+	// ErrVxLanGpeNonZeroDecapVrfID is returned when DecapVrfId was not zero for protocols other than IP4 or IP6.
+	ErrVxLanGpeNonZeroDecapVrfID = errors.Errorf("DecapVrfId must be zero for protocols other than IP4 or IP6")
+
+	// ErrVxLanSrcAddrMissing is returned when source address was not set or set to an empty string.
+	ErrVxLanSrcAddrMissing = errors.Errorf("missing source address for VxLAN tunnel")
+
+	// ErrVxLanDstAddrMissing is returned when destination address was not set or set to an empty string.
+	ErrVxLanDstAddrMissing = errors.Errorf("missing destination address for VxLAN tunnel")
+
+	// ErrVxLanDstAddrBad is returned when destination address was not set to valid IP address.
+	ErrVxLanDstAddrBad = errors.Errorf("bad destination address for VxLAN tunnel")
+
+	// ErrVxLanMulticastIntfMissing is returned when interface for multicast was not specified.
+	ErrVxLanMulticastIntfMissing = errors.Errorf("missing multicast interface name for VxLAN tunnel")
 )
 
 // InterfaceDescriptor teaches KVScheduler how to configure VPP interfaces.
@@ -120,6 +150,7 @@ type InterfaceDescriptor struct {
 	// dependencies
 	log       logging.Logger
 	ifHandler vppcalls.InterfaceVppAPI
+	addrAlloc netalloc.AddressAllocator
 
 	// optional dependencies, provide if AFPacket and/or TAP+TAP_TO_VPP interfaces are used
 	linuxIfPlugin  LinuxPluginAPI
@@ -149,13 +180,14 @@ type NetlinkAPI interface {
 }
 
 // NewInterfaceDescriptor creates a new instance of the Interface descriptor.
-func NewInterfaceDescriptor(ifHandler vppcalls.InterfaceVppAPI, defaultMtu uint32,
-	linuxIfHandler NetlinkAPI, linuxIfPlugin LinuxPluginAPI, nsPlugin nsplugin.API,
+func NewInterfaceDescriptor(ifHandler vppcalls.InterfaceVppAPI, addrAlloc netalloc.AddressAllocator,
+	defaultMtu uint32, linuxIfHandler NetlinkAPI, linuxIfPlugin LinuxPluginAPI, nsPlugin nsplugin.API,
 	log logging.PluginLogger) (descr *kvs.KVDescriptor, ctx *InterfaceDescriptor) {
 
 	// descriptor context
 	ctx = &InterfaceDescriptor{
 		ifHandler:       ifHandler,
+		addrAlloc:       addrAlloc,
 		defaultMtu:      defaultMtu,
 		linuxIfPlugin:   linuxIfPlugin,
 		linuxIfHandler:  linuxIfHandler,
@@ -184,8 +216,11 @@ func NewInterfaceDescriptor(ifHandler vppcalls.InterfaceVppAPI, defaultMtu uint3
 		Retrieve:           ctx.Retrieve,
 		Dependencies:       ctx.Dependencies,
 		DerivedValues:      ctx.DerivedValues,
-		// If Linux-IfPlugin is loaded, dump it first.
-		RetrieveDependencies: []string{linux_ifdescriptor.InterfaceDescriptorName},
+		RetrieveDependencies: []string{
+			// refresh the pool of allocated IP addresses first
+			netalloc_descr.IPAllocDescriptorName,
+			// If Linux-IfPlugin is loaded, dump it first.
+			linux_ifdescriptor.InterfaceDescriptorName},
 	}
 	descr = adapter.NewInterfaceDescriptor(typedDescr)
 	return
@@ -207,8 +242,7 @@ func (d *InterfaceDescriptor) EquivalentInterfaces(key string, oldIntf, newIntf 
 		oldIntf.SetDhcpClient != newIntf.SetDhcpClient {
 		return false
 	}
-	if !proto.Equal(oldIntf.Unnumbered, newIntf.Unnumbered) ||
-		!proto.Equal(getRxPlacement(oldIntf), getRxPlacement(newIntf)) {
+	if !proto.Equal(oldIntf.Unnumbered, newIntf.Unnumbered) {
 		return false
 	}
 
@@ -219,14 +253,6 @@ func (d *InterfaceDescriptor) EquivalentInterfaces(key string, oldIntf, newIntf 
 
 	if newIntf.Unnumbered == nil { // unnumbered inherits VRF from numbered interface
 		if oldIntf.Vrf != newIntf.Vrf {
-			return false
-		}
-	}
-
-	// TODO: for TAPv2 the RxMode dump is unstable
-	//       (it goes between POLLING and INTERRUPT, maybe it should actually return ADAPTIVE?)
-	if oldIntf.Type != interfaces.Interface_TAP || oldIntf.GetTap().GetVersion() != 2 {
-		if !proto.Equal(getRxMode(oldIntf), getRxMode(newIntf)) {
 			return false
 		}
 	}
@@ -285,6 +311,10 @@ func (d *InterfaceDescriptor) equivalentTypeSpecificConfig(oldIntf, newIntf *int
 		}
 	case interfaces.Interface_BOND_INTERFACE:
 		if !d.equivalentBond(oldIntf.GetBond(), newIntf.GetBond()) {
+			return false
+		}
+	case interfaces.Interface_GRE_TUNNEL:
+		if !proto.Equal(oldIntf.GetGre(), newIntf.GetGre()) {
 			return false
 		}
 	}
@@ -370,13 +400,13 @@ func (d *InterfaceDescriptor) Validate(key string, intf *interfaces.Interface) e
 	}
 
 	// validate interface type defined
-	if intf.Type == interfaces.Interface_UNDEFINED_TYPE {
+	if intf.GetType() == interfaces.Interface_UNDEFINED_TYPE {
 		return kvs.NewInvalidValueError(ErrInterfaceWithoutType, "type")
 	}
 
 	// validate link with interface type
 	linkMismatchErr := kvs.NewInvalidValueError(ErrInterfaceLinkMismatch, "link")
-	switch intf.Link.(type) {
+	switch intf.GetLink().(type) {
 	case *interfaces.Interface_Sub:
 		if intf.Type != interfaces.Interface_SUB_INTERFACE {
 			return linkMismatchErr
@@ -409,6 +439,10 @@ func (d *InterfaceDescriptor) Validate(key string, intf *interfaces.Interface) e
 		if intf.Type != interfaces.Interface_IPSEC_TUNNEL {
 			return linkMismatchErr
 		}
+	case *interfaces.Interface_Gre:
+		if intf.Type != interfaces.Interface_GRE_TUNNEL {
+			return linkMismatchErr
+		}
 	case nil:
 		if intf.Type != interfaces.Interface_SOFTWARE_LOOPBACK &&
 			intf.Type != interfaces.Interface_DPDK {
@@ -426,9 +460,6 @@ func (d *InterfaceDescriptor) Validate(key string, intf *interfaces.Interface) e
 		if _, ok := d.ethernetIfs[intf.Name]; !ok {
 			return kvs.NewInvalidValueError(ErrDPDKInterfaceMissing, "name")
 		}
-		if getRxMode(intf).GetRxMode() != interfaces.Interface_RxModeSettings_POLLING {
-			return kvs.NewInvalidValueError(ErrUnsupportedRxMode, "rx_mode_settings.rx_mode")
-		}
 	case interfaces.Interface_AF_PACKET:
 		if intf.GetAfpacket().GetHostIfName() == "" {
 			return kvs.NewInvalidValueError(ErrAfPacketWithoutHostName, "link.afpacket.host_if_name")
@@ -437,12 +468,63 @@ func (d *InterfaceDescriptor) Validate(key string, intf *interfaces.Interface) e
 		if name, ok := d.bondIDs[intf.GetBond().GetId()]; ok && name != intf.GetName() {
 			return kvs.NewInvalidValueError(ErrBondInterfaceIDExists, "link.bond.id")
 		}
+	case interfaces.Interface_GRE_TUNNEL:
+		if intf.GetGre().TunnelType == interfaces.GreLink_UNKNOWN {
+			return kvs.NewInvalidValueError(ErrGreBadTunnelType, "link.gre.tunnel_type")
+		}
+		if intf.GetGre().SrcAddr == "" {
+			return kvs.NewInvalidValueError(ErrGreSrcAddrMissing, "link.gre.src_addr")
+		}
+		if intf.GetGre().DstAddr == "" {
+			return kvs.NewInvalidValueError(ErrGreDstAddrMissing, "link.gre.dst_addr")
+		}
+	case interfaces.Interface_VXLAN_TUNNEL:
+		if intf.GetVxlan().SrcAddress == "" {
+			return kvs.NewInvalidValueError(ErrVxLanSrcAddrMissing, "link.vxlan.src_address")
+		}
+		if intf.GetVxlan().DstAddress == "" {
+			return kvs.NewInvalidValueError(ErrVxLanDstAddrMissing, "link.vxlan.dst_address")
+		}
+
+		if dst := net.ParseIP(intf.GetVxlan().DstAddress); dst != nil {
+			// if destination address is multicast then `Multicast` field must contain interface name.
+			if dst.IsMulticast() && intf.GetVxlan().Multicast == "" {
+				return kvs.NewInvalidValueError(ErrVxLanMulticastIntfMissing, "link.vxlan.multicast")
+			}
+		} else {
+			// destination address is not valid IP address.
+			return kvs.NewInvalidValueError(ErrVxLanDstAddrBad, "link.vxlan.dst_address")
+		}
+
+		if gpe := intf.GetVxlan().Gpe; gpe != nil {
+			if gpe.Protocol == interfaces.VxlanLink_Gpe_UNKNOWN {
+				return kvs.NewInvalidValueError(ErrVxLanGpeBadProtocol, "link.vxlan.gpe.protocol")
+			}
+
+			// DecapVrfId must be zero if the protocol being encapsulated is not IP4 or IP6.
+			isIP46 := gpe.Protocol == interfaces.VxlanLink_Gpe_IP4 || gpe.Protocol == interfaces.VxlanLink_Gpe_IP6
+			if !isIP46 && gpe.DecapVrfId != 0 {
+				return kvs.NewInvalidValueError(ErrVxLanGpeNonZeroDecapVrfID, "link.vxlan.gpe.decap_vrf_id")
+			}
+
+		}
 	}
 
 	// validate unnumbered
 	if intf.GetUnnumbered() != nil {
 		if len(intf.GetIpAddresses()) > 0 {
 			return kvs.NewInvalidValueError(ErrUnnumberedWithIP, "unnumbered", "ip_addresses")
+		}
+	}
+
+	// validate rx placements before before deriving
+	for i, rxPlacement1 := range intf.GetRxPlacements() {
+		for j := i + 1; j < len(intf.GetRxPlacements()); j++ {
+			rxPlacement2 := intf.GetRxPlacements()[j]
+			if rxPlacement1.Queue == rxPlacement2.Queue {
+				return kvs.NewInvalidValueError(ErrRedefinedRxPlacement,
+					fmt.Sprintf("rx_placement[.queue=%d]", rxPlacement1.Queue))
+			}
 		}
 	}
 
@@ -498,8 +580,14 @@ func (d *InterfaceDescriptor) Dependencies(key string, intf *interfaces.Interfac
 				AnyOf: kvs.AnyOfDependency{
 					KeyPrefixes: []string{interfaces.InterfaceAddressPrefix(vxlanMulticast)},
 					KeySelector: func(key string) bool {
-						_, ifaceAddr, _, _, _ := interfaces.ParseInterfaceAddressKey(key)
-						return ifaceAddr != nil && ifaceAddr.IsMulticast()
+						_, ifaceAddr, source, _, _ := interfaces.ParseInterfaceAddressKey(key)
+						if source != netalloc_api.IPAddressSource_ALLOC_REF {
+							ip, _, err := net.ParseCIDR(ifaceAddr)
+							return err == nil && ip.IsMulticast()
+						}
+						// TODO: handle the case when multicast IP address is allocated
+						// via netalloc (too specific to bother until really needed)
+						return false
 					},
 				},
 			})
@@ -518,6 +606,20 @@ func (d *InterfaceDescriptor) Dependencies(key string, intf *interfaces.Interfac
 				Key:   l3.VrfTableKey(intf.GetVrf(), protocol),
 			})
 		}
+
+		if gpe := intf.GetVxlan().Gpe; gpe != nil {
+			if gpe.DecapVrfId != 0 {
+				var protocol l3.VrfTable_Protocol
+				if gpe.Protocol == interfaces.VxlanLink_Gpe_IP6 {
+					protocol = l3.VrfTable_IPV6
+				}
+				dependencies = append(dependencies, kvs.Dependency{
+					Label: vxlanGpeVrfTableDep,
+					Key:   l3.VrfTableKey(gpe.DecapVrfId, protocol),
+				})
+			}
+		}
+
 	case interfaces.Interface_SUB_INTERFACE:
 		// SUB_INTERFACE requires parent interface
 		if parentName := intf.GetSub().GetParentName(); parentName != "" {
@@ -536,7 +638,11 @@ func (d *InterfaceDescriptor) Dependencies(key string, intf *interfaces.Interfac
 //  - empty value for enabled DHCP client
 //  - configuration for every slave of a bonded interface
 //  - one empty value for every IP address to be assigned to the interface
-//  - one empty value for VRF table to put the interface into.
+//  - one empty value for VRF table to put the interface into
+//  - one value with interface configuration reduced to RxMode if set
+//  - one Interface_RxPlacement for every queue with configured Rx placement
+//  - one empty value which will be created once at least one IP address is
+//    assigned to the interface.
 func (d *InterfaceDescriptor) DerivedValues(key string, intf *interfaces.Interface) (derValues []kvs.KeyValuePair) {
 	// unnumbered interface
 	if intf.GetUnnumbered() != nil {
@@ -567,7 +673,7 @@ func (d *InterfaceDescriptor) DerivedValues(key string, intf *interfaces.Interfa
 	// IP addresses
 	for _, ipAddr := range intf.IpAddresses {
 		derValues = append(derValues, kvs.KeyValuePair{
-			Key:   interfaces.InterfaceAddressKey(intf.Name, ipAddr),
+			Key:   interfaces.InterfaceAddressKey(intf.Name, ipAddr, netalloc_api.IPAddressSource_STATIC),
 			Value: &prototypes.Empty{},
 		})
 	}
@@ -602,6 +708,34 @@ func (d *InterfaceDescriptor) DerivedValues(key string, intf *interfaces.Interfa
 		}
 	}
 
+	// Rx mode
+	if len(intf.GetRxModes()) > 0 {
+		derValues = append(derValues, kvs.KeyValuePair{
+			Key: interfaces.RxModesKey(intf.GetName()),
+			Value: &interfaces.Interface{
+				Name:    intf.GetName(),
+				Type:    intf.GetType(),
+				RxModes: intf.GetRxModes(),
+			},
+		})
+	}
+
+	// Rx placement
+	for _, rxPlacement := range intf.GetRxPlacements() {
+		derValues = append(derValues, kvs.KeyValuePair{
+			Key:   interfaces.RxPlacementKey(intf.GetName(), rxPlacement.GetQueue()),
+			Value: rxPlacement,
+		})
+	}
+
+	// with-IP address (property)
+	if len(intf.GetIpAddresses()) > 0 {
+		derValues = append(derValues, kvs.KeyValuePair{
+			Key:   interfaces.InterfaceWithIPKey(intf.GetName()),
+			Value: &prototypes.Empty{},
+		})
+	}
+
 	// TODO: define derived value for UP/DOWN state (needed for subinterfaces)
 
 	return derValues
@@ -631,40 +765,6 @@ func (d *InterfaceDescriptor) resolveMemifSocketFilename(memifIf *interfaces.Mem
 		d.log.Debugf("Memif socket filename %s registered under ID %d", socketFileName, registeredID)
 	}
 	return registeredID, nil
-}
-
-// getRxMode returns the RX mode of the given interface.
-// If the mode is not defined, it returns the default settings for the given
-// interface type.
-func getRxMode(intf *interfaces.Interface) *interfaces.Interface_RxModeSettings {
-	if rxModeSettings := intf.RxModeSettings; rxModeSettings != nil {
-		return rxModeSettings
-	}
-
-	rxModeSettings := &interfaces.Interface_RxModeSettings{
-		RxMode: interfaces.Interface_RxModeSettings_DEFAULT,
-	}
-	// return default mode for the given interface type
-	switch intf.GetType() {
-	case interfaces.Interface_DPDK:
-		rxModeSettings.RxMode = interfaces.Interface_RxModeSettings_POLLING
-	case interfaces.Interface_AF_PACKET:
-		rxModeSettings.RxMode = interfaces.Interface_RxModeSettings_INTERRUPT
-	case interfaces.Interface_TAP:
-		if intf.GetTap().GetVersion() == 2 {
-			// TAP v2
-			rxModeSettings.RxMode = interfaces.Interface_RxModeSettings_INTERRUPT
-		}
-	}
-	return rxModeSettings
-}
-
-// getRxPlacement returns the RX placement of the given interface.
-func getRxPlacement(intf *interfaces.Interface) *interfaces.Interface_RxPlacementSettings {
-	if rxPlacementSettings := intf.GetRxPlacementSettings(); rxPlacementSettings != nil {
-		return rxPlacementSettings
-	}
-	return &interfaces.Interface_RxPlacementSettings{}
 }
 
 // getMemifSocketFilename returns the memif socket filename.
@@ -760,6 +860,11 @@ func equalStringSets(set1, set2 []string) bool {
 // contains IPv4 and/or IPv6 type addresses
 func getIPAddressVersions(ipAddrs []string) (hasIPv4, hasIPv6 bool) {
 	for _, ip := range ipAddrs {
+		if strings.HasPrefix(ip, netalloc_api.AllocRefPrefix) {
+			// TODO: figure out how to define VRF-related dependencies with netalloc'd addresses
+			//       - for now assume it is only used with IPv4
+			hasIPv4 = true
+		}
 		if strings.Contains(ip, ":") {
 			hasIPv6 = true
 		} else {

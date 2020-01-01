@@ -26,6 +26,7 @@ import (
 	"github.com/ligato/vpp-agent/api/models/vpp/l3"
 	"github.com/ligato/vpp-agent/api/models/vpp/punt"
 	"github.com/ligato/vpp-agent/api/models/vpp/stn"
+	"github.com/ligato/vpp-agent/pkg/models"
 )
 
 /* VPP - Host interconnect */
@@ -105,13 +106,20 @@ func (n *IPNet) interconnectTapVPP() (key string, config *vpp_interfaces.Interfa
 		Enabled: true,
 		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
 		Link: &vpp_interfaces.Interface_Tap{
-			Tap: &vpp_interfaces.TapLink{},
+			Tap: &vpp_interfaces.TapLink{
+				EnableGso: interfaceCfg.EnableGSO,
+			},
 		},
 		PhysAddress: hwAddrForNodeInterface(n.NodeSync.GetNodeID(), hostInterconnectHwAddrPrefix),
 	}
 	if n.ContivConf.InSTNMode() {
 		tap.Unnumbered = &vpp_interfaces.Interface_Unnumbered{
 			InterfaceWithIp: n.ContivConf.GetMainInterfaceName(),
+		}
+		tap.Link = &vpp_interfaces.Interface_Tap{
+			Tap: &vpp_interfaces.TapLink{
+				EnableGso: false, // GSO does not work correctly with STN / IP redirect
+			},
 		}
 	} else {
 		tap.IpAddresses = []string{n.IPAM.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)}
@@ -121,9 +129,12 @@ func (n *IPNet) interconnectTapVPP() (key string, config *vpp_interfaces.Interfa
 		tap.GetTap().RxRingSize = uint32(interfaceCfg.TAPv2RxRingSize)
 		tap.GetTap().TxRingSize = uint32(interfaceCfg.TAPv2TxRingSize)
 	}
-	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
-		tap.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
-			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxMode_UNKNOWN {
+		tap.RxModes = []*vpp_interfaces.Interface_RxMode{
+			{
+				DefaultMode: true,
+				Mode:        interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+			},
 		}
 	}
 	key = vpp_interfaces.InterfaceKey(tap.Name)
@@ -192,9 +203,12 @@ func (n *IPNet) interconnectAfpacket() (key string, config *vpp_interfaces.Inter
 	} else {
 		afpacket.IpAddresses = []string{n.IPAM.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)}
 	}
-	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxModeSettings_DEFAULT {
-		afpacket.RxModeSettings = &vpp_interfaces.Interface_RxModeSettings{
-			RxMode: interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+	if interfaceRxModeType(interfaceCfg.InterfaceRxMode) != vpp_interfaces.Interface_RxMode_DEFAULT {
+		afpacket.RxModes = []*vpp_interfaces.Interface_RxMode{
+			{
+				DefaultMode: true,
+				Mode:        interfaceRxModeType(interfaceCfg.InterfaceRxMode),
+			},
 		}
 	}
 	key = vpp_interfaces.InterfaceKey(afpacket.Name)
@@ -270,7 +284,7 @@ func (n *IPNet) routesToHost(nextHopIP net.IP) map[string]*vpp_l3.Route {
 			OutgoingInterface: n.hostInterconnectVPPIfName(),
 			VrfId:             n.ContivConf.GetRoutingConfig().MainVRFID,
 		}
-		key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+		key := models.Key(route)
 		routes[key] = route
 	}
 
@@ -283,13 +297,13 @@ func (n *IPNet) routePODsFromHost(nextHopIP net.IP) (key string, config *linux_l
 	route := &linux_l3.Route{
 		OutgoingInterface: hostInterconnectVETH1LogicalName,
 		Scope:             linux_l3.Route_GLOBAL,
-		DstNetwork:        n.IPAM.PodSubnetAllNodes().String(),
+		DstNetwork:        n.IPAM.PodSubnetAllNodes(DefaultPodNetworkName).String(),
 		GwAddr:            nextHopIP.String(),
 	}
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
 	}
-	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
+	key = models.Key(route)
 	return key, route
 }
 
@@ -305,7 +319,7 @@ func (n *IPNet) routeServicesFromHost(nextHopIP net.IP) (key string, config *lin
 	if n.ContivConf.GetInterfaceConfig().UseTAPInterfaces {
 		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
 	}
-	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
+	key = models.Key(route)
 	return key, route
 }
 
@@ -395,7 +409,7 @@ func (n *IPNet) routeToOriginalSTNSubnet() (key string, route *linux_l3.Route) {
 		Scope:             linux_l3.Route_GLOBAL,
 		OutgoingInterface: n.hostInterconnectLinuxIfName(),
 	}
-	key = linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
+	key = models.Key(route)
 	return key, route
 }
 
@@ -444,7 +458,7 @@ func (n *IPNet) stnRoutesForVPP() map[string]*vpp_l3.Route {
 		if route.DstNetwork == "" {
 			route.DstNetwork = anyNetAddrForAF(net.ParseIP(stnRoute.NextHopIp))
 		}
-		key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+		key := models.Key(route)
 		routes[key] = route
 	}
 
@@ -469,7 +483,7 @@ func (n *IPNet) stnRoutesForHost() map[string]*linux_l3.Route {
 		if route.DstNetwork == "" {
 			route.DstNetwork = anyNetAddrForAF(net.ParseIP(stnRoute.NextHopIp))
 		}
-		key := linux_l3.RouteKey(route.DstNetwork, route.OutgoingInterface)
+		key := models.Key(route)
 		routes[key] = route
 	}
 

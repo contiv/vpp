@@ -11,21 +11,22 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:bb5678bab3e7ae80a9a60b474c90356453e4306ff81aa4fbe64ec887b9c47e0e"
+  digest = "1:4ea66dee9c95fea3f3935c99e159c0b5ab20d774ee8e0f678f41dbf09f702094"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
     "adapter/mock",
     "adapter/mock/binapi",
     "adapter/socketclient",
+    "adapter/statsclient",
     "adapter/vppapiclient",
     "api",
     "codec",
     "core",
-    "examples/bin_api/memclnt",
+    "examples/binapi/memclnt",
   ]
   pruneopts = "UT"
-  revision = "87e79ec9fa48e5f8b2eb949c337488db75a17b29"
+  revision = "ca6003af1a7e1adb7d45879c2d5038bc05c2bb1a"
 
 [[projects]]
   branch = "master"
@@ -407,6 +408,14 @@
   version = "v0.4.0"
 
 [[projects]]
+  digest = "1:ac425d784b13d49b37a5bbed3ce022677f8f3073b216f05d6adcb9303e27fa0f"
+  name = "github.com/evanphx/json-patch"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "026c730a0dcc5d11f93f1cf1cc65b01247ea7b6f"
+  version = "v4.5.0"
+
+[[projects]]
   digest = "1:f2768df19f076b2f1956b88dc4beb47ae2c5c8f0ff0d16ff4e6942c2dac9b5b1"
   name = "github.com/fluent/fluent-logger-golang"
   packages = ["fluent"]
@@ -434,6 +443,14 @@
   pruneopts = "UT"
   revision = "8842d40dbf5ee062d80f9dc429db31a0fe0cdc73"
   version = "v1.2.2"
+
+[[projects]]
+  branch = "master"
+  digest = "1:ea797b536b154f62d2e1c49b61d5a1088782111563eb59837ff2b83fd2a65184"
+  name = "github.com/ftrvxmtrx/fd"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c6d800382fff6dc1412f34269f71b7f83bd059ad"
 
 [[projects]]
   digest = "1:0594af97b2f4cec6554086eeace6597e20a4b69466eb4ada25adf9f4300dddd2"
@@ -555,14 +572,6 @@
   version = "v0.0.1"
 
 [[projects]]
-  digest = "1:0bfbe13936953a98ae3cfe8ed6670d396ad81edf069a806d2f6515d7bb6950df"
-  name = "github.com/google/btree"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "4030bb1f1f0c35b30ca7009e9ebd06849dd45306"
-  version = "v1.0.0"
-
-[[projects]]
   digest = "1:87c5ab2f243348bbecd98e836f892302a423a2e3241cb76d354a1605332ae5c2"
   name = "github.com/google/cadvisor"
   packages = [
@@ -622,6 +631,20 @@
   revision = "cda62a43857256fbc95dd31e7c810888f00f8ec7"
 
 [[projects]]
+  digest = "1:1d1cbf539d9ac35eb3148129f96be5537f1a1330cadcc7e3a83b4e72a59672a3"
+  name = "github.com/google/go-cmp"
+  packages = [
+    "cmp",
+    "cmp/internal/diff",
+    "cmp/internal/flags",
+    "cmp/internal/function",
+    "cmp/internal/value",
+  ]
+  pruneopts = "UT"
+  revision = "2d0692c2e9617365a95b295612ac0d4415ba4627"
+  version = "v0.3.1"
+
+[[projects]]
   branch = "master"
   digest = "1:3ee90c0d94da31b442dde97c99635aaafec68d0b8a3c12ee2075c6bdabeec6bb"
   name = "github.com/google/gofuzz"
@@ -648,17 +671,6 @@
   pruneopts = "UT"
   revision = "c5c6c98bc25355028a63748a498942a6398ccd22"
   version = "v1.7.1"
-
-[[projects]]
-  branch = "master"
-  digest = "1:b4395b2a4566c24459af3d04009b39cc21762fc77ec7bf7a1aa905c91e8f018d"
-  name = "github.com/gregjones/httpcache"
-  packages = [
-    ".",
-    "diskcache",
-  ]
-  pruneopts = "UT"
-  revision = "3befbb6ad0cc97d4c25d851e9528915809e1a22f"
 
 [[projects]]
   digest = "1:a93a4de7b00fb9cc952bc0483e9a32cd273adbbd7f3282bfe89656b2f88fb08c"
@@ -743,7 +755,8 @@
   version = "v1.14.1"
 
 [[projects]]
-  digest = "1:52deab9cdd0bebb44dd010c960ebd83406fab5976970d24f724ca1049321202d"
+  branch = "master"
+  digest = "1:aa00e0d1437bf3fcd7a14a2045ae96a39a80b30242fe42d413ec2896debb5bb9"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -757,6 +770,10 @@
     "db/keyval/bolt",
     "db/keyval/etcd",
     "db/keyval/kvproto",
+    "exec/processmanager",
+    "exec/processmanager/status",
+    "exec/processmanager/template",
+    "exec/processmanager/template/model/process",
     "health/probe",
     "health/statuscheck",
     "health/statuscheck/model/status",
@@ -768,10 +785,6 @@
     "logging/logrus",
     "logging/measure",
     "logging/measure/model/apitrace",
-    "processmanager",
-    "processmanager/status",
-    "processmanager/template",
-    "processmanager/template/model/process",
     "rpc/grpc",
     "rpc/prometheus",
     "rpc/rest",
@@ -783,11 +796,10 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "ceaf6f4fe9f9fa6aa0629edc20156a969928f0e5"
-  version = "v2.1.0"
+  revision = "61443bee9914521191283f41c8715c41aaaa47f4"
 
 [[projects]]
-  digest = "1:f2cedc9ea454da9c682cfc7480da9714c993f071a1af77441e901472e6481786"
+  digest = "1:a26609ee247a26af4a3484fecfb11000d11da09127dc95a671bb1de1b7cd2afa"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -797,6 +809,7 @@
     "api/models/linux/iptables",
     "api/models/linux/l3",
     "api/models/linux/namespace",
+    "api/models/netalloc",
     "api/models/vpp",
     "api/models/vpp/abf",
     "api/models/vpp/acl",
@@ -817,8 +830,9 @@
     "plugins/configurator",
     "plugins/govppmux",
     "plugins/govppmux/vppcalls",
-    "plugins/govppmux/vppcalls/vpp1901",
     "plugins/govppmux/vppcalls/vpp1904",
+    "plugins/govppmux/vppcalls/vpp1908",
+    "plugins/govppmux/vppcalls/vpp2001",
     "plugins/kvscheduler",
     "plugins/kvscheduler/api",
     "plugins/kvscheduler/internal/graph",
@@ -840,45 +854,32 @@
     "plugins/linux/nsplugin",
     "plugins/linux/nsplugin/descriptor",
     "plugins/linux/nsplugin/linuxcalls",
+    "plugins/netalloc",
+    "plugins/netalloc/descriptor",
+    "plugins/netalloc/descriptor/adapter",
+    "plugins/netalloc/utils",
     "plugins/orchestrator",
     "plugins/restapi",
     "plugins/restapi/resturl",
     "plugins/telemetry",
     "plugins/telemetry/vppcalls",
-    "plugins/telemetry/vppcalls/vpp1901",
     "plugins/telemetry/vppcalls/vpp1904",
+    "plugins/telemetry/vppcalls/vpp1908",
+    "plugins/telemetry/vppcalls/vpp2001",
     "plugins/vpp/abfplugin/vppcalls",
     "plugins/vpp/aclplugin",
     "plugins/vpp/aclplugin/aclidx",
     "plugins/vpp/aclplugin/descriptor",
     "plugins/vpp/aclplugin/descriptor/adapter",
     "plugins/vpp/aclplugin/vppcalls",
-    "plugins/vpp/aclplugin/vppcalls/vpp1901",
     "plugins/vpp/aclplugin/vppcalls/vpp1904",
-    "plugins/vpp/binapi/vpp1901/acl",
-    "plugins/vpp/binapi/vpp1901/af_packet",
-    "plugins/vpp/binapi/vpp1901/bond",
-    "plugins/vpp/binapi/vpp1901/dhcp",
-    "plugins/vpp/binapi/vpp1901/interfaces",
-    "plugins/vpp/binapi/vpp1901/ip",
-    "plugins/vpp/binapi/vpp1901/ipsec",
-    "plugins/vpp/binapi/vpp1901/l2",
-    "plugins/vpp/binapi/vpp1901/memclnt",
-    "plugins/vpp/binapi/vpp1901/memif",
-    "plugins/vpp/binapi/vpp1901/nat",
-    "plugins/vpp/binapi/vpp1901/punt",
-    "plugins/vpp/binapi/vpp1901/session",
-    "plugins/vpp/binapi/vpp1901/sr",
-    "plugins/vpp/binapi/vpp1901/stn",
-    "plugins/vpp/binapi/vpp1901/tap",
-    "plugins/vpp/binapi/vpp1901/tapv2",
-    "plugins/vpp/binapi/vpp1901/vmxnet3",
-    "plugins/vpp/binapi/vpp1901/vpe",
-    "plugins/vpp/binapi/vpp1901/vxlan",
+    "plugins/vpp/aclplugin/vppcalls/vpp1908",
+    "plugins/vpp/aclplugin/vppcalls/vpp2001",
     "plugins/vpp/binapi/vpp1904/acl",
     "plugins/vpp/binapi/vpp1904/af_packet",
     "plugins/vpp/binapi/vpp1904/bond",
     "plugins/vpp/binapi/vpp1904/dhcp",
+    "plugins/vpp/binapi/vpp1904/gre",
     "plugins/vpp/binapi/vpp1904/interfaces",
     "plugins/vpp/binapi/vpp1904/ip",
     "plugins/vpp/binapi/vpp1904/ipsec",
@@ -887,60 +888,112 @@
     "plugins/vpp/binapi/vpp1904/memif",
     "plugins/vpp/binapi/vpp1904/nat",
     "plugins/vpp/binapi/vpp1904/punt",
+    "plugins/vpp/binapi/vpp1904/span",
     "plugins/vpp/binapi/vpp1904/sr",
     "plugins/vpp/binapi/vpp1904/stn",
     "plugins/vpp/binapi/vpp1904/tapv2",
     "plugins/vpp/binapi/vpp1904/vmxnet3",
     "plugins/vpp/binapi/vpp1904/vpe",
     "plugins/vpp/binapi/vpp1904/vxlan",
+    "plugins/vpp/binapi/vpp1904/vxlan_gpe",
+    "plugins/vpp/binapi/vpp1908/acl",
+    "plugins/vpp/binapi/vpp1908/af_packet",
+    "plugins/vpp/binapi/vpp1908/bond",
+    "plugins/vpp/binapi/vpp1908/dhcp",
+    "plugins/vpp/binapi/vpp1908/gre",
+    "plugins/vpp/binapi/vpp1908/interfaces",
+    "plugins/vpp/binapi/vpp1908/ip",
+    "plugins/vpp/binapi/vpp1908/ipsec",
+    "plugins/vpp/binapi/vpp1908/l2",
+    "plugins/vpp/binapi/vpp1908/memclnt",
+    "plugins/vpp/binapi/vpp1908/memif",
+    "plugins/vpp/binapi/vpp1908/nat",
+    "plugins/vpp/binapi/vpp1908/punt",
+    "plugins/vpp/binapi/vpp1908/span",
+    "plugins/vpp/binapi/vpp1908/sr",
+    "plugins/vpp/binapi/vpp1908/stn",
+    "plugins/vpp/binapi/vpp1908/tapv2",
+    "plugins/vpp/binapi/vpp1908/vmxnet3",
+    "plugins/vpp/binapi/vpp1908/vpe",
+    "plugins/vpp/binapi/vpp1908/vxlan",
+    "plugins/vpp/binapi/vpp1908/vxlan_gpe",
+    "plugins/vpp/binapi/vpp2001/acl",
+    "plugins/vpp/binapi/vpp2001/af_packet",
+    "plugins/vpp/binapi/vpp2001/bond",
+    "plugins/vpp/binapi/vpp2001/dhcp",
+    "plugins/vpp/binapi/vpp2001/gre",
+    "plugins/vpp/binapi/vpp2001/interfaces",
+    "plugins/vpp/binapi/vpp2001/ip",
+    "plugins/vpp/binapi/vpp2001/ipsec",
+    "plugins/vpp/binapi/vpp2001/l2",
+    "plugins/vpp/binapi/vpp2001/memclnt",
+    "plugins/vpp/binapi/vpp2001/memif",
+    "plugins/vpp/binapi/vpp2001/nat",
+    "plugins/vpp/binapi/vpp2001/punt",
+    "plugins/vpp/binapi/vpp2001/span",
+    "plugins/vpp/binapi/vpp2001/sr",
+    "plugins/vpp/binapi/vpp2001/stn",
+    "plugins/vpp/binapi/vpp2001/tapv2",
+    "plugins/vpp/binapi/vpp2001/vmxnet3",
+    "plugins/vpp/binapi/vpp2001/vpe",
+    "plugins/vpp/binapi/vpp2001/vxlan",
+    "plugins/vpp/binapi/vpp2001/vxlan_gpe",
     "plugins/vpp/ifplugin",
     "plugins/vpp/ifplugin/descriptor",
     "plugins/vpp/ifplugin/descriptor/adapter",
     "plugins/vpp/ifplugin/ifaceidx",
     "plugins/vpp/ifplugin/vppcalls",
-    "plugins/vpp/ifplugin/vppcalls/vpp1901",
     "plugins/vpp/ifplugin/vppcalls/vpp1904",
+    "plugins/vpp/ifplugin/vppcalls/vpp1908",
+    "plugins/vpp/ifplugin/vppcalls/vpp2001",
     "plugins/vpp/ipsecplugin/vppcalls",
     "plugins/vpp/l2plugin",
     "plugins/vpp/l2plugin/descriptor",
     "plugins/vpp/l2plugin/descriptor/adapter",
     "plugins/vpp/l2plugin/vppcalls",
-    "plugins/vpp/l2plugin/vppcalls/vpp1901",
     "plugins/vpp/l2plugin/vppcalls/vpp1904",
+    "plugins/vpp/l2plugin/vppcalls/vpp1908",
+    "plugins/vpp/l2plugin/vppcalls/vpp2001",
     "plugins/vpp/l3plugin",
     "plugins/vpp/l3plugin/descriptor",
     "plugins/vpp/l3plugin/descriptor/adapter",
     "plugins/vpp/l3plugin/vppcalls",
-    "plugins/vpp/l3plugin/vppcalls/vpp1901",
     "plugins/vpp/l3plugin/vppcalls/vpp1904",
+    "plugins/vpp/l3plugin/vppcalls/vpp1908",
+    "plugins/vpp/l3plugin/vppcalls/vpp2001",
+    "plugins/vpp/l3plugin/vrfidx",
     "plugins/vpp/natplugin",
     "plugins/vpp/natplugin/descriptor",
     "plugins/vpp/natplugin/descriptor/adapter",
     "plugins/vpp/natplugin/vppcalls",
-    "plugins/vpp/natplugin/vppcalls/vpp1901",
     "plugins/vpp/natplugin/vppcalls/vpp1904",
+    "plugins/vpp/natplugin/vppcalls/vpp1908",
+    "plugins/vpp/natplugin/vppcalls/vpp2001",
     "plugins/vpp/puntplugin",
     "plugins/vpp/puntplugin/descriptor",
     "plugins/vpp/puntplugin/descriptor/adapter",
     "plugins/vpp/puntplugin/vppcalls",
-    "plugins/vpp/puntplugin/vppcalls/vpp1901",
     "plugins/vpp/puntplugin/vppcalls/vpp1904",
+    "plugins/vpp/puntplugin/vppcalls/vpp1908",
+    "plugins/vpp/puntplugin/vppcalls/vpp2001",
     "plugins/vpp/srplugin",
     "plugins/vpp/srplugin/descriptor",
     "plugins/vpp/srplugin/descriptor/adapter",
     "plugins/vpp/srplugin/vppcalls",
-    "plugins/vpp/srplugin/vppcalls/vpp1901",
     "plugins/vpp/srplugin/vppcalls/vpp1904",
+    "plugins/vpp/srplugin/vppcalls/vpp1908",
+    "plugins/vpp/srplugin/vppcalls/vpp2001",
     "plugins/vpp/stnplugin",
     "plugins/vpp/stnplugin/descriptor",
     "plugins/vpp/stnplugin/descriptor/adapter",
     "plugins/vpp/stnplugin/vppcalls",
-    "plugins/vpp/stnplugin/vppcalls/vpp1901",
     "plugins/vpp/stnplugin/vppcalls/vpp1904",
+    "plugins/vpp/stnplugin/vppcalls/vpp1908",
+    "plugins/vpp/stnplugin/vppcalls/vpp2001",
   ]
   pruneopts = "UT"
-  revision = "64049536e929372dce3d32678c5160e803816c48"
-  version = "v2.1.0"
+  revision = "6d18d39033a7c6887cffb1b6524d2b4f06f0433e"
+  version = "v2.3.0"
 
 [[projects]]
   branch = "master"
@@ -1082,22 +1135,6 @@
   pruneopts = "UT"
   revision = "0bb7b9fa9ba5c1120e9d22caed4961fca4228408"
   version = "v1.2.1"
-
-[[projects]]
-  branch = "master"
-  digest = "1:3bf17a6e6eaa6ad24152148a631d18662f7212e21637c2699bff3369b7f00fa2"
-  name = "github.com/petar/GoLLRB"
-  packages = ["llrb"]
-  pruneopts = "UT"
-  revision = "53be0d36a84c2a886ca057d34b6aa4468df9ccb4"
-
-[[projects]]
-  digest = "1:0e7775ebbcf00d8dd28ac663614af924411c868dca3d5aa762af0fae3808d852"
-  name = "github.com/peterbourgon/diskv"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "5f041e8faa004a95c88a202771f4cc3e991971e6"
-  version = "v2.0.1"
 
 [[projects]]
   digest = "1:5e73b34a27d827212102605789de00bd411b2e434812133c83935fe9897c75e1"
@@ -1342,7 +1379,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:2fa8530e17c8c28cb5cc70e3e8b68527a0ee19cc185fc899578886f006569d23"
+  digest = "1:1653932f84bec0253940c3f16acae0c9b6531448d4b2cce5f43c2cc7774ec20f"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -1360,7 +1397,7 @@
     "trace",
   ]
   pruneopts = "UT"
-  revision = "eb5bcb51f2a31c7d5141d810b70815c05d9c9146"
+  revision = "a8b05e9114ab0cb08faec337c959aed24b68bf50"
 
 [[projects]]
   branch = "master"
@@ -1566,32 +1603,41 @@
   version = "v2.2.2"
 
 [[projects]]
-  digest = "1:74142cd2275f77547c35ac51514108d9798a09aa0cf377a5c1084718ef7aa225"
+  digest = "1:274e6b4fd11a6a01212ee6af5ba488c7623f5eaa7339d3bb5642220d96ee8744"
   name = "k8s.io/api"
   packages = [
-    "admissionregistration/v1alpha1",
+    "admissionregistration/v1",
     "admissionregistration/v1beta1",
     "apps/v1",
     "apps/v1beta1",
     "apps/v1beta2",
+    "auditregistration/v1alpha1",
     "authentication/v1",
     "authentication/v1beta1",
     "authorization/v1",
     "authorization/v1beta1",
     "autoscaling/v1",
     "autoscaling/v2beta1",
+    "autoscaling/v2beta2",
     "batch/v1",
     "batch/v1beta1",
     "batch/v2alpha1",
     "certificates/v1beta1",
+    "coordination/v1",
+    "coordination/v1beta1",
     "core/v1",
+    "discovery/v1alpha1",
     "events/v1beta1",
     "extensions/v1beta1",
     "networking/v1",
+    "networking/v1beta1",
+    "node/v1alpha1",
+    "node/v1beta1",
     "policy/v1beta1",
     "rbac/v1",
     "rbac/v1alpha1",
     "rbac/v1beta1",
+    "scheduling/v1",
     "scheduling/v1alpha1",
     "scheduling/v1beta1",
     "settings/v1alpha1",
@@ -1600,27 +1646,30 @@
     "storage/v1beta1",
   ]
   pruneopts = "UT"
-  revision = "072894a440bdee3a891dea811fe42902311cd2a3"
-  version = "kubernetes-1.11.0"
+  revision = "95b840bb6a1f5f0462af804c8589396d294d4914"
+  version = "kubernetes-1.16.0"
 
 [[projects]]
-  digest = "1:145647b653ff6a6882bbc2c4701ebcbce7be643007231d545560e4ce612ad5cb"
+  digest = "1:5750bbcf3051ea23b48bfb39a43f20e0af7a0be569169b916bf2fcb016ede393"
   name = "k8s.io/apiextensions-apiserver"
   packages = [
     "pkg/apis/apiextensions",
+    "pkg/apis/apiextensions/v1",
     "pkg/apis/apiextensions/v1beta1",
     "pkg/client/clientset/clientset",
     "pkg/client/clientset/clientset/scheme",
+    "pkg/client/clientset/clientset/typed/apiextensions/v1",
     "pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
   ]
   pruneopts = "UT"
-  revision = "3de98c57bc05a81cf463e0ad7a0af4cec8a5b510"
-  version = "kubernetes-1.11.0"
+  revision = "8f644eb6e783291c4b8cb8cb25a9983be1a74f5c"
+  version = "kubernetes-1.16.0"
 
 [[projects]]
-  digest = "1:b7a7277a24d4ca275a5c8d45dcfd90847fbbfdcd6b0bf43f23777a628cd9515c"
+  digest = "1:6f858693eb39319694ad4d433cd8eeed563a0b46c11faecef025759d0e4a1efd"
   name = "k8s.io/apimachinery"
   packages = [
+    "pkg/api/equality",
     "pkg/api/errors",
     "pkg/api/meta",
     "pkg/api/resource",
@@ -1650,6 +1699,7 @@
     "pkg/util/intstr",
     "pkg/util/json",
     "pkg/util/mergepatch",
+    "pkg/util/naming",
     "pkg/util/net",
     "pkg/util/runtime",
     "pkg/util/sets",
@@ -1664,46 +1714,57 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "UT"
-  revision = "103fd098999dc9c0c88536f5c9ad2e5da39373ae"
+  revision = "27d36303b6556f377b4f34e64705fa9024a12b0c"
+  version = "kubernetes-1.16.0"
 
 [[projects]]
-  digest = "1:8e89a4ac89616303b2d25b081d4a77958fb7510e6caa625e256a833940a1ff83"
+  digest = "1:9bce81db44f58fd2e8540b973cfb719e3a06d57e60a6a9e759da533c479d1b6b"
   name = "k8s.io/apiserver"
   packages = ["pkg/apis/apiserver"]
   pruneopts = "UT"
-  revision = "a35277792fddcf69f8cbbb8a9cb7727b23077409"
+  revision = "bfa5e2e684ad413c22fd0dab55b2592af1ead049"
+  version = "kubernetes-1.16.0"
 
 [[projects]]
-  digest = "1:9ee26033a489913fa2da53af80ea28ced05e6393a47c15d4022f6951624641ed"
+  digest = "1:8d2d702b205dfa05b6bf638c1f424f6afa49f06d8122f0b8f90f8ab338af8f0c"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
     "discovery/fake",
     "kubernetes",
     "kubernetes/scheme",
-    "kubernetes/typed/admissionregistration/v1alpha1",
+    "kubernetes/typed/admissionregistration/v1",
     "kubernetes/typed/admissionregistration/v1beta1",
     "kubernetes/typed/apps/v1",
     "kubernetes/typed/apps/v1beta1",
     "kubernetes/typed/apps/v1beta2",
+    "kubernetes/typed/auditregistration/v1alpha1",
     "kubernetes/typed/authentication/v1",
     "kubernetes/typed/authentication/v1beta1",
     "kubernetes/typed/authorization/v1",
     "kubernetes/typed/authorization/v1beta1",
     "kubernetes/typed/autoscaling/v1",
     "kubernetes/typed/autoscaling/v2beta1",
+    "kubernetes/typed/autoscaling/v2beta2",
     "kubernetes/typed/batch/v1",
     "kubernetes/typed/batch/v1beta1",
     "kubernetes/typed/batch/v2alpha1",
     "kubernetes/typed/certificates/v1beta1",
+    "kubernetes/typed/coordination/v1",
+    "kubernetes/typed/coordination/v1beta1",
     "kubernetes/typed/core/v1",
+    "kubernetes/typed/discovery/v1alpha1",
     "kubernetes/typed/events/v1beta1",
     "kubernetes/typed/extensions/v1beta1",
     "kubernetes/typed/networking/v1",
+    "kubernetes/typed/networking/v1beta1",
+    "kubernetes/typed/node/v1alpha1",
+    "kubernetes/typed/node/v1beta1",
     "kubernetes/typed/policy/v1beta1",
     "kubernetes/typed/rbac/v1",
     "kubernetes/typed/rbac/v1alpha1",
     "kubernetes/typed/rbac/v1beta1",
+    "kubernetes/typed/scheduling/v1",
     "kubernetes/typed/scheduling/v1alpha1",
     "kubernetes/typed/scheduling/v1beta1",
     "kubernetes/typed/settings/v1alpha1",
@@ -1728,21 +1789,20 @@
     "tools/pager",
     "tools/reference",
     "transport",
-    "util/buffer",
     "util/cert",
     "util/connrotation",
     "util/flowcontrol",
     "util/homedir",
-    "util/integer",
+    "util/keyutil",
     "util/retry",
     "util/workqueue",
   ]
   pruneopts = "UT"
-  revision = "7d04d0e2a0a1a4d4a1cd6baa432a2301492e4e65"
-  version = "kubernetes-1.11.0"
+  revision = "1fbdaa4c8d908275eee958429b1cafc2591a2c5d"
+  version = "kubernetes-1.16.0"
 
 [[projects]]
-  digest = "1:43ef9a37919f7a8948b7de4c05d20692f763adc40f15c9d330c544ae05d93947"
+  digest = "1:1b6fd3650ea50bc09ff7174c152175eeb4459d579585163ecae6ff1d82dee3d4"
   name = "k8s.io/code-generator"
   packages = [
     "cmd/client-gen",
@@ -1763,11 +1823,12 @@
     "cmd/lister-gen",
     "cmd/lister-gen/args",
     "cmd/lister-gen/generators",
+    "pkg/namer",
     "pkg/util",
   ]
-  pruneopts = ""
-  revision = "6702109cc68eb6fe6350b83e14407c8d7309fd1a"
-  version = "kubernetes-1.11.0"
+  pruneopts = "T"
+  revision = "cd179ad6a2693011d6f2fa5cd64c6680ee99379f"
+  version = "kubernetes-1.16.0"
 
 [[projects]]
   branch = "master"
@@ -1803,7 +1864,7 @@
   revision = "94e1e7b7574c44c4c0f2007de6fe617e259191f3"
 
 [[projects]]
-  digest = "1:50cfffe52bdfec6217c6c6738436b990390f2fd61d33e1526e05268561a65279"
+  digest = "1:1e2a56488d0ce9115c94718eab6d6d7f6e28c8f844439d86546618d930d73208"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/apis/deviceplugin/v1beta1",
@@ -1812,17 +1873,35 @@
     "pkg/kubelet/util",
   ]
   pruneopts = "UT"
-  revision = "641856db18352033a0d96dbc99153fa3b27298e5"
-  version = "v1.14.0"
+  revision = "2bd9643cee5b3b3a5ecbd3af49d09018f0773c77"
+  version = "v1.16.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:bb09c1841fd8100fe09b784fa13563ebffd9921d18012e72c8727ce9d4ea0144"
+  name = "k8s.io/utils"
+  packages = [
+    "buffer",
+    "integer",
+    "pointer",
+    "trace",
+  ]
+  pruneopts = "UT"
+  revision = "69764acb6e8e900b7c05296c5d3c9c19545475f9"
+
+[[projects]]
+  digest = "1:7719608fe0b52a4ece56c2dde37bedd95b938677d1ab0f84b8a7852e4c59f849"
+  name = "sigs.k8s.io/yaml"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "fd68e9863619f6ec2fdd8625fe1f02e7c877e480"
+  version = "v1.1.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "git.fd.io/govpp.git/adapter/mock",
     "git.fd.io/govpp.git/api",
-    "git.fd.io/govpp.git/codec",
-    "git.fd.io/govpp.git/core",
     "github.com/apparentlymart/go-cidr/cidr",
     "github.com/containernetworking/cni/pkg/skel",
     "github.com/containernetworking/cni/pkg/types",
@@ -1851,6 +1930,8 @@
     "github.com/ligato/cn-infra/db/keyval/bolt",
     "github.com/ligato/cn-infra/db/keyval/etcd",
     "github.com/ligato/cn-infra/db/keyval/kvproto",
+    "github.com/ligato/cn-infra/exec/processmanager",
+    "github.com/ligato/cn-infra/exec/processmanager/status",
     "github.com/ligato/cn-infra/health/probe",
     "github.com/ligato/cn-infra/health/statuscheck",
     "github.com/ligato/cn-infra/health/statuscheck/model/status",
@@ -1860,17 +1941,19 @@
     "github.com/ligato/cn-infra/logging",
     "github.com/ligato/cn-infra/logging/logmanager",
     "github.com/ligato/cn-infra/logging/logrus",
-    "github.com/ligato/cn-infra/processmanager",
-    "github.com/ligato/cn-infra/processmanager/status",
     "github.com/ligato/cn-infra/rpc/grpc",
     "github.com/ligato/cn-infra/rpc/prometheus",
     "github.com/ligato/cn-infra/rpc/rest",
     "github.com/ligato/cn-infra/servicelabel",
     "github.com/ligato/cn-infra/utils/safeclose",
+    "github.com/ligato/vpp-agent/api/genericmanager",
+    "github.com/ligato/vpp-agent/api/models/linux",
     "github.com/ligato/vpp-agent/api/models/linux/interfaces",
     "github.com/ligato/vpp-agent/api/models/linux/iptables",
     "github.com/ligato/vpp-agent/api/models/linux/l3",
     "github.com/ligato/vpp-agent/api/models/linux/namespace",
+    "github.com/ligato/vpp-agent/api/models/netalloc",
+    "github.com/ligato/vpp-agent/api/models/vpp",
     "github.com/ligato/vpp-agent/api/models/vpp/abf",
     "github.com/ligato/vpp-agent/api/models/vpp/acl",
     "github.com/ligato/vpp-agent/api/models/vpp/interfaces",
@@ -1899,9 +1982,8 @@
     "github.com/ligato/vpp-agent/plugins/restapi/resturl",
     "github.com/ligato/vpp-agent/plugins/telemetry",
     "github.com/ligato/vpp-agent/plugins/vpp/aclplugin",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/nat",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/session",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/vpe",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/nat",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/descriptor",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx",
@@ -1934,7 +2016,7 @@
     "golang.org/x/sys/unix",
     "google.golang.org/grpc",
     "k8s.io/api/core/v1",
-    "k8s.io/api/extensions/v1beta1",
+    "k8s.io/api/networking/v1",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset",
     "k8s.io/apimachinery/pkg/api/errors",

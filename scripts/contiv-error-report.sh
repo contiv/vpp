@@ -85,7 +85,7 @@ do
     then
         echo "Vswitch log:"
         echo "------------"
-        grep -n "$SEARCH_STRING" < "$VSWITCH_LOG_FILE_NAME" || true
+        grep -a -n "$SEARCH_STRING" < "$VSWITCH_LOG_FILE_NAME" || true
     else
         echo "Logfile for contiv-vswitch not present."
     fi
@@ -98,7 +98,7 @@ do
         then
             echo "Previous vswitch log:"
             echo "---------------------"
-            grep -n "$SEARCH_STRING" < "$VSWITCH_LOG_FILE_NAME"
+            grep -a -n "$SEARCH_STRING" < "$VSWITCH_LOG_FILE_NAME"
         else
             echo "Previous logfile for contiv-vswitch not present."
         fi

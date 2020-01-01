@@ -23,6 +23,11 @@ import (
 	"time"
 
 	govpp "git.fd.io/govpp.git/api"
+	"github.com/gogo/protobuf/proto"
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/api/models/vpp/nat"
+	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/nat"
+
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
@@ -30,10 +35,6 @@ import (
 	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
-	"github.com/gogo/protobuf/proto"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1901/nat"
 )
 
 const (
@@ -155,7 +156,7 @@ func (rndr *Renderer) AddService(service *renderer.ContivService) error {
 }
 
 // UpdateService updates destination-NAT rules for a changed service.
-func (rndr *Renderer) UpdateService(oldService, newService *renderer.ContivService) error {
+func (rndr *Renderer) UpdateService(oldService, newService *renderer.ContivService, otherExistingServices []*renderer.ContivService) error {
 	if rndr.snatOnly {
 		return nil
 	}
@@ -167,7 +168,7 @@ func (rndr *Renderer) UpdateService(oldService, newService *renderer.ContivServi
 
 // DeleteService removes destination-NAT configuration associated with a freshly
 // un-deployed service.
-func (rndr *Renderer) DeleteService(service *renderer.ContivService) error {
+func (rndr *Renderer) DeleteService(service *renderer.ContivService, otherExistingServices []*renderer.ContivService) error {
 	if rndr.snatOnly {
 		return nil
 	}
@@ -484,7 +485,8 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
 				if rndr.isThisNodeOrHostIP(backend.IP) {
 					local.VrfId = routingCfg.MainVRFID
 				} else {
-					if rndr.ContivConf.GetRoutingConfig().UseNoOverlay &&
+					if (rndr.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.NoOverlayTransport ||
+						rndr.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport) &&
 						(!rndr.isLocalPodIP(backend.IP)) {
 						// no overlay mode: use main VRF for non-local PODs and other node's IPs
 						local.VrfId = routingCfg.MainVRFID
@@ -527,7 +529,7 @@ func (rndr *Renderer) isThisNodeOrHostIP(ip net.IP) bool {
 
 // isLocalPodIP returns true if the given IP is this node's local POD IP.
 func (rndr *Renderer) isLocalPodIP(ip net.IP) bool {
-	return rndr.IPAM.PodSubnetThisNode().Contains(ip)
+	return rndr.IPAM.PodSubnetThisNode(ipnet.DefaultPodNetworkName).Contains(ip)
 }
 
 // exportIdentityMappings returns DNAT configuration with identities to exclude
@@ -656,16 +658,16 @@ func (rndr *Renderer) idleNATSessionCleanup() {
 						(msg.Protocol != 6 && time.Since(lastHeard) > otherTimeout) {
 						// inactive session
 						delRule := &nat_api.Nat44DelSession{
-							IsIn:     1,
+							Flags:    nat_api.NAT_IS_INSIDE,
 							Address:  msg.InsideIPAddress,
 							Port:     msg.InsidePort,
 							Protocol: uint8(msg.Protocol),
 							VrfID:    natUser.VrfID,
 						}
-						if msg.ExtHostValid > 0 {
-							delRule.ExtHostValid = 1
+						if msg.Flags&nat_api.NAT_IS_EXT_HOST_VALID != 0 {
+							delRule.Flags |= nat_api.NAT_IS_EXT_HOST_VALID
 
-							if msg.IsTwicenat > 0 {
+							if msg.Flags&nat_api.NAT_IS_TWICE_NAT != 0 {
 								delRule.ExtHostAddress = msg.ExtHostNatAddress
 								delRule.ExtHostPort = msg.ExtHostNatPort
 							} else {

@@ -56,7 +56,7 @@ func (d *MockDataChangeDSL) Send() vppclient.Reply {
 	return &dsl.Reply{Err: err}
 }
 
-// Interface adds a mock request to create or update VPP network interface.
+// VppInterface adds a mock request to create or update VPP network interface.
 func (d *MockPutDSL) VppInterface(val *vpp_interfaces.Interface) linuxclient.PutDSL {
 	key := vpp_interfaces.InterfaceKey(val.Name)
 	d.parent.Values[key] = val
@@ -94,7 +94,14 @@ func (d *MockPutDSL) XConnect(val *vpp_l2.XConnectPair) linuxclient.PutDSL {
 
 // StaticRoute adds a mock request to create or update VPP L3 Static Route.
 func (d *MockPutDSL) StaticRoute(val *vpp_l3.Route) linuxclient.PutDSL {
-	key := vpp_l3.RouteKey(val.VrfId, val.DstNetwork, val.NextHopAddr)
+	key := vpp_l3.RouteKey(val.OutgoingInterface, val.VrfId, val.DstNetwork, val.NextHopAddr)
+	d.parent.Values[key] = val
+	return d
+}
+
+// Span adds a mock VPP span to the Put request.
+func (d *MockPutDSL) Span(val *vpp_interfaces.Span) linuxclient.PutDSL {
+	key := vpp_interfaces.SpanKey(val.InterfaceFrom, val.InterfaceTo)
 	d.parent.Values[key] = val
 	return d
 }
@@ -195,6 +202,13 @@ func (d *MockPutDSL) PuntToHost(val *vpp_punt.ToHost) linuxclient.PutDSL {
 	return d
 }
 
+// PuntException adds request to delete a rule used to add exception in punting of traffic to a host.
+func (d *MockPutDSL) PuntException(val *vpp_punt.Exception) linuxclient.PutDSL {
+	key := vpp_punt.ExceptionKey(val.Reason)
+	d.parent.Values[key] = val
+	return d
+}
+
 // VrfTable adds a request to create or update VPP VRF table.
 func (d *MockPutDSL) VrfTable(val *vpp_l3.VrfTable) linuxclient.PutDSL {
 	key := vpp_l3.VrfTableKey(val.Id, val.Protocol)
@@ -212,7 +226,7 @@ func (d *MockPutDSL) Send() vppclient.Reply {
 	return d.parent.Send()
 }
 
-// Interface adds a mock request to delete an existing VPP network interface.
+// VppInterface adds a mock request to delete an existing VPP network interface.
 func (d *MockDeleteDSL) VppInterface(interfaceName string) linuxclient.DeleteDSL {
 	key := vpp_interfaces.InterfaceKey(interfaceName)
 	d.parent.Values[key] = nil
@@ -249,8 +263,15 @@ func (d *MockDeleteDSL) XConnect(rxIfName string) linuxclient.DeleteDSL {
 }
 
 // StaticRoute adds a mock request to delete an existing VPP L3 Static Route..
-func (d *MockDeleteDSL) StaticRoute(vrf uint32, dstAddr string, nextHopAddr string) linuxclient.DeleteDSL {
-	key := vpp_l3.RouteKey(vrf, dstAddr, nextHopAddr)
+func (d *MockDeleteDSL) StaticRoute(iface string, vrf uint32, dstAddr string, nextHopAddr string) linuxclient.DeleteDSL {
+	key := vpp_l3.RouteKey(iface, vrf, dstAddr, nextHopAddr)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// Span adds a mock VPP span to the Delete request.
+func (d *MockDeleteDSL) Span(span *vpp_interfaces.Span) linuxclient.DeleteDSL {
+	key := vpp_interfaces.SpanKey(span.InterfaceFrom, span.InterfaceTo)
 	d.parent.Values[key] = nil
 	return d
 }
@@ -348,6 +369,13 @@ func (d *MockDeleteDSL) PuntIPRedirect(l3Proto vpp_punt.L3Protocol, txInterface 
 // PuntToHost adds request to delete a rule used to punt L4 traffic to a host.
 func (d *MockDeleteDSL) PuntToHost(l3Proto vpp_punt.L3Protocol, l4Proto vpp_punt.L4Protocol, port uint32) linuxclient.DeleteDSL {
 	key := vpp_punt.ToHostKey(l3Proto, l4Proto, port)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// PuntException adds request to delete a rule used to add exception in punting of traffic to a host.
+func (d *MockDeleteDSL) PuntException(reason string) linuxclient.DeleteDSL {
+	key := vpp_punt.ExceptionKey(reason)
 	d.parent.Values[key] = nil
 	return d
 }

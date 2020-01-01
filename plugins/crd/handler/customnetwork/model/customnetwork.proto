@@ -21,23 +21,6 @@ message CustomNetwork {
     enum Type {
         L2 = 0;
         L3 = 1;
-        STUB = 2;
-    }
-
-    message NodeInterface {
-        string node = 1;
-        string vpp_interface_name = 2;
-        string ip = 3;
-    }
-
-    // external interface defines mapping of logical interface name to particul interfaces
-    // on nodes
-    message ExternalInterface {
-
-        string name = 1;
-
-        repeated NodeInterface nodes = 2;
-
     }
 
     // name of the custom network
@@ -46,10 +29,10 @@ message CustomNetwork {
     // type of the custom network
     Type type = 2;
 
+    // subnet of the custom network
     string subnetCIDR = 3;
 
+    // prefix length defining network subnet used for each node in the cluster
     uint32 subnet_one_node_prefix = 4;
-
-    repeated ExternalInterface externalInterfaces = 5;
 
 }

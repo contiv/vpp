@@ -70,6 +70,8 @@ crd_disabled = ENV['CRD_DISABLED']
 ip_version = ENV['IP_VERSION'] || 'ipv4'
 contiv_dir = "/home/vagrant/gopath/src/github.com/contiv/vpp"
 helm_extra_opts = ENV['HELM_EXTRA_OPTS'] || ''
+vpp_worker_threads = ENV['VPP_WORKER_THREADS'] || ''
+
 
 if (ip_version == 'ipv6transport' || ip_version == 'ipv6' )
     # ipv6 requires vagrant box with a newer OS version
@@ -83,7 +85,7 @@ if (ip_version == 'ipv6' && base_ip == '10.20.0.')
 end
 
 if ( master_nodes > 1 )
-   k8s_version = '1.13.4'
+   k8s_version = '1.14.2'
 end
 
 if (k8s_version == "1.12.3" && docker_version == "18.03.0~ce-0")
@@ -96,10 +98,18 @@ VARIABLES = ['http_proxy', 'https_proxy', 'k8s_version', 'docker_version',
 'node_os', 'node_os_release', 'node_cpus', 'node_memory', 'num_nodes', 'master_cpus',
 'master_memory', 'dep_env', 'dep_scenario', 'base_ip', 'base_prefix_len', 'provider',
 'image_tag', 'go_version', 'goland_version', 'helm_version', 'crd_disabled',
-'ip_version', 'contiv_dir', 'helm_extra_opts', 'master_nodes']
+'ip_version', 'contiv_dir', 'helm_extra_opts', 'master_nodes', 'vpp_worker_threads']
 
 VARIABLES.each do |x|
   env[x] = eval x
+end
+
+# Log variable values if provisioning
+if (ARGV.include?("up") || ARGV.include?("reload") || ARGV.include?("--provision"))
+  puts "Using variables:"
+  VARIABLES.each do |x|
+    puts "#{x} = #{env [x]}"
+  end
 end
 
 VAGRANTFILE_API_VERSION = "2"
@@ -185,13 +195,13 @@ VAGRANTFILE_API_VERSION = "2"
               gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
             else
               gw.vm.network :private_network, ip: "192.168.16.100", netmask: "255.255.255.0", virtualbox__intnet: "vpp", nic_type: "82540EM"
-              if master_nodes > 1
-                 # in order to support multi master add additional connect GW to mgmt network
-                 gw.vm.network :private_network, ip: "#{base_ip}100", netmask: "255.255.255.0", virtualbox__intnet: "true"
-              end
             end
           else
             gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp", nic_type: "82540EM"
+          end
+          if master_nodes > 1
+            # in order to support multi master add additional connect GW to mgmt network
+            gw.vm.network :private_network, ip: "#{base_ip}100", netmask: "255.255.255.0", virtualbox__intnet: "true"
           end
       end
       if dep_scenario == 'calico'
@@ -199,6 +209,7 @@ VAGRANTFILE_API_VERSION = "2"
         gw.vm.network :private_network, ip: gw_ip, virtualbox__intnet: "true"
       end
       gw.vm.provider "virtualbox" do |v|
+        v.customize ["modifyvm", :id, "--uartmode1", "disconnected"]
         v.customize ["modifyvm", :id, "--ioapic", "on"]
         v.memory = 256
         v.cpus = 1

@@ -24,6 +24,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/pkg/errors"
 
+	"github.com/ligato/vpp-agent/api/models/netalloc"
 	interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	kvs "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
@@ -150,8 +151,11 @@ func (d *DHCPDescriptor) Delete(key string, emptyVal proto.Message, metadata kvs
 	}
 
 	// notify about the unconfigured client by removing the lease notification
-	return d.kvscheduler.PushSBNotification(
-		interfaces.DHCPLeaseKey(ifName), nil, nil)
+	return d.kvscheduler.PushSBNotification(kvs.KVWithMetadata{
+		Key:      interfaces.DHCPLeaseKey(ifName),
+		Value:    nil,
+		Metadata: nil,
+	})
 }
 
 // Retrieve returns all existing DHCP leases.
@@ -199,7 +203,8 @@ func (d *DHCPDescriptor) DerivedValues(key string, dhcpData proto.Message) (derV
 		if ok && dhcpLease.HostIpAddress != "" {
 			return []kvs.KeyValuePair{
 				{
-					Key:   interfaces.InterfaceAddressKey(dhcpLease.InterfaceName, dhcpLease.HostIpAddress),
+					Key: interfaces.InterfaceAddressKey(dhcpLease.InterfaceName, dhcpLease.HostIpAddress,
+						netalloc.IPAddressSource_FROM_DHCP),
 					Value: &prototypes.Empty{},
 				},
 			}
@@ -239,10 +244,11 @@ func (d *DHCPDescriptor) watchDHCPNotifications(ctx context.Context) {
 				HostIpAddress:   lease.HostAddress,
 				RouterIpAddress: lease.RouterAddress,
 			}
-			if err := d.kvscheduler.PushSBNotification(
-				interfaces.DHCPLeaseKey(ifName),
-				dhcpLease,
-				dhcpLease); err != nil {
+			if err := d.kvscheduler.PushSBNotification(kvs.KVWithMetadata{
+				Key:      interfaces.DHCPLeaseKey(ifName),
+				Value:    dhcpLease,
+				Metadata: dhcpLease,
+			}); err != nil {
 				d.log.Error(err)
 			}
 		case <-ctx.Done():

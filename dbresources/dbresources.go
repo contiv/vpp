@@ -1,4 +1,7 @@
 // Copyright (c) 2018 Cisco and/or its affiliates.
+// Other Contributors:
+// - Adel Bouridah Centre Universitaire Abdelhafid Boussouf Mila - Algerie, a.bouridah@centre-univ-mila.dz
+// - Nadjib Aitsaadi Universite Paris Est Creteil, nadjib.aitsaadi@u-pec.fr
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +18,14 @@
 package dbresources
 
 import (
+	"github.com/contiv/vpp/plugins/idalloc/idallocation"
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
 	"github.com/gogo/protobuf/proto"
 
+	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
+	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
+	sfcmodel "github.com/contiv/vpp/plugins/crd/handler/servicefunctionchain/model"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
@@ -83,6 +91,31 @@ func GetDBResources() []*DBResource {
 			Keyword:          epmodel.EndpointsKeyword,
 			ProtoMessageName: proto.MessageName((*epmodel.Endpoints)(nil)),
 			KeyPrefix:        epmodel.KeyPrefix(),
+		},
+		{
+			Keyword:          customnetmodel.Keyword,
+			ProtoMessageName: proto.MessageName((*customnetmodel.CustomNetwork)(nil)),
+			KeyPrefix:        customnetmodel.KeyPrefix(),
+		},
+		{
+			Keyword:          extifmodel.Keyword,
+			ProtoMessageName: proto.MessageName((*extifmodel.ExternalInterface)(nil)),
+			KeyPrefix:        extifmodel.KeyPrefix(),
+		},
+		{
+			Keyword:          sfcmodel.Keyword,
+			ProtoMessageName: proto.MessageName((*sfcmodel.ServiceFunctionChain)(nil)),
+			KeyPrefix:        sfcmodel.KeyPrefix(),
+		},
+		{
+			Keyword:          ipalloc.Keyword,
+			ProtoMessageName: proto.MessageName((*ipalloc.CustomIPAllocation)(nil)),
+			KeyPrefix:        ipalloc.KeyPrefix(),
+		},
+		{
+			Keyword:          idallocation.Keyword,
+			ProtoMessageName: proto.MessageName((*idallocation.AllocationPool)(nil)),
+			KeyPrefix:        idallocation.KeyPrefix(),
 		},
 	}
 }

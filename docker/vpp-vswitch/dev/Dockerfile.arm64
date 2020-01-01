@@ -6,7 +6,12 @@ RUN apt-get update && apt-get install -y \
  make \
  wget \
  git \
- gcc
+ gcc\
+ gcc-8 g++-8 \
+ && rm /usr/bin/gcc \
+ && rm /usr/bin/g++ \
+ && ln -s /usr/bin/gcc-8 /usr/bin/gcc \
+ && ln -s /usr/bin/g++-8 /usr/bin/g++
 
 # install vpp
 WORKDIR $VPP_BUILD_DIR
@@ -19,7 +24,7 @@ RUN if [ -n "$VPP_INSTALL_PKG" ]; then \
 COPY / /root/go/src/github.com/contiv/vpp
 
 # install Go
-ENV GOLANG_VERSION 1.11.5
+ENV GOLANG_VERSION 1.12.9
 RUN if [ -n "$VPP_INSTALL_PKG" ]; then \
  wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-arm64.tar.gz" \
  && tar -C /usr/local -xzf go.tgz \

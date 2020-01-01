@@ -198,6 +198,10 @@ func (ev *KubeStateChange) TransactionType() UpdateTransactionType {
 
 // Direction is forward.
 func (ev *KubeStateChange) Direction() UpdateDirectionType {
+	if ev.NewValue == nil {
+		// the item is being removed - undo changes in the reverse direction
+		return Reverse
+	}
 	return Forward
 }
 

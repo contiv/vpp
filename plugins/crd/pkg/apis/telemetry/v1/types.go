@@ -22,10 +22,9 @@ import (
 
 // CRD Constants
 const (
-	CRDGroup                          string = telemetry.GroupName
-	CRDGroupVersion                   string = "v1"
-	CRDContivTelemetryReportPlural    string = "telemetryreports"
-	CRDFullContivTelemetryReportsName string = CRDContivTelemetryReportPlural + "." + CRDGroup
+	CRDGroup                       string = telemetry.GroupName
+	CRDGroupVersion                string = "v1"
+	CRDContivTelemetryReportPlural string = "telemetryreports"
 )
 
 // TelemetryReport describes contiv telemetry custom resource

@@ -55,17 +55,17 @@ echo
 
 echo 'Please choose deployment scenario: '
 PS3='--> '
-options=("Without StealTheNIC" "With StealTheNIC" "IPv6" "IPv6 Transport" "IPv6 STN" "Calico" "Calico-VPP" "Quit")
+options=("2-NIC (default)" "Single-NIC (StealTheNIC)" "IPv6" "IPv6 with SRv6" "IPv6 Transport" "IPv6 STN" "No-Overlay (without VXLAN)" "Calico" "Calico-VPP" "Quit")
 select opt in "${options[@]}"
 do
     case $opt in
-        "Without StealTheNIC")
-            echo "You chose deployment without StealTheNIC"
+        "2-NIC (default)")
+            echo "You chose 2-NIC deployment"
             export K8S_DEPLOYMENT_SCENARIO="nostn"
             break
             ;;
-        "With StealTheNIC")
-            echo "You chose deployment with StealTheNIC"
+        "Single-NIC (StealTheNIC)")
+            echo "You chose Single-NIC deployment (with StealTheNIC)"
             export K8S_DEPLOYMENT_SCENARIO="stn"
             break
             ;;
@@ -73,6 +73,13 @@ do
             echo "You chose deployment with IPv6"
             export K8S_DEPLOYMENT_SCENARIO="nostn"
             export IP_VERSION="ipv6"
+            break
+            ;;
+        "IPv6 with SRv6")
+            echo "You chose IPv6 deployment with SRv6"
+            export K8S_DEPLOYMENT_SCENARIO="nostn"
+            export IP_VERSION="ipv6"
+            export HELM_EXTRA_OPTS="--set contiv.nodeToNodeTransport=srv6 --set contiv.useSRv6ForServices=true"
             break
             ;;
         "IPv6 Transport")
@@ -85,6 +92,12 @@ do
             echo "You chose deployment with StealTheNIC and IPv6"
             export K8S_DEPLOYMENT_SCENARIO="stn"
             export IP_VERSION="ipv6"
+            break
+            ;;
+        "No-Overlay (without VXLAN)")
+            echo "You chose No-Overlay deployment (without VXLAN)"
+            export K8S_DEPLOYMENT_SCENARIO="nostn"
+            export HELM_EXTRA_OPTS="--set contiv.nodeToNodeTransport=nooverlay"
             break
             ;;
         "Calico")

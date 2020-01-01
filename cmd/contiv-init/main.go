@@ -30,10 +30,10 @@ import (
 	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
+	"github.com/ligato/cn-infra/exec/processmanager"
+	"github.com/ligato/cn-infra/exec/processmanager/status"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-	"github.com/ligato/cn-infra/processmanager"
-	"github.com/ligato/cn-infra/processmanager/status"
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
@@ -69,6 +69,8 @@ var (
 	etcdCfgFile     = flag.String("etcd-config", defaultEtcdCfgFile, "location of the ETCD config file")
 	boltCfgFile     = flag.String("bolt-config", defaultBoltCfgFile, "location of the Bolt config file")
 	stnServerSocket = flag.String("stn-server-socket", defaultStnServerSocket, "socket file where STN GRPC server listens for connections")
+
+	crashDebugEnabled = os.Getenv("CRASH_DEBUG_ENABLED") != "" // used to debug VPP/agent crashes - would not exit on crash
 )
 
 var logger logging.Logger // global logger
@@ -147,25 +149,35 @@ func stnGrpcConnect() (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-// etcdWithAtomicPut augments ProtoWrapper with atomic Put operation.
-type etcdWithAtomicPut struct {
+// etcdPlugin is a very simplified version of the etcd plugin.
+type etcdPlugin struct {
 	*kvproto.ProtoWrapper
 	conn *etcd.BytesConnectionEtcd
 }
 
-// PutIfNotExists implements the atomic Put operation.
-func (etcd *etcdWithAtomicPut) PutIfNotExists(key string, value []byte) (succeeded bool, err error) {
-	return etcd.conn.PutIfNotExists(key, value)
-}
-
 // OnConnect immediately calls the callback - etcdConnect() returns etcd client
 // in the connected state (or as nil).
-func (etcd *etcdWithAtomicPut) OnConnect(callback func() error) {
+func (etcd *etcdPlugin) OnConnect(callback func() error) {
 	callback()
 }
 
+// Disabled returns false.
+func (etcd *etcdPlugin) Disabled() bool {
+	return false
+}
+
+// String returns the plugin name.
+func (etcd *etcdPlugin) String() string {
+	return "etcd-plugin-simple"
+}
+
+// NewBrokerWithAtomic creates new instance of prefixed (byte-oriented) broker with atomic operations.
+func (etcd *etcdPlugin) NewBrokerWithAtomic(keyPrefix string) keyval.BytesBrokerWithAtomic {
+	return etcd.conn.NewBroker(keyPrefix).(keyval.BytesBrokerWithAtomic)
+}
+
 // etcdConnect connects to ETCD db.
-func etcdConnect() (etcdConn nodesync.ClusterWideDB, err error) {
+func etcdConnect() (etcdConn nodesync.KVDBWithAtomic, err error) {
 	etcdConfig := &etcd.Config{}
 
 	// parse ETCD config file
@@ -199,7 +211,7 @@ func etcdConnect() (etcdConn nodesync.ClusterWideDB, err error) {
 	}
 
 	protoDb := kvproto.NewProtoWrapper(conn, &keyval.SerializerJSON{})
-	etcdConn = &etcdWithAtomicPut{
+	etcdConn = &etcdPlugin{
 		ProtoWrapper: protoDb,
 		conn:         conn,
 	}
@@ -241,7 +253,7 @@ func boltOpen(delete bool) (protoDb *kvproto.ProtoWrapper, err error) {
 //   1. if etcd is available, allocate/retrieve node ID from there
 //   2. if etcd is available, resync bolt against etcd
 //   3. check that node ID is in bolt
-func prepareForLocalResync(nodeName string, boltDB contivconf.KVBrokerFactory, etcdDB nodesync.ClusterWideDB) error {
+func prepareForLocalResync(nodeName string, boltDB contivconf.KVBrokerFactory, etcdDB nodesync.KVDBWithAtomic) error {
 	var err error
 
 	// if etcd is available, allocate/retrieve ID from there
@@ -437,16 +449,24 @@ eventLoop:
 
 		case stat := <-vppStat:
 			if stat == status.Terminated {
-				logger.Error("VPP terminated, stopping contiv-agent")
-				agent.StopAndWait()
-				break eventLoop
+				if crashDebugEnabled {
+					logger.Error("VPP terminated !!!")
+				} else {
+					logger.Error("VPP terminated, stopping contiv-agent")
+					agent.StopAndWait()
+					break eventLoop
+				}
 			}
 
 		case stat := <-agentStat:
 			if stat == status.Terminated {
-				logger.Error("contiv-agent terminated, stopping VPP")
-				vpp.StopAndWait()
-				break eventLoop
+				if crashDebugEnabled {
+					logger.Error("contiv-agent terminated !!!")
+				} else {
+					logger.Error("contiv-agent terminated, stopping VPP")
+					vpp.StopAndWait()
+					break eventLoop
+				}
 			}
 		}
 	}

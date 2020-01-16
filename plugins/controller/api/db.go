@@ -19,7 +19,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 
 	"github.com/contiv/vpp/dbresources"
 )

@@ -25,13 +25,15 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/idxmap"
-	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	"github.com/ligato/vpp-agent/api/models/vpp/l2"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/srv6"
-	"github.com/ligato/vpp-agent/pkg/models"
+
+	"go.ligato.io/vpp-agent/v2/pkg/models"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l2"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/srv6"
+
 	"github.com/pkg/errors"
 )
 
@@ -319,7 +321,7 @@ func (n *IPNet) parseDHCPLease(lease *vpp_interfaces.DHCPLease) (hostAddr net.IP
 func (n *IPNet) enabledIPNeighborScan() (key string, config *vpp_l3.IPScanNeighbor) {
 	ipScanConfig := n.ContivConf.GetIPNeighborScanConfig()
 	config = &vpp_l3.IPScanNeighbor{
-		Mode:           vpp_l3.IPScanNeighbor_IPv4,
+		Mode:           vpp_l3.IPScanNeighbor_IPV4,
 		ScanInterval:   uint32(ipScanConfig.IPNeighborScanInterval),
 		StaleThreshold: uint32(ipScanConfig.IPNeighborStaleThreshold),
 	}
@@ -1218,7 +1220,7 @@ func (n *IPNet) srv6DX6PodTunnelEgress(sid net.IP, outgoingInterface string, nex
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               sid.String(),
 		InstallationVrfId: n.ContivConf.GetRoutingConfig().MainVRFID,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+		EndFunction: &vpp_srv6.LocalSID_EndFunctionDx6{EndFunctionDx6: &vpp_srv6.LocalSID_EndDX6{
 			OutgoingInterface: outgoingInterface,
 			NextHop:           nextHop.String(),
 		}},
@@ -1244,11 +1246,11 @@ func (n *IPNet) srv6TunnelEgress(sid net.IP, lookupVrfID uint32) (key string, co
 		InstallationVrfId: n.ContivConf.GetRoutingConfig().MainVRFID,
 	}
 	if n.ContivConf.GetIPAMConfig().UseIPv6 {
-		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DT6{EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
+		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionDt6{EndFunctionDt6: &vpp_srv6.LocalSID_EndDT6{
 			VrfId: lookupVrfID,
 		}}
 	} else {
-		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DT4{EndFunction_DT4: &vpp_srv6.LocalSID_EndDT4{
+		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionDt4{EndFunctionDt4: &vpp_srv6.LocalSID_EndDT4{
 			VrfId: lookupVrfID,
 		}}
 	}

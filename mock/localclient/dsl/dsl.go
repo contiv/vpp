@@ -3,7 +3,7 @@
 package dsl
 
 import (
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 )
 
 // CommonMockDSL holds common data for all mocked DSLs

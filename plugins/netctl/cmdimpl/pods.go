@@ -20,7 +20,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/golang/protobuf/jsonpb"
 
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/servicelabel"
@@ -31,9 +31,10 @@ import (
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/remote"
-	"github.com/ligato/vpp-agent/plugins/restapi/resturl"
-	vppif "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
-	arpdescr "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/descriptor"
+	"go.ligato.io/vpp-agent/v2/plugins/restapi/resturl"
+
+	vppif "go.ligato.io/vpp-agent/v2/plugins/vpp/ifplugin/vppcalls"
+	arpdescr "go.ligato.io/vpp-agent/v2/plugins/vpp/l3plugin/descriptor"
 )
 
 type nodeData struct {

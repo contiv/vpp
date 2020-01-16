@@ -18,19 +18,21 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/contiv/vpp/plugins/grpc/rpc"
-	"github.com/ligato/vpp-agent/clientv2/linux"
-	"github.com/ligato/vpp-agent/clientv2/vpp"
+	"go.ligato.io/vpp-agent/v2/clientv2/linux"
+	"go.ligato.io/vpp-agent/v2/clientv2/vpp"
 
-	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
-	"github.com/ligato/vpp-agent/api/models/linux/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/acl"
-	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
-	"github.com/ligato/vpp-agent/api/models/vpp/l2"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	"github.com/ligato/vpp-agent/api/models/vpp/punt"
-	"github.com/ligato/vpp-agent/api/models/vpp/stn"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/interfaces"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/iptables"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/l3"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/abf"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/acl"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/ipsec"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l2"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/nat"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/punt"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/stn"
 )
 
 const (
@@ -80,6 +82,55 @@ func (dsl *DataChangeDSL) Delete() linuxclient.DeleteDSL {
 // LinuxInterface adds a request to create or update Linux network interface.
 func (dsl *PutDSL) LinuxInterface(val *linux_interfaces.Interface) linuxclient.PutDSL {
 	dsl.parent.putReq.LinuxInterfaces = append(dsl.parent.putReq.LinuxInterfaces, val)
+	dsl.parent.withPut = true
+	return dsl
+}
+
+// Span adds VPP span to the Put request.
+func (dsl *PutDSL) Span(span *vpp_interfaces.Span) linuxclient.PutDSL {
+	dsl.parent.putReq.Spans = append(dsl.parent.putReq.Spans, span)
+	dsl.parent.withPut = true
+	return dsl
+}
+
+// ABF adds a request to create or update VPP ACL-based forwarding.
+func (dsl *PutDSL) ABF(abf *vpp_abf.ABF) linuxclient.PutDSL {
+	dsl.parent.putReq.Forwardings = append(dsl.parent.putReq.Forwardings, abf)
+	dsl.parent.withPut = true
+	return dsl
+}
+
+// IptablesRuleChain adds request to create or update iptables rule chain.
+func (dsl *PutDSL) IptablesRuleChain(val *linux_iptables.RuleChain) linuxclient.PutDSL {
+	dsl.parent.putReq.RuleChains = append(dsl.parent.putReq.RuleChains, val)
+	dsl.parent.withPut = true
+	return dsl
+}
+
+// VrfTable adds a request to create or update VPP VRF table.
+func (dsl *PutDSL) VrfTable(val *vpp_l3.VrfTable) linuxclient.PutDSL {
+	dsl.parent.putReq.VrfTables = append(dsl.parent.putReq.VrfTables, val)
+	dsl.parent.withPut = true
+	return dsl
+}
+
+// NAT44Interface adds a request to create or update NAT44 interface configuration.
+func (dsl *PutDSL) NAT44Interface(natIf *vpp_nat.Nat44Interface) linuxclient.PutDSL {
+	dsl.parent.putReq.Nat44Interfaces = append(dsl.parent.putReq.Nat44Interfaces, natIf)
+	dsl.parent.withPut = true
+	return dsl
+}
+
+// NAT44AddressPool adds a request to create or update NAT44 address pool.
+func (dsl *PutDSL) NAT44AddressPool(pool *vpp_nat.Nat44AddressPool) linuxclient.PutDSL {
+	dsl.parent.putReq.Nat44AddressPools = append(dsl.parent.putReq.Nat44AddressPools, pool)
+	dsl.parent.withPut = true
+	return dsl
+}
+
+// PuntException adds request to create or update exception to punt specific packets.
+func (dsl *PutDSL) PuntException(val *vpp_punt.Exception) linuxclient.PutDSL {
+	dsl.parent.putReq.Exceptions = append(dsl.parent.putReq.Exceptions, val)
 	dsl.parent.withPut = true
 	return dsl
 }
@@ -230,6 +281,68 @@ func (dsl *DeleteDSL) LinuxInterface(ifaceName string) linuxclient.DeleteDSL {
 	return dsl
 }
 
+// IptablesRuleChain adds request to delete iptables rule chain.
+func (dsl *DeleteDSL) IptablesRuleChain(name string) linuxclient.DeleteDSL {
+	dsl.parent.delReq.RuleChains = append(dsl.parent.delReq.RuleChains,
+		&linux_iptables.RuleChain{
+			Name: name,
+		})
+	dsl.parent.withDel = true
+	return dsl
+}
+
+// Span adds VPP span to the Delete request.
+func (dsl *DeleteDSL) Span(span *vpp_interfaces.Span) linuxclient.DeleteDSL {
+	dsl.parent.delReq.Spans = append(dsl.parent.delReq.Spans, span)
+	dsl.parent.withDel = true
+	return dsl
+}
+
+// ABF adds a request to delete an existing VPP ACL-based forwarding.
+func (dsl *DeleteDSL) ABF(abfIndex uint32) linuxclient.DeleteDSL {
+	dsl.parent.delReq.Forwardings = append(dsl.parent.delReq.Forwardings,
+		&vpp_abf.ABF{
+			Index: abfIndex,
+		})
+	dsl.parent.withDel = true
+	return dsl
+}
+
+// VrfTable adds a request to delete existing VPP VRF table.
+func (dsl *DeleteDSL) VrfTable(id uint32, proto vpp_l3.VrfTable_Protocol) linuxclient.DeleteDSL {
+	dsl.parent.delReq.VrfTables = append(dsl.parent.delReq.VrfTables,
+		&vpp_l3.VrfTable{
+			Id:       id,
+			Protocol: proto,
+		})
+	dsl.parent.withDel = true
+	return dsl
+}
+
+// NAT44Interface adds a request to delete NAT44 interface configuration.
+func (dsl *DeleteDSL) NAT44Interface(natIf *vpp_nat.Nat44Interface) linuxclient.DeleteDSL {
+	dsl.parent.delReq.Nat44Interfaces = append(dsl.parent.delReq.Nat44Interfaces, natIf)
+	dsl.parent.withDel = true
+	return dsl
+}
+
+// NAT44AddressPool adds a request to delete NAT44 address pool.
+func (dsl *DeleteDSL) NAT44AddressPool(pool *vpp_nat.Nat44AddressPool) linuxclient.DeleteDSL {
+	dsl.parent.delReq.Nat44AddressPools = append(dsl.parent.delReq.Nat44AddressPools, pool)
+	dsl.parent.withDel = true
+	return dsl
+}
+
+// PuntException adds request to delete exception to punt specific packets.
+func (dsl *DeleteDSL) PuntException(reason string) linuxclient.DeleteDSL {
+	dsl.parent.delReq.Exceptions = append(dsl.parent.delReq.Exceptions,
+		&vpp_punt.Exception{
+			Reason: reason,
+		})
+	dsl.parent.withDel = true
+	return dsl
+}
+
 // LinuxArpEntry adds a request to delete Linux ARP entry
 func (dsl *DeleteDSL) LinuxArpEntry(ifaceName string, ipAddr string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.LinuxArpEntries = append(dsl.parent.delReq.LinuxArpEntries,
@@ -326,12 +439,12 @@ func (dsl *DeleteDSL) XConnect(rxIfaceName string) linuxclient.DeleteDSL {
 }
 
 // StaticRoute adds a request to delete an existing VPP L3 Static Route.
-func (dsl *DeleteDSL) StaticRoute(vrf uint32, dstNet string, nextHopAddr string) linuxclient.DeleteDSL {
+func (dsl *DeleteDSL) StaticRoute(iface string, vrf uint32, dstAddr string, nextHopAddr string) linuxclient.DeleteDSL {
 	dsl.parent.delReq.StaticRoutes = append(dsl.parent.delReq.StaticRoutes,
 		&vpp_l3.Route{
-			VrfId:       vrf,
-			DstNetwork:  dstNet,
 			NextHopAddr: nextHopAddr,
+			VrfId:       vrf,
+			DstNetwork:  dstAddr,
 		})
 	dsl.parent.withDel = true
 	return dsl

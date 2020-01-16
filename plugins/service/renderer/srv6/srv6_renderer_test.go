@@ -37,11 +37,12 @@ import (
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/service/renderer/srv6"
 	renderer_testing "github.com/contiv/vpp/plugins/service/renderer/testing"
-	linux_interfaces "github.com/ligato/vpp-agent/api/models/linux/interfaces"
-	linux_iptables "github.com/ligato/vpp-agent/api/models/linux/iptables"
-	linux_namespace "github.com/ligato/vpp-agent/api/models/linux/namespace"
-	vpp_l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
-	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
+
+	linux_interfaces "go.ligato.io/vpp-agent/v2/proto/ligato/linux/interfaces"
+	linux_iptables "go.ligato.io/vpp-agent/v2/proto/ligato/linux/iptables"
+	linux_namespace "go.ligato.io/vpp-agent/v2/proto/ligato/linux/namespace"
+	vpp_l3 "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
+	vpp_srv6 "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/srv6"
 )
 
 const (
@@ -392,14 +393,14 @@ func assertLocalSid(sid net.IP, installationVrfID uint32, destIP net.IP, outgoin
 		InstallationVrfId: installationVrfID,
 	}
 	if isIPv6(destIP) {
-		localsid.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
-			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+		localsid.EndFunction = &vpp_srv6.LocalSID_EndFunctionDx6{
+			EndFunctionDx6: &vpp_srv6.LocalSID_EndDX6{
 				OutgoingInterface: outgoingInterface,
 				NextHop:           destIP.String(),
 			}}
 	} else {
-		localsid.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX4{
-			EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
+		localsid.EndFunction = &vpp_srv6.LocalSID_EndFunctionDx4{
+			EndFunctionDx4: &vpp_srv6.LocalSID_EndDX4{
 				OutgoingInterface: outgoingInterface,
 				NextHop:           destIP.String(),
 			}}
@@ -476,7 +477,7 @@ func createRuleChain(chainType linux_iptables.RuleChain_ChainType, serviceIP str
 		Namespace: &linux_namespace.NetNamespace{
 			Type: linux_namespace.NetNamespace_FD,
 		},
-		Protocol:  linux_iptables.RuleChain_IPv6,
+		Protocol:  linux_iptables.RuleChain_IPV6,
 		Table:     linux_iptables.RuleChain_NAT,
 		ChainType: chainType,
 		Rules:     []string{rule},

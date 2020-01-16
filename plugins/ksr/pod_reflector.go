@@ -22,7 +22,7 @@ import (
 	coreV1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 )

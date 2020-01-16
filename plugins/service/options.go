@@ -19,7 +19,7 @@ import (
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/plugins/govppmux"
+	"go.ligato.io/vpp-agent/v2/plugins/govppmux"
 )
 
 // NewPlugin creates a new Plugin with the provides Options

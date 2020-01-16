@@ -22,8 +22,9 @@ import (
 	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
 	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/ligato/vpp-agent/api/models/linux/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+
+	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/l3"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
 )
 
 // Resync is called by Controller to handle event that requires full

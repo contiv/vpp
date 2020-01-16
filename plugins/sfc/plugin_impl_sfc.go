@@ -34,7 +34,7 @@ import (
 	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/plugins/govppmux"
+	"go.ligato.io/vpp-agent/v2/plugins/govppmux"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR+CRD into ETCD)

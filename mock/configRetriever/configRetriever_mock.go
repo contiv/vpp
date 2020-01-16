@@ -14,7 +14,7 @@
 
 package configRetriever
 
-import "github.com/gogo/protobuf/proto"
+import "github.com/golang/protobuf/proto"
 
 // MockConfigRetriever mocks ConfigRetriever that allows to read configuration in order to adjust a config item
 // by multiple event handlers.

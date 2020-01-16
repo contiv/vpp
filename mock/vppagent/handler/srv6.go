@@ -18,10 +18,10 @@ import (
 	"errors"
 
 	"github.com/contiv/vpp/mock/localclient"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
-	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
+	vpp_srv6 "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/srv6"
 )
 
 // SRv6MockHandler mocks VPP-Agent for SRv6 configuration part. It remembers SRv6 configuration as VPP-Agent would do and exposes it later for unit test for verification.

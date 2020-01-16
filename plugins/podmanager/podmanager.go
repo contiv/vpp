@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate protoc -I ./cni --gogo_out=plugins=grpc:./cni ./cni/cni.proto
+//go:generate protoc -I ./cni --go_out=plugins=grpc:./cni ./cni/cni.proto
 
 package podmanager
 

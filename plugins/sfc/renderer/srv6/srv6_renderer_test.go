@@ -48,10 +48,11 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-	linux_interfaces "github.com/ligato/vpp-agent/api/models/linux/interfaces"
-	vpp_interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+
+	scheduler "go.ligato.io/vpp-agent/v2/plugins/kvscheduler/api"
+	linux_interfaces "go.ligato.io/vpp-agent/v2/proto/ligato/linux/interfaces"
+	vpp_interfaces "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
+	vpp_srv6 "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/srv6"
 
 	. "github.com/onsi/gomega"
 )
@@ -901,7 +902,7 @@ func sfLocalSID(ip, l3Addr, outInterface, inInterface string, fixture *Fixture) 
 	return &vpp_srv6.LocalSID{
 		Sid:               fixture.IPAM.SidForSFCServiceFunctionLocalsid(SFCName, net.ParseIP(ip).To16()).String(),
 		InstallationVrfId: PodVrfID,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{
+		EndFunction: &vpp_srv6.LocalSID_EndFunctionAd{EndFunctionAd: &vpp_srv6.LocalSID_EndAD{
 			L3ServiceAddress:  l3Addr,
 			OutgoingInterface: outInterface,
 			IncomingInterface: inInterface,
@@ -913,8 +914,8 @@ func endPodLocalSID(ip, nextHop, outInterface string, fixture *Fixture) *vpp_srv
 	return &vpp_srv6.LocalSID{
 		Sid:               fixture.IPAM.SidForSFCEndLocalsid(net.ParseIP(ip).To16()).String(),
 		InstallationVrfId: PodVrfID,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{
-			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+		EndFunction: &vpp_srv6.LocalSID_EndFunctionDx6{
+			EndFunctionDx6: &vpp_srv6.LocalSID_EndDX6{
 				NextHop:           nextHop,
 				OutgoingInterface: outInterface,
 			},
@@ -929,16 +930,16 @@ func endInterfaceLocalSID(name, vppInterface, ifIPNet string, fixture *Fixture) 
 
 	if ip, _, err := net.ParseCIDR(ifIPNet); err == nil {
 		endLocalSID.Sid = fixture.IPAM.SidForSFCExternalIfLocalsid(name, ip).String()
-		endLocalSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
-			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+		endLocalSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionDx6{
+			EndFunctionDx6: &vpp_srv6.LocalSID_EndDX6{
 				NextHop:           ip.String(),
 				OutgoingInterface: vppInterface,
 			},
 		}
 	} else {
 		endLocalSID.Sid = fixture.IPAM.SidForSFCExternalIfLocalsid(name, nil).String()
-		endLocalSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX2{
-			EndFunction_DX2: &vpp_srv6.LocalSID_EndDX2{
+		endLocalSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionDx2{
+			EndFunctionDx2: &vpp_srv6.LocalSID_EndDX2{
 				OutgoingInterface: vppInterface,
 			},
 		}

@@ -18,10 +18,10 @@ import (
 	"errors"
 
 	"github.com/contiv/vpp/mock/localclient"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
-	linux_interfaces "github.com/ligato/vpp-agent/api/models/linux/interfaces"
+	linux_interfaces "go.ligato.io/vpp-agent/v2/proto/ligato/linux/interfaces"
 )
 
 // InterfaceMockHandler mocks VPP-Agent for Interface configuration part. It remembers Interfaces as VPP-Agent would do and exposes it later for unit test for verification.

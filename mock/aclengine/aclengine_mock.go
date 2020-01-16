@@ -30,7 +30,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/ligato/cn-infra/datasync/syncbase"
-	"github.com/ligato/vpp-agent/api/models/vpp/acl"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/acl"
 )
 
 // maxPortNum is the maximum possible port number.

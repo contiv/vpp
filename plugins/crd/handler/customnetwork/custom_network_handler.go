@@ -14,7 +14,7 @@
  * // limitations under the License.
  */
 
-//go:generate protoc -I ./model --gogo_out=plugins=grpc:./model ./model/customnetwork.proto
+//go:generate protoc -I ./model --go_out=plugins=grpc:./model ./model/customnetwork.proto
 
 package customnetwork
 

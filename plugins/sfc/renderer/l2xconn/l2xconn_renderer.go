@@ -1,7 +1,7 @@
 /*
  * // Copyright (c) 2019 Cisco and/or its affiliates.
- * // Other Contributors: 1. Adel Bouridah Centre Universitaire Abdelhafid Boussouf Mila - Algerie a.bouridah@centre-univ-mila.dz
- * // 2. Nadjib Aitsaadi Universite Paris Est Creteil, nadjib.aitsaadi@u-pec.fr
+ * // Other Contributors: 1. Adel Bouridah,  Abdelhafid Boussouf University - Mila - Algeria, a.bouridah@centre-univ-mila.dz
+ * // 2. Nadjib Aitsaadi, Universite Paris Est Creteil, nadjib.aitsaadi@u-pec.fr
  * // Licensed under the Apache License, Version 2.0 (the "License");
  * // you may not use this file except in compliance with the License.
  * // You may obtain a copy of the License at:
@@ -19,10 +19,13 @@ package l2xconn
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/api/models/vpp/l2"
+	"github.com/pkg/errors"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -34,6 +37,11 @@ import (
 	"github.com/contiv/vpp/plugins/sfc/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
 )
+
+// ServiceFunctionSelectable is holder for one k8s resource that can be used as ServiceFunction in SFC
+// chain (i.e. one pod or one external interface)
+type ServiceFunctionSelectable interface {
+}
 
 // Renderer implements L2 cross-connect -based rendering of SFC in Contiv-VPP.
 type Renderer struct {
@@ -73,7 +81,7 @@ func (rndr *Renderer) AddChain(sfc *renderer.ContivSFC) error {
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("add SFC '%s'", sfc.Name))
 
-	config := rndr.renderChain(sfc, false)
+	config, _ := rndr.renderChain(sfc, false)
 	controller.PutAll(txn, config)
 
 	return nil
@@ -85,8 +93,8 @@ func (rndr *Renderer) UpdateChain(oldSFC, newSFC *renderer.ContivSFC) error {
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("update SFC '%s'", newSFC.Name))
 
-	oldConfig := rndr.renderChain(oldSFC, true)
-	newConfig := rndr.renderChain(newSFC, false)
+	oldConfig, _ := rndr.renderChain(oldSFC, true)
+	newConfig, _ := rndr.renderChain(newSFC, false)
 
 	controller.DeleteAll(txn, oldConfig)
 	controller.PutAll(txn, newConfig)
@@ -101,7 +109,7 @@ func (rndr *Renderer) DeleteChain(sfc *renderer.ContivSFC) error {
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("delete SFC chain '%s'", sfc.Name))
 
-	config := rndr.renderChain(sfc, true)
+	config, _ := rndr.renderChain(sfc, true)
 	controller.DeleteAll(txn, config)
 
 	return nil
@@ -113,7 +121,7 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 
 	// resync SFC configuration
 	for _, sfc := range resyncEv.Chains {
-		config := rndr.renderChain(sfc, false)
+		config, _ := rndr.renderChain(sfc, false)
 		controller.PutAll(txn, config)
 	}
 
@@ -126,213 +134,93 @@ func (rndr *Renderer) Close() error {
 }
 
 // renderChain renders Contiv SFC to VPP configuration.
-func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC, isDelete bool) (config controller.KeyValuePairs) {
-	config = make(controller.KeyValuePairs)
-	var prevSF *renderer.ServiceFunction
-	for sfIdx, sf := range sfc.Chain {
-		// get interface names of this and previous service function (works only for local SFs, else returns "")
-		iface := rndr.getSFInterface(sf, true)
-		prevIface := ""
-		if prevSF != nil {
-			prevIface = rndr.getSFInterface(prevSF, false)
-		}
+func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC, isDelete bool) (config controller.KeyValuePairs, err error) {
+	/********************************************************************************************************/
+	/**** Modified Render that allow creation of multipath SFC 																					*****/
+	/**** Inspired from the Old one path l2xconnect render + SRv6 Render  															*****/
+	/********************************************************************************************************/
 
-		if iface != "" && prevIface != "" {
-			if rndr.shouldChainLocalSFs(sf, prevSF) {
-				if rndr.shouldChainLocalSFs(sf, prevSF) {
+	// SFC configuration correctness checks
+	config = make(controller.KeyValuePairs)
+	if sfc == nil {
+		return config, errors.New("can't create sfc chain configuration due to missing sfc information")
+	}
+	if sfc.Chain == nil || len(sfc.Chain) == 0 {
+		return config, errors.New("can't create sfc chain configuration due to missing chain information")
+	}
+	if len(sfc.Chain) < 2 {
+		return config, errors.New("can't create sfc chain configuration due to missing information " +
+			"on start and end chain links (chain has less than 2 links)")
+	}
+	/*if len(sfc.Chain) == 2 {
+		rndr.Log.Warnf("sfc chain %v doesn't have inner links, it has only start and end links", sfc.Name)
+	}*/
+
+	// compute concrete paths from resources selected for SFC chain
+	paths, err := rndr.computePaths(sfc)
+	if err != nil {
+		return config, errors.Wrapf(err, "can't compute paths for SFC chain with name %v", sfc.Name)
+	}
+
+	// Create the needed l2xconnect, vxlan for all paths
+	rndr.Log.Infof("Number of paths is %v for SFC chain with name %v", len(paths), sfc.Name)
+	var prevSfSelectable ServiceFunctionSelectable
+	for pathIdx, path := range paths {
+		// Chain pod/externalinterface of each path - l2xconnect (crossconnect/vxlan)
+		for sfIdx, sfSelectable := range path {
+			rndr.Log.Infof("path size %v for path %v", len(path), sfIdx)
+			// get interface names of this and previous service function (works only for local SFs, else returns "")
+			iface := rndr.getSfSelectableInterface(sfSelectable, true)
+			prevIface := ""
+			if prevSfSelectable != nil {
+				prevIface = rndr.getSfSelectableInterface(prevSfSelectable, false)
+			}
+			if iface != "" && prevIface != "" {
+				if isLocal(sfSelectable) && isLocal(prevSfSelectable) {
+
+					rndr.Log.Infof("The path number %v for SFC chain with name %v crooss-connect pod %v with pod %v", sfIdx, sfc.Name, sfIdentifier(prevSfSelectable), sfIdentifier(sfSelectable))
+
 					xconnect := rndr.crossConnectIfaces(prevIface, iface, sfc.Unidirectional)
 					rndr.mergeConfiguration(config, xconnect)
-				}
-			} else if rndr.shouldChainToRemoteSF(prevSF, sf) {
-				// one of the SFs (prevSF or SF) is local and the other not - use VXLAN to interconnect between them
-				// allocate a VNI for this SF interconnection - each SF may need an exclusive VNI
-				vxlanName := fmt.Sprintf("sfc-%s-%d", sfc.Name, sfIdx)
-				vni, err := rndr.IPNet.GetOrAllocateVxlanVNI(vxlanName)
-				if isDelete {
-					rndr.IPNet.ReleaseVxlanVNI(vxlanName)
-				}
-				if err != nil {
-					rndr.Log.Infof("Unable to allocate VXLAN VNI: %v", err)
-					break
-				}
-				if rndr.isNodeLocalSF(sf) { // sf is local
-					// create vxlan and connect sf to vxlan interface
-					vxlanConfig := rndr.vxlanToRemoteSF(prevSF, vxlanName, vni)
-					rndr.mergeConfiguration(config, vxlanConfig)
+				} else if isLocal(sfSelectable) || isLocal(prevSfSelectable) { //
+					// one of the SFs (prevSfSelectable or SFSelectable) is local and the other not - use VXLAN to interconnect between them
+					// allocate a VNI for this SF interconnection - each SF may need an exclusive VNI
+					vxlanName := fmt.Sprintf("sfc-%s-%d-%d", sfc.Name, sfIdx, pathIdx)
+					vni, err := rndr.IPNet.GetOrAllocateVxlanVNI(vxlanName)
+					if isDelete {
+						rndr.IPNet.ReleaseVxlanVNI(vxlanName)
+					}
+					if err != nil {
+						rndr.Log.Infof("Unable to allocate VXLAN VNI: %v", err)
+						break
+					}
+					rndr.Log.Infof("The path number %v for SFC chain with name %v crooss-connect pod %v with pod %v over the vxlan %v", sfIdx, sfc.Name, sfIdentifier(prevSfSelectable), sfIdentifier(sfSelectable), vxlanName)
+					if isLocal(sfSelectable) { // sfSelectable is local
+						// create vxlan and connect sf to vxlan interface
+						vxlanConfig := rndr.vxlanToRemoteSelectableSF(prevSfSelectable, vxlanName, vni)
+						rndr.mergeConfiguration(config, vxlanConfig)
 
-					// cross-connect between the vxlan interface and the SF interface
-					xconnect := rndr.crossConnectIfaces(vxlanName, iface, sfc.Unidirectional)
-					rndr.mergeConfiguration(config, xconnect)
-				} else { // prevSF is local
-					// create vxlan and connect prevSF to vxlan in both directions
-					vxlanConfig := rndr.vxlanToRemoteSF(sf, vxlanName, vni)
-					rndr.mergeConfiguration(config, vxlanConfig)
+						// cross-connect between the vxlan interface and the SF interface
+						xconnect := rndr.crossConnectIfaces(vxlanName, iface, sfc.Unidirectional)
+						rndr.mergeConfiguration(config, xconnect)
+					} else { // prevSF is local
+						// create vxlan and connect prevSF to vxlan in both directions
+						vxlanConfig := rndr.vxlanToRemoteSelectableSF(sfSelectable, vxlanName, vni)
+						rndr.mergeConfiguration(config, vxlanConfig)
 
-					// cross-connect between the prevSF interface and vxlan interface
-					xconnect := rndr.crossConnectIfaces(prevIface, vxlanName, sfc.Unidirectional)
-					rndr.mergeConfiguration(config, xconnect)
+						// cross-connect between the prevSF interface and vxlan interface
+						xconnect := rndr.crossConnectIfaces(prevIface, vxlanName, sfc.Unidirectional)
+						rndr.mergeConfiguration(config, xconnect)
+					}
 				}
 			}
+			// go to next link
+			prevSfSelectable = sfSelectable
 		}
-		prevSF = sf
+		// go to next path
+		prevSfSelectable = nil
 	}
-	return config
-}
-
-// shouldChainToRemoteSF returns true if a local and a remote SFs should be chained together.
-func (rndr *Renderer) shouldChainToRemoteSF(sf1, sf2 *renderer.ServiceFunction) bool {
-
-	// do not chain if none of the SFs is local
-	if !rndr.isNodeLocalSF(sf1) && !rndr.isNodeLocalSF(sf2) {
-		return false
-	}
-
-	// if there is another node where both SFs are present, do not chain
-	sf1NodeIDs := rndr.getSFNodeIDs(sf1)
-	sf2NodeIDs := rndr.getSFNodeIDs(sf2)
-	for _, nodeID := range sf1NodeIDs {
-		if sliceContains(sf2NodeIDs, nodeID) {
-			return false
-		}
-	}
-
-	// if there is a node with the SF and lower node ID than ours, do not chain
-	nodeIDs := sf1NodeIDs
-	if !rndr.isNodeLocalSF(sf1) {
-		nodeIDs = sf2NodeIDs
-	}
-	for _, nodeID := range nodeIDs {
-		if nodeID < rndr.NodeSync.GetNodeID() {
-			return false
-		}
-	}
-
-	return true // otherwise chain
-}
-
-// getPreferredSFPod returns a pod of a SF that is preferred to chain with.
-func (rndr *Renderer) getPreferredSFPod(sf *renderer.ServiceFunction) *renderer.PodSF {
-	if len(sf.Pods) == 0 {
-		return nil
-	}
-	// try to use a local pod if possible
-	for _, pod := range sf.Pods {
-		if pod.Local {
-			return pod
-		}
-	}
-	// otherwise use the pod with lowest node ID
-	var preferedPod *renderer.PodSF
-	lowestID := ^uint32(0)
-	for _, pod := range sf.Pods {
-		if pod.NodeID < lowestID {
-			preferedPod = pod
-			lowestID = pod.NodeID
-		}
-	}
-	return preferedPod
-}
-
-// getPreferredSFPod returns an external interface of a SF that is preferred to chain with.
-func (rndr *Renderer) getPreferredSFInterface(sf *renderer.ServiceFunction) *renderer.InterfaceSF {
-	if len(sf.ExternalInterfaces) == 0 {
-		return nil
-	}
-	// try to use a local interface if possible
-	for _, iface := range sf.ExternalInterfaces {
-		if iface.Local {
-			return iface
-		}
-	}
-	// otherwise use the interface with lowest node ID
-	var preferedIf *renderer.InterfaceSF
-	lowestID := ^uint32(0)
-	for _, iface := range sf.ExternalInterfaces {
-		if iface.NodeID < lowestID {
-			preferedIf = iface
-			lowestID = iface.NodeID
-		}
-	}
-	return preferedIf
-}
-
-// getSFInterface returns a service function input/output interface which should be used for chaining.
-func (rndr *Renderer) getSFInterface(sf *renderer.ServiceFunction, input bool) string {
-	switch sf.Type {
-	case renderer.Pod:
-		pod := rndr.getPreferredSFPod(sf)
-		if pod == nil {
-			return ""
-		}
-		if input {
-			return pod.InputInterface.ConfigName
-		}
-		return pod.OutputInterface.ConfigName
-
-	case renderer.ExternalInterface:
-		iface := rndr.getPreferredSFInterface(sf)
-		if iface == nil {
-			return ""
-		}
-		return iface.ConfigName
-	}
-	return ""
-}
-
-// getSFNodeID returns the node ID for the given SF.
-func (rndr *Renderer) getSFNodeID(sf *renderer.ServiceFunction) uint32 {
-	switch sf.Type {
-	case renderer.Pod:
-		pod := rndr.getPreferredSFPod(sf)
-		if pod == nil {
-			return 0
-		}
-		return pod.NodeID
-
-	case renderer.ExternalInterface:
-		iface := rndr.getPreferredSFInterface(sf)
-		if iface == nil {
-			return 0
-		}
-		return iface.NodeID
-	}
-	return 0
-}
-
-// isNodeLocalSF checks weather the given SF is node-local or not.
-func (rndr *Renderer) isNodeLocalSF(sf *renderer.ServiceFunction) bool {
-	switch sf.Type {
-	case renderer.Pod:
-		pod := rndr.getPreferredSFPod(sf)
-		if pod == nil {
-			return false
-		}
-		return pod.Local
-
-	case renderer.ExternalInterface:
-		iface := rndr.getPreferredSFInterface(sf)
-		if iface == nil {
-			return false
-		}
-		return iface.Local
-	}
-	return false
-}
-
-// getSFNodeIDs returns list of node IDs with the instances of the provided service function.
-func (rndr *Renderer) getSFNodeIDs(sf *renderer.ServiceFunction) (nodeIDs []uint32) {
-	switch sf.Type {
-	case renderer.Pod:
-		for _, pod := range sf.Pods {
-			nodeIDs = sliceAppendIfNotExists(nodeIDs, pod.NodeID)
-		}
-
-	case renderer.ExternalInterface:
-		for _, extIf := range sf.ExternalInterfaces {
-			nodeIDs = sliceAppendIfNotExists(nodeIDs, extIf.NodeID)
-		}
-	}
-	return
+	return config, nil
 }
 
 // crossConnectIfaces returns the config for cross-connecting the given interfaces.
@@ -358,13 +246,182 @@ func (rndr *Renderer) crossConnectIfaces(iface1 string, iface2 string, unidirect
 	return config
 }
 
-// vxlanToRemoteSF returns VXLAN configuration to a remote service function.
-func (rndr *Renderer) vxlanToRemoteSF(sf *renderer.ServiceFunction, vxlanName string, vni uint32) (
+// mergeConfiguration merges sourceConf into destConf.
+func (rndr *Renderer) mergeConfiguration(destConf, sourceConf controller.KeyValuePairs) {
+	for k, v := range sourceConf {
+		destConf[k] = v
+	}
+}
+
+/**********************************************************************************************/
+/************** Added for multipath rendering 																						*****/
+/**********************************************************************************************/
+// computePaths takes all resources selected for each SFC link and computes concrete paths for SFC chain
+func (rndr *Renderer) computePaths(sfc *renderer.ContivSFC) ([][]ServiceFunctionSelectable, error) {
+	filteredChain := rndr.filterOnlyUsableServiceInstances(sfc)
+	rndr.Log.Debugf("creation of SFC chain %v will use only these service function instances: %v",
+		sfc.Name, strings.Join(rndr.toStringSlice(filteredChain), ","))
+
+	// path validation
+	for _, link := range filteredChain {
+		if link.Type == renderer.Pod {
+			if len(link.Pods) == 0 {
+				return nil, errors.Errorf("there is no valid path because link %v has no usable "+
+					"pods", link)
+			}
+		} else {
+			if len(link.ExternalInterfaces) == 0 {
+				return nil, errors.Errorf("there is no valid path because link %v has no usable "+
+					"interfaces", link)
+			}
+		}
+	}
+
+	// sorting chain pod/interfaces to get the same path results on each node
+	rndr.sortPodsAndInterfaces(filteredChain)
+
+	// get path count
+	// Note: SRv6 proxy localsid (pod/interface for inner link in SFC chain) can be used only by one path
+	// due to nature of dynamic SRv6 proxy (cache filled by incomming packed and applied to whatever comes
+	// out of service -> crossing path here means to possibly applying SRv6 header from cache to packet
+	// from different path)
+	// That means that path count is limited only by minimum of pods/interfaces selected for each link (
+	// pods/interfaces selected for end link can be reused unlimited times in paths)
+	pathCount := 1<<31 - 1               // more than possible selected pods count
+	for _, link := range filteredChain { // only inner links of original SFC chain ---> changed take into account all links
+		if len(link.Pods) < pathCount {
+			pathCount = len(link.Pods)
+		}
+	}
+
+	// compute paths
+	paths := make([][]ServiceFunctionSelectable, 0)
+	for i := 0; i < pathCount; i++ {
+		path := make([]ServiceFunctionSelectable, 0)
+		for _, link := range filteredChain {
+			// Note: modulo will possibly do something only for end link
+			if link.Type == renderer.Pod {
+				path = append(path, link.Pods[i%len(link.Pods)])
+			} else {
+				path = append(path, link.ExternalInterfaces[i%len(link.ExternalInterfaces)])
+			}
+		}
+		paths = append(paths, path)
+	}
+
+	return paths, nil
+}
+
+// filterOnlyUsableServiceInstances filters out pods/interfaces that are not usable in SFC chain (
+// For instance, as futur option for multiSFC system -->  Pods/interface used in other SFC may be excluded )
+func (rndr *Renderer) filterOnlyUsableServiceInstances(sfc *renderer.ContivSFC) []*renderer.ServiceFunction {
+	filteredChain := make([]*renderer.ServiceFunction, 0, len(sfc.Chain)-1)
+	for _, link := range sfc.Chain {
+		switch link.Type {
+		case renderer.Pod:
+			filteredChain = append(filteredChain, &renderer.ServiceFunction{
+				Type: link.Type,
+				Pods: link.Pods,
+			})
+		case renderer.ExternalInterface:
+			filteredChain = append(filteredChain, &renderer.ServiceFunction{
+				Type:               link.Type,
+				ExternalInterfaces: link.ExternalInterfaces,
+			})
+		}
+	}
+	return filteredChain
+}
+
+func (rndr *Renderer) toStringSlice(chain []*renderer.ServiceFunction) []string {
+	result := make([]string, len(chain))
+	for i, v := range chain {
+		result[i] = v.String()
+	}
+	return result
+}
+
+// sortPodsAndInterfaces makes inplace sort of pods and external interfaces in given chain
+func (rndr *Renderer) sortPodsAndInterfaces(chain []*renderer.ServiceFunction) {
+	for _, link := range chain {
+		// sort pods by podID
+		if len(link.Pods) > 1 {
+			sort.Slice(link.Pods, func(i, j int) bool {
+				return link.Pods[i].ID.String() < link.Pods[j].ID.String()
+			})
+		}
+
+		// sort external interfaces by NodeID and Interface name
+		if len(link.ExternalInterfaces) > 1 {
+			sort.Slice(link.ExternalInterfaces, func(i, j int) bool {
+				id1 := fmt.Sprintf("%v # %v", link.ExternalInterfaces[i].NodeID,
+					link.ExternalInterfaces[i].CRDName)
+				id2 := fmt.Sprintf("%v # %v", link.ExternalInterfaces[j].NodeID,
+					link.ExternalInterfaces[j].CRDName)
+				return id1 < id2
+			})
+		}
+	}
+}
+
+// isLocal finds out whether this ServiceFunctionSelectable is local (pod/external interface)
+func isLocal(sfSelectable ServiceFunctionSelectable) bool {
+	switch selectable := sfSelectable.(type) {
+	case *renderer.PodSF:
+		pod := selectable
+		return pod.Local
+	case *renderer.InterfaceSF:
+		extif := selectable
+		return extif.Local
+	default:
+		return false
+	}
+}
+
+// getSfSelectableInterface returns a service function input/output interface which should be used for chaining.
+func (rndr *Renderer) getSfSelectableInterface(sfSelectable ServiceFunctionSelectable, input bool) string {
+	switch selectable := sfSelectable.(type) {
+	case *renderer.PodSF:
+		pod := selectable
+		if pod == nil {
+			return ""
+		}
+		if input {
+			return pod.InputInterface.ConfigName
+		}
+		return pod.OutputInterface.ConfigName
+
+	case *renderer.InterfaceSF:
+		iface := selectable
+		if iface == nil {
+			return ""
+		}
+		return iface.ConfigName
+	}
+	return ""
+}
+
+// nodeIdentifier provides identification of node where this ServiceFunctionSelectable is located
+func nodeIdentifier(sfSelectable ServiceFunctionSelectable) uint32 {
+	switch selectable := sfSelectable.(type) {
+	case *renderer.PodSF:
+		pod := selectable
+		return pod.NodeID
+	case *renderer.InterfaceSF:
+		iface := selectable
+		return iface.NodeID
+	default:
+		return 0
+	}
+}
+
+// vxlanToRemoteSelectableSF returns VXLAN configuration to a remote service function.
+func (rndr *Renderer) vxlanToRemoteSelectableSF(sfSelectable ServiceFunctionSelectable, vxlanName string, vni uint32) (
 	config controller.KeyValuePairs) {
 	config = make(controller.KeyValuePairs)
 
 	srcAddr, _ := rndr.IPNet.GetNodeIP()
-	dstAdr, _, err := rndr.IPAM.NodeIPAddress(rndr.getSFNodeID(sf))
+	dstAdr, _, err := rndr.IPAM.NodeIPAddress(nodeIdentifier(sfSelectable))
 	if err != nil {
 		return
 	}
@@ -386,49 +443,17 @@ func (rndr *Renderer) vxlanToRemoteSF(sf *renderer.ServiceFunction, vxlanName st
 	return
 }
 
-// mergeConfiguration merges sourceConf into destConf.
-func (rndr *Renderer) mergeConfiguration(destConf, sourceConf controller.KeyValuePairs) {
-	for k, v := range sourceConf {
-		destConf[k] = v
+// for test
+// nodeIdentifier provides identification of node where this ServiceFunctionSelectable is located
+func sfIdentifier(sfSelectable ServiceFunctionSelectable) string {
+	switch selectable := sfSelectable.(type) {
+	case *renderer.PodSF:
+		pod := selectable
+		return pod.ID.Name
+	case *renderer.InterfaceSF:
+		iface := selectable
+		return iface.CRDName
+	default:
+		return ""
 	}
-}
-
-// sliceContains returns true if provided slice contains provided value, false otherwise.
-func sliceContains(slice []uint32, value uint32) bool {
-	for _, i := range slice {
-		if i == value {
-			return true
-		}
-	}
-	return false
-}
-
-// sliceAppendIfNotExists adds an item into the provided slice (if it does not already exists in the slice).
-func sliceAppendIfNotExists(slice []uint32, value uint32) []uint32 {
-	if !sliceContains(slice, value) {
-		slice = append(slice, value)
-	}
-	return slice
-}
-
-// shouldChainLocalSFs returns true if the local Fs should be chained together.
-func (rndr *Renderer) shouldChainLocalSFs(sf1, sf2 *renderer.ServiceFunction) bool {
-
-	// do not chain if one of the SFs is not local
-	if !rndr.isNodeLocalSF(sf1) || !rndr.isNodeLocalSF(sf2) {
-		return false
-	}
-
-	// if there is another node where both SFs are present and nodeID is lower than ours, do not chain
-	sf1NodeIDs := rndr.getSFNodeIDs(sf1)
-	sf2NodeIDs := rndr.getSFNodeIDs(sf2)
-	for _, nodeID := range sf1NodeIDs {
-		if sliceContains(sf2NodeIDs, nodeID) {
-			if nodeID < rndr.NodeSync.GetNodeID() {
-				return false
-			}
-		}
-	}
-
-	return true // otherwise chain
 }

@@ -71,7 +71,7 @@ spec:
           value: vpp-cnf2
       resources:
         limits:
-          contivpp.io/memif: 2
+          contivpp.io/memif: 1
       volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd

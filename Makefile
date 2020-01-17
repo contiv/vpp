@@ -8,6 +8,7 @@ LDFLAGS = -s -w -X $(CNINFRA_AGENT).BuildVersion=$(VERSION) -X $(CNINFRA_AGENT).
 COVER_DIR ?= /tmp/
 
 export GO111MODULE=on
+export GOPROXY="https://goproxy.io"
 
 # Build commands
 build: contiv-agent contiv-ksr contiv-crd contiv-cni contiv-stn contiv-init contiv-netctl contiv-ui-backend

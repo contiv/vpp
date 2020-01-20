@@ -2,28 +2,32 @@ syntax = "proto3";
 
 package rpc;
 
-import "github.com/ligato/vpp-agent/api/models/vpp/acl/acl.proto";
-import "github.com/ligato/vpp-agent/api/models/vpp/interfaces/interface.proto";
-import "github.com/ligato/vpp-agent/api/models/vpp/l2/bridge-domain.proto";
-import "github.com/ligato/vpp-agent/api/models/vpp/l2/fib.proto";
-import "github.com/ligato/vpp-agent/api/models/vpp/l2/xconnect.proto";
-import "github.com/ligato/vpp-agent/api/models/vpp/l3/arp.proto";
-import "github.com/ligato/vpp-agent/api/models/vpp/l3/route.proto";
-import "github.com/ligato/vpp-agent/api/models/vpp/nat/nat.proto";
-import "github.com/ligato/vpp-agent/api/models/vpp/punt/punt.proto";
-import "github.com/ligato/vpp-agent/api/models/vpp/ipsec/ipsec.proto";
-import "github.com/ligato/vpp-agent/api/models/vpp/l3/l3.proto";
-import "github.com/ligato/vpp-agent/api/models/linux/interfaces/interface.proto";
-import "github.com/ligato/vpp-agent/api/models/linux/l3/arp.proto";
-import "github.com/ligato/vpp-agent/api/models/linux/l3/route.proto";
+import "ligato/vpp/acl/acl.proto";
+import "ligato/vpp/abf/abf.proto";
+import "ligato/vpp/interfaces/interface.proto";
+import "ligato/vpp/interfaces/span.proto";
+import "ligato/vpp/l2/bridge_domain.proto";
+import "ligato/vpp/l2/fib.proto";
+import "ligato/vpp/l2/xconnect.proto";
+import "ligato/vpp/l3/arp.proto";
+import "ligato/vpp/l3/route.proto";
+import "ligato/vpp/l3/vrf.proto";
+import "ligato/vpp/nat/nat.proto";
+import "ligato/vpp/punt/punt.proto";
+import "ligato/vpp/ipsec/ipsec.proto";
+import "ligato/vpp/l3/l3.proto";
+import "ligato/linux/interfaces/interface.proto";
+import "ligato/linux/iptables/iptables.proto";
+import "ligato/linux/l3/arp.proto";
+import "ligato/linux/l3/route.proto";
 
 // Data change service is a service which submits cumulative request consisting of all
 // configuration types supported in the vpp-agent
 service DataChangeService {
     // Creates or updates one or multiple configuration items
-    rpc Put(DataRequest) returns (PutResponse);
+    rpc Put (DataRequest) returns (PutResponse);
     // Removes one or multiple configuration items
-    rpc Del(DataRequest) returns (DelResponse);
+    rpc Del (DataRequest) returns (DelResponse);
 }
 
 // Data resync service is a service which submits data resync to the vpp-agent
@@ -35,24 +39,31 @@ service DataResyncService {
 // Data request is an inventory of supported data types with one or multiple
 // items of every type. Universal type for every data change/resync request
 message DataRequest {
-    repeated vpp.acl.ACL AccessLists = 10;
-    repeated vpp.interfaces.Interface Interfaces = 20;
-    repeated vpp.l2.BridgeDomain BridgeDomains = 40;
-    repeated vpp.l2.FIBEntry FIBs = 41;
-    repeated vpp.l2.XConnectPair XCons = 42;
-    repeated vpp.l3.Route StaticRoutes = 50;
-    repeated vpp.l3.ARPEntry ArpEntries = 51;
-    vpp.l3.ProxyARP ProxyArp = 52;
-    vpp.l3.IPScanNeighbor IPScanNeighbor = 53;
-    repeated vpp.ipsec.SecurityPolicyDatabase SPDs = 60;
-    repeated vpp.ipsec.SecurityAssociation SAs = 61;
-    repeated vpp.punt.IPRedirect IPRedirectPunts = 65;
-    repeated vpp.punt.ToHost ToHostPunts = 66;
-    vpp.nat.Nat44Global NatGlobal = 71;
-    repeated vpp.nat.DNat44 DNATs = 72;
-    repeated linux.interfaces.Interface LinuxInterfaces = 80;
-    repeated linux.l3.ARPEntry LinuxArpEntries = 90;
-    repeated linux.l3.Route LinuxRoutes = 91;
+    repeated ligato.vpp.acl.ACL AccessLists = 10;
+    repeated ligato.vpp.abf.ABF Forwardings = 15;
+    repeated ligato.vpp.interfaces.Interface Interfaces = 20;
+    repeated ligato.vpp.interfaces.Span Spans = 21;
+    repeated ligato.linux.iptables.RuleChain RuleChains = 22;
+    repeated ligato.vpp.l3.VrfTable VrfTables = 23;
+    repeated ligato.vpp.nat.Nat44Interface Nat44Interfaces = 24;
+    repeated ligato.vpp.nat.Nat44AddressPool Nat44AddressPools = 25;
+    repeated ligato.vpp.l2.BridgeDomain BridgeDomains = 40;
+    repeated ligato.vpp.l2.FIBEntry FIBs = 41;
+    repeated ligato.vpp.l2.XConnectPair XCons = 42;
+    repeated ligato.vpp.l3.Route StaticRoutes = 50;
+    repeated ligato.vpp.l3.ARPEntry ArpEntries = 51;
+    ligato.vpp.l3.ProxyARP ProxyArp = 52;
+    ligato.vpp.l3.IPScanNeighbor IPScanNeighbor = 53;
+    repeated ligato.vpp.ipsec.SecurityPolicyDatabase SPDs = 60;
+    repeated ligato.vpp.ipsec.SecurityAssociation SAs = 61;
+    repeated ligato.vpp.punt.IPRedirect IPRedirectPunts = 65;
+    repeated ligato.vpp.punt.ToHost ToHostPunts = 66;
+    repeated ligato.vpp.punt.Exception Exceptions = 67;
+    ligato.vpp.nat.Nat44Global NatGlobal = 71;
+    repeated ligato.vpp.nat.DNat44 DNATs = 72;
+    repeated ligato.linux.interfaces.Interface LinuxInterfaces = 80;
+    repeated ligato.linux.l3.ARPEntry LinuxArpEntries = 90;
+    repeated ligato.linux.l3.Route LinuxRoutes = 91;
 }
 
 // Response to data change 'put'

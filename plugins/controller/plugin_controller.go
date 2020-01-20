@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/health/statuscheck"
@@ -31,7 +31,7 @@ import (
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	scheduler "go.ligato.io/vpp-agent/v2/plugins/kvscheduler/api"
 
 	"github.com/contiv/vpp/plugins/controller/api"
 )

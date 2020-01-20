@@ -26,10 +26,10 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 
 	// load all VPP-agent models for CustomConfiguration CRD handler to use
-	_ "github.com/ligato/vpp-agent/api/models/linux"
-	_ "github.com/ligato/vpp-agent/api/models/linux/iptables"
-	_ "github.com/ligato/vpp-agent/api/models/vpp"
-	_ "github.com/ligato/vpp-agent/api/models/vpp/srv6"
+	_ "go.ligato.io/vpp-agent/v2/proto/ligato/linux"
+	_ "go.ligato.io/vpp-agent/v2/proto/ligato/linux/iptables"
+	_ "go.ligato.io/vpp-agent/v2/proto/ligato/vpp"
+	_ "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/srv6"
 )
 
 // ContivCRD is a custom resource to provide Contiv-VPP telemetry information.

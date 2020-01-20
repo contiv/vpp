@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 
 	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
 	"github.com/ligato/cn-infra/db/keyval"

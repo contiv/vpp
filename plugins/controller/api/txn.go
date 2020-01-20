@@ -17,7 +17,7 @@ package api
 import (
 	"context"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 )
 
 // Transaction defines operations needed to build and commit a transaction.

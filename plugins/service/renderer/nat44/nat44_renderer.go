@@ -23,10 +23,10 @@ import (
 	"time"
 
 	govpp "git.fd.io/govpp.git/api"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/nat"
+	nat_api "go.ligato.io/vpp-agent/v2/plugins/vpp/binapi/vpp1908/nat"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/nat"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"

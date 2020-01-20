@@ -1,18 +1,19 @@
 package vpp
 
 import (
-	"github.com/ligato/vpp-agent/clientv2/vpp"
+	"go.ligato.io/vpp-agent/v2/clientv2/vpp"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
-	"github.com/ligato/vpp-agent/api/models/vpp/abf"
-	"github.com/ligato/vpp-agent/api/models/vpp/acl"
-	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
-	"github.com/ligato/vpp-agent/api/models/vpp/l2"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	"github.com/ligato/vpp-agent/api/models/vpp/punt"
-	"github.com/ligato/vpp-agent/api/models/vpp/stn"
+
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/abf"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/acl"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/ipsec"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l2"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/nat"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/punt"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/stn"
 )
 
 // MockDataChangeDSL is mock for DataChangeDSL.
@@ -57,6 +58,20 @@ func (d *MockDataChangeDSL) Send() vppclient.Reply {
 func (d *MockPutDSL) Interface(val *vpp_interfaces.Interface) vppclient.PutDSL {
 	key := vpp_interfaces.InterfaceKey(val.Name)
 	d.parent.Values[key] = val
+	return d
+}
+
+// NAT44Interface adds a request to create or update NAT44 interface configuration.
+func (d *MockPutDSL) NAT44Interface(natIf *vpp_nat.Nat44Interface) vppclient.PutDSL {
+	key := vpp_nat.Nat44InterfaceKey(natIf.Name)
+	d.parent.Values[key] = natIf
+	return d
+}
+
+// NAT44AddressPool adds a request to create or update NAT44 address pool.
+func (d *MockPutDSL) NAT44AddressPool(pool *vpp_nat.Nat44AddressPool) vppclient.PutDSL {
+	key := vpp_nat.Nat44AddressPoolKey(pool.VrfId, pool.FirstIp, pool.LastIp)
+	d.parent.Values[key] = pool
 	return d
 }
 
@@ -214,6 +229,20 @@ func (d *MockDeleteDSL) Interface(ifaceName string) vppclient.DeleteDSL {
 // ABF adds a request to delete and existing VPP Access Control List.
 func (d *MockDeleteDSL) ABF(abfIndex uint32) vppclient.DeleteDSL {
 	key := vpp_abf.Key(abfIndex)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// NAT44Interface adds a request to delete NAT44 interface configuration.
+func (d *MockDeleteDSL) NAT44Interface(natIf *vpp_nat.Nat44Interface) vppclient.DeleteDSL {
+	key := vpp_nat.Nat44InterfaceKey(natIf.Name)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// NAT44AddressPool adds a request to delete NAT44 address pool.
+func (d *MockDeleteDSL) NAT44AddressPool(pool *vpp_nat.Nat44AddressPool) vppclient.DeleteDSL {
+	key := vpp_nat.Nat44AddressPoolKey(pool.VrfId, pool.FirstIp, pool.LastIp)
 	d.parent.Values[key] = nil
 	return d
 }

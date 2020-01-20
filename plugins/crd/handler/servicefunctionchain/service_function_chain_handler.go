@@ -14,7 +14,7 @@
  * // limitations under the License.
  */
 
-//go:generate protoc -I ./model --gogo_out=plugins=grpc:./model ./model/servicefunctionchain.proto
+//go:generate protoc -I ./model --go_out=plugins=grpc:./model ./model/servicefunctionchain.proto
 
 package servicefunctionchain
 

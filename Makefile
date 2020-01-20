@@ -185,7 +185,7 @@ test-cover-xml: test-cover
 
 # Get generator tools
 get-generators:
-	go install -mod=readonly github.com/gogo/protobuf/protoc-gen-gogo
+	go install -mod=readonly github.com/golang/protobuf/protoc-gen-go
 
 # Generate sources
 generate: get-generators

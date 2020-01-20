@@ -1,21 +1,22 @@
 package linux
 
 import (
-	"github.com/ligato/vpp-agent/clientv2/linux"
-	"github.com/ligato/vpp-agent/clientv2/vpp"
+	"go.ligato.io/vpp-agent/v2/clientv2/linux"
+	"go.ligato.io/vpp-agent/v2/clientv2/vpp"
+	linux_iptables "go.ligato.io/vpp-agent/v2/proto/ligato/linux/iptables"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
-	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
-	"github.com/ligato/vpp-agent/api/models/linux/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/abf"
-	"github.com/ligato/vpp-agent/api/models/vpp/acl"
-	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
-	"github.com/ligato/vpp-agent/api/models/vpp/l2"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	"github.com/ligato/vpp-agent/api/models/vpp/punt"
-	"github.com/ligato/vpp-agent/api/models/vpp/stn"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/interfaces"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/l3"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/abf"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/acl"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/ipsec"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l2"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/nat"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/punt"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/stn"
 )
 
 // MockDataResyncDSL is mock for DataResyncDSL.
@@ -38,6 +39,27 @@ func (d *MockDataResyncDSL) LinuxInterface(val *linux_interfaces.Interface) linu
 func (d *MockDataResyncDSL) LinuxArpEntry(val *linux_l3.ARPEntry) linuxclient.DataResyncDSL {
 	key := linux_l3.ArpKey(val.Interface, val.IpAddress)
 	d.Values[key] = val
+	return d
+}
+
+// IptablesRuleChain adds iptables rule chain to the RESYNC request.
+func (d *MockDataResyncDSL) IptablesRuleChain(val *linux_iptables.RuleChain) linuxclient.DataResyncDSL {
+	key := linux_iptables.RuleChainKey(val.Name)
+	d.Values[key] = val
+	return d
+}
+
+// NAT44Interface adds NAT44 interface configuration to the RESYNC request.
+func (d *MockDataResyncDSL) NAT44Interface(natIf *vpp_nat.Nat44Interface) linuxclient.DataResyncDSL {
+	key := vpp_nat.Nat44InterfaceKey(natIf.Name)
+	d.Values[key] = natIf
+	return d
+}
+
+// NAT44AddressPool adds NAT44 address pool configuration to the RESYNC request.
+func (d *MockDataResyncDSL) NAT44AddressPool(pool *vpp_nat.Nat44AddressPool) linuxclient.DataResyncDSL {
+	key := vpp_nat.Nat44AddressPoolKey(pool.VrfId, pool.FirstIp, pool.LastIp)
+	d.Values[key] = pool
 	return d
 }
 

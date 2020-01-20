@@ -1,21 +1,23 @@
 package linux
 
 import (
-	"github.com/ligato/vpp-agent/clientv2/linux"
-	"github.com/ligato/vpp-agent/clientv2/vpp"
+	"go.ligato.io/vpp-agent/v2/clientv2/linux"
+	"go.ligato.io/vpp-agent/v2/clientv2/vpp"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
-	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
-	"github.com/ligato/vpp-agent/api/models/linux/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/abf"
-	"github.com/ligato/vpp-agent/api/models/vpp/acl"
-	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
-	"github.com/ligato/vpp-agent/api/models/vpp/l2"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	"github.com/ligato/vpp-agent/api/models/vpp/punt"
-	"github.com/ligato/vpp-agent/api/models/vpp/stn"
+
+	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/interfaces"
+	linux_iptables "go.ligato.io/vpp-agent/v2/proto/ligato/linux/iptables"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/l3"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/abf"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/acl"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/ipsec"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l2"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/nat"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/punt"
+	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/stn"
 )
 
 // MockDataChangeDSL is mock for DataChangeDSL.
@@ -216,6 +218,27 @@ func (d *MockPutDSL) VrfTable(val *vpp_l3.VrfTable) linuxclient.PutDSL {
 	return d
 }
 
+// NAT44AddressPool adds a request to create or update NAT44 address pool.
+func (d *MockPutDSL) NAT44AddressPool(pool *vpp_nat.Nat44AddressPool) linuxclient.PutDSL {
+	key := vpp_nat.Nat44AddressPoolKey(pool.VrfId, pool.FirstIp, pool.LastIp)
+	d.parent.Values[key] = pool
+	return d
+}
+
+// NAT44Interface adds a request to create or update NAT44 interface configuration.
+func (d *MockPutDSL) NAT44Interface(natif *vpp_nat.Nat44Interface) linuxclient.PutDSL {
+	key := vpp_nat.Nat44InterfaceKey(natif.Name)
+	d.parent.Values[key] = natif
+	return d
+}
+
+// IptablesRuleChain adds request to create or update iptables rule chain.
+func (d *MockPutDSL) IptablesRuleChain(val *linux_iptables.RuleChain) linuxclient.PutDSL {
+	key := linux_iptables.RuleChainKey(val.Name)
+	d.parent.Values[key] = val
+	return d
+}
+
 // Delete changes the DSL mode to allow removal of an existing configuration.
 func (d *MockPutDSL) Delete() linuxclient.DeleteDSL {
 	return &MockDeleteDSL{d.parent}
@@ -229,6 +252,27 @@ func (d *MockPutDSL) Send() vppclient.Reply {
 // VppInterface adds a mock request to delete an existing VPP network interface.
 func (d *MockDeleteDSL) VppInterface(interfaceName string) linuxclient.DeleteDSL {
 	key := vpp_interfaces.InterfaceKey(interfaceName)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// IptablesRuleChain adds request to delete iptables rule chain.
+func (d *MockDeleteDSL) IptablesRuleChain(name string) linuxclient.DeleteDSL {
+	key := linux_iptables.RuleChainKey(name)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// NAT44AddressPool adds a request to delete NAT44 address pool.
+func (d *MockDeleteDSL) NAT44AddressPool(pool *vpp_nat.Nat44AddressPool) linuxclient.DeleteDSL {
+	key := vpp_nat.Nat44AddressPoolKey(pool.VrfId, pool.FirstIp, pool.LastIp)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// NAT44Interface adds a request to delete NAT44 interface configuration.
+func (d *MockDeleteDSL) NAT44Interface(natIf *vpp_nat.Nat44Interface) linuxclient.DeleteDSL {
+	key := vpp_nat.Nat44InterfaceKey(natIf.Name)
 	d.parent.Values[key] = nil
 	return d
 }

@@ -20,3 +20,4 @@ ui/node_modules
 .vagrant-state
 vagrant/config/cert
 vagrant/config/init
+crdgen

@@ -1,23 +1,23 @@
 package linux
 
 import (
-	"go.ligato.io/vpp-agent/v2/clientv2/linux"
-	"go.ligato.io/vpp-agent/v2/clientv2/vpp"
+	"go.ligato.io/vpp-agent/v3/clientv2/linux"
+	"go.ligato.io/vpp-agent/v3/clientv2/vpp"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
 
-	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/interfaces"
-	linux_iptables "go.ligato.io/vpp-agent/v2/proto/ligato/linux/iptables"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/l3"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/abf"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/acl"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/ipsec"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l2"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/nat"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/punt"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/stn"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
+	linux_iptables "go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/l3"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/abf"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/acl"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/ipsec"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l2"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/nat"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/punt"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/stn"
 )
 
 // MockDataChangeDSL is mock for DataChangeDSL.

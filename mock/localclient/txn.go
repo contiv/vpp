@@ -9,8 +9,8 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/syncbase"
 
-	"go.ligato.io/vpp-agent/v2/clientv2/linux"
-	"go.ligato.io/vpp-agent/v2/clientv2/vpp"
+	"go.ligato.io/vpp-agent/v3/clientv2/linux"
+	"go.ligato.io/vpp-agent/v3/clientv2/vpp"
 
 	mockcontroller "github.com/contiv/vpp/mock/localclient/controller"
 	mocklinux "github.com/contiv/vpp/mock/localclient/dsl/linux"

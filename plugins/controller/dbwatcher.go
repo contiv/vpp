@@ -29,7 +29,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	"go.ligato.io/vpp-agent/v2/plugins/orchestrator"
+	"go.ligato.io/vpp-agent/v3/plugins/orchestrator"
 
 	"github.com/contiv/vpp/dbresources"
 	"github.com/contiv/vpp/plugins/controller/api"

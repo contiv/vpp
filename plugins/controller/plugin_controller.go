@@ -31,7 +31,7 @@ import (
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	scheduler "go.ligato.io/vpp-agent/v2/plugins/kvscheduler/api"
+	scheduler "go.ligato.io/vpp-agent/v3/plugins/kvscheduler/api"
 
 	"github.com/contiv/vpp/plugins/controller/api"
 )

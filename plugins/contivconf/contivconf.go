@@ -17,7 +17,7 @@ package contivconf
 import (
 	"context"
 	"fmt"
-	"go.ligato.io/vpp-agent/v2/plugins/govppmux"
+	"go.ligato.io/vpp-agent/v3/plugins/govppmux"
 	"net"
 	"sort"
 	"strings"
@@ -33,8 +33,8 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	intf_vppcalls "go.ligato.io/vpp-agent/v2/plugins/vpp/ifplugin/vppcalls"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
+	intf_vppcalls "go.ligato.io/vpp-agent/v3/plugins/vpp/ifplugin/vppcalls"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"

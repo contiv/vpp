@@ -30,7 +30,7 @@ import (
 
 	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/nat"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/nat"
 )
 
 const dnat44Prefix = "config/vpp/nat/v2/dnat44/"

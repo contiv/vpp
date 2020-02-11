@@ -38,11 +38,11 @@ import (
 	"github.com/contiv/vpp/plugins/service/renderer/srv6"
 	renderer_testing "github.com/contiv/vpp/plugins/service/renderer/testing"
 
-	linux_interfaces "go.ligato.io/vpp-agent/v2/proto/ligato/linux/interfaces"
-	linux_iptables "go.ligato.io/vpp-agent/v2/proto/ligato/linux/iptables"
-	linux_namespace "go.ligato.io/vpp-agent/v2/proto/ligato/linux/namespace"
-	vpp_l3 "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
-	vpp_srv6 "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/srv6"
+	linux_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
+	linux_iptables "go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
+	linux_namespace "go.ligato.io/vpp-agent/v3/proto/ligato/linux/namespace"
+	vpp_l3 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	vpp_srv6 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/srv6"
 )
 
 const (

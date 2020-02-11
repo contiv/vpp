@@ -49,10 +49,10 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	scheduler "go.ligato.io/vpp-agent/v2/plugins/kvscheduler/api"
-	linux_interfaces "go.ligato.io/vpp-agent/v2/proto/ligato/linux/interfaces"
-	vpp_interfaces "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
-	vpp_srv6 "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/srv6"
+	scheduler "go.ligato.io/vpp-agent/v3/plugins/kvscheduler/api"
+	linux_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
+	vpp_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	vpp_srv6 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/srv6"
 
 	. "github.com/onsi/gomega"
 )

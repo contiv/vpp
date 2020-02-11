@@ -21,7 +21,7 @@ import (
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	"go.ligato.io/vpp-agent/v2/plugins/kvscheduler"
+	"go.ligato.io/vpp-agent/v3/plugins/kvscheduler"
 )
 
 // DefaultPlugin is a default instance of Controller.

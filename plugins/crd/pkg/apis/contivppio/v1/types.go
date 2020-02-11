@@ -122,7 +122,7 @@ type ServiceFunctionChainSpec struct {
 type ServiceFunction struct {
 	Name            string            `json:"name"`
 	Type            string            `json:"type"`
-	PodSelector     map[string]string `json:"podSelector"`
+	PodSelector     map[string]string `json:"podSelector,omitempty"`
 	Interface       string            `json:"interface"`
 	InputInterface  string            `json:"inputInterface"`
 	OutputInterface string            `json:"outputInterface"`

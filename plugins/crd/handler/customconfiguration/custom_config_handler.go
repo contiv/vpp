@@ -27,7 +27,7 @@ import (
 	"reflect"
 	"strings"
 
-	"go.ligato.io/vpp-agent/v2/pkg/models"
+	"go.ligato.io/vpp-agent/v3/pkg/models"
 
 	"github.com/contiv/vpp/plugins/crd/handler/kvdbreflector"
 	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"

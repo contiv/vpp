@@ -21,9 +21,9 @@ import (
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
 
-	nslinuxcalls "go.ligato.io/vpp-agent/v2/plugins/linux/nsplugin/linuxcalls"
-	"go.ligato.io/vpp-agent/v2/plugins/vpp/binapi/vpp1908/vpe"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
+	nslinuxcalls "go.ligato.io/vpp-agent/v3/plugins/linux/nsplugin/linuxcalls"
+	"go.ligato.io/vpp-agent/v3/plugins/vpp/binapi/vpp1908/vpe"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
 
 	"github.com/vishvananda/netlink"
 )

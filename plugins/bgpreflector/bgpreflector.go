@@ -22,8 +22,8 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/vishvananda/netlink"
 
-	"go.ligato.io/vpp-agent/v2/pkg/models"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v3/pkg/models"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"

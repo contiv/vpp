@@ -28,11 +28,11 @@ import (
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 	"github.com/ligato/cn-infra/logging"
 
-	linuxifdescr "go.ligato.io/vpp-agent/v2/plugins/linux/ifplugin/descriptor"
-	vppifdescr "go.ligato.io/vpp-agent/v2/plugins/vpp/ifplugin/descriptor"
+	linuxifdescr "go.ligato.io/vpp-agent/v3/plugins/linux/ifplugin/descriptor"
+	vppifdescr "go.ligato.io/vpp-agent/v3/plugins/vpp/ifplugin/descriptor"
 
-	vppl2descr "go.ligato.io/vpp-agent/v2/plugins/vpp/l2plugin/descriptor"
-	vppl3descr "go.ligato.io/vpp-agent/v2/plugins/vpp/l3plugin/descriptor"
+	vppl2descr "go.ligato.io/vpp-agent/v3/plugins/vpp/l2plugin/descriptor"
+	vppl3descr "go.ligato.io/vpp-agent/v3/plugins/vpp/l3plugin/descriptor"
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"

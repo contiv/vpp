@@ -21,11 +21,11 @@ import (
 
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 
-	"go.ligato.io/vpp-agent/v2/pkg/idxvpp"
-	"go.ligato.io/vpp-agent/v2/plugins/vpp/ifplugin/ifaceidx"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l2"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v3/pkg/idxvpp"
+	"go.ligato.io/vpp-agent/v3/plugins/vpp/ifplugin/ifaceidx"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l2"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 )

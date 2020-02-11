@@ -31,14 +31,14 @@ import (
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/interfaces"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/l3"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/namespace"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/netalloc"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/l3"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/namespace"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/netalloc"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
 
-	"go.ligato.io/vpp-agent/v2/pkg/models"
+	"go.ligato.io/vpp-agent/v3/pkg/models"
 )
 
 const (

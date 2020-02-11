@@ -36,7 +36,7 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-	scheduler "go.ligato.io/vpp-agent/v2/plugins/kvscheduler/api"
+	scheduler "go.ligato.io/vpp-agent/v3/plugins/kvscheduler/api"
 )
 
 const (

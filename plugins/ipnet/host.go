@@ -20,13 +20,13 @@ import (
 
 	"github.com/apparentlymart/go-cidr/cidr"
 
-	"go.ligato.io/vpp-agent/v2/pkg/models"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/interfaces"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/l3"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/punt"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/stn"
+	"go.ligato.io/vpp-agent/v3/pkg/models"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/l3"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/punt"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/stn"
 )
 
 /* VPP - Host interconnect */

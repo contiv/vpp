@@ -31,10 +31,10 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	scheduler "go.ligato.io/vpp-agent/v2/plugins/kvscheduler/api"
-	vpp_interfaces "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/interfaces"
-	vpp_l3 "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
-	vpp_srv6 "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/srv6"
+	scheduler "go.ligato.io/vpp-agent/v3/plugins/kvscheduler/api"
+	vpp_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	vpp_l3 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	vpp_srv6 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/srv6"
 
 	. "github.com/contiv/vpp/mock/datasync"
 	. "github.com/contiv/vpp/mock/eventloop"

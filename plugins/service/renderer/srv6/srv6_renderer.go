@@ -29,13 +29,13 @@ import (
 	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/ligato/cn-infra/logging"
 
-	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/interfaces"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/iptables"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/namespace"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/l3"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/vpp/srv6"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/namespace"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/srv6"
 
-	"go.ligato.io/vpp-agent/v2/pkg/models"
+	"go.ligato.io/vpp-agent/v3/pkg/models"
 )
 
 // operation represents type of operation on a service

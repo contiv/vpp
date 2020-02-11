@@ -25,8 +25,8 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
 
-	"go.ligato.io/vpp-agent/v2/pkg/models"
-	"go.ligato.io/vpp-agent/v2/plugins/orchestrator"
+	"go.ligato.io/vpp-agent/v3/pkg/models"
+	"go.ligato.io/vpp-agent/v3/plugins/orchestrator"
 )
 
 //go:generate protoc --proto_path=rpc --proto_path=$GOPATH/src/github.com/ligato/vpp-agent/proto --go_out=plugins=grpc,paths=source_relative:rpc rpc/rpc.proto

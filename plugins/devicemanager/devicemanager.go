@@ -27,7 +27,7 @@ import (
 
 	"github.com/fsouza/go-dockerclient"
 	"k8s.io/apimachinery/pkg/util/rand"
-	devicepluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
+	devicepluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 	"k8s.io/kubernetes/pkg/kubelet/apis/podresources"
 	podresourcesapi "k8s.io/kubernetes/pkg/kubelet/apis/podresources/v1alpha1"
 

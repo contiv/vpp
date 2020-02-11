@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
-	scheduler_api "go.ligato.io/vpp-agent/v2/plugins/kvscheduler/api"
+	scheduler_api "go.ligato.io/vpp-agent/v3/plugins/kvscheduler/api"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
 )

@@ -24,8 +24,8 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	scheduler "go.ligato.io/vpp-agent/v2/plugins/kvscheduler/api"
-	vpp_acl "go.ligato.io/vpp-agent/v2/proto/ligato/vpp/acl"
+	scheduler "go.ligato.io/vpp-agent/v3/plugins/kvscheduler/api"
+	vpp_acl "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/acl"
 
 	. "github.com/contiv/vpp/mock/aclengine"
 	. "github.com/contiv/vpp/mock/ipnet"

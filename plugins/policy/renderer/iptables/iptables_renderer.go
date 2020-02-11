@@ -26,8 +26,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 
-	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/iptables"
-	"go.ligato.io/vpp-agent/v2/proto/ligato/linux/namespace"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/namespace"
 
 	"net"
 	"strings"

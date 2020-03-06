@@ -28,12 +28,14 @@ import (
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
-	"github.com/ligato/vpp-agent/api/models/linux/iptables"
-	"github.com/ligato/vpp-agent/api/models/linux/namespace"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/srv6"
-	"github.com/ligato/vpp-agent/pkg/models"
+
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/namespace"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/srv6"
+
+	"go.ligato.io/vpp-agent/v3/pkg/models"
 )
 
 // operation represents type of operation on a service
@@ -378,14 +380,14 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 				InstallationVrfId: r.ContivConf.GetRoutingConfig().PodVRFID,
 			}
 			if r.ContivConf.GetIPAMConfig().UseIPv6 {
-				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
-					EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionDx6{
+					EndFunctionDx6: &vpp_srv6.LocalSID_EndDX6{
 						NextHop:           backend.ip.String(),
 						OutgoingInterface: vppIfName,
 					}}
 			} else {
-				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX4{
-					EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
+				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionDx4{
+					EndFunctionDx4: &vpp_srv6.LocalSID_EndDX4{
 						NextHop:           backend.ip.String(),
 						OutgoingInterface: vppIfName,
 					}}
@@ -456,14 +458,14 @@ func (r *Renderer) renderService(service *renderer.ContivService, oper operation
 				InstallationVrfId: r.ContivConf.GetRoutingConfig().MainVRFID,
 			}
 			if r.ContivConf.GetIPAMConfig().UseIPv6 {
-				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
-					EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionDx6{
+					EndFunctionDx6: &vpp_srv6.LocalSID_EndDX6{
 						NextHop:           nextHop.String(),
 						OutgoingInterface: r.IPNet.GetHostInterconnectIfName(),
 					}}
 			} else {
-				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX4{
-					EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
+				localSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionDx4{
+					EndFunctionDx4: &vpp_srv6.LocalSID_EndDX4{
 						NextHop:           nextHop.String(),
 						OutgoingInterface: r.IPNet.GetHostInterconnectIfName(),
 					}}
@@ -569,7 +571,7 @@ func (r *Renderer) getPodPFRuleChain(
 			Type:      linux_namespace.NetNamespace_FD,
 			Reference: pod.NetworkNamespace,
 		},
-		Protocol:  linux_iptables.RuleChain_IPv6,
+		Protocol:  linux_iptables.RuleChain_IPV6,
 		Table:     linux_iptables.RuleChain_NAT,
 		ChainType: chainType,
 	}

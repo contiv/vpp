@@ -21,14 +21,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ghodss/yaml"
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/api/genericmanager"
 	"reflect"
 	"strings"
 
-	"github.com/ligato/vpp-agent/pkg/models"
+	"go.ligato.io/vpp-agent/v3/pkg/models"
 
 	"github.com/contiv/vpp/plugins/crd/handler/kvdbreflector"
 	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
@@ -81,12 +80,12 @@ type withName struct {
 }
 
 func (h *Handler) configItemToKVData(item v1.ConfigurationItem, globalMs string) (kvdata kvdbreflector.KVData, err error) {
-	var modelSpec *genericmanager.ModelInfo
+	var modelSpec *models.KnownModel
 	// search in the registered core vpp-agent models
 	for _, m := range models.RegisteredModels() {
-		if m.Model.Module == item.Module && m.Model.Type == item.Type &&
-			(item.Version == "" || m.Model.Version == item.Version) {
-			modelSpec = m
+		if m.Spec().Module == item.Module && m.Spec().Type == item.Type &&
+			(item.Version == "" || m.Spec().Version == item.Version) {
+			modelSpec = &m
 			break
 		}
 	}
@@ -111,9 +110,9 @@ func (h *Handler) configItemToKVData(item v1.ConfigurationItem, globalMs string)
 
 	// use registered model if available
 	if modelSpec != nil {
-		h.Log.Debugf("Found model for item (%+v): %s", item, modelSpec.String())
+		h.Log.Debugf("Found model for item (%+v): %s", item, modelSpec)
 		// this is a configuration item of a registered model - try to unmarshal
-		protoMsg := modelSpec.Info["protoName"]
+		protoMsg := modelSpec.ProtoName()
 		valueType := proto.MessageType(protoMsg)
 		if valueType == nil {
 			err = fmt.Errorf("unknown proto message defined for config item: %+v", item)

@@ -20,9 +20,11 @@ import (
 	"strings"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linux/nsplugin/linuxcalls"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/vpe"
+
+	nslinuxcalls "go.ligato.io/vpp-agent/v3/plugins/linux/nsplugin/linuxcalls"
+	"go.ligato.io/vpp-agent/v3/plugins/vpp/binapi/vpp1908/vpe"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+
 	"github.com/vishvananda/netlink"
 )
 

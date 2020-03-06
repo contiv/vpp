@@ -19,10 +19,11 @@ package acl
 import (
 	"net"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/api/models/vpp/acl"
+
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/acl"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"

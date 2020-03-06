@@ -20,7 +20,7 @@ package dbresources
 import (
 	"github.com/contiv/vpp/plugins/idalloc/idallocation"
 	"github.com/contiv/vpp/plugins/ipam/ipalloc"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 
 	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
 	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"

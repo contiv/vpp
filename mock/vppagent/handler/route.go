@@ -18,10 +18,10 @@ import (
 	"errors"
 
 	"github.com/contiv/vpp/mock/localclient"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
-	vpp_l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
+	vpp_l3 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
 )
 
 // RouteMockHandler mocks VPP-Agent for L3 Route configuration part. It remembers L3 Route as VPP-Agent would do and exposes it later for unit test for verification.

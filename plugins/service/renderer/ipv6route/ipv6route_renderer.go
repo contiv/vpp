@@ -29,12 +29,13 @@ import (
 	"github.com/contiv/vpp/plugins/service/config"
 	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
-	"github.com/ligato/vpp-agent/api/models/linux/iptables"
-	"github.com/ligato/vpp-agent/api/models/linux/namespace"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
-	"github.com/ligato/vpp-agent/pkg/models"
+
+	"go.ligato.io/vpp-agent/v3/pkg/models"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/namespace"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	vpp_srv6 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/srv6"
 )
 
 const (
@@ -498,7 +499,7 @@ func (rndr *Renderer) getPodPFRuleChain(
 			Type:      linux_namespace.NetNamespace_FD,
 			Reference: pod.NetworkNamespace,
 		},
-		Protocol:  linux_iptables.RuleChain_IPv6,
+		Protocol:  linux_iptables.RuleChain_IPV6,
 		Table:     linux_iptables.RuleChain_NAT,
 		ChainType: chainType,
 	}

@@ -23,10 +23,10 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	"github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
 )
 
 const (

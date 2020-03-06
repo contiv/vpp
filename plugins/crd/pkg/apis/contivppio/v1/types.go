@@ -43,7 +43,7 @@ type CustomNetwork struct {
 // CustomNetworkSpec is the spec for custom network configuration resource
 type CustomNetworkSpec struct {
 	Type                   string `json:"type"`
-	SubnetCIDR             string `json:"subnetCIDR"`
+	SubnetCIDR             string `json:"subnetCIDR,omitempty"`
 	SubnetOneNodePrefixLen uint32 `json:"subnetOneNodePrefixLen"`
 }
 
@@ -83,7 +83,7 @@ type ExternalInterfaceSpec struct {
 type NodeInterface struct {
 	Node             string `json:"node"`
 	VppInterfaceName string `json:"vppInterfaceName"`
-	IP               string `json:"ip"`
+	IP               string `json:"ip,omitempty"`
 	VLAN             uint32 `json:"vlan"`
 }
 
@@ -122,7 +122,7 @@ type ServiceFunctionChainSpec struct {
 type ServiceFunction struct {
 	Name            string            `json:"name"`
 	Type            string            `json:"type"`
-	PodSelector     map[string]string `json:"podSelector"`
+	PodSelector     map[string]string `json:"podSelector,omitempty"`
 	Interface       string            `json:"interface"`
 	InputInterface  string            `json:"inputInterface"`
 	OutputInterface string            `json:"outputInterface"`

@@ -19,13 +19,13 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
-	"github.com/gogo/protobuf/sortkeys"
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
@@ -773,7 +773,9 @@ func (v *Validator) checkUnvalidatedRoutes(routeMap RouteMap, nodeName string) i
 	for vrfID := range routeMap {
 		vrfIDs = append(vrfIDs, vrfID)
 	}
-	sortkeys.Uint32s(vrfIDs)
+	sort.Slice(vrfIDs, func(i, j int) bool {
+		return vrfIDs[i] < vrfIDs[j]
+	})
 
 	reports := make([]string, 0)
 	for _, vrfID := range vrfIDs {
@@ -866,7 +868,10 @@ func printValidationMap(routeMap RouteMap, vrfMap VrfMap) {
 	for idx := range routeMap {
 		vrfIDs = append(vrfIDs, idx)
 	}
-	sortkeys.Uint32s(vrfIDs)
+
+	sort.Slice(vrfIDs, func(i, j int) bool {
+		return vrfIDs[i] < vrfIDs[j]
+	})
 
 	for _, key := range vrfIDs {
 		fmt.Printf("VRF%d: routes %d\n", key, len(routeMap[key]))
@@ -876,7 +881,7 @@ func printValidationMap(routeMap RouteMap, vrfMap VrfMap) {
 		for id := range vrf {
 			routeIDs = append(routeIDs, id)
 		}
-		sortkeys.Strings(routeIDs)
+		sort.Strings(routeIDs)
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
 		fmt.Fprintf(w, "\tROUTE\tNEXT_HOP\tOUT_INTERFACE\tVIA-VRF\tTYPE\n")

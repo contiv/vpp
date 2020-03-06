@@ -22,14 +22,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	"github.com/ligato/vpp-agent/pkg/models"
+	"go.ligato.io/vpp-agent/v3/plugins/orchestrator"
 
 	"github.com/contiv/vpp/dbresources"
 	"github.com/contiv/vpp/plugins/controller/api"
@@ -371,7 +371,7 @@ func (w *dbWatcher) runResyncFromRemoteDB() {
 
 		// unmarshall proto message
 		key := strings.TrimPrefix(kv.GetKey(), w.agentPrefix)
-		protoVal, err := models.UnmarshalLazyValue(key, kv)
+		protoVal, err := orchestrator.UnmarshalLazyValue(key, kv)
 		if err != nil {
 			w.log.Warnf("Attempt to unmarshall value for key=%s returned error: %v",
 				kv.GetKey(), err)
@@ -482,7 +482,7 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 		keySuffix := strings.TrimPrefix(key, w.agentPrefix)
 		// unmarshal external configuration
 		if change.GetChangeType() != datasync.Delete {
-			newVal, err = models.UnmarshalLazyValue(keySuffix, change)
+			newVal, err = orchestrator.UnmarshalLazyValue(keySuffix, change)
 			if err != nil {
 				w.log.Warnf("Failed to de-serialize new value for key: %s", key)
 			}

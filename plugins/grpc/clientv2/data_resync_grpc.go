@@ -18,19 +18,22 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/contiv/vpp/plugins/grpc/rpc"
-	"github.com/ligato/vpp-agent/clientv2/linux"
-	"github.com/ligato/vpp-agent/clientv2/vpp"
 
-	"github.com/ligato/vpp-agent/api/models/linux/interfaces"
-	"github.com/ligato/vpp-agent/api/models/linux/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/acl"
-	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
-	"github.com/ligato/vpp-agent/api/models/vpp/l2"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	"github.com/ligato/vpp-agent/api/models/vpp/punt"
-	"github.com/ligato/vpp-agent/api/models/vpp/stn"
+	"go.ligato.io/vpp-agent/v3/clientv2/linux"
+	"go.ligato.io/vpp-agent/v3/clientv2/vpp"
+
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/l3"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/abf"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/acl"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/ipsec"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l2"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/nat"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/punt"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/stn"
 )
 
 // NewDataResyncDSL is a constructor.
@@ -54,9 +57,51 @@ func (dsl *DataResyncDSL) LinuxInterface(val *linux_interfaces.Interface) linuxc
 	return dsl
 }
 
+// IptablesRuleChain adds iptables rule chain to the RESYNC request.
+func (dsl *DataResyncDSL) IptablesRuleChain(val *linux_iptables.RuleChain) linuxclient.DataResyncDSL {
+	dsl.req.RuleChains = append(dsl.req.RuleChains, val)
+	return dsl
+}
+
+// Span adds VPP span to the RESYNC request.
+func (dsl *DataResyncDSL) Span(span *vpp_interfaces.Span) linuxclient.DataResyncDSL {
+	dsl.req.Spans = append(dsl.req.Spans, span)
+	return dsl
+}
+
+// ABF adds ACL-based forwarding to the RESYNC request.
+func (dsl *DataResyncDSL) ABF(abf *vpp_abf.ABF) linuxclient.DataResyncDSL {
+	dsl.req.Forwardings = append(dsl.req.Forwardings, abf)
+	return dsl
+}
+
+// VrfTable adds VPP VRF table to the RESYNC request.
+func (dsl *DataResyncDSL) VrfTable(val *vpp_l3.VrfTable) linuxclient.DataResyncDSL {
+	dsl.req.VrfTables = append(dsl.req.VrfTables, val)
+	return dsl
+}
+
 // LinuxArpEntry adds Linux ARP entry to the RESYNC request.
 func (dsl *DataResyncDSL) LinuxArpEntry(val *linux_l3.ARPEntry) linuxclient.DataResyncDSL {
 	dsl.req.LinuxArpEntries = append(dsl.req.LinuxArpEntries, val)
+	return dsl
+}
+
+// NAT44Interface adds NAT44 interface configuration to the RESYNC request.
+func (dsl *DataResyncDSL) NAT44Interface(natIf *vpp_nat.Nat44Interface) linuxclient.DataResyncDSL {
+	dsl.req.Nat44Interfaces = append(dsl.req.Nat44Interfaces, natIf)
+	return dsl
+}
+
+// NAT44AddressPool adds NAT44 address pool configuration to the RESYNC request.
+func (dsl *DataResyncDSL) NAT44AddressPool(pool *vpp_nat.Nat44AddressPool) linuxclient.DataResyncDSL {
+	dsl.req.Nat44AddressPools = append(dsl.req.Nat44AddressPools, pool)
+	return dsl
+}
+
+// PuntException adds request to create or update exception to punt specific packets.
+func (dsl *DataResyncDSL) PuntException(val *vpp_punt.Exception) linuxclient.DataResyncDSL {
+	dsl.req.Exceptions = append(dsl.req.Exceptions, val)
 	return dsl
 }
 

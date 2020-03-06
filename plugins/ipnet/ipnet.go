@@ -29,8 +29,8 @@ import (
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/pkg/errors"
 
-	linux_nsplugin "github.com/ligato/vpp-agent/plugins/linux/nsplugin"
-	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vpp/ifplugin"
+	linux_nsplugin "go.ligato.io/vpp-agent/v3/plugins/linux/nsplugin"
+	vpp_ifplugin "go.ligato.io/vpp-agent/v3/plugins/vpp/ifplugin"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"

@@ -23,10 +23,12 @@ import (
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/api/models/linux/iptables"
-	"github.com/ligato/vpp-agent/api/models/linux/namespace"
+
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/namespace"
+
 	"net"
 	"strings"
 )
@@ -300,9 +302,9 @@ func (rt *RendererTxn) actionToStr(a renderer.ActionType) string {
 
 func (rt *RendererTxn) ruleChainProtocolForIP(ipNet *net.IPNet) linux_iptables.RuleChain_Protocol {
 	if strings.Contains(ipNet.String(), ":") {
-		return linux_iptables.RuleChain_IPv6
+		return linux_iptables.RuleChain_IPV6
 	}
-	return linux_iptables.RuleChain_IPv4
+	return linux_iptables.RuleChain_IPV4
 }
 
 func isInIPlist(ip net.IP, ips []net.IP) bool {

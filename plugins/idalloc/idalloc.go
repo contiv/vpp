@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate protoc -I ./idallocation --gogo_out=plugins=grpc:./idallocation ./idallocation/idallocation.proto
+//go:generate protoc -I ./idallocation --go_out=plugins=grpc:./idallocation ./idallocation/idallocation.proto
 
 package idalloc
 
 import (
 	"fmt"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/infra"

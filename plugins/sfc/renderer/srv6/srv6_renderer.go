@@ -20,8 +20,8 @@ import (
 	"sort"
 	"strings"
 
-	linux_interfaces "github.com/ligato/vpp-agent/api/models/linux/interfaces"
-	vpp_interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
+	linux_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
+	vpp_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -32,10 +32,12 @@ import (
 	"github.com/contiv/vpp/plugins/sfc/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/cn-infra/logging"
-	vpp_l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
-	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
-	"github.com/ligato/vpp-agent/pkg/models"
+
+	vpp_l3 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	vpp_srv6 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/srv6"
+
 	"github.com/pkg/errors"
+	"go.ligato.io/vpp-agent/v3/pkg/models"
 )
 
 const (
@@ -546,7 +548,7 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 
 	switch rndr.endPointType(sfc, customNetworkName) {
 	case l2DX2Endpoint:
-		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L2 service
+		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionAd{EndFunctionAd: &vpp_srv6.LocalSID_EndAD{ // L2 service
 			// outgoing interface for SR-proxy is input interface for service
 			OutgoingInterface: pod.InputInterface.ConfigName,
 			// incoming interface for SR-proxy is output interface for service
@@ -554,7 +556,7 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 		}}
 	case l3Dx4Endpoint, l3Dx6Endpoint:
 		podInputIfIPNet := rndr.IPAM.GetPodCustomIfIP(pod.ID, pod.InputInterface.CRDName, customNetworkName)
-		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L3 service
+		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionAd{EndFunctionAd: &vpp_srv6.LocalSID_EndAD{ // L3 service
 			L3ServiceAddress: podInputIfIPNet.IP.String(),
 			// outgoing interface for SR-proxy is input interface for service
 			OutgoingInterface: pod.InputInterface.ConfigName,
@@ -648,15 +650,15 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, customNetwo
 
 	switch rndr.endPointType(sfc, customNetworkName) {
 	case l2DX2Endpoint:
-		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX2{
-			EndFunction_DX2: &vpp_srv6.LocalSID_EndDX2{
+		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionDx2{
+			EndFunctionDx2: &vpp_srv6.LocalSID_EndDX2{
 				OutgoingInterface: inInterface(endSfSelectable),
 			},
 		}
 	case l3Dx4Endpoint:
 		endIPNet := rndr.getLinkCustomIfIPNet(endSfSelectable, customNetworkName)
-		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX4{
-			EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
+		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionDx4{
+			EndFunctionDx4: &vpp_srv6.LocalSID_EndDX4{
 				NextHop:           endIPNet.IP.String(),
 				OutgoingInterface: inInterface(endSfSelectable),
 			},
@@ -667,8 +669,8 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, customNetwo
 		}
 	case l3Dx6Endpoint:
 		endIPNet := rndr.getLinkCustomIfIPNet(endSfSelectable, customNetworkName)
-		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
-			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunctionDx6{
+			EndFunctionDx6: &vpp_srv6.LocalSID_EndDX6{
 				NextHop:           endIPNet.IP.String(),
 				OutgoingInterface: inInterface(endSfSelectable),
 			},

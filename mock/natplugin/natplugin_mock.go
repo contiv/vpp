@@ -23,14 +23,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 
 	"github.com/contiv/vpp/mock/localclient"
 	"github.com/contiv/vpp/plugins/service/renderer"
 
 	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/api/models/vpp/nat"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/nat"
 )
 
 const dnat44Prefix = "config/vpp/nat/v2/dnat44/"

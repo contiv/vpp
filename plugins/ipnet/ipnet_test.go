@@ -31,10 +31,10 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	vpp_interfaces "github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	vpp_l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
-	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
-	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	scheduler "go.ligato.io/vpp-agent/v3/plugins/kvscheduler/api"
+	vpp_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	vpp_l3 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	vpp_srv6 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/srv6"
 
 	. "github.com/contiv/vpp/mock/datasync"
 	. "github.com/contiv/vpp/mock/eventloop"
@@ -910,14 +910,14 @@ func getExpectedPodTunnelSetup(nodeIP net.IP, fixture *TunnelTestingFixture, plu
 		InstallationVrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
 	}
 	if fixture.ContivConf.GetIPAMConfig().UseIPv6 {
-		expectedSetup.egress.EndFunction = &vpp_srv6.LocalSID_EndFunction_DT6{
-			EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
+		expectedSetup.egress.EndFunction = &vpp_srv6.LocalSID_EndFunctionDt6{
+			EndFunctionDt6: &vpp_srv6.LocalSID_EndDT6{
 				VrfId: fixture.ContivConf.GetRoutingConfig().PodVRFID,
 			},
 		}
 	} else {
-		expectedSetup.egress.EndFunction = &vpp_srv6.LocalSID_EndFunction_DT4{
-			EndFunction_DT4: &vpp_srv6.LocalSID_EndDT4{
+		expectedSetup.egress.EndFunction = &vpp_srv6.LocalSID_EndFunctionDt4{
+			EndFunctionDt4: &vpp_srv6.LocalSID_EndDT4{
 				VrfId: fixture.ContivConf.GetRoutingConfig().PodVRFID,
 			},
 		}
@@ -976,14 +976,14 @@ func getExpectedHostTunnelSetup(nodeIP net.IP, fixture *TunnelTestingFixture, pl
 		InstallationVrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
 	}
 	if fixture.ContivConf.GetIPAMConfig().UseIPv6 {
-		expectedSetup.egress.EndFunction = &vpp_srv6.LocalSID_EndFunction_DT6{
-			EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
+		expectedSetup.egress.EndFunction = &vpp_srv6.LocalSID_EndFunctionDt6{
+			EndFunctionDt6: &vpp_srv6.LocalSID_EndDT6{
 				VrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
 			},
 		}
 	} else {
-		expectedSetup.egress.EndFunction = &vpp_srv6.LocalSID_EndFunction_DT4{
-			EndFunction_DT4: &vpp_srv6.LocalSID_EndDT4{
+		expectedSetup.egress.EndFunction = &vpp_srv6.LocalSID_EndFunctionDt4{
+			EndFunctionDt4: &vpp_srv6.LocalSID_EndDT4{
 				VrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
 			},
 		}
@@ -1067,7 +1067,7 @@ func getExpectedPodToPodDX6TunnelSetup(localPod *podmanager.LocalPod, remotePod 
 	expectedSetup.egress = &vpp_srv6.LocalSID{
 		Sid:               podSid.String(),
 		InstallationVrfId: fixture.ContivConf.GetRoutingConfig().MainVRFID,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+		EndFunction: &vpp_srv6.LocalSID_EndFunctionDx6{EndFunctionDx6: &vpp_srv6.LocalSID_EndDX6{
 			OutgoingInterface: vppTap.Name,
 			NextHop:           podIP.IP.String(),
 		}},

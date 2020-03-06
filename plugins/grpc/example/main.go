@@ -171,7 +171,7 @@ func (plugin *ExamplePlugin) reconfigureVPP(ctx context.Context) {
 			XConnect(&XConMemif1ToMemif2).    // xconnect memif interfaces
 			BD(&BDLoopback1ToTap1).           // put loopback and tap1 into the same bridge domain
 			Delete().
-			StaticRoute(0, dstNetAddr.String(), nextHopAddr.String()). // remove the route going through memif1
+			StaticRoute(memif1AsSlave.Name, 0, dstNetAddr.String(), nextHopAddr.String()).
 			Send().ReceiveReply()
 		if err != nil {
 			logrus.DefaultLogger().Errorf("Failed to reconfigure VPP: %v", err)

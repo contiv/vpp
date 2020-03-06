@@ -1,18 +1,19 @@
 package vpp
 
 import (
-	"github.com/ligato/vpp-agent/clientv2/vpp"
+	"go.ligato.io/vpp-agent/v3/clientv2/vpp"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
-	"github.com/ligato/vpp-agent/api/models/vpp/abf"
-	"github.com/ligato/vpp-agent/api/models/vpp/acl"
-	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
-	"github.com/ligato/vpp-agent/api/models/vpp/ipsec"
-	"github.com/ligato/vpp-agent/api/models/vpp/l2"
-	"github.com/ligato/vpp-agent/api/models/vpp/l3"
-	"github.com/ligato/vpp-agent/api/models/vpp/nat"
-	"github.com/ligato/vpp-agent/api/models/vpp/punt"
-	"github.com/ligato/vpp-agent/api/models/vpp/stn"
+
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/abf"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/acl"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/ipsec"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l2"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/nat"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/punt"
+	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/stn"
 )
 
 // MockDataResyncDSL is mock for DataResyncDSL.
@@ -43,6 +44,20 @@ func (d *MockDataResyncDSL) ABF(val *vpp_abf.ABF) vppclient.DataResyncDSL {
 func (d *MockDataResyncDSL) BD(val *vpp_l2.BridgeDomain) vppclient.DataResyncDSL {
 	key := vpp_l2.BridgeDomainKey(val.Name)
 	d.Values[key] = val
+	return d
+}
+
+// NAT44Interface adds NAT44 interface configuration to the RESYNC request.
+func (d *MockDataResyncDSL) NAT44Interface(natIf *vpp_nat.Nat44Interface) vppclient.DataResyncDSL {
+	key := vpp_nat.Nat44InterfaceKey(natIf.Name)
+	d.Values[key] = natIf
+	return d
+}
+
+// NAT44AddressPool adds NAT44 address pool configuration to the RESYNC request.
+func (d *MockDataResyncDSL) NAT44AddressPool(pool *vpp_nat.Nat44AddressPool) vppclient.DataResyncDSL {
+	key := vpp_nat.Nat44AddressPoolKey(pool.VrfId, pool.FirstIp, pool.LastIp)
+	d.Values[key] = pool
 	return d
 }
 

@@ -2,10 +2,13 @@ VERSION := $(shell git describe --always --tags --dirty)
 COMMIT  := $(shell git rev-parse HEAD)
 DATE    := $(shell date +'%Y-%m-%dT%H:%M%:z')
 
-CNINFRA_AGENT := github.com/contiv/vpp/vendor/github.com/ligato/cn-infra/agent
+CNINFRA_AGENT := github.com/ligato/cn-infra/agent
 LDFLAGS = -s -w -X $(CNINFRA_AGENT).BuildVersion=$(VERSION) -X $(CNINFRA_AGENT).CommitHash=$(COMMIT) -X $(CNINFRA_AGENT).BuildDate=$(DATE)
 
 COVER_DIR ?= /tmp/
+
+export GO111MODULE=on
+export GOPROXY=https://goproxy.io
 
 # Build commands
 build: contiv-agent contiv-ksr contiv-crd contiv-cni contiv-stn contiv-init contiv-netctl contiv-ui-backend
@@ -124,8 +127,7 @@ test-race:
 
 # Get coverage report tools
 get-covtools:
-	go get -v github.com/mattn/goveralls
-	go install -v ./vendor/github.com/wadey/gocovmerge
+	go install github.com/wadey/gocovmerge
 
 # Run coverage report
 test-cover: get-covtools
@@ -183,7 +185,7 @@ test-cover-xml: test-cover
 
 # Get generator tools
 get-generators:
-	go install -v ./vendor/github.com/gogo/protobuf/protoc-gen-gogo
+	go install -mod=readonly github.com/golang/protobuf/protoc-gen-go
 
 # Generate sources
 generate: get-generators
@@ -255,23 +257,23 @@ endif
 check-links: get-linkcheck
 	./scripts/check_links.sh
 
-DEP := $(shell command -v dep 2> /dev/null)
-
-# Get dependency manager tool
-get-dep:
-ifndef DEP
-	go get -v github.com/golang/dep/cmd/dep
-endif
-
 # Install Go dependencies
-dep-install: get-dep
-	@echo "# installing Go dependencies"
-	$(DEP) ensure -v
+dep-install:
+	@echo "# downloading Go dependencies"
+	go mod download
 
 # Update Go dependencies
-dep-update: get-dep
+dep-update:
 	@echo "# updating Go dependencies"
-	$(DEP) ensure -v -update
+	go mod tidy
+
+dep-check:
+	@echo "# verifying dependencies"
+	go mod verify
+	@if ! git diff --quiet go.mod ; then \
+		echo "check failed"; \
+		exit 1 ; \
+	fi
 
 describe:
 	./scripts/contiv_describe.sh
@@ -314,7 +316,7 @@ run-debug-ui:
 	get-generators generate \
 	get-linters lint metalinter lint-yaml lint-helm format check-format \
 	get-linkcheck check-links \
-	get-dep dep-install \
+	dep-install \
 	docker-images docker-dev vagrant-images\
 	describe generate-manifest helm-package helm-yaml \
 	generate-manifest-arm64 helm-yaml-arm64 run-debug-ui

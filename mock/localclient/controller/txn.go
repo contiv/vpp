@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 
-	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	scheduler_api "go.ligato.io/vpp-agent/v3/plugins/kvscheduler/api"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
 )

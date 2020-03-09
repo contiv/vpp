@@ -23,9 +23,9 @@ import (
 //  - using the `-contiv-config=<path to config>` argument, or
 //  - using the `CONTIV_CONFIG=<path to config>` environment variable
 type Config struct {
-	InterfaceConfig
-	RoutingConfig
-	IPNeighborScanConfig
+	InterfaceConfig      `yaml:",inline"`
+	RoutingConfig        `yaml:",inline"`
+	IPNeighborScanConfig `yaml:",inline"`
 
 	StealFirstNIC  bool   `json:"stealFirstNIC,omitempty"`
 	StealInterface string `json:"stealInterface,omitempty"`

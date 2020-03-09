@@ -353,6 +353,19 @@ func (c *ContivConf) Init() (err error) {
 		if err != nil {
 			return err
 		}
+		// load configuration into embedded structs as well
+		_, err = c.Cfg.LoadValue(&c.config.InterfaceConfig)
+		if err != nil {
+			return err
+		}
+		_, err = c.Cfg.LoadValue(&c.config.RoutingConfig)
+		if err != nil {
+			return err
+		}
+		_, err = c.Cfg.LoadValue(&c.config.IPNeighborScanConfig)
+		if err != nil {
+			return err
+		}
 	}
 	c.Log.Infof("Contiv configuration: %+v", *c.config)
 

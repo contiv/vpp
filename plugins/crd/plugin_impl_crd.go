@@ -34,15 +34,15 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/contiv/vpp/plugins/crd/utils"
-	"github.com/ligato/cn-infra/config"
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/rest"
-	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/cn-infra/utils/safeclose"
+	"go.ligato.io/cn-infra/v2/config"
+	"go.ligato.io/cn-infra/v2/datasync"
+	"go.ligato.io/cn-infra/v2/datasync/resync"
+	"go.ligato.io/cn-infra/v2/db/keyval/etcd"
+	"go.ligato.io/cn-infra/v2/infra"
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/rpc/rest"
+	"go.ligato.io/cn-infra/v2/servicelabel"
+	"go.ligato.io/cn-infra/v2/utils/safeclose"
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache"
@@ -57,7 +57,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/validator"
 
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio"
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
+	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivppio/v1"
 	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
 

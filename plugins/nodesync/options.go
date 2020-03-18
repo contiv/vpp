@@ -15,9 +15,9 @@
 package nodesync
 
 import (
-	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/servicelabel"
+	"go.ligato.io/cn-infra/v2/db/keyval/etcd"
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/servicelabel"
 )
 
 // DefaultPlugin is a default instance of NodeSync.

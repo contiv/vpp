@@ -24,6 +24,7 @@
 package ksr
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -34,17 +35,16 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"context"
-	"github.com/ligato/cn-infra/config"
-	"github.com/ligato/cn-infra/datasync/kvdbsync"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/health/statuscheck"
-	"github.com/ligato/cn-infra/health/statuscheck/model/status"
-	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/prometheus"
-	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/cn-infra/utils/safeclose"
+	"go.ligato.io/cn-infra/v2/config"
+	"go.ligato.io/cn-infra/v2/datasync/kvdbsync"
+	"go.ligato.io/cn-infra/v2/db/keyval/etcd"
+	"go.ligato.io/cn-infra/v2/health/statuscheck"
+	"go.ligato.io/cn-infra/v2/health/statuscheck/model/status"
+	"go.ligato.io/cn-infra/v2/infra"
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/rpc/prometheus"
+	"go.ligato.io/cn-infra/v2/servicelabel"
+	"go.ligato.io/cn-infra/v2/utils/safeclose"
 )
 
 // Plugin watches K8s resources and causes all changes to be reflected in the ETCD

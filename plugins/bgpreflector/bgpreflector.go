@@ -16,14 +16,15 @@ package bgpreflector
 
 import (
 	"fmt"
-	"golang.org/x/sys/unix"
 	"net"
 
-	"github.com/ligato/cn-infra/infra"
+	"golang.org/x/sys/unix"
+
 	"github.com/vishvananda/netlink"
+	"go.ligato.io/cn-infra/v2/infra"
 
 	"go.ligato.io/vpp-agent/v3/pkg/models"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	vpp_l3 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"

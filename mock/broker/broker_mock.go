@@ -15,10 +15,11 @@
 package broker
 
 import (
-	"github.com/golang/protobuf/proto"
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/db/keyval"
 	"strings"
+
+	"github.com/golang/protobuf/proto"
+	"go.ligato.io/cn-infra/v2/datasync"
+	"go.ligato.io/cn-infra/v2/db/keyval"
 )
 
 type MockBroker struct {

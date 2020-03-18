@@ -19,9 +19,9 @@ import (
 
 	"github.com/contiv/vpp/mock/localclient"
 	"github.com/golang/protobuf/proto"
-	"github.com/ligato/cn-infra/datasync/syncbase"
-	"github.com/ligato/cn-infra/logging"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
+	"go.ligato.io/cn-infra/v2/datasync/syncbase"
+	"go.ligato.io/cn-infra/v2/logging"
+	linux_iptables "go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
 )
 
 // RuleChainMockHandler mocks VPP-Agent for RuleChain configuration part. It remembers RuleChains as VPP-Agent would do and exposes it later for unit test for verification.

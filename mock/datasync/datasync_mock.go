@@ -15,11 +15,12 @@
 package datasync
 
 import (
-	"golang.org/x/net/context"
 	"strings"
 
+	"golang.org/x/net/context"
+
 	"github.com/golang/protobuf/proto"
-	"github.com/ligato/cn-infra/datasync"
+	"go.ligato.io/cn-infra/v2/datasync"
 
 	"github.com/contiv/vpp/dbresources"
 	controller "github.com/contiv/vpp/plugins/controller/api"

@@ -15,7 +15,7 @@
 package policy
 
 import (
-	"github.com/ligato/cn-infra/infra"
+	"go.ligato.io/cn-infra/v2/infra"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"

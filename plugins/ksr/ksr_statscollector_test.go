@@ -16,14 +16,16 @@ package ksr
 
 import (
 	"fmt"
+
 	"github.com/contiv/vpp/plugins/ksr/model/ksrapi"
 	"github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/ligato/cn-infra/logging"
 	"testing"
+
+	"go.ligato.io/cn-infra/v2/logging"
 )
 
 const (

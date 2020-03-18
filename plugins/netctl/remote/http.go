@@ -19,12 +19,13 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	"github.com/ligato/cn-infra/config"
-	"golang.org/x/net/html"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"go.ligato.io/cn-infra/v2/config"
+	"golang.org/x/net/html"
 )
 
 // HTTPClient wraps http.Client with configured authorization and url base

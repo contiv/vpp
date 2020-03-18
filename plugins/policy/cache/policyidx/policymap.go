@@ -16,9 +16,9 @@ package policyidx
 
 import (
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
-	"github.com/ligato/cn-infra/idxmap"
-	"github.com/ligato/cn-infra/idxmap/mem"
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/idxmap"
+	"go.ligato.io/cn-infra/v2/idxmap/mem"
+	"go.ligato.io/cn-infra/v2/logging"
 )
 
 const (

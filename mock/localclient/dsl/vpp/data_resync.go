@@ -5,6 +5,8 @@ import (
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
 
+	"go.ligato.io/vpp-agent/v3/pkg/models"
+
 	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/abf"
 	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/acl"
 	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
@@ -148,6 +150,13 @@ func (d *MockDataResyncDSL) IPSecSA(val *vpp_ipsec.SecurityAssociation) vppclien
 // IPSecSPD adds request to create a new Security Policy Database
 func (d *MockDataResyncDSL) IPSecSPD(val *vpp_ipsec.SecurityPolicyDatabase) vppclient.DataResyncDSL {
 	key := vpp_ipsec.SPDKey(val.Index)
+	d.Values[key] = val
+	return d
+}
+
+// IPSecTunnelProtection adds request to RESYNC an IPSec tunnel protection
+func (d *MockDataResyncDSL) IPSecTunnelProtection(val *vpp_ipsec.TunnelProtection) vppclient.DataResyncDSL {
+	key := models.Key(val)
 	d.Values[key] = val
 	return d
 }

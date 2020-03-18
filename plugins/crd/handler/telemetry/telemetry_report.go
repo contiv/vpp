@@ -2,8 +2,9 @@ package telemetry
 
 import (
 	"fmt"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"time"
+
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 
 	"k8s.io/apimachinery/pkg/util/runtime"
 
@@ -11,8 +12,8 @@ import (
 	k8sCache "k8s.io/client-go/tools/cache"
 
 	"github.com/contiv/vpp/plugins/crd/api"
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
-	"github.com/ligato/cn-infra/logging"
+	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
+	"go.ligato.io/cn-infra/v2/logging"
 
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/telemetry/v1"

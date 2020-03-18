@@ -15,8 +15,8 @@
 package podmanager
 
 import (
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/grpc"
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/rpc/grpc"
 )
 
 // DefaultPlugin is a default instance of PodManager.

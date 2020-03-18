@@ -19,7 +19,7 @@ package processor
 import (
 	"net"
 
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/logging"
 
 	"github.com/contiv/vpp/plugins/ipnet"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"

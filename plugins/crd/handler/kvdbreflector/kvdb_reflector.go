@@ -26,9 +26,9 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
-	"github.com/ligato/cn-infra/db/keyval"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/servicelabel"
+	"go.ligato.io/cn-infra/v2/db/keyval"
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/servicelabel"
 
 	k8sCache "k8s.io/client-go/tools/cache"
 )

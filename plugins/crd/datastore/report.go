@@ -16,11 +16,12 @@ package datastore
 
 import (
 	"fmt"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/ligato/cn-infra/logging"
 	"io"
 	"os"
 	"time"
+
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"go.ligato.io/cn-infra/v2/logging"
 )
 
 // SimpleReport holds error/warning messages recorded during data collection /

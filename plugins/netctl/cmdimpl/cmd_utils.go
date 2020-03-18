@@ -18,19 +18,19 @@ package cmdimpl
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/golang/protobuf/jsonpb"
 
-	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/servicelabel"
+	"go.ligato.io/cn-infra/v2/db/keyval/etcd"
+	"go.ligato.io/cn-infra/v2/servicelabel"
 
 	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/nodesync/vppnode"
-	"net"
 )
 
 type clusterNodeInfo map[string]*oneNodeInfo

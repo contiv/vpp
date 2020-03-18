@@ -15,8 +15,8 @@
 package pluginvpp
 
 import (
-	"github.com/ligato/cn-infra/idxmap"
-	"github.com/ligato/cn-infra/logging/logrus"
+	"go.ligato.io/cn-infra/v2/idxmap"
+	"go.ligato.io/cn-infra/v2/logging/logrus"
 
 	"go.ligato.io/vpp-agent/v3/plugins/vpp/ifplugin/ifaceidx"
 	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp"

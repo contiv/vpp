@@ -18,8 +18,8 @@ import (
 	"testing"
 
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
+	"go.ligato.io/cn-infra/v2/logging/logrus"
 )
 
 func TestNewConfigIndex(t *testing.T) {

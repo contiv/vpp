@@ -27,8 +27,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+	"go.ligato.io/cn-infra/v2/db/keyval/etcd"
+	"go.ligato.io/cn-infra/v2/health/statuscheck/model/status"
 
 	"github.com/contiv/vpp/plugins/netctl/remote"
 )

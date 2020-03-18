@@ -21,7 +21,7 @@ import (
 
 	"github.com/golang/protobuf/jsonpb"
 
-	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+	"go.ligato.io/cn-infra/v2/health/statuscheck/model/status"
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"

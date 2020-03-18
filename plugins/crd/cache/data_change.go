@@ -15,12 +15,13 @@
 package cache
 
 import (
+	"reflect"
+
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	vppnodemodel "github.com/contiv/vpp/plugins/nodesync/vppnode"
 	"github.com/golang/protobuf/proto"
-	"github.com/ligato/cn-infra/datasync"
-	"reflect"
+	"go.ligato.io/cn-infra/v2/datasync"
 
 	"fmt"
 	"strings"

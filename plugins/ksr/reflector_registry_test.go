@@ -16,10 +16,11 @@ package ksr
 
 import (
 	"fmt"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/onsi/gomega"
 	"sync"
 	"testing"
+
+	"github.com/onsi/gomega"
+	"go.ligato.io/cn-infra/v2/logging"
 )
 
 const (

@@ -21,9 +21,9 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
-	"github.com/ligato/cn-infra/db/keyval"
-	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/servicelabel"
+	"go.ligato.io/cn-infra/v2/db/keyval"
+	"go.ligato.io/cn-infra/v2/infra"
+	"go.ligato.io/cn-infra/v2/servicelabel"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"

@@ -17,11 +17,12 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/contiv/vpp/plugins/netctl/cmdimpl"
 	"github.com/contiv/vpp/plugins/netctl/remote"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/spf13/cobra"
-	"os"
+	"go.ligato.io/cn-infra/v2/db/keyval/etcd"
 )
 
 var (

@@ -5,6 +5,8 @@ import (
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
 
+	"go.ligato.io/vpp-agent/v3/pkg/models"
+
 	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/abf"
 	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/acl"
 	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
@@ -181,6 +183,13 @@ func (d *MockPutDSL) IPSecSPD(val *vpp_ipsec.SecurityPolicyDatabase) vppclient.P
 	return d
 }
 
+// IPSecTunnelProtection adds request to create a new IPSec tunnel protection
+func (d *MockPutDSL) IPSecTunnelProtection(val *vpp_ipsec.TunnelProtection) vppclient.PutDSL {
+	key := models.Key(val)
+	d.parent.Values[key] = val
+	return d
+}
+
 // PuntIPRedirect adds request to create or update rule to punt L3 traffic via interface.
 func (d *MockPutDSL) PuntIPRedirect(val *vpp_punt.IPRedirect) vppclient.PutDSL {
 	key := vpp_punt.IPRedirectKey(val.L3Protocol, val.TxInterface)
@@ -333,15 +342,22 @@ func (d *MockDeleteDSL) DNAT44(label string) vppclient.DeleteDSL {
 }
 
 // IPSecSA adds request to create a new Security Association
-func (d *MockDeleteDSL) IPSecSA(saIndex string) vppclient.DeleteDSL {
+func (d *MockDeleteDSL) IPSecSA(saIndex uint32) vppclient.DeleteDSL {
 	key := vpp_ipsec.SAKey(saIndex)
 	d.parent.Values[key] = nil
 	return d
 }
 
 // IPSecSPD adds request to create a new Security Policy Database
-func (d *MockDeleteDSL) IPSecSPD(spdIndex string) vppclient.DeleteDSL {
+func (d *MockDeleteDSL) IPSecSPD(spdIndex uint32) vppclient.DeleteDSL {
 	key := vpp_ipsec.SPDKey(spdIndex)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// IPSecTunnelProtection adds request to delete an IPSec tunnel protection from an interface
+func (d *MockDeleteDSL) IPSecTunnelProtection(tp *vpp_ipsec.TunnelProtection) vppclient.DeleteDSL {
+	key := models.Key(tp)
 	d.parent.Values[key] = nil
 	return d
 }

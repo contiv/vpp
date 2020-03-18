@@ -16,6 +16,7 @@ package iptables
 
 import (
 	"fmt"
+
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipnet"
@@ -24,10 +25,10 @@ import (
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
 	"github.com/golang/protobuf/proto"
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/logging"
 
-	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/namespace"
+	linux_iptables "go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
+	linux_namespace "go.ligato.io/vpp-agent/v3/proto/ligato/linux/namespace"
 
 	"net"
 	"strings"

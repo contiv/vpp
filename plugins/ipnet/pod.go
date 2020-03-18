@@ -28,15 +28,15 @@ import (
 	"github.com/contiv/vpp/plugins/devicemanager"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/golang/protobuf/proto"
-	"github.com/ligato/cn-infra/db/keyval"
-	"github.com/ligato/cn-infra/servicelabel"
+	"go.ligato.io/cn-infra/v2/db/keyval"
+	"go.ligato.io/cn-infra/v2/servicelabel"
 
-	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/l3"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/namespace"
+	linux_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
+	linux_l3 "go.ligato.io/vpp-agent/v3/proto/ligato/linux/l3"
+	linux_namespace "go.ligato.io/vpp-agent/v3/proto/ligato/linux/namespace"
 	"go.ligato.io/vpp-agent/v3/proto/ligato/netalloc"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	vpp_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	vpp_l3 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
 
 	"go.ligato.io/vpp-agent/v3/pkg/models"
 )

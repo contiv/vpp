@@ -25,11 +25,11 @@ import (
 	"github.com/go-errors/errors"
 	. "github.com/onsi/gomega"
 
-	"github.com/ligato/cn-infra/datasync/syncbase"
-	idxmap_mem "github.com/ligato/cn-infra/idxmap/mem"
-	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
+	"go.ligato.io/cn-infra/v2/datasync/syncbase"
+	idxmap_mem "go.ligato.io/cn-infra/v2/idxmap/mem"
+	"go.ligato.io/cn-infra/v2/infra"
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/logging/logrus"
 
 	scheduler "go.ligato.io/vpp-agent/v3/plugins/kvscheduler/api"
 	vpp_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"

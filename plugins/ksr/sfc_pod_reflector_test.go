@@ -29,7 +29,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/ksr/model/sfc"
 
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/logging"
 )
 
 type SfcPodTestVars struct {

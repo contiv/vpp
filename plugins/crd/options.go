@@ -15,10 +15,10 @@
 package crd
 
 import (
-	"github.com/ligato/cn-infra/config"
-	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/rest"
+	"go.ligato.io/cn-infra/v2/config"
+	"go.ligato.io/cn-infra/v2/datasync/resync"
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/rpc/rest"
 )
 
 const (

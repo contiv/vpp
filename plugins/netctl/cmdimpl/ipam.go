@@ -22,7 +22,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"go.ligato.io/cn-infra/v2/db/keyval/etcd"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ipnet"

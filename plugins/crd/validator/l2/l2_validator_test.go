@@ -23,12 +23,12 @@ import (
 
 	"github.com/onsi/gomega"
 
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/logging/logrus"
 
 	"go.ligato.io/vpp-agent/v3/pkg/idxvpp"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l2"
+	vpp_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	vpp_l2 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l2"
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"

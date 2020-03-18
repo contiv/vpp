@@ -27,7 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/contiv/vpp/plugins/ksr/model/service"
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/logging"
 )
 
 type ServiceTestVars struct {

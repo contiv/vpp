@@ -20,9 +20,9 @@ package l2xconn
 import (
 	"fmt"
 
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/logging"
 
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	vpp_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
 	vpp_l2 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l2"
 
 	"github.com/contiv/vpp/plugins/contivconf"

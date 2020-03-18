@@ -6,6 +6,8 @@ import (
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
 
+	"go.ligato.io/vpp-agent/v3/pkg/models"
+
 	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
 	linux_iptables "go.ligato.io/vpp-agent/v3/proto/ligato/linux/iptables"
 	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/l3"
@@ -186,6 +188,13 @@ func (d *MockPutDSL) IPSecSA(val *vpp_ipsec.SecurityAssociation) linuxclient.Put
 // IPSecSPD adds request to create a new Security Policy Database
 func (d *MockPutDSL) IPSecSPD(val *vpp_ipsec.SecurityPolicyDatabase) linuxclient.PutDSL {
 	key := vpp_ipsec.SPDKey(val.Index)
+	d.parent.Values[key] = val
+	return d
+}
+
+// IPSecTunnelProtection adds request to create a new IPSec tunnel protection
+func (d *MockPutDSL) IPSecTunnelProtection(val *vpp_ipsec.TunnelProtection) linuxclient.PutDSL {
+	key := models.Key(val)
 	d.parent.Values[key] = val
 	return d
 }
@@ -390,15 +399,22 @@ func (d *MockDeleteDSL) LinuxRoute(dstAddr, outIfaceName string) linuxclient.Del
 }
 
 // IPSecSA adds request to delete a Security Association
-func (d *MockDeleteDSL) IPSecSA(saIndex string) linuxclient.DeleteDSL {
+func (d *MockDeleteDSL) IPSecSA(saIndex uint32) linuxclient.DeleteDSL {
 	key := vpp_ipsec.SAKey(saIndex)
 	d.parent.Values[key] = nil
 	return d
 }
 
 // IPSecSPD adds request to delete a Security Policy Database
-func (d *MockDeleteDSL) IPSecSPD(spdIndex string) linuxclient.DeleteDSL {
+func (d *MockDeleteDSL) IPSecSPD(spdIndex uint32) linuxclient.DeleteDSL {
 	key := vpp_ipsec.SPDKey(spdIndex)
+	d.parent.Values[key] = nil
+	return d
+}
+
+// IPSecTunnelProtection adds request to delete an IPSec tunnel protection from an interface
+func (d *MockDeleteDSL) IPSecTunnelProtection(tp *vpp_ipsec.TunnelProtection) linuxclient.DeleteDSL {
+	key := models.Key(tp)
 	d.parent.Values[key] = nil
 	return d
 }

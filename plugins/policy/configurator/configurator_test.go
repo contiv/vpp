@@ -22,8 +22,8 @@ import (
 
 	"github.com/onsi/gomega"
 
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/logging/logrus"
 
 	. "github.com/contiv/vpp/mock/policycache"
 	. "github.com/contiv/vpp/mock/renderer"

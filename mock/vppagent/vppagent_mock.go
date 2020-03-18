@@ -19,7 +19,7 @@ import (
 	"sync"
 
 	"github.com/contiv/vpp/mock/localclient"
-	"github.com/ligato/cn-infra/datasync/syncbase"
+	"go.ligato.io/cn-infra/v2/datasync/syncbase"
 )
 
 // MockVPPAgent mocks vpp agent behaviour related to transaction committing to vpp agent using vpp agent client. MockVPPAgent

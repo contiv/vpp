@@ -26,9 +26,9 @@ import (
 	. "github.com/contiv/vpp/mock/nodesync"
 	. "github.com/contiv/vpp/mock/servicelabel"
 
-	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
+	"go.ligato.io/cn-infra/v2/infra"
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/logging/logrus"
 
 	"bytes"
 

@@ -19,7 +19,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/validator/l2"
 	"github.com/contiv/vpp/plugins/crd/validator/l3"
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/logging"
 )
 
 // Validator is the implementation of the ContivTelemetryProcessor interface.

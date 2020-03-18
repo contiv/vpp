@@ -15,9 +15,9 @@
 package statscollector
 
 import (
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/prometheus"
-	"github.com/ligato/cn-infra/servicelabel"
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/rpc/prometheus"
+	"go.ligato.io/cn-infra/v2/servicelabel"
 )
 
 // DefaultPlugin is default instance of Plugin.

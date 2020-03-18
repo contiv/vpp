@@ -2,7 +2,7 @@ VERSION := $(shell git describe --always --tags --dirty)
 COMMIT  := $(shell git rev-parse HEAD)
 DATE    := $(shell date +'%Y-%m-%dT%H:%M%:z')
 
-CNINFRA_AGENT := github.com/ligato/cn-infra/agent
+CNINFRA_AGENT := go.ligato.io/cn-infra/v2/agent
 LDFLAGS = -s -w -X $(CNINFRA_AGENT).BuildVersion=$(VERSION) -X $(CNINFRA_AGENT).CommitHash=$(COMMIT) -X $(CNINFRA_AGENT).BuildDate=$(DATE)
 
 COVER_DIR ?= /tmp/

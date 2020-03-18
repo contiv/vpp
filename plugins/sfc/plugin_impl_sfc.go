@@ -32,8 +32,8 @@ import (
 	"github.com/contiv/vpp/plugins/sfc/renderer/l2xconn"
 	"github.com/contiv/vpp/plugins/sfc/renderer/srv6"
 	"github.com/contiv/vpp/plugins/statscollector"
-	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/servicelabel"
+	"go.ligato.io/cn-infra/v2/infra"
+	"go.ligato.io/cn-infra/v2/servicelabel"
 	"go.ligato.io/vpp-agent/v3/plugins/govppmux"
 )
 

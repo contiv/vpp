@@ -19,8 +19,8 @@ import (
 
 	"github.com/contiv/vpp/mock/localclient"
 	"github.com/golang/protobuf/proto"
-	"github.com/ligato/cn-infra/datasync/syncbase"
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/datasync/syncbase"
+	"go.ligato.io/cn-infra/v2/logging"
 	vpp_l3 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
 )
 

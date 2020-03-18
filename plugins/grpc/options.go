@@ -15,7 +15,7 @@
 package rpc
 
 import (
-	"github.com/ligato/cn-infra/rpc/grpc"
+	"go.ligato.io/cn-infra/v2/rpc/grpc"
 )
 
 // DefaultPlugin is default instance of Plugin

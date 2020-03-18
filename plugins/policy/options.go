@@ -15,7 +15,7 @@
 package policy
 
 import (
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/logging"
 )
 
 // NewPlugin creates a new Plugin with the provides Options

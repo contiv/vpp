@@ -19,16 +19,16 @@ import (
 
 	"github.com/contiv/vpp/plugins/ipnet/restapi"
 	"github.com/golang/protobuf/proto"
-	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+	"go.ligato.io/cn-infra/v2/health/statuscheck/model/status"
 
 	linux_ifaceidx "go.ligato.io/vpp-agent/v3/plugins/linux/ifplugin/ifaceidx"
 	"go.ligato.io/vpp-agent/v3/plugins/vpp/ifplugin/ifaceidx"
 
 	"go.ligato.io/vpp-agent/v3/pkg/idxvpp"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l2"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	linux_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/linux/interfaces"
+	vpp_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	vpp_l2 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l2"
+	vpp_l3 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
 )
 
 /*********************************** Reports **********************************/

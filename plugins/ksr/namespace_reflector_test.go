@@ -25,7 +25,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	proto "github.com/contiv/vpp/plugins/ksr/model/namespace"
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/logging"
 )
 
 type NamespaceTestVars struct {

@@ -15,17 +15,18 @@
 package cache
 
 import (
-	"github.com/ligato/cn-infra/datasync"
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+
+	"go.ligato.io/cn-infra/v2/datasync"
 
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	vppnodemodel "github.com/contiv/vpp/plugins/nodesync/vppnode"
 
-	"fmt"
 	"github.com/contiv/vpp/plugins/crd/api"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 // Resync sends the resync event passed as an argument to the ctc telemetryCache

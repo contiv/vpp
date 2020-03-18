@@ -15,11 +15,11 @@
 package ksr
 
 import (
-	"github.com/ligato/cn-infra/config"
-	"github.com/ligato/cn-infra/health/statuscheck"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/prometheus"
-	"github.com/ligato/cn-infra/servicelabel"
+	"go.ligato.io/cn-infra/v2/config"
+	"go.ligato.io/cn-infra/v2/health/statuscheck"
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/rpc/prometheus"
+	"go.ligato.io/cn-infra/v2/servicelabel"
 )
 
 const (

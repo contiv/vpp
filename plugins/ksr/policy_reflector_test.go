@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/contiv/vpp/plugins/ksr/model/ksrapi"
-	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+	"go.ligato.io/cn-infra/v2/health/statuscheck/model/status"
 
 	"github.com/onsi/gomega"
 
@@ -33,7 +33,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/contiv/vpp/plugins/ksr/model/policy"
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/logging"
 )
 
 type PolicyTestVars struct {

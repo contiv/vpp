@@ -18,7 +18,7 @@ package processor
 
 import (
 	"github.com/contiv/vpp/plugins/sfc/renderer"
-	"github.com/ligato/cn-infra/datasync"
+	"go.ligato.io/cn-infra/v2/datasync"
 )
 
 // SFCProcessorAPI defines the API of the Service Function Chain Processor.

@@ -26,13 +26,13 @@ import (
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/golang/protobuf/proto"
-	"github.com/ligato/cn-infra/idxmap"
+	"go.ligato.io/cn-infra/v2/idxmap"
 
 	"go.ligato.io/vpp-agent/v3/pkg/models"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l2"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/srv6"
+	vpp_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	vpp_l2 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l2"
+	vpp_l3 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/l3"
+	vpp_srv6 "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/srv6"
 
 	"github.com/pkg/errors"
 )

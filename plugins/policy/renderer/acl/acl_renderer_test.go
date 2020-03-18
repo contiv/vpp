@@ -18,11 +18,12 @@ package acl
 
 import (
 	"context"
-	"github.com/onsi/gomega"
 	"testing"
 
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/onsi/gomega"
+
+	"go.ligato.io/cn-infra/v2/logging"
+	"go.ligato.io/cn-infra/v2/logging/logrus"
 
 	scheduler "go.ligato.io/vpp-agent/v3/plugins/kvscheduler/api"
 	vpp_acl "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/acl"

@@ -17,11 +17,12 @@ package contivconf
 import (
 	"context"
 	"fmt"
-	"go.ligato.io/vpp-agent/v3/plugins/govppmux"
 	"net"
 	"sort"
 	"strings"
 	"time"
+
+	"go.ligato.io/vpp-agent/v3/plugins/govppmux"
 
 	govpp "git.fd.io/govpp.git/api"
 	"github.com/ghodss/yaml"
@@ -29,12 +30,12 @@ import (
 	"github.com/vishvananda/netlink"
 	"google.golang.org/grpc"
 
-	"github.com/ligato/cn-infra/db/keyval"
-	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/servicelabel"
+	"go.ligato.io/cn-infra/v2/db/keyval"
+	"go.ligato.io/cn-infra/v2/infra"
+	"go.ligato.io/cn-infra/v2/servicelabel"
 
 	intf_vppcalls "go.ligato.io/vpp-agent/v3/plugins/vpp/ifplugin/vppcalls"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
+	vpp_interfaces "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/interfaces"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"

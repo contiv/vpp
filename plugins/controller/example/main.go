@@ -20,10 +20,10 @@ import (
 
 	//"github.com/go-errors/errors"
 
-	"github.com/ligato/cn-infra/agent"
-	"github.com/ligato/cn-infra/db/keyval/bolt"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/servicelabel"
+	"go.ligato.io/cn-infra/v2/agent"
+	"go.ligato.io/cn-infra/v2/db/keyval/bolt"
+	"go.ligato.io/cn-infra/v2/db/keyval/etcd"
+	"go.ligato.io/cn-infra/v2/servicelabel"
 
 	plugin "github.com/contiv/vpp/plugins/controller"
 	"github.com/contiv/vpp/plugins/controller/api"

@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	"github.com/contiv/vpp/plugins/netctl/remote"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"go.ligato.io/cn-infra/v2/db/keyval/etcd"
 )
 
 // dumpIndex defines index page for kvscheduler Dump REST API to be un-marshalled

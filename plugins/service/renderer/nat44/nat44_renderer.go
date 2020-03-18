@@ -24,9 +24,9 @@ import (
 
 	govpp "git.fd.io/govpp.git/api"
 	"github.com/golang/protobuf/proto"
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/logging"
 	nat_api "go.ligato.io/vpp-agent/v3/plugins/vpp/binapi/vpp1908/nat"
-	"go.ligato.io/vpp-agent/v3/proto/ligato/vpp/nat"
+	vpp_nat "go.ligato.io/vpp-agent/v3/proto/ligato/vpp/nat"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"

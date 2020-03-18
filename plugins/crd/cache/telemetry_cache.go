@@ -24,9 +24,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/health/statuscheck/model/status"
-	"github.com/ligato/cn-infra/logging"
+	"go.ligato.io/cn-infra/v2/datasync"
+	"go.ligato.io/cn-infra/v2/health/statuscheck/model/status"
+	"go.ligato.io/cn-infra/v2/logging"
 
 	linuxifdescr "go.ligato.io/vpp-agent/v3/plugins/linux/ifplugin/descriptor"
 	vppifdescr "go.ligato.io/vpp-agent/v3/plugins/vpp/ifplugin/descriptor"

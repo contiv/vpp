@@ -2,19 +2,19 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-
 	"errors"
+	"fmt"
+	"os"
+	"strings"
+
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
-	"github.com/ligato/cn-infra/db/keyval"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/db/keyval/kvproto"
-	"github.com/ligato/cn-infra/logging"
 	log "github.com/sirupsen/logrus"
-	"os"
-	"strings"
+	"go.ligato.io/cn-infra/v2/db/keyval"
+	"go.ligato.io/cn-infra/v2/db/keyval/etcd"
+	"go.ligato.io/cn-infra/v2/db/keyval/kvproto"
+	"go.ligato.io/cn-infra/v2/logging"
 )
 
 const (

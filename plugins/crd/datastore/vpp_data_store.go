@@ -26,7 +26,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ipnet"
 	"github.com/contiv/vpp/plugins/ipnet/restapi"
-	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+	"go.ligato.io/cn-infra/v2/health/statuscheck/model/status"
 )
 
 //VppDataStore holds various maps which all take different keys but point to the same underlying value.

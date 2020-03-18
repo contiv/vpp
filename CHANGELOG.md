@@ -1,3 +1,16 @@
+# Release v3.4.0 (2020-03-18)
+
+### VPP
+ - version **v19.08.1** (latest stable/1908)
+
+### New Features & Enhancements
+ - update to vpp-agent v3
+
+### Known Issues
+ - (IPv6 only): network Policies are implemented using ip6tables rules in individual pods. Because of
+   this, the policy programming is a bit slower (compared to policy programming on VPP for IPv4)
+
+
 # Release v3.3.3 (2019-11-14)
 
 ### VPP

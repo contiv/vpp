@@ -1,3 +1,12 @@
+# Release v3.4.1 (2020-05-28)
+
+### VPP
+ - version **v19.08.2** (latest stable/1908)
+
+### Fixes
+ - update base Docker image to resolve CVE-2019-20795
+ 
+
 # Release v3.4.0 (2020-03-18)
 
 ### VPP

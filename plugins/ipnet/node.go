@@ -1032,10 +1032,16 @@ func (n *IPNet) vxlanArpEntry(network string, otherNodeID uint32, vxlanIP net.IP
 // vxlanFibEntry returns configuration for L2 FIB used inside the bridge domain with VXLANs
 // to route traffic destinated to the given other node through the right VXLAN interface.
 func (n *IPNet) vxlanFibEntry(network string, otherNodeID uint32) (key string, config *vpp_l2.FIBEntry) {
+	var vxlanName string
+	if network == "" || network == DefaultPodNetworkName {
+		vxlanName = defaultPodVxlanName
+	} else {
+		vxlanName = network
+	}
 	fib := &vpp_l2.FIBEntry{
 		BridgeDomain:            n.vxlanBDName(network),
 		PhysAddress:             hwAddrForNodeInterface(otherNodeID, vxlanBVIHwAddrPrefix),
-		OutgoingInterface:       n.nameForVxlanToOtherNode(defaultPodVxlanName, otherNodeID),
+		OutgoingInterface:       n.nameForVxlanToOtherNode(vxlanName, otherNodeID),
 		StaticConfig:            true,
 		BridgedVirtualInterface: false,
 		Action:                  vpp_l2.FIBEntry_FORWARD,

@@ -1,3 +1,12 @@
+# Release v3.4.2 (2020-09-16)
+
+### VPP
+ - version **v19.08.2**
+
+### Fixes
+ - bump ETCD version to 3.3.24 to address CVE (#1750)
+
+
 # Release v3.4.1 (2020-05-28)
 
 ### VPP
@@ -5,7 +14,7 @@
 
 ### Fixes
  - updated base Docker image to resolve CVE-2019-20795
- 
+
 
 # Release v3.4.0 (2020-03-18)
 

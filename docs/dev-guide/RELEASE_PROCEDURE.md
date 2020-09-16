@@ -23,4 +23,4 @@ Given a version number `vMAJOR.MINOR.PATCH` pick a version:
      ```
 
 4. Wait for Docker images build.
-5. Re-tag Docker images to release version (`vX.Y.Z`) without prefixes.
+5. Re-tag Docker images to release version (`vX.Y.Z`) without prefixes (use [retag.sh](https://github.com/contiv/vpp/blob/master/docker/retag.sh)).

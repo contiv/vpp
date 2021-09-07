@@ -4,14 +4,13 @@ go 1.13
 
 require (
 	git.fd.io/govpp.git v0.3.1
-	github.com/Microsoft/go-winio v0.4.12 // indirect
 	github.com/apparentlymart/go-cidr v0.0.0-20170616213631-2bd8b58cf427
 	github.com/containerd/continuity v0.0.0-20181203112020-004b46473808 // indirect
 	github.com/containernetworking/cni v0.7.1
 	github.com/containernetworking/plugins v0.7.5
 	github.com/docker/docker v1.4.2-0.20180620002508-3dfb26ab3cbf // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
-	github.com/evanphx/json-patch v4.5.0+incompatible // indirect
+	github.com/docker/libnetwork v0.8.0-dev.2.0.20190624125649-f0e46a78ea34 // indirect
 	github.com/fluent/fluent-logger-golang v1.4.0 // indirect
 	github.com/fsouza/go-dockerclient v1.2.2
 	github.com/ghodss/yaml v1.0.0
@@ -22,9 +21,10 @@ require (
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/namsral/flag v1.7.4-pre
 	github.com/onsi/gomega v1.7.0
+	github.com/opencontainers/runc v1.0.0-rc9 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.0.0
-	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4
+	github.com/prometheus/client_model v0.2.0
 	github.com/safchain/ethtool v0.0.0-20170622225139-7ff1ba29eca2
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
@@ -33,15 +33,15 @@ require (
 	github.com/vishvananda/netlink v1.0.1-0.20190319163122-f504738125a5
 	go.ligato.io/cn-infra/v2 v2.5.0-alpha.0.20200313154441-b0d4c1b11c73
 	go.ligato.io/vpp-agent/v3 v3.1.0
-	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
-	golang.org/x/sys v0.0.0-20200317113312-5766fd39f98d
+	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
+	golang.org/x/sys v0.0.0-20201112073958-5cba982894dd
 	google.golang.org/grpc v1.27.1
 	k8s.io/api v0.17.1
 	k8s.io/apiextensions-apiserver v0.0.0
 	k8s.io/apimachinery v0.17.1
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/kubelet v0.0.0
-	k8s.io/kubernetes v1.17.1
+	k8s.io/kubernetes v1.18.19
 )
 
 replace (
